@@ -7,10 +7,38 @@
 import SwiftUI
 
 @main
-struct disk_hogApp: App {
+struct DiskHogApp: App {
     var body: some Scene {
-        WindowGroup {
+        WindowGroup("Choose Source", id: WindowIDs.sourcePalette) {
             ContentView()
         }
+
+        WindowGroup("Disk Hog", for: ScanSource.self) { source in
+            if let source: ScanSource = source.wrappedValue {
+                ScanWindowView(source: source)
+            } else {
+                SourcePaletteView()
+            }
+        }
+        .commands {
+            DiskHogCommands()
+        }
     }
+}
+
+private struct DiskHogCommands: Commands {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some Commands {
+        CommandGroup(replacing: .newItem) {
+            Button("New Scan Window") {
+                openWindow(id: WindowIDs.sourcePalette)
+            }
+            .keyboardShortcut("n", modifiers: .command)
+        }
+    }
+}
+
+private enum WindowIDs {
+    static let sourcePalette: String = "sourcePalette"
 }
