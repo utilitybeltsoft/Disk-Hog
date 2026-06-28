@@ -5,6 +5,7 @@ nonisolated final class DiskItem: Identifiable, Hashable, @unchecked Sendable {
     private(set) weak var parent: DiskItem?
     private var childrenStorage: [DiskItem]
     private let fileSystemName: String
+    private let fileSystemDisplayName: String
     private let fileSystemNameForComparison: NSString
 
     var itemType: DiskItemType
@@ -24,6 +25,8 @@ nonisolated final class DiskItem: Identifiable, Hashable, @unchecked Sendable {
         url: URL,
         parent: DiskItem? = nil,
         itemType: DiskItemType = .fileOrFolder,
+        displayName: String? = nil,
+        name: String? = nil,
         allocatedSizeValue: UInt64 = 0,
         logicalSizeValue: UInt64 = 0,
         kindName: String? = nil,
@@ -35,8 +38,9 @@ nonisolated final class DiskItem: Identifiable, Hashable, @unchecked Sendable {
         self.url = url
         self.parent = parent
         self.childrenStorage = []
-        let lastPathComponent: String = url.lastPathComponent
+        let lastPathComponent: String = name ?? url.lastPathComponent
         self.fileSystemName = lastPathComponent.isEmpty ? url.path : lastPathComponent
+        self.fileSystemDisplayName = displayName ?? self.fileSystemName
         self.fileSystemNameForComparison = self.fileSystemName as NSString
         self.itemType = itemType
         self.allocatedSizeValue = allocatedSizeValue
@@ -71,7 +75,7 @@ nonisolated final class DiskItem: Identifiable, Hashable, @unchecked Sendable {
     var displayName: String {
         switch itemType {
         case .fileOrFolder:
-            return fileSystemName
+            return fileSystemDisplayName
         case .otherSpace:
             return "space occupied by other files and folders"
         case .freeSpace:

@@ -31,6 +31,8 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable {
         let rootValues: URLResourceValues = resourceValues(for: rootURL, keys: Self.topLevelProperties)
         let rootItem: DiskItem = DiskItem(
             url: rootURL,
+            displayName: rootValues.localizedName,
+            name: rootValues.name,
             isDirectory: rootValues.isDirectory ?? true,
             isPackage: rootValues.isPackage ?? false
         )
@@ -313,6 +315,8 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable {
             DiskItem(
                 url: url,
                 parent: parent,
+                displayName: values.localizedName,
+                name: values.name,
                 allocatedSizeValue: isDirectory ? 0 : sizeValue(values: values, usePhysicalSize: usePhysicalSize),
                 logicalSizeValue: isDirectory ? 0 : sizeValue(values: values, usePhysicalSize: false),
                 kindName: setKindString ? kindResolver.kindName(typeIdentifier: values.typeIdentifier, url: url) : nil,
@@ -454,6 +458,7 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable {
         .isDirectoryKey,
         .isPackageKey,
         .isVolumeKey,
+        .localizedNameKey,
         .nameKey,
         .typeIdentifierKey,
         .fileSizeKey,
@@ -461,6 +466,7 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable {
     ]
 
     private static let urlProperties: [URLResourceKey] = [
+        .localizedNameKey,
         .nameKey,
         .isVolumeKey,
         .isPackageKey,

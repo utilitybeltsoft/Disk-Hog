@@ -10,7 +10,7 @@ nonisolated enum TreemapInputDiagnostics {
         root: DiskItem,
         settings: DiskScanSettings,
         to outputURL: URL = defaultOutputURL
-    ) throws {
+    ) throws -> URL {
         try? FileManager.default.removeItem(at: outputURL)
         let didCreateFile: Bool = FileManager.default.createFile(atPath: outputURL.path, contents: nil)
         guard didCreateFile else {
@@ -52,6 +52,8 @@ nonisolated enum TreemapInputDiagnostics {
             palette: palette,
             writeLine: writeLine
         )
+
+        return outputURL
     }
 
     private static func appendItem(
@@ -148,11 +150,15 @@ nonisolated enum TreemapInputDiagnostics {
     }
 
     fileprivate static func diagnosticKindName(for item: DiskItem) -> String {
+        if let kindName: String = item.kindName {
+            return kindName
+        }
+
         if item.isFolder && !item.isPackage {
             return Metrics.folderKindName
         }
 
-        return item.kindName ?? Metrics.emptyKindName
+        return Metrics.emptyKindName
     }
 
     private static func diagnosticTypeName(for item: DiskItem) -> String {

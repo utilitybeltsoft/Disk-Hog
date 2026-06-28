@@ -137,20 +137,23 @@ private struct InspectorPlaceholderView: View {
                     .foregroundStyle(.red)
                     .textSelection(.enabled)
             }
-            Button {
-                do {
-                    let outputURL: URL = try session.writeTreemapInputDiagnostics()
-                    let pasteboard: NSPasteboard = .general
-                    pasteboard.clearContents()
-                    pasteboard.writeObjects([outputURL as NSURL])
-                    pasteboard.setString(outputURL.path, forType: .string)
-                } catch {
-                    NSSound.beep()
-                }
-            } label: {
-                Label("Copy Diagnostics", systemImage: "doc.on.doc")
+            if let diagnosticsMessage: String = session.diagnosticsExportState.message {
+                Text(diagnosticsMessage)
+                    .font(.caption)
+                    .foregroundStyle(diagnosticsMessage.hasPrefix("Diagnostics failed") ? .red : .secondary)
+                    .lineLimit(Metrics.diagnosticsMessageLineLimit)
+                    .truncationMode(.middle)
+                    .textSelection(.enabled)
             }
-            .disabled(session.rootItem == nil)
+            Button {
+                session.exportTreemapInputDiagnostics()
+            } label: {
+                Label(
+                    session.diagnosticsExportState.isWriting ? "Writing Diagnostics" : "Copy Diagnostics",
+                    systemImage: session.diagnosticsExportState.isWriting ? "hourglass" : "doc.on.doc"
+                )
+            }
+            .disabled(session.rootItem == nil || session.diagnosticsExportState.isWriting)
         }
         .padding(Metrics.placeholderPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -180,6 +183,7 @@ private enum ScanWindowMetrics {
     static let treemapIconSize: CGFloat = 48
     static let singleLineLimit: Int = 1
     static let currentPathLineLimit: Int = 3
+    static let diagnosticsMessageLineLimit: Int = 4
 }
 
 private typealias Metrics = ScanWindowMetrics

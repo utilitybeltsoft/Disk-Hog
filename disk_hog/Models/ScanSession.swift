@@ -1,3 +1,4 @@
+import AppKit
 import Combine
 import Foundation
 
@@ -12,6 +13,7 @@ final class ScanSession: ObservableObject {
     @Published private(set) var currentPath: String
     @Published private(set) var rootItem: DiskItem?
     @Published private(set) var errorMessage: String?
+    @Published private(set) var diagnosticsExportState: DiagnosticsExportState
 
     let source: ScanSource
 
@@ -32,6 +34,7 @@ final class ScanSession: ObservableObject {
         self.currentPath = source.path
         self.rootItem = nil
         self.errorMessage = nil
+        self.diagnosticsExportState = .idle
     }
 
     var scannedItemCount: Int {
@@ -108,16 +111,35 @@ final class ScanSession: ObservableObject {
         return max(.zero, endDate.timeIntervalSince(startedAt))
     }
 
-    func writeTreemapInputDiagnostics() throws -> URL {
+    func exportTreemapInputDiagnostics() {
         guard let rootItem: DiskItem = rootItem else {
-            throw CocoaError(.fileNoSuchFile)
+            diagnosticsExportState = .failed("No completed scan tree is available.")
+            return
         }
 
-        try TreemapInputDiagnostics.writeJSONLinesReport(
-            root: rootItem,
-            settings: settings
-        )
-        return TreemapInputDiagnostics.defaultOutputURL
+        let settings: DiskScanSettings = settings
+        diagnosticsExportState = .writing(TreemapInputDiagnostics.defaultOutputURL.path)
+
+        Task.detached(priority: .utility) {
+            do {
+                let outputURL: URL = try TreemapInputDiagnostics.writeJSONLinesReport(
+                    root: rootItem,
+                    settings: settings
+                )
+                await MainActor.run {
+                    let pasteboard: NSPasteboard = .general
+                    pasteboard.clearContents()
+                    pasteboard.writeObjects([outputURL as NSURL])
+                    pasteboard.setString(outputURL.path, forType: .string)
+                    self.diagnosticsExportState = .written(outputURL.path)
+                }
+            } catch {
+                await MainActor.run {
+                    self.diagnosticsExportState = .failed(String(describing: error))
+                    NSSound.beep()
+                }
+            }
+        }
     }
 
     private func applyProgress(_ progress: DiskScanProgress) {
@@ -174,5 +196,33 @@ enum ScanSessionState: Hashable {
         case .failed:
             return "Failed"
         }
+    }
+}
+
+enum DiagnosticsExportState: Hashable {
+    case idle
+    case writing(String)
+    case written(String)
+    case failed(String)
+
+    var message: String? {
+        switch self {
+        case .idle:
+            return nil
+        case .writing(let path):
+            return "Writing diagnostics: \(path)"
+        case .written(let path):
+            return "Diagnostics written: \(path)"
+        case .failed(let message):
+            return "Diagnostics failed: \(message)"
+        }
+    }
+
+    var isWriting: Bool {
+        if case .writing = self {
+            return true
+        }
+
+        return false
     }
 }
