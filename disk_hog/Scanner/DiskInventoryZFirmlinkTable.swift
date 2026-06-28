@@ -17,10 +17,15 @@ nonisolated final class DiskInventoryZFirmlinkTable: @unchecked Sendable {
     }
 
     func isFirmlink(_ url: URL) -> Bool {
+        let startTime: CFAbsoluteTime = CFAbsoluteTimeGetCurrent()
+        defer {
+            ScanPerformanceRecorder.shared.addTime("url.isFirmlink", seconds: CFAbsoluteTimeGetCurrent() - startTime)
+        }
+
         lock.lock()
         if let loadedPaths: Set<String> = loadedPaths {
             lock.unlock()
-            return loadedPaths.contains(url.standardizedFileURL.path)
+            return loadedPaths.contains(url.path)
         }
         lock.unlock()
 
@@ -30,7 +35,7 @@ nonisolated final class DiskInventoryZFirmlinkTable: @unchecked Sendable {
         if loadedPaths == nil {
             loadedPaths = paths
         }
-        let result: Bool = loadedPaths?.contains(url.standardizedFileURL.path) ?? false
+        let result: Bool = loadedPaths?.contains(url.path) ?? false
         lock.unlock()
 
         return result
@@ -54,7 +59,7 @@ nonisolated final class DiskInventoryZFirmlinkTable: @unchecked Sendable {
                 continue
             }
 
-            paths.insert(URL(fileURLWithPath: sourcePath).standardizedFileURL.path)
+            paths.insert(sourcePath)
         }
 
         return paths

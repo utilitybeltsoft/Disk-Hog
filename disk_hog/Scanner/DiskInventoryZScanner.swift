@@ -22,6 +22,9 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable {
         settings: DiskScanSettings = .diskInventoryZDefault,
         progressHandler: ProgressHandler? = nil
     ) throws -> DiskItem {
+        let profile: ScanPerformanceRecorder = .shared
+        profile.reset(appName: "Disk Hog", rootPath: source.path)
+        let scanStartTime: CFAbsoluteTime = CFAbsoluteTimeGetCurrent()
         try Task.checkCancellation()
 
         let rootURL: URL = URL(fileURLWithPath: source.path)
@@ -36,7 +39,9 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable {
         var hardlinks: Set<AnyHashable> = []
         var lastProgressTime: TimeInterval = 0
 
-        let topLevelURLs: [URL] = try topLevelContents(of: rootURL)
+        let topLevelURLs: [URL] = try profile.measure("topLevel.enumeration") {
+            try topLevelContents(of: rootURL)
+        }
         for childURL: URL in topLevelURLs {
             try Task.checkCancellation()
 
@@ -54,31 +59,39 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable {
                 progressHandler: progressHandler
             )
 
-            let childValues: URLResourceValues = resourceValues(for: childURL, keys: Self.urlProperties)
-            let orphan: DiskItem = makeItem(
-                url: childURL,
-                values: childValues,
-                parent: nil,
-                setKindString: true,
-                usePhysicalSize: settings.usePhysicalSize,
-                counters: &counters
-            )
+            let childValues: URLResourceValues = profile.measure("topLevel.resourceValues") {
+                resourceValues(for: childURL, keys: Self.urlProperties)
+            }
+            let orphan: DiskItem = profile.measure("topLevel.orphanInit") {
+                makeItem(
+                    url: childURL,
+                    values: childValues,
+                    parent: nil,
+                    setKindString: true,
+                    usePhysicalSize: settings.usePhysicalSize,
+                    counters: &counters
+                )
+            }
 
             if orphan.isDirectory && childValues.isVolume != true && (!orphan.isPackage || settings.lookInsidePackages) {
-                try loadChildrenAndSetKindStrings(
-                    of: orphan,
-                    setKindStrings: true,
-                    settings: settings,
-                    counters: &counters,
-                    hardlinks: &hardlinks,
-                    lastProgressTime: &lastProgressTime,
-                    progressHandler: progressHandler
-                )
+                try profile.measure("topLevel.loadChildren") {
+                    try loadChildrenAndSetKindStrings(
+                        of: orphan,
+                        setKindStrings: true,
+                        settings: settings,
+                        counters: &counters,
+                        hardlinks: &hardlinks,
+                        lastProgressTime: &lastProgressTime,
+                        progressHandler: progressHandler
+                    )
+                }
             } else if orphan.isDirectory && orphan.isPackage && !settings.lookInsidePackages {
-                let packageSize: UInt64 = try opaquePackageSize(
-                    at: childURL,
-                    settings: settings
-                )
+                let packageSize: UInt64 = try profile.measure("package.opaqueSize.topLevel") {
+                    try opaquePackageSize(
+                        at: childURL,
+                        settings: settings
+                    )
+                }
                 orphan.allocatedSizeValue = packageSize
                 orphan.logicalSizeValue = packageSize
             } else {
@@ -89,7 +102,9 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable {
                 )
             }
 
-            rootItem.appendChild(orphan, updateSize: true)
+            profile.measure("topLevel.insertChild") {
+                rootItem.appendChild(orphan, updateSize: true)
+            }
             emitProgressIfNeeded(
                 progress(
                     counters: counters,
@@ -101,7 +116,9 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable {
             )
         }
 
-        rootItem.recalculateSize(usePhysicalSize: settings.usePhysicalSize)
+        _ = profile.measure("root.recalculateSize") {
+            rootItem.recalculateSize(usePhysicalSize: settings.usePhysicalSize)
+        }
         progressHandler?(
             progress(
                 counters: counters,
@@ -109,6 +126,12 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable {
                 rootItem: rootItem
             )
         )
+
+        profile.addTime("scan.total", seconds: CFAbsoluteTimeGetCurrent() - scanStartTime)
+        profile.setValue("items.files", value: UInt64(counters.fileCount))
+        profile.setValue("items.folders", value: UInt64(counters.folderCount))
+        profile.setValue("items.total", value: UInt64(counters.fileCount + counters.folderCount))
+        _ = try? profile.write()
 
         return rootItem
     }
@@ -136,6 +159,7 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable {
             progressHandler: progressHandler
         )
 
+        let loadStartTime: CFAbsoluteTime = CFAbsoluteTimeGetCurrent()
         root.removeAllChildren()
 
         var shouldSetKindStrings: Bool = setKindStrings
@@ -179,7 +203,9 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable {
                 continue
             }
 
-            let currentValues: URLResourceValues = resourceValues(for: currentURL, keys: Self.urlProperties)
+            let currentValues: URLResourceValues = ScanPerformanceRecorder.shared.measure("resource.cacheResourcesInArray") {
+                resourceValues(for: currentURL, keys: Self.urlProperties)
+            }
             let currentLevel: Int = directoryEnumerator.level
             if currentLevel > lastEnumLevel {
                 if lastItemWasDirectory, let lastDirectoryItem: DiskItem = lastDirectoryItem {
@@ -202,22 +228,30 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable {
             }
 
             let parent: DiskItem = itemStack[itemStack.count - Metrics.parentStackOffset]
-            let currentItem: DiskItem = makeItem(
-                url: currentURL,
-                values: currentValues,
-                parent: parent,
-                setKindString: shouldSetKindStrings,
-                usePhysicalSize: settings.usePhysicalSize,
-                counters: &counters
-            )
+            let currentItem: DiskItem = ScanPerformanceRecorder.shared.measure("item.currentItemInitCall") {
+                makeItem(
+                    url: currentURL,
+                    values: currentValues,
+                    parent: parent,
+                    setKindString: shouldSetKindStrings,
+                    usePhysicalSize: settings.usePhysicalSize,
+                    counters: &counters
+                )
+            }
 
-            applyHardlinkDedup(
-                to: currentItem,
-                values: currentValues,
-                hardlinks: &hardlinks
-            )
+            ScanPerformanceRecorder.shared.measure("hardlink.check") {
+                applyHardlinkDedup(
+                    to: currentItem,
+                    values: currentValues,
+                    hardlinks: &hardlinks
+                )
+            }
 
-            if firmlinkTable.isFirmlink(currentURL) {
+            let isFirmlink: Bool = ScanPerformanceRecorder.shared.measure("firmlink.check") {
+                firmlinkTable.isFirmlink(currentURL)
+            }
+
+            if isFirmlink {
                 directoryEnumerator.skipDescendants()
                 try loadChildrenAndSetKindStrings(
                     of: currentItem,
@@ -232,10 +266,12 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable {
                 directoryEnumerator.skipDescendants()
             } else if currentItem.isPackage && !settings.lookInsidePackages {
                 directoryEnumerator.skipDescendants()
-                let packageSize: UInt64 = try opaquePackageSize(
-                    at: currentURL,
-                    settings: settings
-                )
+                let packageSize: UInt64 = try ScanPerformanceRecorder.shared.measure("package.opaqueSize.recursive") {
+                    try opaquePackageSize(
+                        at: currentURL,
+                        settings: settings
+                    )
+                }
                 currentItem.allocatedSizeValue = packageSize
                 currentItem.logicalSizeValue = packageSize
             }
@@ -245,7 +281,10 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable {
             lastEnumLevel = currentLevel
         }
 
-        root.recalculateSize(usePhysicalSize: settings.usePhysicalSize)
+        _ = ScanPerformanceRecorder.shared.measure("folder.recalculateSize.afterLoadChildren") {
+            root.recalculateSize(usePhysicalSize: settings.usePhysicalSize)
+        }
+        ScanPerformanceRecorder.shared.addTime("folder.loadChildren.total", seconds: CFAbsoluteTimeGetCurrent() - loadStartTime)
     }
 
     private func topLevelContents(of rootURL: URL) throws -> [URL] {
@@ -268,17 +307,20 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable {
         usePhysicalSize: Bool,
         counters: inout DiskInventoryZScanCounters
     ) -> DiskItem {
+        ScanPerformanceRecorder.shared.addTime("item.isDirectory", seconds: 0)
         let isDirectory: Bool = values.isDirectory ?? false
-        let item: DiskItem = DiskItem(
-            url: url,
-            parent: parent,
-            allocatedSizeValue: isDirectory ? 0 : sizeValue(values: values, usePhysicalSize: usePhysicalSize),
-            logicalSizeValue: isDirectory ? 0 : sizeValue(values: values, usePhysicalSize: false),
-            kindName: setKindString ? kindResolver.kindName(typeIdentifier: values.typeIdentifier, url: url) : nil,
-            isDirectory: isDirectory,
-            isPackage: values.isPackage ?? false,
-            isAliasOrSymbolicLink: values.isAliasFile ?? false
-        )
+        let item: DiskItem = ScanPerformanceRecorder.shared.measure("item.init") {
+            DiskItem(
+                url: url,
+                parent: parent,
+                allocatedSizeValue: isDirectory ? 0 : sizeValue(values: values, usePhysicalSize: usePhysicalSize),
+                logicalSizeValue: isDirectory ? 0 : sizeValue(values: values, usePhysicalSize: false),
+                kindName: setKindString ? kindResolver.kindName(typeIdentifier: values.typeIdentifier, url: url) : nil,
+                isDirectory: isDirectory,
+                isPackage: values.isPackage ?? false,
+                isAliasOrSymbolicLink: values.isAliasFile ?? false
+            )
+        }
 
         parent?.appendChild(item, updateSize: false)
 
@@ -350,7 +392,9 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable {
         for url: URL,
         keys: [URLResourceKey]
     ) -> URLResourceValues {
-        (try? url.resourceValues(forKeys: Set(keys))) ?? URLResourceValues()
+        ScanPerformanceRecorder.shared.measure("url.getResourceValue.cacheFill") {
+            (try? url.resourceValues(forKeys: Set(keys))) ?? URLResourceValues()
+        }
     }
 
     private func emitProgressIfNeeded(
@@ -368,7 +412,9 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable {
         }
 
         lastProgressTime = now
-        progressHandler(progress)
+        ScanPerformanceRecorder.shared.measure("progress.checkpoint") {
+            progressHandler(progress)
+        }
     }
 
     private func progress(

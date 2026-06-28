@@ -11,20 +11,34 @@ nonisolated final class DiskInventoryZKindResolver: @unchecked Sendable {
     }
 
     func kindName(typeIdentifier: String?, url: URL) -> String? {
+        let kindStartTime: CFAbsoluteTime = CFAbsoluteTimeGetCurrent()
+        defer {
+            ScanPerformanceRecorder.shared.addTime("kind.total", seconds: CFAbsoluteTimeGetCurrent() - kindStartTime)
+        }
+
         guard let typeIdentifier: String = typeIdentifier else {
-            return localizedTypeDescription(for: url)
+            return ScanPerformanceRecorder.shared.measure("kind.localizedDescriptionFallback") {
+                localizedTypeDescription(for: url)
+            }
         }
 
         lock.lock()
+        let cacheStartTime: CFAbsoluteTime = CFAbsoluteTimeGetCurrent()
         if let cachedKindName: String = kindNameByUTI[typeIdentifier] {
+            ScanPerformanceRecorder.shared.addTime("kind.cacheLookup", seconds: CFAbsoluteTimeGetCurrent() - cacheStartTime)
             lock.unlock()
             return cachedKindName
         }
+        ScanPerformanceRecorder.shared.addTime("kind.cacheLookup", seconds: CFAbsoluteTimeGetCurrent() - cacheStartTime)
         lock.unlock()
 
-        var kindName: String? = UTType(typeIdentifier)?.localizedDescription
+        var kindName: String? = ScanPerformanceRecorder.shared.measure("kind.uttypeDescription") {
+            UTType(typeIdentifier)?.localizedDescription
+        }
         if kindName == nil {
-            kindName = localizedTypeDescription(for: url)
+            kindName = ScanPerformanceRecorder.shared.measure("kind.localizedDescriptionFallback") {
+                localizedTypeDescription(for: url)
+            }
         }
 
         if let kindName: String = kindName {

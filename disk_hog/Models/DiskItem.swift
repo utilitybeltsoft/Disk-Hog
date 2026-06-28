@@ -4,6 +4,8 @@ nonisolated final class DiskItem: Identifiable, Hashable, @unchecked Sendable {
     var url: URL
     private(set) weak var parent: DiskItem?
     private var childrenStorage: [DiskItem]
+    private let fileSystemName: String
+    private let fileSystemNameForComparison: NSString
 
     var itemType: DiskItemType
     var allocatedSizeValue: UInt64
@@ -33,6 +35,9 @@ nonisolated final class DiskItem: Identifiable, Hashable, @unchecked Sendable {
         self.url = url
         self.parent = parent
         self.childrenStorage = []
+        let lastPathComponent: String = url.lastPathComponent
+        self.fileSystemName = lastPathComponent.isEmpty ? url.path : lastPathComponent
+        self.fileSystemNameForComparison = self.fileSystemName as NSString
         self.itemType = itemType
         self.allocatedSizeValue = allocatedSizeValue
         self.logicalSizeValue = logicalSizeValue
@@ -66,8 +71,7 @@ nonisolated final class DiskItem: Identifiable, Hashable, @unchecked Sendable {
     var displayName: String {
         switch itemType {
         case .fileOrFolder:
-            let name: String = url.lastPathComponent
-            return name.isEmpty ? url.path : name
+            return fileSystemName
         case .otherSpace:
             return "space occupied by other files and folders"
         case .freeSpace:
@@ -76,7 +80,12 @@ nonisolated final class DiskItem: Identifiable, Hashable, @unchecked Sendable {
     }
 
     var name: String {
-        displayName
+        switch itemType {
+        case .fileOrFolder:
+            return fileSystemName
+        case .otherSpace, .freeSpace:
+            return displayName
+        }
     }
 
     var path: String {
@@ -180,15 +189,25 @@ nonisolated final class DiskItem: Identifiable, Hashable, @unchecked Sendable {
             var allocatedSize: UInt64 = 0
             var logicalSize: UInt64 = 0
 
+            let childRecalculationStartTime: CFAbsoluteTime = CFAbsoluteTimeGetCurrent()
             for child: DiskItem in childrenStorage {
                 child.recalculateSize(usePhysicalSize: usePhysicalSize)
                 allocatedSize += child.allocatedSizeValue
                 logicalSize += child.logicalSizeValue
             }
+            ScanPerformanceRecorder.shared.addTime(
+                "recalculate.children.total",
+                seconds: CFAbsoluteTimeGetCurrent() - childRecalculationStartTime
+            )
 
             allocatedSizeValue = allocatedSize
             logicalSizeValue = logicalSize
+            let sortStartTime: CFAbsoluteTime = CFAbsoluteTimeGetCurrent()
             sortChildrenInDiskInventoryZOrder(recursive: false)
+            ScanPerformanceRecorder.shared.addTime(
+                "recalculate.sort.total",
+                seconds: CFAbsoluteTimeGetCurrent() - sortStartTime
+            )
         } else if isHardlinkDuplicate {
             allocatedSizeValue = 0
             logicalSizeValue = 0
@@ -208,8 +227,8 @@ nonisolated final class DiskItem: Identifiable, Hashable, @unchecked Sendable {
             return .orderedAscending
         }
 
-        return firstItem.name.compare(
-            secondItem.name,
+        return firstItem.fileSystemNameForComparison.compare(
+            secondItem.fileSystemName,
             options: [.numeric, .caseInsensitive]
         )
     }
