@@ -63,7 +63,7 @@ private struct ScanToolbarView: View {
                 if session.state == .scanning {
                     session.cancel()
                 } else {
-                    session.startPlaceholderScan()
+                    session.startScan()
                 }
             } label: {
                 Label(session.state == .scanning ? "Cancel" : "Start Scan", systemImage: session.state == .scanning ? "xmark.circle" : "play.circle")
@@ -125,6 +125,32 @@ private struct InspectorPlaceholderView: View {
             Text("Items: \(session.scannedItemCount)")
             Text("Files: \(session.scannedFileCount)")
             Text("Folders: \(session.scannedFolderCount)")
+            Text("Bytes: \(session.scannedByteCount)")
+            Text(session.currentPath)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(Metrics.currentPathLineLimit)
+                .truncationMode(.middle)
+                .textSelection(.enabled)
+            if let errorMessage: String = session.errorMessage {
+                Text(errorMessage)
+                    .foregroundStyle(.red)
+                    .textSelection(.enabled)
+            }
+            Button {
+                do {
+                    let outputURL: URL = try session.writeTreemapInputDiagnostics()
+                    let pasteboard: NSPasteboard = .general
+                    pasteboard.clearContents()
+                    pasteboard.writeObjects([outputURL as NSURL])
+                    pasteboard.setString(outputURL.path, forType: .string)
+                } catch {
+                    NSSound.beep()
+                }
+            } label: {
+                Label("Copy Diagnostics", systemImage: "doc.on.doc")
+            }
+            .disabled(session.rootItem == nil)
         }
         .padding(Metrics.placeholderPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -153,6 +179,7 @@ private enum ScanWindowMetrics {
     static let placeholderPadding: CGFloat = 16
     static let treemapIconSize: CGFloat = 48
     static let singleLineLimit: Int = 1
+    static let currentPathLineLimit: Int = 3
 }
 
 private typealias Metrics = ScanWindowMetrics

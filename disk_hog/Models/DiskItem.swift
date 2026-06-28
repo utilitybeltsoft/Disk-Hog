@@ -124,6 +124,15 @@ nonisolated final class DiskItem: Identifiable, Hashable, @unchecked Sendable {
         }
     }
 
+    func removeAllChildren() {
+        for child: DiskItem in childrenStorage {
+            child.parent = nil
+        }
+        childrenStorage.removeAll(keepingCapacity: true)
+        allocatedSizeValue = 0
+        logicalSizeValue = 0
+    }
+
     func sortChildrenInDiskInventoryZOrder(recursive: Bool = true) {
         if recursive {
             for child: DiskItem in childrenStorage {
