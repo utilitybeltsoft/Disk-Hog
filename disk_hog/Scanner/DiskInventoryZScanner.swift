@@ -24,14 +24,13 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable {
     ) throws -> DiskItem {
         let profile: ScanPerformanceRecorder = .shared
         profile.reset(appName: "Disk Hog", rootPath: source.path)
-        let scanStartTime: CFAbsoluteTime = CFAbsoluteTimeGetCurrent()
+        let scanStartTime: CFAbsoluteTime = ScanPerformanceRecorder.isEnabled ? CFAbsoluteTimeGetCurrent() : 0
         try Task.checkCancellation()
 
         let rootURL: URL = URL(fileURLWithPath: source.path)
         let rootValues: URLResourceValues = resourceValues(for: rootURL, keys: Self.topLevelProperties)
         let rootItem: DiskItem = DiskItem(
             url: rootURL,
-            displayName: rootValues.localizedName,
             name: rootValues.name,
             isDirectory: rootValues.isDirectory ?? true,
             isPackage: rootValues.isPackage ?? false
@@ -129,11 +128,13 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable {
             )
         )
 
-        profile.addTime("scan.total", seconds: CFAbsoluteTimeGetCurrent() - scanStartTime)
-        profile.setValue("items.files", value: UInt64(counters.fileCount))
-        profile.setValue("items.folders", value: UInt64(counters.folderCount))
-        profile.setValue("items.total", value: UInt64(counters.fileCount + counters.folderCount))
-        _ = try? profile.write()
+        if ScanPerformanceRecorder.isEnabled {
+            profile.addTime("scan.total", seconds: CFAbsoluteTimeGetCurrent() - scanStartTime)
+            profile.setValue("items.files", value: UInt64(counters.fileCount))
+            profile.setValue("items.folders", value: UInt64(counters.folderCount))
+            profile.setValue("items.total", value: UInt64(counters.fileCount + counters.folderCount))
+            _ = try? profile.write()
+        }
 
         return rootItem
     }
@@ -161,7 +162,7 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable {
             progressHandler: progressHandler
         )
 
-        let loadStartTime: CFAbsoluteTime = CFAbsoluteTimeGetCurrent()
+        let loadStartTime: CFAbsoluteTime = ScanPerformanceRecorder.isEnabled ? CFAbsoluteTimeGetCurrent() : 0
         root.removeAllChildren()
 
         var shouldSetKindStrings: Bool = setKindStrings
@@ -286,7 +287,9 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable {
         _ = ScanPerformanceRecorder.shared.measure("folder.recalculateSize.afterLoadChildren") {
             root.recalculateSize(usePhysicalSize: settings.usePhysicalSize)
         }
-        ScanPerformanceRecorder.shared.addTime("folder.loadChildren.total", seconds: CFAbsoluteTimeGetCurrent() - loadStartTime)
+        if ScanPerformanceRecorder.isEnabled {
+            ScanPerformanceRecorder.shared.addTime("folder.loadChildren.total", seconds: CFAbsoluteTimeGetCurrent() - loadStartTime)
+        }
     }
 
     private func topLevelContents(of rootURL: URL) throws -> [URL] {
@@ -315,7 +318,6 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable {
             DiskItem(
                 url: url,
                 parent: parent,
-                displayName: values.localizedName,
                 name: values.name,
                 allocatedSizeValue: isDirectory ? 0 : sizeValue(values: values, usePhysicalSize: usePhysicalSize),
                 logicalSizeValue: isDirectory ? 0 : sizeValue(values: values, usePhysicalSize: false),
@@ -458,7 +460,6 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable {
         .isDirectoryKey,
         .isPackageKey,
         .isVolumeKey,
-        .localizedNameKey,
         .nameKey,
         .typeIdentifierKey,
         .fileSizeKey,
@@ -466,7 +467,6 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable {
     ]
 
     private static let urlProperties: [URLResourceKey] = [
-        .localizedNameKey,
         .nameKey,
         .isVolumeKey,
         .isPackageKey,

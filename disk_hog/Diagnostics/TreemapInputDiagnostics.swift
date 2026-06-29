@@ -46,6 +46,7 @@ nonisolated enum TreemapInputDiagnostics {
         try appendItem(
             root,
             parent: nil,
+            displayFolderPath: Metrics.emptyDisplayPath,
             depth: Metrics.rootDepth,
             childIndex: Metrics.rootChildIndex,
             lineNumber: &lineNumber,
@@ -59,18 +60,26 @@ nonisolated enum TreemapInputDiagnostics {
     private static func appendItem(
         _ item: DiskItem,
         parent: DiskItem?,
+        displayFolderPath: String,
         depth: Int,
         childIndex: Int,
         lineNumber: inout Int,
         palette: DiskInventoryZDiagnosticPalette,
         writeLine: (Data) throws -> Void
     ) throws {
+        let displayName: String = diagnosticDisplayName(for: item)
+        let displayPath: String = diagnosticDisplayPath(
+            displayFolderPath: displayFolderPath,
+            displayName: displayName
+        )
         lineNumber += Metrics.lineIncrement
         try writeLine(
             jsonData(
                 for: itemDictionary(
                     item,
                     parent: parent,
+                    displayName: displayName,
+                    displayPath: displayPath,
                     depth: depth,
                     childIndex: childIndex,
                     lineNumber: lineNumber,
@@ -87,6 +96,7 @@ nonisolated enum TreemapInputDiagnostics {
             try appendItem(
                 item.child(at: index),
                 parent: item,
+                displayFolderPath: displayPath,
                 depth: depth + Metrics.depthIncrement,
                 childIndex: index,
                 lineNumber: &lineNumber,
@@ -104,7 +114,7 @@ nonisolated enum TreemapInputDiagnostics {
             "app": "Disk Hog",
             "ignoreCreatorCode": false,
             "recordType": "metadata",
-            "rootDisplayName": root.displayName,
+            "rootDisplayName": diagnosticDisplayName(for: root),
             "rootPath": root.path,
             "schema": Metrics.schemaName,
             "showFreeSpace": false,
@@ -117,6 +127,8 @@ nonisolated enum TreemapInputDiagnostics {
     private static func itemDictionary(
         _ item: DiskItem,
         parent: DiskItem?,
+        displayName: String,
+        displayPath: String,
         depth: Int,
         childIndex: Int,
         lineNumber: Int,
@@ -128,8 +140,8 @@ nonisolated enum TreemapInputDiagnostics {
             "childIndex": childIndex,
             "colorRGBA": palette.colorComponents(for: item),
             "depth": depth,
-            "displayName": item.displayName,
-            "displayPath": item.displayPath,
+            "displayName": displayName,
+            "displayPath": displayPath,
             "isFolder": item.isFolder,
             "isLeafForTreemap": isTreemapNode ? Metrics.falseInteger : Metrics.trueInteger,
             "isNodeForTreemap": isTreemapNode,
@@ -143,6 +155,30 @@ nonisolated enum TreemapInputDiagnostics {
             "sizeUsedForTreemap": item.allocatedSizeValue,
             "type": diagnosticTypeName(for: item)
         ]
+    }
+
+    private static func diagnosticDisplayName(for item: DiskItem) -> String {
+        if item.isSpecialItem {
+            return item.displayName
+        }
+
+        let localizedName: String? = try? item.url.resourceValues(forKeys: [.localizedNameKey]).localizedName
+        if let localizedName: String = localizedName, !localizedName.isEmpty {
+            return localizedName
+        }
+
+        return item.displayName
+    }
+
+    private static func diagnosticDisplayPath(
+        displayFolderPath: String,
+        displayName: String
+    ) -> String {
+        if displayFolderPath.isEmpty {
+            return displayName
+        }
+
+        return (displayFolderPath as NSString).appendingPathComponent(displayName)
     }
 
     private static func isNodeForTreemap(_ item: DiskItem) -> Bool {
@@ -389,6 +425,7 @@ private nonisolated enum TreemapInputDiagnosticsMetrics {
     static let schemaName: String = "diskhog-treemap-input-v1"
     static let folderKindName: String = "folder"
     static let emptyKindName: String = ""
+    static let emptyDisplayPath: String = ""
     static let jsonEncodingFailureData: Data = Data("{\"recordType\":\"error\",\"message\":\"JSON encoding failed\"}".utf8)
     static let newlineData: Data = Data("\n".utf8)
     static let falseInteger: Int = 0

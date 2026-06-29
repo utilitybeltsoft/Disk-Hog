@@ -137,6 +137,18 @@ private struct InspectorPlaceholderView: View {
                     .foregroundStyle(.red)
                     .textSelection(.enabled)
             }
+            #if FILE_MATCHING_DIAGNOSTICS
+            fileMatchingDiagnosticsControls
+            #endif
+        }
+        .padding(Metrics.placeholderPadding)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(Color(nsColor: .controlBackgroundColor))
+    }
+
+    #if FILE_MATCHING_DIAGNOSTICS
+    private var fileMatchingDiagnosticsControls: some View {
+        VStack(alignment: .leading, spacing: Metrics.fileMatchingDiagnosticsSpacing) {
             if let diagnosticsMessage: String = session.diagnosticsExportState.message {
                 Text(diagnosticsMessage)
                     .font(.caption)
@@ -149,16 +161,14 @@ private struct InspectorPlaceholderView: View {
                 session.exportTreemapInputDiagnostics()
             } label: {
                 Label(
-                    session.diagnosticsExportState.isWriting ? "Writing Diagnostics" : "Copy Diagnostics",
+                    session.diagnosticsExportState.isWriting ? "Writing Matching File" : "Copy Matching File",
                     systemImage: session.diagnosticsExportState.isWriting ? "hourglass" : "doc.on.doc"
                 )
             }
             .disabled(session.rootItem == nil || session.diagnosticsExportState.isWriting)
         }
-        .padding(Metrics.placeholderPadding)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(Color(nsColor: .controlBackgroundColor))
     }
+    #endif
 }
 
 private enum ScanWindowMetrics {
@@ -184,6 +194,7 @@ private enum ScanWindowMetrics {
     static let singleLineLimit: Int = 1
     static let currentPathLineLimit: Int = 3
     static let diagnosticsMessageLineLimit: Int = 4
+    static let fileMatchingDiagnosticsSpacing: CGFloat = 10
 }
 
 private typealias Metrics = ScanWindowMetrics

@@ -1,4 +1,6 @@
+#if FILE_MATCHING_DIAGNOSTICS
 import AppKit
+#endif
 import Combine
 import Foundation
 
@@ -13,7 +15,9 @@ final class ScanSession: ObservableObject {
     @Published private(set) var currentPath: String
     @Published private(set) var rootItem: DiskItem?
     @Published private(set) var errorMessage: String?
+    #if FILE_MATCHING_DIAGNOSTICS
     @Published private(set) var diagnosticsExportState: DiagnosticsExportState
+    #endif
 
     let source: ScanSource
 
@@ -34,7 +38,9 @@ final class ScanSession: ObservableObject {
         self.currentPath = source.path
         self.rootItem = nil
         self.errorMessage = nil
+        #if FILE_MATCHING_DIAGNOSTICS
         self.diagnosticsExportState = .idle
+        #endif
     }
 
     var scannedItemCount: Int {
@@ -111,6 +117,7 @@ final class ScanSession: ObservableObject {
         return max(.zero, endDate.timeIntervalSince(startedAt))
     }
 
+    #if FILE_MATCHING_DIAGNOSTICS
     func exportTreemapInputDiagnostics() {
         guard let rootItem: DiskItem = rootItem else {
             diagnosticsExportState = .failed("No completed scan tree is available.")
@@ -141,6 +148,7 @@ final class ScanSession: ObservableObject {
             }
         }
     }
+    #endif
 
     private func applyProgress(_ progress: DiskScanProgress) {
         guard state == .scanning else {
@@ -199,6 +207,7 @@ enum ScanSessionState: Hashable {
     }
 }
 
+#if FILE_MATCHING_DIAGNOSTICS
 enum DiagnosticsExportState: Hashable {
     case idle
     case writing(String)
@@ -226,3 +235,4 @@ enum DiagnosticsExportState: Hashable {
         return false
     }
 }
+#endif

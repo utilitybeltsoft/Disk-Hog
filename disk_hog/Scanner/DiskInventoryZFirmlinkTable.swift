@@ -17,9 +17,11 @@ nonisolated final class DiskInventoryZFirmlinkTable: @unchecked Sendable {
     }
 
     func isFirmlink(_ url: URL) -> Bool {
-        let startTime: CFAbsoluteTime = CFAbsoluteTimeGetCurrent()
+        let startTime: CFAbsoluteTime = ScanPerformanceRecorder.isEnabled ? CFAbsoluteTimeGetCurrent() : 0
         defer {
-            ScanPerformanceRecorder.shared.addTime("url.isFirmlink", seconds: CFAbsoluteTimeGetCurrent() - startTime)
+            if ScanPerformanceRecorder.isEnabled {
+                ScanPerformanceRecorder.shared.addTime("url.isFirmlink", seconds: CFAbsoluteTimeGetCurrent() - startTime)
+            }
         }
 
         lock.lock()

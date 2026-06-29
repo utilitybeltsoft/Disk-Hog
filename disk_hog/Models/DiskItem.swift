@@ -193,25 +193,29 @@ nonisolated final class DiskItem: Identifiable, Hashable, @unchecked Sendable {
             var allocatedSize: UInt64 = 0
             var logicalSize: UInt64 = 0
 
-            let childRecalculationStartTime: CFAbsoluteTime = CFAbsoluteTimeGetCurrent()
+            let childRecalculationStartTime: CFAbsoluteTime = ScanPerformanceRecorder.isEnabled ? CFAbsoluteTimeGetCurrent() : 0
             for child: DiskItem in childrenStorage {
                 child.recalculateSize(usePhysicalSize: usePhysicalSize)
                 allocatedSize += child.allocatedSizeValue
                 logicalSize += child.logicalSizeValue
             }
-            ScanPerformanceRecorder.shared.addTime(
-                "recalculate.children.total",
-                seconds: CFAbsoluteTimeGetCurrent() - childRecalculationStartTime
-            )
+            if ScanPerformanceRecorder.isEnabled {
+                ScanPerformanceRecorder.shared.addTime(
+                    "recalculate.children.total",
+                    seconds: CFAbsoluteTimeGetCurrent() - childRecalculationStartTime
+                )
+            }
 
             allocatedSizeValue = allocatedSize
             logicalSizeValue = logicalSize
-            let sortStartTime: CFAbsoluteTime = CFAbsoluteTimeGetCurrent()
+            let sortStartTime: CFAbsoluteTime = ScanPerformanceRecorder.isEnabled ? CFAbsoluteTimeGetCurrent() : 0
             sortChildrenInDiskInventoryZOrder(recursive: false)
-            ScanPerformanceRecorder.shared.addTime(
-                "recalculate.sort.total",
-                seconds: CFAbsoluteTimeGetCurrent() - sortStartTime
-            )
+            if ScanPerformanceRecorder.isEnabled {
+                ScanPerformanceRecorder.shared.addTime(
+                    "recalculate.sort.total",
+                    seconds: CFAbsoluteTimeGetCurrent() - sortStartTime
+                )
+            }
         } else if isHardlinkDuplicate {
             allocatedSizeValue = 0
             logicalSizeValue = 0

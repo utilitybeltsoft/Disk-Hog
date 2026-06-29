@@ -3,6 +3,14 @@ import Foundation
 nonisolated final class ScanPerformanceRecorder: @unchecked Sendable {
     static let shared: ScanPerformanceRecorder = ScanPerformanceRecorder()
 
+    static var isEnabled: Bool {
+        #if SCAN_PERFORMANCE_PROFILING
+        return true
+        #else
+        return false
+        #endif
+    }
+
     private let lock: NSLock
     private var appName: String
     private var rootPath: String
@@ -22,42 +30,51 @@ nonisolated final class ScanPerformanceRecorder: @unchecked Sendable {
     }
 
     func reset(appName: String, rootPath: String) {
+        #if SCAN_PERFORMANCE_PROFILING
         lock.lock()
         self.appName = appName
         self.rootPath = rootPath
         self.createdAt = ISO8601DateFormatter().string(from: Date())
         self.metrics = [:]
         lock.unlock()
+        #endif
     }
 
     func addTime(_ metricName: String, seconds: TimeInterval) {
+        #if SCAN_PERFORMANCE_PROFILING
         lock.lock()
         var metric: ScanPerformanceMetric = metrics[metricName] ?? ScanPerformanceMetric()
         metric.seconds += seconds
         metric.count += Metrics.singleCount
         metrics[metricName] = metric
         lock.unlock()
+        #endif
     }
 
     func addCount(_ metricName: String, count: UInt64 = Metrics.singleCount) {
+        #if SCAN_PERFORMANCE_PROFILING
         lock.lock()
         var metric: ScanPerformanceMetric = metrics[metricName] ?? ScanPerformanceMetric()
         metric.count += count
         metrics[metricName] = metric
         lock.unlock()
+        #endif
     }
 
     func setValue(_ metricName: String, value: UInt64) {
+        #if SCAN_PERFORMANCE_PROFILING
         lock.lock()
         var metric: ScanPerformanceMetric = metrics[metricName] ?? ScanPerformanceMetric()
         metric.value = value
         metrics[metricName] = metric
         lock.unlock()
+        #endif
     }
 
     func write(to outputURL: URL? = nil) throws -> URL {
         let destinationURL: URL = outputURL ?? defaultOutputURL
 
+        #if SCAN_PERFORMANCE_PROFILING
         lock.lock()
         let snapshot: ScanPerformanceReport = ScanPerformanceReport(
             schema: Metrics.schemaName,
@@ -72,6 +89,8 @@ nonisolated final class ScanPerformanceRecorder: @unchecked Sendable {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let data: Data = try encoder.encode(snapshot)
         try data.write(to: destinationURL, options: [.atomic])
+        #endif
+
         return destinationURL
     }
 
@@ -79,12 +98,16 @@ nonisolated final class ScanPerformanceRecorder: @unchecked Sendable {
         _ metricName: String,
         operation: () throws -> T
     ) rethrows -> T {
+        #if SCAN_PERFORMANCE_PROFILING
         let startTime: CFAbsoluteTime = CFAbsoluteTimeGetCurrent()
         defer {
             addTime(metricName, seconds: CFAbsoluteTimeGetCurrent() - startTime)
         }
 
         return try operation()
+        #else
+        return try operation()
+        #endif
     }
 }
 

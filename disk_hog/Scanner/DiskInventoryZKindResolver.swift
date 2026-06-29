@@ -11,9 +11,11 @@ nonisolated final class DiskInventoryZKindResolver: @unchecked Sendable {
     }
 
     func kindName(typeIdentifier: String?, url: URL) -> String? {
-        let kindStartTime: CFAbsoluteTime = CFAbsoluteTimeGetCurrent()
+        let kindStartTime: CFAbsoluteTime = ScanPerformanceRecorder.isEnabled ? CFAbsoluteTimeGetCurrent() : 0
         defer {
-            ScanPerformanceRecorder.shared.addTime("kind.total", seconds: CFAbsoluteTimeGetCurrent() - kindStartTime)
+            if ScanPerformanceRecorder.isEnabled {
+                ScanPerformanceRecorder.shared.addTime("kind.total", seconds: CFAbsoluteTimeGetCurrent() - kindStartTime)
+            }
         }
 
         guard let typeIdentifier: String = typeIdentifier else {
@@ -23,13 +25,17 @@ nonisolated final class DiskInventoryZKindResolver: @unchecked Sendable {
         }
 
         lock.lock()
-        let cacheStartTime: CFAbsoluteTime = CFAbsoluteTimeGetCurrent()
+        let cacheStartTime: CFAbsoluteTime = ScanPerformanceRecorder.isEnabled ? CFAbsoluteTimeGetCurrent() : 0
         if let cachedKindName: String = kindNameByUTI[typeIdentifier] {
-            ScanPerformanceRecorder.shared.addTime("kind.cacheLookup", seconds: CFAbsoluteTimeGetCurrent() - cacheStartTime)
+            if ScanPerformanceRecorder.isEnabled {
+                ScanPerformanceRecorder.shared.addTime("kind.cacheLookup", seconds: CFAbsoluteTimeGetCurrent() - cacheStartTime)
+            }
             lock.unlock()
             return cachedKindName
         }
-        ScanPerformanceRecorder.shared.addTime("kind.cacheLookup", seconds: CFAbsoluteTimeGetCurrent() - cacheStartTime)
+        if ScanPerformanceRecorder.isEnabled {
+            ScanPerformanceRecorder.shared.addTime("kind.cacheLookup", seconds: CFAbsoluteTimeGetCurrent() - cacheStartTime)
+        }
         lock.unlock()
 
         var kindName: String? = ScanPerformanceRecorder.shared.measure("kind.uttypeDescription") {
