@@ -18,6 +18,10 @@ nonisolated final class DiskInventoryZKindResolver: @unchecked Sendable {
             }
         }
 
+        if Self.zLegacyDataExtensions.contains(url.pathExtension.lowercased()) {
+            return Self.legacyDataKindName
+        }
+
         guard let typeIdentifier: String = typeIdentifier else {
             return ScanPerformanceRecorder.shared.measure("kind.localizedDescriptionFallback") {
                 localizedTypeDescription(for: url)
@@ -59,4 +63,7 @@ nonisolated final class DiskInventoryZKindResolver: @unchecked Sendable {
     private func localizedTypeDescription(for url: URL) -> String? {
         try? url.resourceValues(forKeys: [.localizedTypeDescriptionKey]).localizedTypeDescription
     }
+
+    private static let legacyDataKindName: String = "data"
+    private static let zLegacyDataExtensions: Set<String> = ["cnv"]
 }

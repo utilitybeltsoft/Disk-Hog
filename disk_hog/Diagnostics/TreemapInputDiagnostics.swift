@@ -162,6 +162,10 @@ nonisolated enum TreemapInputDiagnostics {
             return item.displayName
         }
 
+        if item.isAliasOrSymbolicLink {
+            return item.displayName
+        }
+
         let localizedName: String? = try? item.url.resourceValues(forKeys: [.localizedNameKey]).localizedName
         if let localizedName: String = localizedName, !localizedName.isEmpty {
             return localizedName
