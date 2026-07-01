@@ -58,7 +58,9 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable { // ✓ Swif
             if isDirectory && !isVolume && (!isPackage || settings.lookInsidePackages) { // ✓ Z: FileSystemDoc.m:646 if ( isDir && !isVol && (!isPkg || showPackageContents) ).
                 throw DiskScannerError.zMethodNotPorted("FSItem.loadChildren") // ✓ Z: FileSystemDoc.m:648 [orphan loadChildren]; explicit stop until that Z method is translated.
             } else if isDirectory && isPackage && !settings.lookInsidePackages { // ✓ Z: FileSystemDoc.m:651 else if ( isDir && isPkg && !showPackageContents ).
-                throw DiskScannerError.zMethodNotPorted("topLevelOpaquePackageSize") // ✓ Z: FileSystemDoc.m:654-666 package-size loop; explicit stop until translated.
+                let packageSize: UInt64 = try Self.topLevelOpaquePackageSize(url: childURL, usePhysicalSize: settings.usePhysicalSize) // ✓ Z: FileSystemDoc.m:654-666 computes pkgSize for opaque package.
+                orphan.allocatedSizeValue = packageSize // ✓ Z: FileSystemDoc.m:666 [orphan setSizeValue: pkgSize].
+                orphan.logicalSizeValue = packageSize // ✓ Swift-only: DiskItem has separate logical/allocated fields; Z has one active _sizeValue.
             } // ✓ Z: FileSystemDoc.m:670 closes top-level file/folder decision.
 
             rootItem.appendChild(orphan, updateSize: true) // ✓ Z: FileSystemDoc.m:694 [_rootItem insertChild: toPublish updateParent: YES], adapted to current DiskItem append API.
@@ -86,6 +88,28 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable { // ✓ Swif
         } // ✓ Z: FileSystemDoc.m:630-631 closes magic directory skip.
         return false // ✓ Z: FileSystemDoc.m:633 proceeds when no top-level skip matched.
     } // ✓ Z: FileSystemDoc.m:633 ends skip section before orphan handling.
+
+    private static func topLevelOpaquePackageSize(url: URL, usePhysicalSize: Bool) throws -> UInt64 { // ✓ Z: FileSystemDoc.m:654-666 top-level opaque package size block.
+        var packageSize: UInt64 = 0 // ✓ Z: FileSystemDoc.m:654 unsigned long long pkgSize = 0.
+        let packageKeys: [URLResourceKey] = [.totalFileAllocatedSizeKey, .fileAllocatedSizeKey] // ✓ Z: FileSystemDoc.m:657-658 includingPropertiesForKeys: @[ NSURLTotalFileAllocatedSizeKey, NSURLFileAllocatedSizeKey ].
+        guard let packageEnumerator: FileManager.DirectoryEnumerator = FileManager.default.enumerator( // ✓ Z: FileSystemDoc.m:655-660 NSDirectoryEnumerator *pkgEnum = [[NSFileManager defaultManager] enumeratorAtURL:...].
+            at: url, // ✓ Z: FileSystemDoc.m:656 childURL.
+            includingPropertiesForKeys: packageKeys, // ✓ Z: FileSystemDoc.m:657 includingPropertiesForKeys.
+            options: [], // ✓ Z: FileSystemDoc.m:659 options: 0.
+            errorHandler: nil // ✓ Z: FileSystemDoc.m:660 errorHandler: nil.
+        ) else { // ✓ Swift-only: Swift optional bridge for NSDirectoryEnumerator creation.
+            return packageSize // ✓ Z: FileSystemDoc.m:654 pkgSize remains 0 if enumeration produces no entries.
+        } // ✓ Swift-only: closes Swift optional bridge.
+        for case let descendantURL as URL in packageEnumerator { // ✓ Z: FileSystemDoc.m:662 for ( NSURL *u in pkgEnum ) @autoreleasepool.
+            try Task.checkCancellation() // ✓ Swift-only: Swift cancellation bridge for FileSystemDoc.m:664 atomic cancel break.
+            let descendantValues: URLResourceValues = try descendantURL.resourceValues(forKeys: Set(packageKeys)) // ✓ Z: FileSystemDoc.m:666 [u getResourceValue: &sz forKey: sk error: nil].
+            let descendantSize: Int? = usePhysicalSize ? descendantValues.totalFileAllocatedSize : descendantValues.fileAllocatedSize // ✓ Z: FileSystemDoc.m:665-666 sk = usePhysicalSize ? NSURLTotalFileAllocatedSizeKey : NSURLFileAllocatedSizeKey.
+            if let descendantSize: Int = descendantSize { // ✓ Z: FileSystemDoc.m:667 if ( sz != nil ).
+                packageSize += UInt64(descendantSize) // ✓ Z: FileSystemDoc.m:668 pkgSize += [sz unsignedLongLongValue].
+            } // ✓ Z: FileSystemDoc.m:667-668 closes size add.
+        } // ✓ Z: FileSystemDoc.m:669 closes package enumerator loop.
+        return packageSize // ✓ Z: FileSystemDoc.m:671 [orphan setSizeValue: pkgSize], returned to caller for assignment.
+    } // ✓ Z: FileSystemDoc.m:671 closes opaque package branch.
 
     private static func makeItem(url: URL, parent: DiskItem?, values: URLResourceValues?) -> DiskItem { // ✓ Z: FSItem.m:105-126 initWithURL: plus cached NSURL resource values.
         let isDirectory: Bool = values?.isDirectory ?? url.hasDirectoryPath // ✓ Z: FSItem.m:111 if ( [url isDirectory] ).
