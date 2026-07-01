@@ -59,7 +59,7 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable { // ✓ Swif
                 options: [] // ✓ Z: FileSystemDoc.m:607 options: 0.
             ) // ✓ Z: FileSystemDoc.m:608 error: &err.
         } catch { // ✓ Swift-only: Swift catch maps FileSystemDoc.m:610 topLevel == nil branch.
-            throw DiskScannerError.topLevelEnumerationFailed // ✓ Z: FileSystemDoc.m:610-614 logs and returns on top-level enumeration failure.
+            throw DiskScannerError.topLevelEnumerationFailed(path: rootURL.path, underlyingDescription: error.localizedDescription) // ✓ Z: FileSystemDoc.m:610-614 logs and returns on top-level enumeration failure.
         } // ✓ Swift-only: closes Swift error bridge.
 
         for childURL: URL in topLevelChildren { // ✓ Z: FileSystemDoc.m:616 for ( NSURL *childURL in topLevel ) @autoreleasepool.

@@ -180,7 +180,7 @@ final class ScanSession: ObservableObject {
         state = .failed
         completedAt = Date()
         scanTask = nil
-        errorMessage = String(describing: error)
+        errorMessage = error.localizedDescription
     }
 }
 
