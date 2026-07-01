@@ -4,6 +4,7 @@ import Foundation // ✓ Swift-only: Swift module import required for URL, Task,
 nonisolated final class DiskInventoryZScanner: @unchecked Sendable { // ✓ Swift-only: Swift type shell replacing Z's FSItem/FileSystemDoc Objective-C split.
     typealias ProgressHandler = @Sendable (DiskScanProgress) -> Void // ✓ Swift-only: callback bridge for SwiftUI progress; Z uses FileSystemDoc delegate/status fields.
 
+    nonisolated(unsafe) private static var seenHardlinkInodes: NSMutableSet? = nil // ✓ Z: FSItem.m:43 static NSMutableSet *g_seenHardlinkInodes = nil.
     nonisolated(unsafe) private static var firmlinkURLs: Set<URL>? = nil // ✓ Z: NSURL-Extensions.m:23 NSMutableDictionary<NSURL*, NSURL*> * g_Firmlinks = nil.
     private static let firmlinkListPath: String = "/usr/share/firmlinks" // ✓ Z: NSURL-Extensions.m:24 NSString *firmlinkListFile = @"/usr/share/firmlinks".
 
@@ -35,6 +36,7 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable { // ✓ Swif
         try Task.checkCancellation() // ✓ Swift-only: Swift cancellation bridge; Z checks atomic _cancelRequested and raises FSItemLoadingCanceledException.
 
         let rootURL: URL = URL(fileURLWithPath: source.path) // ✓ Z: FileSystemDoc.m:589 rootURL is the NSURL scan root.
+        Self.resetHardlinkDedup() // ✓ Z: FileSystemDoc.m:587 [FSItem resetHardlinkDedup].
         let rootItem: DiskItem = Self.makeItem(url: rootURL, parent: nil, values: nil) // ✓ Z: FSItem.m:105-126 initWithURL: creates root FSItem.
         let scannedFileCount: Int = 0 // ✓ Swift-only: temporary zero value because FSItem.m:948-950 counters are not ported in this checkpoint.
         let scannedFolderCount: Int = 0 // ✓ Swift-only: temporary zero value because FSItem.m:948-950 counters are not ported in this checkpoint.
@@ -172,12 +174,18 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable { // ✓ Swif
             if !isCurrentDirectory { // ✓ Z: FSItem.m:1175 hardlink branch only tests files.
                 let linkCount: Int? = currentValues.linkCount // ✓ Z: FSItem.m:1177 NSNumber *linkCount = [currentUrl getCachedNumberValue: NSURLLinkCountKey].
                 if let linkCount: Int = linkCount, linkCount > 1 { // ✓ Z: FSItem.m:1178 if ( linkCount != nil && [linkCount intValue] > 1 ).
-                    throw DiskScannerError.zMethodNotPorted("FSItem hardlink dedup") // ✓ Z: FSItem.m:1180-1192 fileResourceIdentifier seen-set branch not ported in this checkpoint.
+                    if let fileIdentifier: Any = currentValues.fileResourceIdentifier { // ✓ Z: FSItem.m:1180-1183 [currentUrl getCachedResourceValue:&fileID forKey:NSURLFileResourceIdentifierKey error:nil].
+                        if Self.seenHardlinkInodes?.contains(fileIdentifier) == true { // ✓ Z: FSItem.m:1187 if ( [g_seenHardlinkInodes containsObject: fileID] ).
+                            currentItem.isHardlinkDuplicate = true // ✓ Z: FSItem.m:1188 currentItem->_hardlinkDuplicate = YES.
+                        } else { // ✓ Z: FSItem.m:1189 else.
+                            Self.seenHardlinkInodes?.add(fileIdentifier) // ✓ Z: FSItem.m:1190 [g_seenHardlinkInodes addObject: fileID].
+                        } // ✓ Z: FSItem.m:1187-1190 closes seen-set branch.
+                    } // ✓ Z: FSItem.m:1184-1191 closes fileID != nil branch.
                 } // ✓ Z: FSItem.m:1178-1193 closes hardlink duplicate branch.
             } // ✓ Z: FSItem.m:1175-1194 closes hardlink file-only branch.
             if Self.isFirmlink(currentURL) { // ✓ Z: FSItem.m:1207 BOOL isFirmlink = [currentUrl isFirmlink].
                 directoryEnumerator.skipDescendants() // ✓ Z: FSItem.m:1214 [dirEnum skipDescendants].
-                throw DiskScannerError.zMethodNotPorted("FSItem firmlink recursive load") // ✓ Z: FSItem.m:1215-1216 [currentItem loadChildrenAndSetKindStrings:...].
+                try Self.loadChildren(of: currentItem, settings: settings) // ✓ Z: FSItem.m:1215-1216 [currentItem loadChildrenAndSetKindStrings:setKindStrings usePhysicalSize:usePhysicalSize].
             } else if currentValues.isVolume ?? false { // ✓ Z: FSItem.m:1218 else if ( [currentUrl isVolume] ).
                 directoryEnumerator.skipDescendants() // ✓ Z: FSItem.m:1222 [dirEnum skipDescendants].
             } else if (currentValues.isPackage ?? false) && !settings.lookInsidePackages { // ✓ Z: FSItem.m:1224-1226 package branch when delegate says not to look inside packages.
@@ -192,6 +200,14 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable { // ✓ Swif
         } // ✓ Z: FSItem.m:1276 closes directory enumerator loop.
         item.recalculateSize(usePhysicalSize: settings.usePhysicalSize) // ✓ Z: FSItem.m:1294 [self recalculateSize:YES updateParent:NO], adapted to selected size mode.
     } // ✓ Z: FSItem.m:1302 closes loadChildrenAndSetKindStrings:usePhysicalSize:.
+
+    private static func resetHardlinkDedup() { // ✓ Z: FSItem.m:96 + (void) resetHardlinkDedup.
+        if Self.seenHardlinkInodes == nil { // ✓ Z: FSItem.m:99 if ( g_seenHardlinkInodes == nil ).
+            Self.seenHardlinkInodes = NSMutableSet() // ✓ Z: FSItem.m:100 g_seenHardlinkInodes = [[NSMutableSet alloc] init].
+        } else { // ✓ Z: FSItem.m:101 else.
+            Self.seenHardlinkInodes?.removeAllObjects() // ✓ Z: FSItem.m:102 [g_seenHardlinkInodes removeAllObjects].
+        } // ✓ Z: FSItem.m:99-102 closes reset branch.
+    } // ✓ Z: FSItem.m:104 closes resetHardlinkDedup.
 
     private static func topLevelOpaquePackageSize(url: URL, usePhysicalSize: Bool) throws -> UInt64 { // ✓ Z: FileSystemDoc.m:654-666 top-level opaque package size block.
         var packageSize: UInt64 = 0 // ✓ Z: FileSystemDoc.m:654 unsigned long long pkgSize = 0.
