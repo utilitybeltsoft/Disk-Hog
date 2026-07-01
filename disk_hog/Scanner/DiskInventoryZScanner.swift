@@ -10,6 +10,20 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable { // ✓ Swif
         .fileSizeKey, .totalFileAllocatedSizeKey // ✓ Z: FileSystemDoc.m:598 NSURLFileSizeKey, NSURLTotalFileAllocatedSizeKey.
     ] // ✓ Z: FileSystemDoc.m:599 closes top-level resource key array.
 
+    private static let recursiveResourceKeys: [URLResourceKey] = [ // ✓ Z: FSItem.m:1004 NSArray<NSString*> *urlProperties = [NSArray arrayWithObjects:...].
+        .nameKey, // ✓ Z: FSItem.m:1006 NSURLNameKey.
+        .isVolumeKey, // ✓ Z: FSItem.m:1007 NSURLIsVolumeKey.
+        .isPackageKey, // ✓ Z: FSItem.m:1008 NSURLIsPackageKey.
+        .isDirectoryKey, // ✓ Z: FSItem.m:1009 NSURLIsDirectoryKey.
+        .typeIdentifierKey, // ✓ Z: FSItem.m:1011 NSURLTypeIdentifierKey.
+        .fileSizeKey, // ✓ Z: FSItem.m:1013 NSURLFileSizeKey.
+        .totalFileAllocatedSizeKey, // ✓ Z: FSItem.m:1014 NSURLTotalFileAllocatedSizeKey.
+        .fileSizeKey, // ✓ Z: FSItem.m:1015 duplicated NSURLFileSizeKey, preserved for line-level parity.
+        .totalFileAllocatedSizeKey, // ✓ Z: FSItem.m:1016 duplicated NSURLTotalFileAllocatedSizeKey, preserved for line-level parity.
+        .linkCountKey, // ✓ Z: FSItem.m:1017 NSURLLinkCountKey for hardlink dedup.
+        .fileResourceIdentifierKey // ✓ Z: FSItem.m:1018 NSURLFileResourceIdentifierKey for unique-per-volume inode id.
+    ] // ✓ Z: FSItem.m:1019 nil terminates urlProperties array.
+
     func scan( // ✓ Z: FileSystemDoc.m:589 runTopLevelOrchestrationForURL:usePhysicalSize:showPackageContents: is the corresponding scanner entry point.
         source: ScanSource, // ✓ Z: FileSystemDoc.m:589 rootURL parameter.
         settings: DiskScanSettings = .diskInventoryZDefault, // ✓ Z: FileSystemDoc.m:590-591 usePhysicalSize/showPackageContents parameters.
@@ -102,8 +116,8 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable { // ✓ Swif
         } // ✓ Swift-only: closes Swift optional bridge.
         for case let descendantURL as URL in packageEnumerator { // ✓ Z: FileSystemDoc.m:662 for ( NSURL *u in pkgEnum ) @autoreleasepool.
             try Task.checkCancellation() // ✓ Swift-only: Swift cancellation bridge for FileSystemDoc.m:664 atomic cancel break.
-            let descendantValues: URLResourceValues = try descendantURL.resourceValues(forKeys: Set(packageKeys)) // ✓ Z: FileSystemDoc.m:666 [u getResourceValue: &sz forKey: sk error: nil].
-            let descendantSize: Int? = usePhysicalSize ? descendantValues.totalFileAllocatedSize : descendantValues.fileAllocatedSize // ✓ Z: FileSystemDoc.m:665-666 sk = usePhysicalSize ? NSURLTotalFileAllocatedSizeKey : NSURLFileAllocatedSizeKey.
+            let descendantValues: URLResourceValues? = try? descendantURL.resourceValues(forKeys: Set(packageKeys)) // ✓ Z: FileSystemDoc.m:666 [u getResourceValue: &sz forKey: sk error: nil] ignores lookup errors.
+            let descendantSize: Int? = usePhysicalSize ? descendantValues?.totalFileAllocatedSize : descendantValues?.fileAllocatedSize // ✓ Z: FileSystemDoc.m:665-666 sk = usePhysicalSize ? NSURLTotalFileAllocatedSizeKey : NSURLFileAllocatedSizeKey.
             if let descendantSize: Int = descendantSize { // ✓ Z: FileSystemDoc.m:667 if ( sz != nil ).
                 packageSize += UInt64(descendantSize) // ✓ Z: FileSystemDoc.m:668 pkgSize += [sz unsignedLongLongValue].
             } // ✓ Z: FileSystemDoc.m:667-668 closes size add.
