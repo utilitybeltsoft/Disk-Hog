@@ -1,4 +1,5 @@
 import Foundation // ✓ Swift-only: Swift module import required for URL, Task, and Foundation file APIs.
+import UniformTypeIdentifiers // ✓ Z: FSItem.m:650 uses UTType typeWithIdentifier:localizedDescription.
 
 // Rule for this file: every scanner behavior line must carry either a checked Disk Inventory Z source reference or a checked Swift-only justification. // ✓ Swift-only: port discipline requested for the scanner rewrite.
 nonisolated final class DiskInventoryZScanner: @unchecked Sendable { // ✓ Swift-only: Swift type shell replacing Z's FSItem/FileSystemDoc Objective-C split.
@@ -6,6 +7,7 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable { // ✓ Swif
 
     nonisolated(unsafe) private static var seenHardlinkInodes: NSMutableSet? = nil // ✓ Z: FSItem.m:43 static NSMutableSet *g_seenHardlinkInodes = nil.
     nonisolated(unsafe) private static var firmlinkURLs: Set<URL>? = nil // ✓ Z: NSURL-Extensions.m:23 NSMutableDictionary<NSURL*, NSURL*> * g_Firmlinks = nil.
+    nonisolated(unsafe) private static var kindNameByTypeIdentifier: [String: String] = [:] // ✓ Z: FSItem.m:49 NSMutableDictionary *g_kindNameDictionary = nil.
     private static let firmlinkListPath: String = "/usr/share/firmlinks" // ✓ Z: NSURL-Extensions.m:24 NSString *firmlinkListFile = @"/usr/share/firmlinks".
 
     private static let topLevelResourceKeys: [URLResourceKey] = [ // ✓ Z: FileSystemDoc.m:595 NSArray<NSURLResourceKey> *keys = @[...].
@@ -262,14 +264,34 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable { // ✓ Swif
         let allocatedSize: UInt64 = UInt64(values?.totalFileAllocatedSize ?? 0) // ✓ Z: FSItem.m:486-520 recalculateSize uses cachedPhysicalSize for files.
         let logicalSize: UInt64 = UInt64(values?.fileSize ?? 0) // ✓ Z: FSItem.m:488-520 recalculateSize uses cachedLogicalSize for files.
         let name: String = values?.name ?? (url.lastPathComponent.isEmpty ? url.path : url.lastPathComponent) // ✓ Z: FSItem.m:685-694 name uses cachedName.
+        let kindName: String? = Self.kindName(for: url, values: values) // ✓ Z: FSItem.m:951-952 initWithURL:setKindString calls setKindStringIncludingChildren:NO.
         return DiskItem( // ✓ Z: FSItem.m:105-126 returns initialized FSItem.
             url: url, // ✓ Z: FSItem.m:112 _fileURL = [url retain].
             parent: parent, // ✓ Z: FSItem.m:383 [newChild setParent: self].
             name: name, // ✓ Z: FSItem.m:685-694 name from cachedName.
             allocatedSizeValue: isDirectory ? 0 : allocatedSize, // ✓ Z: FSItem.m:486-520 file size is counted during recalculateSize; folders sum children.
             logicalSizeValue: isDirectory ? 0 : logicalSize, // ✓ Z: FSItem.m:486-520 file logical size is counted during recalculateSize; folders sum children.
+            kindName: kindName, // ✓ Z: FSItem.m:638-663 _kindName resolved from cached UTI and localized type description.
             isDirectory: isDirectory, // ✓ Z: FSItem.m:111 if directory creates children array.
             isPackage: isPackage // ✓ Z: FileSystemDoc.m:634-641 package bit read from NSURLIsPackageKey.
         ) // ✓ Z: FSItem.m:126 returns initialized item.
     } // ✓ Z: FSItem.m:126 ends initWithURL analogue.
+
+    private static func kindName(for url: URL, values: URLResourceValues?) -> String? { // ✓ Z: FSItem.m:566 setKindStringIncludingChildren:.
+        let typeIdentifier: String? = values?.typeIdentifier ?? ((try? url.resourceValues(forKeys: [.typeIdentifierKey]))?.typeIdentifier) // ✓ Z: FSItem.m:638 NSString *uti = [[self fileURL] cachedUTI].
+        guard let typeIdentifier: String = typeIdentifier else { // ✓ Swift-only: Swift dictionaries cannot be queried with nil; Z's cachedUTI is expected to be non-nil for normal file URLs.
+            return nil // ✓ Swift-only: preserves nil kind when Foundation cannot provide NSURLTypeIdentifierKey.
+        } // ✓ Swift-only: closes nil-UTI guard.
+        if let cachedKindName: String = Self.kindNameByTypeIdentifier[typeIdentifier] { // ✓ Z: FSItem.m:644 _kindName = [[g_kindNameDictionary objectForKey: uti] retain].
+            return cachedKindName // ✓ Z: FSItem.m:644 cached kind returned when present.
+        } // ✓ Z: FSItem.m:647 proceeds when _kindName == nil.
+        var resolvedKindName: String? = UTType(typeIdentifier)?.localizedDescription // ✓ Z: FSItem.m:650 _kindName = [[UTType typeWithIdentifier: uti].localizedDescription retain].
+        if resolvedKindName == nil { // ✓ Z: FSItem.m:658 if ( _kindName == nil ).
+            resolvedKindName = (try? url.resourceValues(forKeys: [.localizedTypeDescriptionKey]))?.localizedTypeDescription // ✓ Z: FSItem.m:661 _kindName = [[self fileURL] getCachedStringValue:NSURLLocalizedTypeDescriptionKey].
+        } // ✓ Z: FSItem.m:663 closes localized-description fallback.
+        if let resolvedKindName: String = resolvedKindName { // ✓ Z: FSItem.m:654 if ( _kindName != nil ).
+            Self.kindNameByTypeIdentifier[typeIdentifier] = resolvedKindName // ✓ Z: FSItem.m:655 [g_kindNameDictionary setObject:_kindName forKey:uti].
+        } // ✓ Z: FSItem.m:655 closes cache store.
+        return resolvedKindName // ✓ Z: FSItem.m:666 exits setKindStringIncludingChildren with _kindName assigned or nil.
+    } // ✓ Z: FSItem.m:669 ends kind resolution before optional child recursion.
 } // ✓ Swift-only: closes Swift scanner shell.
