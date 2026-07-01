@@ -275,7 +275,8 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable { // ✓ Swif
             logicalSizeValue: isDirectory ? 0 : logicalSize, // ✓ Z: FSItem.m:486-520 file logical size is counted during recalculateSize; folders sum children.
             kindName: kindName, // ✓ Z: FSItem.m:638-663 _kindName resolved from cached UTI and localized type description.
             isDirectory: isDirectory, // ✓ Z: FSItem.m:111 if directory creates children array.
-            isPackage: isPackage // ✓ Z: FileSystemDoc.m:634-641 package bit read from NSURLIsPackageKey.
+            isPackage: isPackage, // ✓ Z: FileSystemDoc.m:634-641 package bit read from NSURLIsPackageKey.
+            isAliasOrSymbolicLink: isSymbolicLink // ✓ Z: FSItem.m:111-126 preserves symlink identity so cached/display name remains the link name.
         ) // ✓ Z: FSItem.m:126 returns initialized item.
     } // ✓ Z: FSItem.m:126 ends initWithURL analogue.
 
