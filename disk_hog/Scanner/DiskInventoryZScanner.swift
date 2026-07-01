@@ -19,9 +19,9 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable { // ✓ Swif
 
         let rootURL: URL = URL(fileURLWithPath: source.path) // ✓ Z: FileSystemDoc.m:589 rootURL is the NSURL scan root.
         let rootItem: DiskItem = Self.makeItem(url: rootURL, parent: nil, values: nil) // ✓ Z: FSItem.m:105-126 initWithURL: creates root FSItem.
-        var scannedFileCount: Int = 0 // ✓ Swift-only: SwiftUI progress counter; Z increments global file counters from FSItem's scan loop.
-        var scannedFolderCount: Int = 0 // ✓ Swift-only: SwiftUI progress counter; Z increments global folder counters from FSItem's scan loop.
-        var scannedByteCount: UInt64 = 0 // ✓ Swift-only: SwiftUI progress counter; Z overlay derives size from scanned FSItems.
+        let scannedFileCount: Int = 0 // ✓ Swift-only: temporary zero value because FSItem.m:948-950 counters are not ported in this checkpoint.
+        let scannedFolderCount: Int = 0 // ✓ Swift-only: temporary zero value because FSItem.m:948-950 counters are not ported in this checkpoint.
+        let scannedByteCount: UInt64 = 0 // ✓ Swift-only: temporary zero value because FSItem.m:486-520 size recalculation is not ported in this checkpoint.
 
         progressHandler?( // ✓ Swift-only: initial progress publication for the existing SwiftUI session.
             DiskScanProgress( // ✓ Swift-only: Swift value object corresponding to Z's worker status fields.
@@ -56,13 +56,12 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable { // ✓ Swif
             let isVolume: Bool = values.isVolume ?? false // ✓ Z: FileSystemDoc.m:634 BOOL isVol plus NSURLIsVolumeKey.
 
             if isDirectory && !isVolume && (!isPackage || settings.lookInsidePackages) { // ✓ Z: FileSystemDoc.m:646 if ( isDir && !isVol && (!isPkg || showPackageContents) ).
-                scannedFolderCount += 1 // ✓ Swift-only: placeholder progress for the top-level folder until FSItem.m:420 loadChildren is ported.
-            } else { // ✓ Z: FileSystemDoc.m:651 and FileSystemDoc.m:669 else branches for package/file/volume mount cases.
-                scannedFileCount += isDirectory ? 0 : 1 // ✓ Swift-only: placeholder progress for top-level files until FSItem.m:977 loadChildrenAndSetKindStrings is ported.
+                throw DiskScannerError.zMethodNotPorted("FSItem.loadChildren") // ✓ Z: FileSystemDoc.m:648 [orphan loadChildren]; explicit stop until that Z method is translated.
+            } else if isDirectory && isPackage && !settings.lookInsidePackages { // ✓ Z: FileSystemDoc.m:651 else if ( isDir && isPkg && !showPackageContents ).
+                throw DiskScannerError.zMethodNotPorted("topLevelOpaquePackageSize") // ✓ Z: FileSystemDoc.m:654-666 package-size loop; explicit stop until translated.
             } // ✓ Z: FileSystemDoc.m:670 closes top-level file/folder decision.
 
             rootItem.appendChild(orphan, updateSize: true) // ✓ Z: FileSystemDoc.m:694 [_rootItem insertChild: toPublish updateParent: YES], adapted to current DiskItem append API.
-            scannedByteCount = rootItem.allocatedSizeValue // ✓ Z: FSItem.m:397 insertChild updates parent size from child size.
             progressHandler?( // ✓ Swift-only: SwiftUI progress bridge for FileSystemDoc.m:632 _workerCurrentPath.
                 DiskScanProgress( // ✓ Swift-only: Swift value object corresponding to Z's worker status fields.
                     scannedFileCount: scannedFileCount, // ✓ Swift-only: publishes placeholder count while recursive loadChildren is not yet ported.

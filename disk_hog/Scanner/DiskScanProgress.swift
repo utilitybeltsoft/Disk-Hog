@@ -9,4 +9,5 @@ nonisolated struct DiskScanProgress: Sendable {
 
 nonisolated enum DiskScannerError: Error, Equatable {
     case topLevelEnumerationFailed
+    case zMethodNotPorted(String)
 }
