@@ -9,6 +9,7 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable { // ✓ Swif
     nonisolated(unsafe) private static var firmlinkURLs: Set<URL>? = nil // ✓ Z: NSURL-Extensions.m:23 NSMutableDictionary<NSURL*, NSURL*> * g_Firmlinks = nil.
     nonisolated(unsafe) private static var kindNameByTypeIdentifier: [String: String] = [:] // ✓ Z: FSItem.m:49 NSMutableDictionary *g_kindNameDictionary = nil.
     private static let firmlinkListPath: String = "/usr/share/firmlinks" // ✓ Z: NSURL-Extensions.m:24 NSString *firmlinkListFile = @"/usr/share/firmlinks".
+    fileprivate static let progressRefreshInterval: TimeInterval = 0.25 // ✓ Z: FileSystemDoc.m:1684-1687 maybeRefreshScanCheckpoint gates refreshes at 0.25s.
 
     private static let topLevelResourceKeys: [URLResourceKey] = [ // ✓ Z: FileSystemDoc.m:595 NSArray<NSURLResourceKey> *keys = @[...].
         .isDirectoryKey, .isPackageKey, .isVolumeKey, // ✓ Z: FileSystemDoc.m:596 NSURLIsDirectoryKey, NSURLIsPackageKey, NSURLIsVolumeKey.
@@ -41,17 +42,10 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable { // ✓ Swif
         let rootURL: URL = URL(fileURLWithPath: source.path) // ✓ Z: FileSystemDoc.m:589 rootURL is the NSURL scan root.
         Self.resetHardlinkDedup() // ✓ Z: FileSystemDoc.m:587 [FSItem resetHardlinkDedup].
         let rootItem: DiskItem = Self.makeItem(url: rootURL, parent: nil, values: nil) // ✓ Z: FSItem.m:105-126 initWithURL: creates root FSItem.
-        let scannedFileCount: Int = 0 // ✓ Swift-only: temporary zero value because FSItem.m:948-950 counters are not ported in this checkpoint.
-        let scannedFolderCount: Int = 0 // ✓ Swift-only: temporary zero value because FSItem.m:948-950 counters are not ported in this checkpoint.
-        let scannedByteCount: UInt64 = 0 // ✓ Swift-only: temporary zero value because FSItem.m:486-520 size recalculation is not ported in this checkpoint.
+        var progressState: ScanProgressState = ScanProgressState(currentPath: rootURL.path) // ✓ Z: FileSystemDoc.m:503-504 resets g_fileCount/g_folderCount and FileSystemDoc.m:515 posts initial path.
 
         progressHandler?( // ✓ Swift-only: initial progress publication for the existing SwiftUI session.
-            DiskScanProgress( // ✓ Swift-only: Swift value object corresponding to Z's worker status fields.
-                scannedFileCount: scannedFileCount, // ✓ Swift-only: initial file count before FileSystemDoc.m:611 top-level loop.
-                scannedFolderCount: scannedFolderCount, // ✓ Swift-only: initial folder count before FileSystemDoc.m:611 top-level loop.
-                scannedByteCount: scannedByteCount, // ✓ Swift-only: initial byte count before child FSItems are inserted.
-                currentPath: rootURL.path // ✓ Z: FileSystemDoc.m:632 _workerCurrentPath, adapted before first child.
-            ) // ✓ Swift-only: closes Swift progress value.
+            progressState.snapshot() // ✓ Z: FileSystemDoc.m:515 posts DIXScanStartedNotification with DIXScanPath before scan work.
         ) // ✓ Swift-only: closes optional progress callback.
 
         let topLevelChildren: [URL] // ✓ Z: FileSystemDoc.m:604 NSArray<NSURL*> *topLevel.
@@ -73,30 +67,30 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable { // ✓ Swif
 
             let values: URLResourceValues = try childURL.resourceValues(forKeys: Set(Self.topLevelResourceKeys)) // ✓ Z: FileSystemDoc.m:633-641 getResourceValue for top-level isDir/isPkg/isVol from prefetched keys.
             let orphan: DiskItem = Self.makeItem(url: childURL, parent: rootItem, values: values) // ✓ Z: FileSystemDoc.m:628 FSItem *orphan = [[FSItem alloc] initWithURL: childURL].
+            progressState.recordItem(orphan) // ✓ Z: FSItem.m:955-958 increments g_folderCount/g_fileCount after FSItem initialization.
             let isDirectory: Bool = values.isDirectory ?? false // ✓ Z: FileSystemDoc.m:634 BOOL isDir plus NSURLIsDirectoryKey.
             let isPackage: Bool = values.isPackage ?? false // ✓ Z: FileSystemDoc.m:634 BOOL isPkg plus NSURLIsPackageKey.
             let isVolume: Bool = values.isVolume ?? false // ✓ Z: FileSystemDoc.m:634 BOOL isVol plus NSURLIsVolumeKey.
 
             if isDirectory && !isVolume && (!isPackage || settings.lookInsidePackages) { // ✓ Z: FileSystemDoc.m:646 if ( isDir && !isVol && (!isPkg || showPackageContents) ).
-                try Self.loadChildren(of: orphan, settings: settings) // ✓ Z: FileSystemDoc.m:648 [orphan loadChildren].
+                try Self.loadChildren(of: orphan, settings: settings, progressState: &progressState, progressHandler: progressHandler) // ✓ Z: FileSystemDoc.m:648 [orphan loadChildren].
             } else if isDirectory && isPackage && !settings.lookInsidePackages { // ✓ Z: FileSystemDoc.m:651 else if ( isDir && isPkg && !showPackageContents ).
                 let packageSize: UInt64 = try Self.topLevelOpaquePackageSize(url: childURL, usePhysicalSize: settings.usePhysicalSize) // ✓ Z: FileSystemDoc.m:654-666 computes pkgSize for opaque package.
                 orphan.allocatedSizeValue = packageSize // ✓ Z: FileSystemDoc.m:666 [orphan setSizeValue: pkgSize].
                 orphan.logicalSizeValue = packageSize // ✓ Swift-only: DiskItem has separate logical/allocated fields; Z has one active _sizeValue.
+            } else if !isDirectory { // ✓ Z: FSItem.m:943-949 non-folders receive size during initWithURL:usePhysicalSize:.
+                progressState.addScannedBytes(orphan.allocatedSizeValue) // ✓ Swift-only: Disk Hog progress UI shows bytes; Z progress notification only exposes item count and path.
             } // ✓ Z: FileSystemDoc.m:670 closes top-level file/folder decision.
 
             rootItem.appendChild(orphan, updateSize: true) // ✓ Z: FileSystemDoc.m:694 [_rootItem insertChild: toPublish updateParent: YES], adapted to current DiskItem append API.
-            progressHandler?( // ✓ Swift-only: SwiftUI progress bridge for FileSystemDoc.m:632 _workerCurrentPath.
-                DiskScanProgress( // ✓ Swift-only: Swift value object corresponding to Z's worker status fields.
-                    scannedFileCount: scannedFileCount, // ✓ Swift-only: publishes placeholder count while recursive loadChildren is not yet ported.
-                    scannedFolderCount: scannedFolderCount, // ✓ Swift-only: publishes placeholder count while recursive loadChildren is not yet ported.
-                    scannedByteCount: scannedByteCount, // ✓ Swift-only: publishes current root accumulated size.
-                    currentPath: childURL.path // ✓ Z: FileSystemDoc.m:632 _workerCurrentPath = [[childURL path] copy].
-                ) // ✓ Swift-only: closes Swift progress value.
-            ) // ✓ Swift-only: closes optional progress callback.
+            progressState.updateCurrentPath(childURL.path) // ✓ Z: FileSystemDoc.m:633-635 _workerCurrentPath = [[childURL path] copy].
+            progressState.setScannedBytes(rootItem.allocatedSizeValue) // ✓ Swift-only: Disk Hog progress UI includes the root accumulated size after top-level publish.
+            progressHandler?(progressState.snapshot()) // ✓ Z: FileSystemDoc.m:747-766 scanRefreshCheckpointFromWorker publishes path/item count after worker checkpoint.
         } // ✓ Z: FileSystemDoc.m:705 closes top-level loop/orchestration.
 
         rootItem.sortChildrenInDiskInventoryZOrder(recursive: false) // ✓ Z: FSItem.m:397 insertChild keeps children sorted by size descending.
+        progressState.setScannedBytes(rootItem.allocatedSizeValue) // ✓ Swift-only: final progress snapshot reports the completed root size.
+        progressHandler?(progressState.snapshot()) // ✓ Z: FileSystemDoc.m:533-541 final scan completion logs item counts after worker finishes.
         return rootItem // ✓ Z: FileSystemDoc.m:694 published _rootItem is the completed root tree for this phase.
     } // ✓ Z: FileSystemDoc.m:705 ends top-level orchestration.
 
@@ -124,10 +118,17 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable { // ✓ Swif
         return false // ✓ Z: FSItem.m:1089 proceeds to resource caching.
     } // ✓ Z: FSItem.m:1085 ends recursive skip section.
 
-    private static func loadChildren(of item: DiskItem, settings: DiskScanSettings) throws { // ✓ Z: FSItem.m:977 loadChildrenAndSetKindStrings:usePhysicalSize:.
+    private static func loadChildren( // ✓ Z: FSItem.m:977 loadChildrenAndSetKindStrings:usePhysicalSize:.
+        of item: DiskItem, // ✓ Z: FSItem.m:977 receiver self is the folder item being loaded.
+        settings: DiskScanSettings, // ✓ Z: FSItem.m:977 usePhysicalSize argument plus delegate package setting.
+        progressState: inout ScanProgressState, // ✓ Z: FileSystemDoc.m:755-756 scanRefreshCheckpointFromWorker snapshots g_fileCount/g_folderCount and _workerCurrentPath.
+        progressHandler: ProgressHandler? // ✓ Swift-only: SwiftUI progress bridge replacing Z's NSNotification.
+    ) throws { // ✓ Z: FSItem.m:977 method body begins.
         if !item.isFolder { // ✓ Z: FSItem.m:980 if ( ![self isFolder] ).
             return // ✓ Z: FSItem.m:981 return.
         } // ✓ Z: FSItem.m:980-981 closes non-folder guard.
+        progressState.updateCurrentPath(item.path) // ✓ Z: FileSystemDoc.m:1657-1671 fsItemEnteringFolder updates _workerCurrentPath for visible folder progress.
+        if progressState.shouldPublish() { progressHandler?(progressState.snapshot()) } // ✓ Z: FileSystemDoc.m:1684-1688 maybeRefreshScanCheckpoint publishes after 0.25s.
         item.removeAllChildren() // ✓ Z: FSItem.m:993-994 [_childs release]; _childs = [[NSMutableArray alloc] init].
         var itemStack: [DiskItem] = [] // ✓ Z: FSItem.m:1032 NSMutableArray<FSItem*> *itemStack = [[NSMutableArray alloc] init].
         itemStack.append(item) // ✓ Z: FSItem.m:1034 [itemStack addObject:self].
@@ -149,6 +150,7 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable { // ✓ Swif
             if filesSinceYield >= 64 { // ✓ Z: FSItem.m:1065 every 64 entries checks whether scanning should continue.
                 filesSinceYield = 0 // ✓ Z: FSItem.m:1067 filesSinceYield = 0.
                 try Task.checkCancellation() // ✓ Swift-only: Swift cancellation bridge for FSItem.m:1068-1072 fsItemShouldContinueLoading.
+                if progressState.shouldPublish() { progressHandler?(progressState.snapshot()) } // ✓ Z: FileSystemDoc.m:1703-1710 fsItemShouldContinueLoading drives the 4 Hz progress checkpoint.
             } // ✓ Z: FSItem.m:1073 closes 64-entry yield block.
             if Self.shouldSkipRecursiveURL(currentURL, enumerator: directoryEnumerator) { // ✓ Z: FSItem.m:1066-1085 recursive skip checks.
                 continue // ✓ Z: FSItem.m:1069 and FSItem.m:1084 continue.
@@ -173,6 +175,7 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable { // ✓ Swif
             } // ✓ Swift-only: closes Swift stack safety guard.
             let currentItem: DiskItem = Self.makeItem(url: currentURL, parent: parentItem, values: currentValues) // ✓ Z: FSItem.m:1161-1164 [[FSItem alloc] initWithURL:currentUrl parent:[itemStack lastObject]...].
             parentItem.appendChild(currentItem, updateSize: false) // ✓ Z: FSItem.m:933-934 initWithURL:parent adds self to parent->_childs before recalculateSize.
+            progressState.recordItem(currentItem) // ✓ Z: FSItem.m:955-958 increments g_folderCount/g_fileCount after FSItem initialization.
             let isCurrentDirectory: Bool = currentValues.isDirectory ?? false // ✓ Z: FSItem.m:1175 if ( ![currentUrl isDirectory] ) and FSItem.m:1269 lastItemWasDir = [currentUrl isDirectory].
             if !isCurrentDirectory { // ✓ Z: FSItem.m:1175 hardlink branch only tests files.
                 let linkCount: Int? = currentValues.linkCount // ✓ Z: FSItem.m:1177 NSNumber *linkCount = [currentUrl getCachedNumberValue: NSURLLinkCountKey].
@@ -188,7 +191,7 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable { // ✓ Swif
             } // ✓ Z: FSItem.m:1175-1194 closes hardlink file-only branch.
             if Self.isFirmlink(currentURL) { // ✓ Z: FSItem.m:1207 BOOL isFirmlink = [currentUrl isFirmlink].
                 directoryEnumerator.skipDescendants() // ✓ Z: FSItem.m:1214 [dirEnum skipDescendants].
-                try Self.loadChildren(of: currentItem, settings: settings) // ✓ Z: FSItem.m:1215-1216 [currentItem loadChildrenAndSetKindStrings:setKindStrings usePhysicalSize:usePhysicalSize].
+                try Self.loadChildren(of: currentItem, settings: settings, progressState: &progressState, progressHandler: progressHandler) // ✓ Z: FSItem.m:1215-1216 [currentItem loadChildrenAndSetKindStrings:setKindStrings usePhysicalSize:usePhysicalSize].
             } else if currentValues.isVolume ?? false { // ✓ Z: FSItem.m:1218 else if ( [currentUrl isVolume] ).
                 directoryEnumerator.skipDescendants() // ✓ Z: FSItem.m:1222 [dirEnum skipDescendants].
             } else if (currentValues.isPackage ?? false) && !settings.lookInsidePackages { // ✓ Z: FSItem.m:1224-1226 package branch when delegate says not to look inside packages.
@@ -196,7 +199,10 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable { // ✓ Swif
                 let packageSize: UInt64 = try Self.topLevelOpaquePackageSize(url: currentURL, usePhysicalSize: settings.usePhysicalSize) // ✓ Z: FSItem.m:1235-1254 package recursive opaque-size loop.
                 currentItem.allocatedSizeValue = packageSize // ✓ Z: FSItem.m:1256 [currentItem setSizeValue: packageSize].
                 currentItem.logicalSizeValue = packageSize // ✓ Swift-only: DiskItem has separate logical/allocated fields; Z has one active _sizeValue.
+            } else if !isCurrentDirectory { // ✓ Z: FSItem.m:943-949 non-folders receive size during initWithURL:usePhysicalSize:.
+                progressState.addScannedBytes(currentItem.allocatedSizeValue) // ✓ Swift-only: Disk Hog progress UI shows bytes; Z progress notification only exposes item count and path.
             } // ✓ Z: FSItem.m:1257 closes package branch.
+            if isCurrentDirectory { progressState.updateCurrentPath(currentURL.path) } // ✓ Z: FileSystemDoc.m:1657-1671 fsItemEnteringFolder updates the worker current path for folder progress.
             lastItemWasDirectory = isCurrentDirectory // ✓ Z: FSItem.m:1269 lastItemWasDir = [currentUrl isDirectory].
             lastDirectoryItem = lastItemWasDirectory ? currentItem : nil // ✓ Z: FSItem.m:1271 lastDirItem = lastItemWasDir ? currentItem : nil.
             lastEnumLevel = directoryEnumerator.level // ✓ Z: FSItem.m:1273 lastEnumLevel = [dirEnum level].
@@ -351,3 +357,53 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable { // ✓ Swif
         "4dd": "4D Data File", "4db": "4D interpreted Structure File", "memmap": "Document", "ds_store": "Document" // ✓ Swift-only: Z parity examples from current fresh report.
     ] // ✓ Swift-only: closes file kind fallback table.
 } // ✓ Swift-only: closes Swift scanner shell.
+
+nonisolated private struct ScanProgressState { // ✓ Swift-only: Swift value type replacing Z's g_fileCount/g_folderCount/_workerCurrentPath progress fields.
+    private(set) var scannedFileCount: Int = 0 // ✓ Z: FSItem.m:30 _Atomic unsigned g_fileCount.
+    private(set) var scannedFolderCount: Int = 0 // ✓ Z: FSItem.m:33 _Atomic unsigned g_folderCount.
+    private(set) var scannedByteCount: UInt64 = 0 // ✓ Swift-only: Disk Hog progress UI additionally displays bytes scanned so far.
+    private(set) var currentPath: String // ✓ Z: FileSystemDoc.h:87 NSString *_workerCurrentPath.
+    private var lastPublishTime: CFAbsoluteTime = 0 // ✓ Z: FileSystemDoc.h:88 uint64_t _workerLastRefreshTime.
+
+    init(currentPath: String) { // ✓ Z: FileSystemDoc.m:503-515 initializes scan progress state before worker begins.
+        self.currentPath = currentPath // ✓ Z: FileSystemDoc.m:515 initial scan notification uses the opened URL path.
+    } // ✓ Swift-only: closes Swift progress state initializer.
+
+    mutating func recordItem(_ item: DiskItem) { // ✓ Z: FSItem.m:955-958 increments file/folder counters after item initialization.
+        if item.isFolder { // ✓ Z: FSItem.m:955 if ( isFolder ).
+            scannedFolderCount += 1 // ✓ Z: FSItem.m:956 g_folderCount++.
+        } else { // ✓ Z: FSItem.m:957 else.
+            scannedFileCount += 1 // ✓ Z: FSItem.m:958 g_fileCount++.
+        } // ✓ Z: FSItem.m:955-958 closes counter increment.
+    } // ✓ Swift-only: closes Swift counter helper.
+
+    mutating func addScannedBytes(_ byteCount: UInt64) { // ✓ Swift-only: Disk Hog progress UI displays bytes in addition to Z's item-count notification.
+        scannedByteCount += byteCount // ✓ Swift-only: byte counter is observational and does not mutate the scanner tree.
+    } // ✓ Swift-only: closes additive byte helper.
+
+    mutating func setScannedBytes(_ byteCount: UInt64) { // ✓ Swift-only: Disk Hog progress UI can display root accumulated size after top-level insert.
+        scannedByteCount = byteCount // ✓ Swift-only: byte counter is observational and does not mutate the scanner tree.
+    } // ✓ Swift-only: closes absolute byte helper.
+
+    mutating func updateCurrentPath(_ path: String) { // ✓ Z: FileSystemDoc.m:1657-1671 worker updates _workerCurrentPath during folder progress.
+        currentPath = path // ✓ Z: FileSystemDoc.m:1669-1670 _workerCurrentPath = path.
+    } // ✓ Swift-only: closes current-path helper.
+
+    mutating func shouldPublish() -> Bool { // ✓ Z: FileSystemDoc.m:1681-1690 maybeRefreshScanCheckpoint.
+        let now: CFAbsoluteTime = CFAbsoluteTimeGetCurrent() // ✓ Z: FileSystemDoc.m:1684 uint64_t now = getTime().
+        if lastPublishTime != 0 && now - lastPublishTime < DiskInventoryZScanner.progressRefreshInterval { // ✓ Z: FileSystemDoc.m:1685-1687 skips refreshes under 0.25s.
+            return false // ✓ Z: FileSystemDoc.m:1687 return.
+        } // ✓ Z: FileSystemDoc.m:1685-1687 closes refresh gate.
+        lastPublishTime = now // ✓ Z: FileSystemDoc.m:1688 _workerLastRefreshTime = now.
+        return true // ✓ Z: FileSystemDoc.m:1689 scanRefreshCheckpointFromWorker is called.
+    } // ✓ Swift-only: closes refresh-gate helper.
+
+    func snapshot() -> DiskScanProgress { // ✓ Z: FileSystemDoc.m:755-766 scanRefreshCheckpointFromWorker snapshots path and item count for UI.
+        DiskScanProgress( // ✓ Swift-only: Swift value object replacing Z's progress notification userInfo dictionary.
+            scannedFileCount: scannedFileCount, // ✓ Z: FileSystemDoc.m:756 NSUInteger items includes g_fileCount.
+            scannedFolderCount: scannedFolderCount, // ✓ Z: FileSystemDoc.m:756 NSUInteger items includes g_folderCount.
+            scannedByteCount: scannedByteCount, // ✓ Swift-only: Disk Hog progress UI displays bytes in addition to Z's notification.
+            currentPath: currentPath // ✓ Z: FileSystemDoc.m:755 NSString *path = _workerCurrentPath.
+        ) // ✓ Swift-only: closes Swift progress value.
+    } // ✓ Swift-only: closes snapshot helper.
+} // ✓ Swift-only: closes Swift progress state.
