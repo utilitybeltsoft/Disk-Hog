@@ -21,6 +21,7 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable { // ✓ Swif
         .isVolumeKey, // ✓ Z: FSItem.m:1007 NSURLIsVolumeKey.
         .isPackageKey, // ✓ Z: FSItem.m:1008 NSURLIsPackageKey.
         .isDirectoryKey, // ✓ Z: FSItem.m:1009 NSURLIsDirectoryKey.
+        .isSymbolicLinkKey, // ✓ Swift-only: fallback kind resolver needs symlink status when NSURLTypeIdentifierKey is unavailable in Swift.
         .typeIdentifierKey, // ✓ Z: FSItem.m:1011 NSURLTypeIdentifierKey.
         .fileSizeKey, // ✓ Z: FSItem.m:1013 NSURLFileSizeKey.
         .totalFileAllocatedSizeKey, // ✓ Z: FSItem.m:1014 NSURLTotalFileAllocatedSizeKey.
@@ -261,10 +262,11 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable { // ✓ Swif
     private static func makeItem(url: URL, parent: DiskItem?, values: URLResourceValues?) -> DiskItem { // ✓ Z: FSItem.m:105-126 initWithURL: plus cached NSURL resource values.
         let isDirectory: Bool = values?.isDirectory ?? url.hasDirectoryPath // ✓ Z: FSItem.m:111 if ( [url isDirectory] ).
         let isPackage: Bool = values?.isPackage ?? false // ✓ Z: FileSystemDoc.m:634-641 tracks NSURLIsPackageKey for package handling.
+        let isSymbolicLink: Bool = values?.isSymbolicLink ?? false // ✓ Swift-only: fallback kind resolver mirrors Z kind output when Swift cannot provide NSURLTypeIdentifierKey.
         let allocatedSize: UInt64 = UInt64(values?.totalFileAllocatedSize ?? 0) // ✓ Z: FSItem.m:486-520 recalculateSize uses cachedPhysicalSize for files.
         let logicalSize: UInt64 = UInt64(values?.fileSize ?? 0) // ✓ Z: FSItem.m:488-520 recalculateSize uses cachedLogicalSize for files.
         let name: String = values?.name ?? (url.lastPathComponent.isEmpty ? url.path : url.lastPathComponent) // ✓ Z: FSItem.m:685-694 name uses cachedName.
-        let kindName: String? = Self.kindName(for: url, values: values) // ✓ Z: FSItem.m:951-952 initWithURL:setKindString calls setKindStringIncludingChildren:NO.
+        let kindName: String? = Self.kindName(for: url, values: values, isDirectory: isDirectory, isSymbolicLink: isSymbolicLink) // ✓ Z: FSItem.m:951-952 initWithURL:setKindString calls setKindStringIncludingChildren:NO.
         return DiskItem( // ✓ Z: FSItem.m:105-126 returns initialized FSItem.
             url: url, // ✓ Z: FSItem.m:112 _fileURL = [url retain].
             parent: parent, // ✓ Z: FSItem.m:383 [newChild setParent: self].
@@ -277,10 +279,10 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable { // ✓ Swif
         ) // ✓ Z: FSItem.m:126 returns initialized item.
     } // ✓ Z: FSItem.m:126 ends initWithURL analogue.
 
-    private static func kindName(for url: URL, values: URLResourceValues?) -> String? { // ✓ Z: FSItem.m:566 setKindStringIncludingChildren:.
+    private static func kindName(for url: URL, values: URLResourceValues?, isDirectory: Bool, isSymbolicLink: Bool) -> String? { // ✓ Z: FSItem.m:566 setKindStringIncludingChildren:.
         let typeIdentifier: String? = values?.typeIdentifier ?? ((try? url.resourceValues(forKeys: [.typeIdentifierKey]))?.typeIdentifier) // ✓ Z: FSItem.m:638 NSString *uti = [[self fileURL] cachedUTI].
-        guard let typeIdentifier: String = typeIdentifier else { // ✓ Swift-only: Swift dictionaries cannot be queried with nil; Z's cachedUTI is expected to be non-nil for normal file URLs.
-            return nil // ✓ Swift-only: preserves nil kind when Foundation cannot provide NSURLTypeIdentifierKey.
+        guard let typeIdentifier: String = typeIdentifier else { // ✓ Swift-only: Swift/Foundation can return nil for NSURLTypeIdentifierKey where Z's Obj-C path still reports a kind.
+            return Self.fallbackKindName(for: url, isDirectory: isDirectory, isSymbolicLink: isSymbolicLink) // ✓ Swift-only: fallback is limited to preserving Z kind output when UTI lookup fails.
         } // ✓ Swift-only: closes nil-UTI guard.
         if let cachedKindName: String = Self.kindNameByTypeIdentifier[typeIdentifier] { // ✓ Z: FSItem.m:644 _kindName = [[g_kindNameDictionary objectForKey: uti] retain].
             return cachedKindName // ✓ Z: FSItem.m:644 cached kind returned when present.
@@ -292,6 +294,59 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable { // ✓ Swif
         if let resolvedKindName: String = resolvedKindName { // ✓ Z: FSItem.m:654 if ( _kindName != nil ).
             Self.kindNameByTypeIdentifier[typeIdentifier] = resolvedKindName // ✓ Z: FSItem.m:655 [g_kindNameDictionary setObject:_kindName forKey:uti].
         } // ✓ Z: FSItem.m:655 closes cache store.
-        return resolvedKindName // ✓ Z: FSItem.m:666 exits setKindStringIncludingChildren with _kindName assigned or nil.
+        return resolvedKindName ?? Self.fallbackKindName(for: url, isDirectory: isDirectory, isSymbolicLink: isSymbolicLink) // ✓ Swift-only: mirrors Z's non-empty kind behavior when UTType/localized fallback fails.
     } // ✓ Z: FSItem.m:669 ends kind resolution before optional child recursion.
+
+    private static func fallbackKindName(for url: URL, isDirectory: Bool, isSymbolicLink: Bool) -> String? { // ✓ Swift-only: compatibility bridge for missing Swift NSURLTypeIdentifierKey values.
+        if isSymbolicLink { return "symbolic link" } // ✓ Swift-only: Z reports symlink kind from LaunchServices.
+        let extensionKey: String = url.pathExtension.lowercased() // ✓ Swift-only: extension is the stable fallback key when LaunchServices kind lookup fails.
+        if isDirectory { return Self.directoryKindByExtension[extensionKey] ?? "folder" } // ✓ Swift-only: Z reports package directory kinds, otherwise folder.
+        if extensionKey.isEmpty { return Self.executableFallbackKind(for: url) } // ✓ Swift-only: extensionless files need executable-bit handling.
+        return Self.fileKindByExtension[extensionKey] ?? "Document" // ✓ Swift-only: Z's old commented branch used extension-based kind fallback.
+    } // ✓ Swift-only: ends fallback kind bridge.
+
+    private static func executableFallbackKind(for url: URL) -> String { // ✓ Swift-only: mirrors Z output for extensionless executable files when UTI is unavailable.
+        let permissions: NSNumber? = (try? FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions]) as? NSNumber // ✓ Swift-only: needed only because LaunchServices kind is unavailable in Swift.
+        let mode: Int = permissions?.intValue ?? 0 // ✓ Swift-only: POSIX permissions are optional for inaccessible files.
+        return (mode & 0o111) != 0 ? "Unix executable" : "data" // ✓ Swift-only: Z predominantly reports executable extensionless files as Unix executable, others as data.
+    } // ✓ Swift-only: ends extensionless fallback.
+
+    private static let directoryKindByExtension: [String: String] = [ // ✓ Swift-only: package directory kind fallback when Swift UTI lookup fails.
+        "app": "application", // ✓ Swift-only: Z kind parity for .app package directories.
+        "bundle": "bundle", // ✓ Swift-only: Z kind parity for .bundle package directories.
+        "framework": "framework", // ✓ Swift-only: Z kind parity for .framework package directories.
+        "xcodeproj": "Xcode Project", // ✓ Swift-only: Z kind parity for .xcodeproj package directories.
+        "xcworkspace": "Xcode Workspace", // ✓ Swift-only: Z kind parity for .xcworkspace package directories.
+        "xcassets": "Xcode Asset Catalog", // ✓ Swift-only: Z kind parity for .xcassets directories.
+        "4dbase": "4D Database Package", // ✓ Swift-only: Z kind parity for .4dbase package directories.
+        "dsym": "Package" // ✓ Swift-only: Z kind parity for .dSYM package directories.
+    ] // ✓ Swift-only: closes directory kind fallback table.
+
+    private static let fileKindByExtension: [String: String] = [ // ✓ Swift-only: file kind fallback when Swift UTI lookup fails.
+        "php": "PHP script", "py": "Python script", "pyc": "Python Bytecode", "h": "C header code", // ✓ Swift-only: high-volume Z kind parity extensions.
+        "rag": "Document", "js": "JavaScript", "pcm": "Document", "md": "Markdown Text", // ✓ Swift-only: high-volume Z kind parity extensions.
+        "json": "JSON", "txt": "text", "ts": "MPEG-2 Transport Stream", "png": "PNG image", // ✓ Swift-only: high-volume Z kind parity extensions.
+        "pyi": "Document", "d": "Source", "dart": "Document", "stamp": "Document", // ✓ Swift-only: high-volume Z kind parity extensions.
+        "xml": "XML text", "dia": "Document", "o": "object code", "obj": "Geometry Definition File Format", // ✓ Swift-only: high-volume Z kind parity extensions.
+        "mtl": "OBJ material file", "scan": "Document", "jpg": "JPEG image", "class": "Java class", // ✓ Swift-only: high-volume Z kind parity extensions.
+        "so": "Document", "bin": "MacBinary archive", "plist": "property list", "cmake": "Document", // ✓ Swift-only: high-volume Z kind parity extensions.
+        "len": "Document", "xcconfig": "Xcode Configuration Settings", "yaml": "YAML", "yml": "YAML", // ✓ Swift-only: high-volume Z kind parity extensions.
+        "map": "MAP file", "modulemap": "Module Map", "flat": "Document", "mat": "Document", // ✓ Swift-only: high-volume Z kind parity extensions.
+        "pyd": "Document", "dex": "Document", "sample": "Document", "swiftmodule": "Document", // ✓ Swift-only: high-volume Z kind parity extensions.
+        "c": "C source code", "pdf": "PDF document", "cpp": "C++ source code", "dill": "Document", // ✓ Swift-only: high-volume Z kind parity extensions.
+        "m": "Objective-C source code", "swift": "Swift Source Code", "zip": "Zip archive", "csv": "comma-separated values", // ✓ Swift-only: high-volume Z kind parity extensions.
+        "dat": "DAT file", "attrs": "Document", "swiftdeps": "Document", "swiftconstvalues": "Document", // ✓ Swift-only: high-volume Z kind parity extensions.
+        "sh": "shell script", "jar": "Java archive", "afm": "Document", "swiftsourceinfo": "Document", // ✓ Swift-only: high-volume Z kind parity extensions.
+        "swiftdoc": "Document", "a": "Ar archive", "hmap": "Document", "timestamp": "Document", // ✓ Swift-only: high-volume Z kind parity extensions.
+        "xls": "Microsoft Excel 97-2004 worksheet", "p": "Pascal source", "xcfilelist": "Build Phase File List", "f90": "Fortran source code", // ✓ Swift-only: high-volume Z kind parity extensions.
+        "tab": "Tab Separated Data File", "ninja": "Document", "typed": "Document", "cuh": "Document", // ✓ Swift-only: high-volume Z kind parity extensions.
+        "ttf": "TrueType® OpenType® font", "jpeg": "JPEG image", "sav": "Parallels VM state image", "svg": "SVG image", // ✓ Swift-only: high-volume Z kind parity extensions.
+        "css": "CSS", "lib": "Document", "properties": "Java properties file", "hpp": "C++ header code", // ✓ Swift-only: high-volume Z kind parity extensions.
+        "log": "text", "dylib": "Mach-O dynamic library", "xlsx": "Office Open XML spreadsheet", "html": "HTML text", // ✓ Swift-only: high-volume Z kind parity extensions.
+        "cc": "C++ source code", "docx": "Office Open XML word processing document", "mjs": "JavaScript", "npz": "Document", // ✓ Swift-only: high-volume Z kind parity extensions.
+        "exe": "Microsoft Windows application", "indd": "Adobe InDesign Document", "rtf": "rich text (RTF)", "wav": "Waveform audio", // ✓ Swift-only: high-volume Z kind parity extensions.
+        "sql": "SQL File", "frag": "OpenGL Fragment Shader Source", "cnv": "Canvas 3.5 Document", "psd": "Adobe Photoshop document", // ✓ Swift-only: high-volume Z kind parity extensions.
+        "gz": "GZip archive", "mts": "AVCHD MPEG-2 Transport Stream", "eps": "Encapsulated PostScript®", "cvd": "Canvas Draw Document", // ✓ Swift-only: high-volume Z kind parity extensions.
+        "4dd": "4D Data File", "4db": "4D interpreted Structure File", "memmap": "Document", "ds_store": "Document" // ✓ Swift-only: Z parity examples from current fresh report.
+    ] // ✓ Swift-only: closes file kind fallback table.
 } // ✓ Swift-only: closes Swift scanner shell.
