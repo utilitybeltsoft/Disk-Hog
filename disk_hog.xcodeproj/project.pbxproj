@@ -268,6 +268,7 @@
 				"$(SRCROOT)/disk_hog/Treemap",
 				"$(SRCROOT)/disk_hog/Treemap/TreemapBitmapHelpers.swift",
 				"$(SRCROOT)/disk_hog/Treemap/TreemapCushionRenderer.swift",
+				"$(SRCROOT)/disk_hog/Treemap/TreemapDiskItemDataSource.swift",
 				"$(SRCROOT)/disk_hog/Treemap/TreemapItemRenderer.swift",
 				"$(SRCROOT)/disk_hog/Treemap/TreemapViewRenderer.swift",
 				"$(SRCROOT)/../scripts/check_treemap_z_mapping.py",
