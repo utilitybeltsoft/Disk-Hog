@@ -1,4 +1,13 @@
 import Foundation
+import DiskArbitration
+
+enum ScanSourceVolumeKind: String, Codable, Hashable {
+    case internalVolume
+    case externalVolume
+    case networkVolume
+    case diskImage
+    case folder
+}
 
 struct ScanSource: Codable, Hashable, Identifiable {
     let path: String
@@ -10,6 +19,8 @@ struct ScanSource: Codable, Hashable, Identifiable {
     let isLocalVolume: Bool?
     let isRemovableVolume: Bool?
     let isEjectableVolume: Bool?
+    let isInternalVolume: Bool?
+    let isDiskImageVolume: Bool?
 
     init(
         path: String,
@@ -20,7 +31,9 @@ struct ScanSource: Codable, Hashable, Identifiable {
         availableCapacity: UInt64? = nil,
         isLocalVolume: Bool? = nil,
         isRemovableVolume: Bool? = nil,
-        isEjectableVolume: Bool? = nil
+        isEjectableVolume: Bool? = nil,
+        isInternalVolume: Bool? = nil,
+        isDiskImageVolume: Bool? = nil
     ) {
         self.path = path
         self.displayName = displayName
@@ -31,6 +44,8 @@ struct ScanSource: Codable, Hashable, Identifiable {
         self.isLocalVolume = isLocalVolume
         self.isRemovableVolume = isRemovableVolume
         self.isEjectableVolume = isEjectableVolume
+        self.isInternalVolume = isInternalVolume
+        self.isDiskImageVolume = isDiskImageVolume
     }
 
     var id: String {
@@ -39,6 +54,30 @@ struct ScanSource: Codable, Hashable, Identifiable {
 
     nonisolated var url: URL {
         URL(fileURLWithPath: path)
+    }
+
+    var volumeKind: ScanSourceVolumeKind {
+        if bookmarkData != nil {
+            return .folder
+        }
+
+        if isLocalVolume == false {
+            return .networkVolume
+        }
+
+        if isDiskImageVolume == true {
+            return .diskImage
+        }
+
+        if isRemovableVolume == true || isEjectableVolume == true {
+            return .externalVolume
+        }
+
+        if isInternalVolume == true {
+            return .internalVolume
+        }
+
+        return .externalVolume
     }
 
     nonisolated func resolvedURL() throws -> URL {
@@ -64,6 +103,7 @@ enum ScanSourceProvider {
             .volumeIsLocalKey,
             .volumeIsRemovableKey,
             .volumeIsEjectableKey,
+            .volumeIsInternalKey,
             .volumeTotalCapacityKey,
             .volumeAvailableCapacityKey
         ]
@@ -82,7 +122,9 @@ enum ScanSourceProvider {
                 availableCapacity: resourceValues?.volumeAvailableCapacity.map(UInt64.init),
                 isLocalVolume: resourceValues?.volumeIsLocal,
                 isRemovableVolume: resourceValues?.volumeIsRemovable,
-                isEjectableVolume: resourceValues?.volumeIsEjectable
+                isEjectableVolume: resourceValues?.volumeIsEjectable,
+                isInternalVolume: resourceValues?.volumeIsInternal,
+                isDiskImageVolume: isDiskImage(url)
             )
         }
     }
@@ -99,8 +141,31 @@ enum ScanSourceProvider {
             availableCapacity: nil,
             isLocalVolume: nil,
             isRemovableVolume: nil,
-            isEjectableVolume: nil
+            isEjectableVolume: nil,
+            isInternalVolume: nil,
+            isDiskImageVolume: nil
         )
+    }
+
+    private static func isDiskImage(_ url: URL) -> Bool {
+        guard let session: DASession = DASessionCreate(kCFAllocatorDefault) else {
+            return false
+        }
+
+        guard let disk: DADisk = DADiskCreateFromVolumePath(kCFAllocatorDefault, session, url as CFURL) else {
+            return false
+        }
+
+        guard let description: CFDictionary = DADiskCopyDescription(disk) else {
+            return false
+        }
+
+        let descriptionDictionary: NSDictionary = description as NSDictionary
+        guard let protocolName: String = descriptionDictionary[kDADiskDescriptionDeviceProtocolKey] as? String else {
+            return false
+        }
+
+        return protocolName == "Virtual Interface"
     }
 
     private static func displayName(for url: URL) -> String {

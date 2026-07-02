@@ -5,6 +5,9 @@ struct SourcePaletteView: View {
     @Environment(\.openWindow) private var openWindow
     @State private var sources: [ScanSource] = ScanSourceProvider.mountedVolumes()
     @State private var selectedSourceID: ScanSource.ID?
+    @State private var showExternalVolumes: Bool = true
+    @State private var showNetworkVolumes: Bool = true
+    @State private var showDiskImages: Bool = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: Metrics.outerSpacing) {
@@ -13,11 +16,18 @@ struct SourcePaletteView: View {
                 .padding(.horizontal, Metrics.windowPadding)
                 .padding(.top, Metrics.windowPadding)
 
+            VolumeFilterView(
+                showExternalVolumes: $showExternalVolumes,
+                showNetworkVolumes: $showNetworkVolumes,
+                showDiskImages: $showDiskImages
+            )
+            .padding(.horizontal, Metrics.windowPadding)
+
             VStack(spacing: Metrics.tableSpacing) {
                 SourceTableHeaderView()
 
                 List(selection: $selectedSourceID) {
-                    ForEach(sources) { source in
+                    ForEach(filteredSources) { source in
                         SourceTableRowView(source: source)
                             .tag(source.id)
                             .contentShape(Rectangle())
@@ -67,6 +77,32 @@ struct SourcePaletteView: View {
         .onAppear {
             seedSelectionIfNeeded()
         }
+        .onChange(of: showExternalVolumes) {
+            reconcileSelectionWithVisibleSources()
+        }
+        .onChange(of: showNetworkVolumes) {
+            reconcileSelectionWithVisibleSources()
+        }
+        .onChange(of: showDiskImages) {
+            reconcileSelectionWithVisibleSources()
+        }
+    }
+
+    private var filteredSources: [ScanSource] {
+        sources.filter { source in
+            switch source.volumeKind {
+            case .internalVolume:
+                return true
+            case .externalVolume:
+                return showExternalVolumes
+            case .networkVolume:
+                return showNetworkVolumes
+            case .diskImage:
+                return showDiskImages
+            case .folder:
+                return true
+            }
+        }
     }
 
     private var selectedSource: ScanSource? {
@@ -74,7 +110,7 @@ struct SourcePaletteView: View {
             return nil
         }
 
-        return sources.first { source in
+        return filteredSources.first { source in
             source.id == selectedSourceID
         }
     }
@@ -88,17 +124,26 @@ struct SourcePaletteView: View {
         sources = ScanSourceProvider.mountedVolumes()
 
         if let previousSelectionID: ScanSource.ID = previousSelectionID,
-           sources.contains(where: { source in source.id == previousSelectionID }) {
+           filteredSources.contains(where: { source in source.id == previousSelectionID }) {
             selectedSourceID = previousSelectionID
         } else {
-            selectedSourceID = sources.first?.id
+            selectedSourceID = filteredSources.first?.id
         }
     }
 
     private func seedSelectionIfNeeded() {
         if selectedSourceID == nil {
-            selectedSourceID = sources.first?.id
+            selectedSourceID = filteredSources.first?.id
         }
+    }
+
+    private func reconcileSelectionWithVisibleSources() {
+        if let selectedSourceID: ScanSource.ID = selectedSourceID,
+           filteredSources.contains(where: { source in source.id == selectedSourceID }) {
+            return
+        }
+
+        selectedSourceID = filteredSources.first?.id
     }
 
     private func chooseFolder() {
@@ -116,6 +161,27 @@ struct SourcePaletteView: View {
         let bookmarkData: Data? = try? url.bookmarkData(options: [.withSecurityScope], includingResourceValuesForKeys: nil, relativeTo: nil)
         let source: ScanSource = ScanSourceProvider.scanSource(for: url, bookmarkData: bookmarkData)
         openSource(source)
+    }
+}
+
+private struct VolumeFilterView: View {
+    @Binding var showExternalVolumes: Bool
+    @Binding var showNetworkVolumes: Bool
+    @Binding var showDiskImages: Bool
+
+    var body: some View {
+        HStack(spacing: Metrics.filterSpacing) {
+            Text("Show")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Toggle("External", isOn: $showExternalVolumes)
+            Toggle("Network", isOn: $showNetworkVolumes)
+            Toggle("Disk Images", isOn: $showDiskImages)
+
+            Spacer()
+        }
+        .toggleStyle(.checkbox)
     }
 }
 
@@ -183,11 +249,18 @@ private struct SourceTableRowView: View {
     }
 
     private var iconName: String {
-        if source.isEjectableVolume == true || source.isRemovableVolume == true {
+        switch source.volumeKind {
+        case .internalVolume:
+            return "internaldrive"
+        case .externalVolume:
             return "externaldrive"
+        case .networkVolume:
+            return "network"
+        case .diskImage:
+            return "opticaldiscdrive"
+        case .folder:
+            return "folder"
         }
-
-        return "internaldrive"
     }
 
     private func formattedBytes(_ bytes: UInt64?) -> String {
@@ -246,6 +319,7 @@ private enum SourcePaletteMetrics {
     static let sizeColumnWidth: CGFloat = 96
     static let usageColumnWidth: CGFloat = 118
     static let usageBarHeight: CGFloat = 8
+    static let filterSpacing: CGFloat = 12
     static let buttonSpacing: CGFloat = 10
     static let volumeListMinimumHeight: CGFloat = 220
     static let windowPadding: CGFloat = 20
