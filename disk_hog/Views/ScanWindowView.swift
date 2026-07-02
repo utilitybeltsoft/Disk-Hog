@@ -17,7 +17,7 @@ struct ScanWindowView: View {
                 OutlinePlaceholderView()
                     .frame(minWidth: Metrics.sidebarMinimumWidth, idealWidth: Metrics.sidebarIdealWidth)
 
-                TreemapPlaceholderView(source: session.source)
+                TreemapPanelView(session: session)
                     .frame(minWidth: Metrics.treemapMinimumWidth, minHeight: Metrics.treemapMinimumHeight)
 
                 InspectorPlaceholderView(session: session)
@@ -89,7 +89,79 @@ private struct OutlinePlaceholderView: View {
     }
 }
 
-private struct TreemapPlaceholderView: View {
+private struct TreemapPanelView: View {
+    @ObservedObject var session: ScanSession
+    @State private var renderedImage: NSImage?
+    @State private var renderedRootID: ObjectIdentifier?
+    @State private var renderedSize: CGSize = .zero
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack {
+                Color(nsColor: .textBackgroundColor)
+
+                if let renderedImage {
+                    Image(nsImage: renderedImage)
+                        .resizable()
+                        .interpolation(.none)
+                        .aspectRatio(contentMode: .fit)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    TreemapPlaceholderContent(source: session.source)
+                }
+            }
+            .onAppear {
+                renderIfNeeded(for: proxy.size)
+            }
+            .onChange(of: proxy.size) { _, newSize in
+                renderIfNeeded(for: newSize)
+            }
+            .onChange(of: session.rootItem?.id) { _, _ in
+                renderedImage = nil
+                renderedRootID = nil
+                renderIfNeeded(for: proxy.size)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func renderIfNeeded(for size: CGSize) {
+        guard let rootItem: DiskItem = session.rootItem else {
+            renderedImage = nil
+            renderedRootID = nil
+            renderedSize = .zero
+            return
+        }
+
+        guard size.width >= Metrics.minimumRenderableTreemapSide,
+              size.height >= Metrics.minimumRenderableTreemapSide else {
+            return
+        }
+
+        if renderedRootID == rootItem.id && renderedSize == size && renderedImage != nil {
+            return
+        }
+
+        renderedRootID = rootItem.id
+        renderedSize = size
+        renderedImage = Self.renderImage(rootItem: rootItem, size: size)
+    }
+
+    private static func renderImage(rootItem: DiskItem, size: CGSize) -> NSImage? {
+        let dataSource: TreemapDiskItemDataSource = TreemapDiskItemDataSource(rootItem: rootItem)
+        let renderer: TreemapViewRenderer = TreemapViewRenderer(
+            rootItem: dataSource.root,
+            dataSource: dataSource,
+            delegate: dataSource
+        )
+        let bounds: NSRect = NSRect(origin: .zero, size: size)
+        renderer.reloadData()
+        renderer.calcLayout(bounds)
+        return renderer.drawInCache(size: size)?.treemapSuitableImage()
+    }
+}
+
+private struct TreemapPlaceholderContent: View {
     let source: ScanSource
 
     var body: some View {
@@ -107,8 +179,6 @@ private struct TreemapPlaceholderView: View {
                 .textSelection(.enabled)
         }
         .padding(Metrics.placeholderPadding)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(nsColor: .textBackgroundColor))
     }
 }
 
@@ -191,6 +261,7 @@ private enum ScanWindowMetrics {
     static let placeholderSpacing: CGFloat = 10
     static let placeholderPadding: CGFloat = 16
     static let treemapIconSize: CGFloat = 48
+    static let minimumRenderableTreemapSide: CGFloat = 2
     static let singleLineLimit: Int = 1
     static let currentPathLineLimit: Int = 3
     static let diagnosticsMessageLineLimit: Int = 4
