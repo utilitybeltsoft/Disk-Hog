@@ -4,11 +4,33 @@ struct ScanSource: Codable, Hashable, Identifiable {
     let path: String
     let displayName: String
     let bookmarkData: Data?
+    let volumeFormat: String?
+    let totalCapacity: UInt64?
+    let availableCapacity: UInt64?
+    let isLocalVolume: Bool?
+    let isRemovableVolume: Bool?
+    let isEjectableVolume: Bool?
 
-    init(path: String, displayName: String, bookmarkData: Data? = nil) {
+    init(
+        path: String,
+        displayName: String,
+        bookmarkData: Data? = nil,
+        volumeFormat: String? = nil,
+        totalCapacity: UInt64? = nil,
+        availableCapacity: UInt64? = nil,
+        isLocalVolume: Bool? = nil,
+        isRemovableVolume: Bool? = nil,
+        isEjectableVolume: Bool? = nil
+    ) {
         self.path = path
         self.displayName = displayName
         self.bookmarkData = bookmarkData
+        self.volumeFormat = volumeFormat
+        self.totalCapacity = totalCapacity
+        self.availableCapacity = availableCapacity
+        self.isLocalVolume = isLocalVolume
+        self.isRemovableVolume = isRemovableVolume
+        self.isEjectableVolume = isEjectableVolume
     }
 
     var id: String {
@@ -38,7 +60,10 @@ enum ScanSourceProvider {
     static func mountedVolumes() -> [ScanSource] {
         let keys: [URLResourceKey] = [
             .volumeNameKey,
+            .volumeLocalizedFormatDescriptionKey,
             .volumeIsLocalKey,
+            .volumeIsRemovableKey,
+            .volumeIsEjectableKey,
             .volumeTotalCapacityKey,
             .volumeAvailableCapacityKey
         ]
@@ -48,9 +73,16 @@ enum ScanSourceProvider {
         ) ?? []
 
         return volumeURLs.map { url in
-            ScanSource(
+            let resourceValues: URLResourceValues? = try? url.resourceValues(forKeys: Set(keys))
+            return ScanSource(
                 path: url.path,
-                displayName: displayName(for: url)
+                displayName: displayName(for: url),
+                volumeFormat: resourceValues?.volumeLocalizedFormatDescription,
+                totalCapacity: resourceValues?.volumeTotalCapacity.map(UInt64.init),
+                availableCapacity: resourceValues?.volumeAvailableCapacity.map(UInt64.init),
+                isLocalVolume: resourceValues?.volumeIsLocal,
+                isRemovableVolume: resourceValues?.volumeIsRemovable,
+                isEjectableVolume: resourceValues?.volumeIsEjectable
             )
         }
     }
@@ -61,7 +93,13 @@ enum ScanSourceProvider {
         return ScanSource(
             path: standardizedURL.path,
             displayName: displayName(for: standardizedURL),
-            bookmarkData: bookmarkData
+            bookmarkData: bookmarkData,
+            volumeFormat: nil,
+            totalCapacity: nil,
+            availableCapacity: nil,
+            isLocalVolume: nil,
+            isRemovableVolume: nil,
+            isEjectableVolume: nil
         )
     }
 
