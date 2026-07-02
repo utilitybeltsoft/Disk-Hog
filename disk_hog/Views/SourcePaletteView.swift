@@ -77,7 +77,8 @@ struct SourcePaletteView: View {
             return
         }
 
-        let source: ScanSource = ScanSourceProvider.scanSource(for: url)
+        let bookmarkData: Data? = try? url.bookmarkData(options: [.withSecurityScope], includingResourceValuesForKeys: nil, relativeTo: nil)
+        let source: ScanSource = ScanSourceProvider.scanSource(for: url, bookmarkData: bookmarkData)
         openWindow(value: source)
     }
 }

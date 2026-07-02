@@ -39,7 +39,9 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable { // ✓ Swif
     ) throws -> DiskItem { // ✓ Z: FileSystemDoc.m:592 scanner entry body begins.
         try Task.checkCancellation() // ✓ Swift-only: Swift cancellation bridge; Z checks atomic _cancelRequested and raises FSItemLoadingCanceledException.
 
-        let rootURL: URL = URL(fileURLWithPath: source.path) // ✓ Z: FileSystemDoc.m:589 rootURL is the NSURL scan root.
+        let rootURL: URL = try source.resolvedURL() // ✓ Swift-only: preserves NSOpenPanel sandbox permission by resolving a security-scoped bookmark before using Z's rootURL.
+        let didStartSecurityScopedAccess: Bool = rootURL.startAccessingSecurityScopedResource() // ✓ Swift-only: sandboxed Disk Hog must activate the permission token before FileManager enumeration.
+        defer { if didStartSecurityScopedAccess { rootURL.stopAccessingSecurityScopedResource() } } // ✓ Swift-only: balances security-scoped access after Z-style scan completes or throws.
         Self.resetHardlinkDedup() // ✓ Z: FileSystemDoc.m:587 [FSItem resetHardlinkDedup].
         let rootItem: DiskItem = Self.makeItem(url: rootURL, parent: nil, values: nil) // ✓ Z: FSItem.m:105-126 initWithURL: creates root FSItem.
         var progressState: ScanProgressState = ScanProgressState(currentPath: rootURL.path) // ✓ Z: FileSystemDoc.m:503-504 resets g_fileCount/g_folderCount and FileSystemDoc.m:515 posts initial path.
