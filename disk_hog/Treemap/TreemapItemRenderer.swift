@@ -87,6 +87,11 @@ nonisolated final class TreemapItemRenderer: @unchecked Sendable { // ✓ Z: TMV
         rectValue // ✓ Z: TMVItem.m:213 return _rect.
     } // ✓ Z: TMVItem.m:214 closes rect.
 
+    var childEnumerator: [TreemapItemRenderer] { // ✓ Z: TMVItem.m:216 - childEnumerator.
+        assert(childRenderers != nil, "method 'childEnumerator' can only be invoked for nodes, not for leafs") // ✓ Z: TMVItem.m:218 NSAssert(_childRenderers != nil, ...).
+        return childRenderers ?? [] // ✓ Z: TMVItem.m:220 return [_childRenderers objectEnumerator].
+    } // ✓ Z: TMVItem.m:221 closes childEnumerator.
+
     var childCount: Int { // ✓ Z: TMVItem.m:228 - childCount.
         childRenderers?.count ?? 0 // ✓ Z: TMVItem.m:230 return [_childRenderers count].
     } // ✓ Z: TMVItem.m:231 closes childCount.
