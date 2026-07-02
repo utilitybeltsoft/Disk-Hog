@@ -5,9 +5,9 @@ struct SourcePaletteView: View {
     @Environment(\.openWindow) private var openWindow
     @State private var sources: [ScanSource] = ScanSourceProvider.mountedVolumes()
     @State private var selectedSourceID: ScanSource.ID?
-    @State private var showExternalVolumes: Bool = true
-    @State private var showNetworkVolumes: Bool = true
-    @State private var showDiskImages: Bool = true
+    @AppStorage(SourcePaletteDefaults.showExternalVolumesKey) private var showExternalVolumes: Bool = false
+    @AppStorage(SourcePaletteDefaults.showNetworkVolumesKey) private var showNetworkVolumes: Bool = false
+    @AppStorage(SourcePaletteDefaults.showDiskImagesKey) private var showDiskImages: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: Metrics.outerSpacing) {
@@ -85,6 +85,15 @@ struct SourcePaletteView: View {
         }
         .onChange(of: showDiskImages) {
             reconcileSelectionWithVisibleSources()
+        }
+        .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didMountNotification)) { _ in
+            refreshSources()
+        }
+        .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didUnmountNotification)) { _ in
+            refreshSources()
+        }
+        .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didRenameVolumeNotification)) { _ in
+            refreshSources()
         }
     }
 
@@ -175,13 +184,13 @@ private struct VolumeFilterView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            Toggle("External", isOn: $showExternalVolumes)
-            Toggle("Network", isOn: $showNetworkVolumes)
-            Toggle("Disk Images", isOn: $showDiskImages)
+            Toggle("External Devices", isOn: $showExternalVolumes)
+            Toggle("Mounted Images", isOn: $showDiskImages)
+            Toggle("Network Drives", isOn: $showNetworkVolumes)
 
             Spacer()
         }
-        .toggleStyle(.checkbox)
+        .toggleStyle(.switch)
     }
 }
 
@@ -330,3 +339,9 @@ private enum SourcePaletteMetrics {
 }
 
 private typealias Metrics = SourcePaletteMetrics
+
+private enum SourcePaletteDefaults {
+    static let showExternalVolumesKey: String = "DIXShowExternalDevices"
+    static let showNetworkVolumesKey: String = "DIXShowNetworkDrives"
+    static let showDiskImagesKey: String = "DIXShowMountedImages"
+}
