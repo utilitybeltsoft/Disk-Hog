@@ -267,6 +267,7 @@
 			inputPaths = (
 				"$(SRCROOT)/disk_hog/Treemap",
 				"$(SRCROOT)/disk_hog/Treemap/TreemapCushionRenderer.swift",
+				"$(SRCROOT)/disk_hog/Treemap/TreemapItemRenderer.swift",
 				"$(SRCROOT)/../scripts/check_treemap_z_mapping.py",
 			);
 			name = "Check Treemap Z Mapping";
