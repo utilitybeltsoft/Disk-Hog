@@ -104,11 +104,11 @@ nonisolated final class TreemapViewRenderer: @unchecked Sendable { // ✓ Z: Tre
         deallocContentCache() // ✓ Z: TreeMapView.m:194 [self deallocContentCache].
     } // ✓ Swift-only: closes extracted layout helper for non-NSView integration.
 
-    func drawInCache(size: NSSize) -> NSBitmapImageRep? { // ✓ Z: TreeMapView.m:659 - drawInCache.
+    func drawInCache(size: NSSize, scale: CGFloat = 1, colorSpace: NSColorSpace? = nil) -> NSBitmapImageRep? { // ✓ Z: TreeMapView.m:659 - drawInCache.
         if cachedContent != nil { // ✓ Z: TreeMapView.m:661 if (_cachedContent != nil).
             return cachedContent // ✓ Z: TreeMapView.m:662 return.
         } // ✓ Z: TreeMapView.m:661-662 closes existing-cache guard.
-        allocContentCache(size: size) // ✓ Z: TreeMapView.m:664 [self allocContentCache].
+        allocContentCache(size: size, scale: scale, colorSpace: colorSpace) // ✓ Z: TreeMapView.m:664 [self allocContentCache].
         if rootItemRenderer != nil { // ✓ Z: TreeMapView.m:666 if (_rootItemRenderer != NULL).
             rootItemRenderer?.drawCushion(in: cachedContent!) // ✓ Z: TreeMapView.m:668 [_rootItemRenderer drawCushionInBitmap:_cachedContent].
         } // ✓ Z: TreeMapView.m:666-669 closes root draw branch.
@@ -119,20 +119,9 @@ nonisolated final class TreemapViewRenderer: @unchecked Sendable { // ✓ Z: Tre
         false // ✓ Z: TreeMapView.m:516 return _zoomer != nil; Phase 3 has no ZoomInfo object yet.
     } // ✓ Z: TreeMapView.m:517 closes zoomingInProgress.
 
-    private func allocContentCache(size: NSSize) { // ✓ Z: TreeMapView.m:672 - allocContentCache.
+    private func allocContentCache(size: NSSize, scale: CGFloat, colorSpace: NSColorSpace?) { // ✓ Z: TreeMapView.m:672 - allocContentCache.
         cachedContent = nil // ✓ Z: TreeMapView.m:674 [_cachedContent release].
-        cachedContent = NSBitmapImageRep( // ✓ Z: TreeMapView.m:676 _cachedContent = [[NSBitmapImageRep imageRepCompatibleWithView:self] retain].
-            bitmapDataPlanes: nil, // ✓ Swift-only: explicit Swift bitmap constructor argument replacing imageRepCompatibleWithView helper.
-            pixelsWide: max(Int(size.width), 1), // ✓ Swift-only: explicit pixel width replacing NSView backing-size helper.
-            pixelsHigh: max(Int(size.height), 1), // ✓ Swift-only: explicit pixel height replacing NSView backing-size helper.
-            bitsPerSample: 8, // ✓ Z: TreeMapView.m:637 bitmap has 24 bit color depth.
-            samplesPerPixel: 3, // ✓ Z: TreeMapView.m:637 bitmap has 24 bit color depth.
-            hasAlpha: false, // ✓ Z: TreeMapView.m:637 comment says no alpha component.
-            isPlanar: false, // ✓ Swift-only: explicit Swift bitmap constructor argument matching Z's RGB bitmap helper.
-            colorSpaceName: .deviceRGB, // ✓ Swift-only: explicit Swift bitmap constructor argument matching Z's RGB bitmap helper.
-            bytesPerRow: 0, // ✓ Swift-only: explicit Swift bitmap constructor argument lets AppKit calculate row bytes.
-            bitsPerPixel: 0 // ✓ Swift-only: explicit Swift bitmap constructor argument lets AppKit calculate pixel bits.
-        ) // ✓ Swift-only: closes Swift bitmap allocation expression.
+        cachedContent = NSBitmapImageRep.treemapImageRepCompatible(withBounds: NSRect(origin: .zero, size: size), backingScaleFactor: scale, colorSpace: colorSpace) // ✓ Z: TreeMapView.m:676 _cachedContent = [[NSBitmapImageRep imageRepCompatibleWithView:self] retain].
     } // ✓ Z: TreeMapView.m:677 closes allocContentCache.
 
     private func deallocContentCache() { // ✓ Z: TreeMapView.m:679 - deallocContentCache.
