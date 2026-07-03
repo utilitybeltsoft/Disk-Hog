@@ -12,6 +12,8 @@ struct DiskHogApp: App {
         WindowGroup("Choose Source", id: WindowIDs.sourcePalette) {
             ContentView()
         }
+        .defaultSize(width: SourcePaletteWindowDefaults.width, height: SourcePaletteWindowDefaults.height)
+        .windowResizability(.contentSize)
 
         WindowGroup("Disk Hog", for: ScanSource.self) { source in
             if let source: ScanSource = source.wrappedValue {
@@ -41,4 +43,9 @@ private struct DiskHogCommands: Commands {
 
 private enum WindowIDs {
     static let sourcePalette: String = "sourcePalette"
+}
+
+private enum SourcePaletteWindowDefaults {
+    static let width: CGFloat = SourcePaletteMetrics.windowMinimumWidth
+    static let height: CGFloat = SourcePaletteMetrics.windowMinimumHeight
 }

@@ -5,6 +5,7 @@ struct SourcePaletteView: View {
     @Environment(\.openWindow) private var openWindow
     @State private var sources: [ScanSource] = ScanSourceProvider.mountedVolumes()
     @State private var selectedSourceID: ScanSource.ID?
+    @State private var showsScanSettings: Bool = false
     @AppStorage(SourcePaletteDefaults.showExternalVolumesKey) private var showExternalVolumes: Bool = false
     @AppStorage(SourcePaletteDefaults.showNetworkVolumesKey) private var showNetworkVolumes: Bool = false
     @AppStorage(SourcePaletteDefaults.showDiskImagesKey) private var showDiskImages: Bool = false
@@ -14,10 +15,14 @@ struct SourcePaletteView: View {
             VStack(spacing: Metrics.tableSpacing) {
                 SourceTableHeaderView()
 
-                List(selection: $selectedSourceID) {
-                    ForEach(filteredSources) { source in
-                        SourceTableRowView(source: source)
-                            .tag(source.id)
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(Array(filteredSources.enumerated()), id: \.element.id) { index, source in
+                            SourceTableRowView(
+                                source: source,
+                                isAlternateRow: index.isMultiple(of: Metrics.alternateRowModulo) == false,
+                                isSelected: selectedSourceID == source.id
+                            )
                             .contentShape(Rectangle())
                             .onTapGesture {
                                 selectedSourceID = source.id
@@ -25,11 +30,13 @@ struct SourcePaletteView: View {
                             .onTapGesture(count: Metrics.doubleClickCount) {
                                 openSource(source)
                             }
+                        }
                     }
                 }
-                .alternatingRowBackgrounds()
+                .background(Color(nsColor: .textBackgroundColor))
+                .clipShape(RoundedRectangle(cornerRadius: Metrics.listCornerRadius))
+                .frame(height: Metrics.volumeListHeight)
             }
-            .frame(minHeight: Metrics.volumeListMinimumHeight)
             .padding(.horizontal, Metrics.windowPadding)
             .padding(.top, Metrics.windowPadding)
 
@@ -42,32 +49,48 @@ struct SourcePaletteView: View {
 
             HStack(spacing: Metrics.buttonSpacing) {
                 Button {
-                    chooseFolder()
+                    showsScanSettings.toggle()
                 } label: {
-                    Image(systemName: "folder")
+                    ButtonLabel(title: "Settings", systemImage: "gearshape")
                 }
-                .keyboardShortcut("o", modifiers: .command)
-                .help("Select a folder to scan")
+                .frame(height: Metrics.buttonHeight)
+                .popover(isPresented: $showsScanSettings) {
+                    ScanSettingsPlaceholderView()
+                }
 
                 Button {
                     refreshSources()
                 } label: {
                     Image(systemName: "arrow.clockwise")
+                        .font(.system(size: Metrics.standardFontSize))
                 }
+                .frame(width: Metrics.iconButtonWidth, height: Metrics.buttonHeight)
                 .help("Refresh volumes")
 
                 Spacer()
+
+                Button {
+                    chooseFolder()
+                } label: {
+                    ButtonLabel(title: "Choose Folder to Scan", systemImage: "folder")
+                }
+                .frame(height: Metrics.buttonHeight)
+                .keyboardShortcut("o", modifiers: .command)
+                .help("Select a folder to scan")
 
                 Button {
                     if let selectedSource: ScanSource = selectedSource {
                         openSource(selectedSource)
                     }
                 } label: {
-                    Text("Open Volume")
+                    Text("Scan Volume")
+                        .font(.system(size: Metrics.standardFontSize))
                 }
+                .frame(height: Metrics.buttonHeight)
                 .keyboardShortcut(.defaultAction)
                 .disabled(selectedSource == nil)
             }
+            .font(.system(size: Metrics.standardFontSize))
             .padding(.horizontal, Metrics.windowPadding)
             .padding(.bottom, Metrics.windowPadding)
         }
@@ -96,7 +119,7 @@ struct SourcePaletteView: View {
     }
 
     private var filteredSources: [ScanSource] {
-        sources.filter { source in
+        let visibleSources: [ScanSource] = sources.filter { source in
             switch source.volumeKind {
             case .internalVolume:
                 return true
@@ -109,6 +132,14 @@ struct SourcePaletteView: View {
             case .folder:
                 return true
             }
+        }
+
+        return visibleSources.sorted { first, second in
+            if first.volumeKind.sortRank != second.volumeKind.sortRank {
+                return first.volumeKind.sortRank < second.volumeKind.sortRank
+            }
+
+            return first.displayName.localizedStandardCompare(second.displayName) == .orderedAscending
         }
     }
 
@@ -171,6 +202,31 @@ struct SourcePaletteView: View {
     }
 }
 
+private struct ButtonLabel: View {
+    let title: String
+    let systemImage: String
+
+    var body: some View {
+        Label(title, systemImage: systemImage)
+            .font(.system(size: Metrics.standardFontSize))
+            .lineLimit(Metrics.singleLineLimit)
+    }
+}
+
+private struct ScanSettingsPlaceholderView: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: Metrics.scanSettingsSpacing) {
+            Text("Scan Settings")
+                .font(.system(size: Metrics.standardFontSize, weight: .semibold))
+            Text("Settings applied to the next scan will live here.")
+                .font(.system(size: Metrics.standardFontSize))
+                .foregroundStyle(.secondary)
+        }
+        .padding(Metrics.scanSettingsPadding)
+        .frame(width: Metrics.scanSettingsWidth, alignment: .leading)
+    }
+}
+
 private struct VolumeFilterView: View {
     @Binding var showExternalVolumes: Bool
     @Binding var showNetworkVolumes: Bool
@@ -179,12 +235,15 @@ private struct VolumeFilterView: View {
     var body: some View {
         HStack(spacing: Metrics.filterSpacing) {
             Text("Show")
-                .font(.caption)
+                .font(.system(size: Metrics.standardFontSize))
                 .foregroundStyle(.secondary)
 
             Toggle("External Devices", isOn: $showExternalVolumes)
+                .font(.system(size: Metrics.standardFontSize))
             Toggle("Mounted Images", isOn: $showDiskImages)
+                .font(.system(size: Metrics.standardFontSize))
             Toggle("Network Drives", isOn: $showNetworkVolumes)
+                .font(.system(size: Metrics.standardFontSize))
 
             Spacer()
         }
@@ -194,17 +253,21 @@ private struct VolumeFilterView: View {
 
 private struct SourceTableHeaderView: View {
     var body: some View {
-        HStack(spacing: Metrics.sourceColumnSpacing) {
+        SourceTableColumns {
             Text("Volume")
                 .frame(minWidth: Metrics.volumeColumnMinimumWidth, maxWidth: .infinity, alignment: .leading)
             Text("Capacity")
                 .frame(width: Metrics.sizeColumnWidth, alignment: .trailing)
-            Text("Available")
+            Text("Used")
                 .frame(width: Metrics.sizeColumnWidth, alignment: .trailing)
+            Text("Free")
+                .frame(width: Metrics.sizeColumnWidth, alignment: .trailing)
+            Text("Free %")
+                .frame(width: Metrics.percentColumnWidth, alignment: .trailing)
             Text("Usage")
                 .frame(width: Metrics.usageColumnWidth, alignment: .leading)
         }
-        .font(.caption.weight(.medium))
+        .font(.system(size: Metrics.standardFontSize))
         .foregroundStyle(.secondary)
         .padding(.horizontal, Metrics.tableHorizontalPadding)
     }
@@ -212,18 +275,22 @@ private struct SourceTableHeaderView: View {
 
 private struct SourceTableRowView: View {
     let source: ScanSource
+    let isAlternateRow: Bool
+    let isSelected: Bool
 
     var body: some View {
-        HStack(spacing: Metrics.sourceColumnSpacing) {
+        SourceTableColumns {
             HStack(spacing: Metrics.sourceRowSpacing) {
-                Image(systemName: iconName)
+                Image(nsImage: icon)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
                     .frame(width: Metrics.sourceIconWidth)
                 VStack(alignment: .leading, spacing: Metrics.sourceTextSpacing) {
                     Text(source.displayName)
-                        .font(.body)
+                        .font(.system(size: Metrics.standardFontSize))
                         .lineLimit(Metrics.singleLineLimit)
                     Text(subtitle)
-                        .font(.caption)
+                        .font(.system(size: Metrics.standardFontSize))
                         .foregroundStyle(.secondary)
                         .lineLimit(Metrics.singleLineLimit)
                         .truncationMode(.middle)
@@ -232,20 +299,39 @@ private struct SourceTableRowView: View {
             .frame(minWidth: Metrics.volumeColumnMinimumWidth, maxWidth: .infinity, alignment: .leading)
 
             Text(formattedBytes(source.totalCapacity))
-                .font(.system(.body, design: .monospaced))
+                .font(.system(size: Metrics.standardFontSize, design: .monospaced))
+                .monospacedDigit()
+                .frame(width: Metrics.sizeColumnWidth, alignment: .trailing)
+
+            Text(formattedBytes(usedCapacity))
+                .font(.system(size: Metrics.standardFontSize, design: .monospaced))
                 .monospacedDigit()
                 .frame(width: Metrics.sizeColumnWidth, alignment: .trailing)
 
             Text(formattedBytes(source.availableCapacity))
-                .font(.system(.body, design: .monospaced))
+                .font(.system(size: Metrics.standardFontSize, design: .monospaced))
                 .monospacedDigit()
                 .frame(width: Metrics.sizeColumnWidth, alignment: .trailing)
+
+            Text(formattedPercent(freeFraction))
+                .font(.system(size: Metrics.standardFontSize, design: .monospaced))
+                .monospacedDigit()
+                .frame(width: Metrics.percentColumnWidth, alignment: .trailing)
 
             VolumeUsageBarView(totalCapacity: source.totalCapacity, availableCapacity: source.availableCapacity)
                 .frame(width: Metrics.usageColumnWidth)
         }
         .frame(height: Metrics.sourceRowHeight)
-        .padding(.vertical, Metrics.sourceRowVerticalPadding)
+        .padding(.horizontal, Metrics.tableHorizontalPadding)
+        .background(rowBackground)
+    }
+
+    private var rowBackground: Color {
+        if isSelected {
+            return Color.accentColor.opacity(Metrics.selectionOpacity)
+        }
+
+        return isAlternateRow ? Color(nsColor: .alternatingContentBackgroundColors[1]) : Color(nsColor: .textBackgroundColor)
     }
 
     private var subtitle: String {
@@ -256,19 +342,29 @@ private struct SourceTableRowView: View {
         return source.path
     }
 
-    private var iconName: String {
-        switch source.volumeKind {
-        case .internalVolume:
-            return "internaldrive"
-        case .externalVolume:
-            return "externaldrive"
-        case .networkVolume:
-            return "network"
-        case .diskImage:
-            return "opticaldiscdrive"
-        case .folder:
-            return "folder"
+    private var icon: NSImage {
+        let icon: NSImage = NSWorkspace.shared.icon(forFile: source.path)
+        icon.size = NSSize(width: Metrics.sourceIconWidth, height: Metrics.sourceIconWidth)
+        return icon
+    }
+
+    private var usedCapacity: UInt64? {
+        guard let totalCapacity: UInt64 = source.totalCapacity,
+              let availableCapacity: UInt64 = source.availableCapacity else {
+            return nil
         }
+
+        return totalCapacity > availableCapacity ? totalCapacity - availableCapacity : 0
+    }
+
+    private var freeFraction: Double? {
+        guard let totalCapacity: UInt64 = source.totalCapacity,
+              let availableCapacity: UInt64 = source.availableCapacity,
+              totalCapacity > 0 else {
+            return nil
+        }
+
+        return Double(availableCapacity) / Double(totalCapacity)
     }
 
     private func formattedBytes(_ bytes: UInt64?) -> String {
@@ -277,6 +373,14 @@ private struct SourceTableRowView: View {
         }
 
         return ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)
+    }
+
+    private func formattedPercent(_ fraction: Double?) -> String {
+        guard let fraction: Double = fraction else {
+            return "--"
+        }
+
+        return "\(Int((fraction * 100).rounded()))%"
     }
 }
 
@@ -314,26 +418,64 @@ private struct VolumeUsageBarView: View {
     }
 }
 
-private enum SourcePaletteMetrics {
-    static let outerSpacing: CGFloat = 16
+private struct SourceTableColumns<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        HStack(spacing: Metrics.sourceColumnSpacing) {
+            content()
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+private extension ScanSourceVolumeKind {
+    var sortRank: Int {
+        switch self {
+        case .internalVolume:
+            return 0
+        case .externalVolume:
+            return 1
+        case .diskImage:
+            return 2
+        case .networkVolume:
+            return 3
+        case .folder:
+            return 4
+        }
+    }
+}
+
+enum SourcePaletteMetrics {
+    static let outerSpacing: CGFloat = 12
     static let tableSpacing: CGFloat = 4
-    static let sourceRowSpacing: CGFloat = 10
+    static let standardFontSize: CGFloat = 11
+    static let sourceRowSpacing: CGFloat = 8
     static let sourceColumnSpacing: CGFloat = 16
     static let sourceTextSpacing: CGFloat = 2
-    static let sourceIconWidth: CGFloat = 22
-    static let sourceRowHeight: CGFloat = 50
-    static let sourceRowVerticalPadding: CGFloat = 5
+    static let sourceIconWidth: CGFloat = 28
+    static let sourceRowHeight: CGFloat = 42
     static let tableHorizontalPadding: CGFloat = 8
     static let volumeColumnMinimumWidth: CGFloat = 210
-    static let sizeColumnWidth: CGFloat = 96
-    static let usageColumnWidth: CGFloat = 118
+    static let sizeColumnWidth: CGFloat = 88
+    static let percentColumnWidth: CGFloat = 52
+    static let usageColumnWidth: CGFloat = 96
+    static let alternateRowModulo: Int = 2
+    static let selectionOpacity: CGFloat = 0.22
+    static let listCornerRadius: CGFloat = 4
     static let usageBarHeight: CGFloat = 8
-    static let filterSpacing: CGFloat = 12
+    static let filterSpacing: CGFloat = 18
     static let buttonSpacing: CGFloat = 10
-    static let volumeListMinimumHeight: CGFloat = 220
-    static let windowPadding: CGFloat = 20
-    static let windowMinimumWidth: CGFloat = 680
-    static let windowMinimumHeight: CGFloat = 420
+    static let buttonHeight: CGFloat = 30
+    static let iconButtonWidth: CGFloat = 30
+    static let visibleVolumeRowCount: CGFloat = 6
+    static let volumeListHeight: CGFloat = sourceRowHeight * visibleVolumeRowCount
+    static let windowPadding: CGFloat = 12
+    static let windowMinimumWidth: CGFloat = 760
+    static let windowMinimumHeight: CGFloat = 320
+    static let scanSettingsPadding: CGFloat = 14
+    static let scanSettingsSpacing: CGFloat = 6
+    static let scanSettingsWidth: CGFloat = 260
     static let singleLineLimit: Int = 1
     static let doubleClickCount: Int = 2
 }
