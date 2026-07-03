@@ -11,18 +11,6 @@ struct SourcePaletteView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Metrics.outerSpacing) {
-            Text("Choose a disk or folder to scan.")
-                .font(.headline)
-                .padding(.horizontal, Metrics.windowPadding)
-                .padding(.top, Metrics.windowPadding)
-
-            VolumeFilterView(
-                showExternalVolumes: $showExternalVolumes,
-                showNetworkVolumes: $showNetworkVolumes,
-                showDiskImages: $showDiskImages
-            )
-            .padding(.horizontal, Metrics.windowPadding)
-
             VStack(spacing: Metrics.tableSpacing) {
                 SourceTableHeaderView()
 
@@ -43,32 +31,42 @@ struct SourcePaletteView: View {
             }
             .frame(minHeight: Metrics.volumeListMinimumHeight)
             .padding(.horizontal, Metrics.windowPadding)
+            .padding(.top, Metrics.windowPadding)
+
+            VolumeFilterView(
+                showExternalVolumes: $showExternalVolumes,
+                showNetworkVolumes: $showNetworkVolumes,
+                showDiskImages: $showDiskImages
+            )
+            .padding(.horizontal, Metrics.windowPadding)
 
             HStack(spacing: Metrics.buttonSpacing) {
+                Button {
+                    chooseFolder()
+                } label: {
+                    Image(systemName: "folder")
+                }
+                .keyboardShortcut("o", modifiers: .command)
+                .help("Select a folder to scan")
+
+                Button {
+                    refreshSources()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .help("Refresh volumes")
+
+                Spacer()
+
                 Button {
                     if let selectedSource: ScanSource = selectedSource {
                         openSource(selectedSource)
                     }
                 } label: {
-                    Label("Scan", systemImage: "play.circle")
+                    Text("Open Volume")
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(selectedSource == nil)
-
-                Button {
-                    chooseFolder()
-                } label: {
-                    Label("Choose Folder...", systemImage: "folder.badge.plus")
-                }
-                .keyboardShortcut("o", modifiers: .command)
-
-                Button {
-                    refreshSources()
-                } label: {
-                    Label("Refresh", systemImage: "arrow.clockwise")
-                }
-
-                Spacer()
             }
             .padding(.horizontal, Metrics.windowPadding)
             .padding(.bottom, Metrics.windowPadding)
@@ -246,6 +244,7 @@ private struct SourceTableRowView: View {
             VolumeUsageBarView(totalCapacity: source.totalCapacity, availableCapacity: source.availableCapacity)
                 .frame(width: Metrics.usageColumnWidth)
         }
+        .frame(height: Metrics.sourceRowHeight)
         .padding(.vertical, Metrics.sourceRowVerticalPadding)
     }
 
@@ -322,6 +321,7 @@ private enum SourcePaletteMetrics {
     static let sourceColumnSpacing: CGFloat = 16
     static let sourceTextSpacing: CGFloat = 2
     static let sourceIconWidth: CGFloat = 22
+    static let sourceRowHeight: CGFloat = 50
     static let sourceRowVerticalPadding: CGFloat = 5
     static let tableHorizontalPadding: CGFloat = 8
     static let volumeColumnMinimumWidth: CGFloat = 210
