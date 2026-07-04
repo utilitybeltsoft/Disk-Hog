@@ -3,7 +3,7 @@ import Foundation
 
 nonisolated enum TreemapInputDiagnostics {
     static var defaultOutputURL: URL {
-        FileManager.default.temporaryDirectory.appendingPathComponent("diskhog-treemap-input.jsonl")
+        URL(fileURLWithPath: "/tmp/diskhog-treemap-input.jsonl")
     }
 
     static func writeJSONLinesReport(

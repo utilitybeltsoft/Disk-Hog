@@ -13,7 +13,6 @@ struct DiskHogApp: App {
             ContentView()
         }
         .defaultSize(width: SourcePaletteWindowDefaults.width, height: SourcePaletteWindowDefaults.height)
-        .windowResizability(.contentSize)
 
         WindowGroup("Disk Hog", for: ScanSource.self) { source in
             if let source: ScanSource = source.wrappedValue {

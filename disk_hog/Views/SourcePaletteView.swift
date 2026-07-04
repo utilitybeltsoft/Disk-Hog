@@ -471,8 +471,8 @@ enum SourcePaletteMetrics {
     static let visibleVolumeRowCount: CGFloat = 6
     static let volumeListHeight: CGFloat = sourceRowHeight * visibleVolumeRowCount
     static let windowPadding: CGFloat = 12
-    static let windowMinimumWidth: CGFloat = 760
-    static let windowMinimumHeight: CGFloat = 320
+    static let windowMinimumWidth: CGFloat = 798
+    static let windowMinimumHeight: CGFloat = 390
     static let scanSettingsPadding: CGFloat = 14
     static let scanSettingsSpacing: CGFloat = 6
     static let scanSettingsWidth: CGFloat = 260
