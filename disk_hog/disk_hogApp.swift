@@ -30,9 +30,7 @@ struct DiskHogApp: App {
 
 private struct DiskHogCommands: Commands {
     @ObservedObject private var commandState: SourcePaletteCommandState = .shared
-    #if FILE_MATCHING_DIAGNOSTICS
     @ObservedObject private var scanWindowCommandState: ScanWindowCommandState = .shared
-    #endif
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
@@ -46,6 +44,18 @@ private struct DiskHogCommands: Commands {
             }
             .keyboardShortcut(.defaultAction)
             .disabled(commandState.canScanSelectedVolume == false)
+        }
+
+        CommandGroup(after: .newItem) {
+            Button("Open Selected Item") {
+                ScanWindowCommandState.shared.openSelectedItem()
+            }
+            .disabled(scanWindowCommandState.canOpenSelectedItem == false)
+
+            Button("Reveal Selected Item in Finder") {
+                ScanWindowCommandState.shared.revealSelectedItemInFinder()
+            }
+            .disabled(scanWindowCommandState.canRevealSelectedItem == false)
         }
 
         #if FILE_MATCHING_DIAGNOSTICS

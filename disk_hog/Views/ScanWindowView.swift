@@ -42,28 +42,29 @@ struct ScanWindowView: View {
         .onAppear {
             session.startScan()
         }
-        .onChange(of: session.rootItem?.id) {
-            selectedItem = session.rootItem
-            hoveredItem = nil
-        }
-        #if FILE_MATCHING_DIAGNOSTICS
         .onAppear {
             updateScanWindowCommandState()
         }
         .onChange(of: session.rootItem?.id) {
+            selectedItem = session.rootItem
+            hoveredItem = nil
             updateScanWindowCommandState()
         }
+        .onChange(of: selectedItem?.id) {
+            updateScanWindowCommandState()
+        }
+        #if FILE_MATCHING_DIAGNOSTICS
         .onChange(of: session.diagnosticsExportState) {
             updateScanWindowCommandState()
         }
         #endif
     }
 
-    #if FILE_MATCHING_DIAGNOSTICS
     private func updateScanWindowCommandState() {
         ScanWindowCommandState.shared.activate(session: session)
+        ScanWindowCommandState.shared.updateSelectedItem(selectedItem)
+        ScanWindowCommandState.shared.updateScanState(from: session)
     }
-    #endif
 }
 
 private struct SelectedScanItemKey: EnvironmentKey {
