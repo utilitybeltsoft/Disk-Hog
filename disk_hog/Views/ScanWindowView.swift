@@ -5,7 +5,6 @@ struct ScanWindowView: View {
     @StateObject private var session: ScanSession
     @StateObject private var selectionCoordinator: ScanWindowSelectionCoordinator = ScanWindowSelectionCoordinator()
     @State private var hoveredItem: DiskItem?
-    @State private var shouldSkipNextOutlineSelectionSync: Bool = false
 
     init(source: ScanSource) {
         _session = StateObject(wrappedValue: ScanSession(source: source))
@@ -18,7 +17,6 @@ struct ScanWindowView: View {
                     FilesPaneView(session: session)
                         .environment(\.selectedScanItem, selectedItemBinding)
                         .environment(\.hoveredScanItem, $hoveredItem)
-                        .environment(\.skipNextOutlineSelectionSync, $shouldSkipNextOutlineSelectionSync)
                         .frame(minWidth: Metrics.filesPaneMinimumWidth, idealWidth: Metrics.filesPaneIdealWidth)
 
                     KindsPaneView(session: session)
@@ -30,7 +28,6 @@ struct ScanWindowView: View {
                 TreemapPanelView(session: session)
                     .environment(\.selectedScanItem, selectedItemBinding)
                     .environment(\.hoveredScanItem, $hoveredItem)
-                    .environment(\.skipNextOutlineSelectionSync, $shouldSkipNextOutlineSelectionSync)
                     .frame(minWidth: Metrics.treemapMinimumWidth, minHeight: Metrics.treemapMinimumHeight)
             }
             .padding(.horizontal, Metrics.mainSplitHorizontalPadding)
@@ -100,10 +97,6 @@ private struct HoveredScanItemKey: EnvironmentKey {
     static let defaultValue: Binding<DiskItem?> = .constant(nil)
 }
 
-private struct SkipNextOutlineSelectionSyncKey: EnvironmentKey {
-    static let defaultValue: Binding<Bool> = .constant(false)
-}
-
 private extension EnvironmentValues {
     var selectedScanItem: Binding<DiskItem?> {
         get { self[SelectedScanItemKey.self] }
@@ -114,18 +107,12 @@ private extension EnvironmentValues {
         get { self[HoveredScanItemKey.self] }
         set { self[HoveredScanItemKey.self] = newValue }
     }
-
-    var skipNextOutlineSelectionSync: Binding<Bool> {
-        get { self[SkipNextOutlineSelectionSyncKey.self] }
-        set { self[SkipNextOutlineSelectionSyncKey.self] = newValue }
-    }
 }
 
 private struct FilesPaneView: View {
     @ObservedObject var session: ScanSession
     @Environment(\.selectedScanItem) private var selectedItem
     @Environment(\.hoveredScanItem) private var hoveredItem
-    @Environment(\.skipNextOutlineSelectionSync) private var skipNextOutlineSelectionSync
 
     var body: some View {
         Group {
@@ -133,8 +120,7 @@ private struct FilesPaneView: View {
                 DiskItemOutlineView(
                     rootItem: rootItem,
                     selectedItem: selectedItem,
-                    hoveredItem: hoveredItem,
-                    skipNextOutlineSelectionSync: skipNextOutlineSelectionSync
+                    hoveredItem: hoveredItem
                 )
             } else {
                 FileScanPlaceholderRowsView(session: session)
@@ -148,13 +134,11 @@ private struct DiskItemOutlineView: NSViewRepresentable {
     let rootItem: DiskItem
     let selectedItem: Binding<DiskItem?>
     let hoveredItem: Binding<DiskItem?>
-    let skipNextOutlineSelectionSync: Binding<Bool>
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
             selectedItem: selectedItem,
-            hoveredItem: hoveredItem,
-            skipNextOutlineSelectionSync: skipNextOutlineSelectionSync
+            hoveredItem: hoveredItem
         )
     }
 
@@ -202,7 +186,6 @@ private struct DiskItemOutlineView: NSViewRepresentable {
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         context.coordinator.selectedItem = selectedItem
         context.coordinator.hoveredItem = hoveredItem
-        context.coordinator.skipNextOutlineSelectionSync = skipNextOutlineSelectionSync
         context.coordinator.reloadIfNeeded(rootItem: rootItem)
         context.coordinator.syncSelectionIfNeeded(selectedItem.wrappedValue)
     }
@@ -210,19 +193,16 @@ private struct DiskItemOutlineView: NSViewRepresentable {
     final class Coordinator: NSObject, NSOutlineViewDataSource, NSOutlineViewDelegate {
         var selectedItem: Binding<DiskItem?>
         var hoveredItem: Binding<DiskItem?>
-        var skipNextOutlineSelectionSync: Binding<Bool>
         weak var outlineView: NSOutlineView?
         private var rootItem: DiskItem?
         private var isApplyingSelection: Bool = false
 
         init(
             selectedItem: Binding<DiskItem?>,
-            hoveredItem: Binding<DiskItem?>,
-            skipNextOutlineSelectionSync: Binding<Bool>
+            hoveredItem: Binding<DiskItem?>
         ) {
             self.selectedItem = selectedItem
             self.hoveredItem = hoveredItem
-            self.skipNextOutlineSelectionSync = skipNextOutlineSelectionSync
         }
 
         func reloadIfNeeded(rootItem: DiskItem) {
@@ -241,11 +221,6 @@ private struct DiskItemOutlineView: NSViewRepresentable {
 
         func syncSelectionIfNeeded(_ item: DiskItem?) {
             guard let outlineView: NSOutlineView = outlineView else {
-                return
-            }
-
-            if skipNextOutlineSelectionSync.wrappedValue {
-                skipNextOutlineSelectionSync.wrappedValue = false
                 return
             }
 
@@ -617,14 +592,12 @@ private struct TreemapPanelView: View {
     @ObservedObject var session: ScanSession
     @Environment(\.selectedScanItem) private var selectedItem
     @Environment(\.hoveredScanItem) private var hoveredItem
-    @Environment(\.skipNextOutlineSelectionSync) private var skipNextOutlineSelectionSync
     @State private var renderedImage: NSImage?
     @State private var renderedRootID: ObjectIdentifier?
     @State private var renderedSize: CGSize = .zero
     @State private var renderer: TreemapViewRenderer?
     @State private var rendererDataSource: TreemapDiskItemDataSource?
     @State private var selectedItemRect: NSRect = .zero
-    @State private var selectedItemWasSetFromTreemap: Bool = false
 
     var body: some View {
         GeometryReader { proxy in
@@ -744,8 +717,6 @@ private struct TreemapPanelView: View {
         }
 
         renderer?.selectItem(by: result.cellID)
-        selectedItemWasSetFromTreemap = true
-        skipNextOutlineSelectionSync.wrappedValue = true
         selectedItem.wrappedValue = result.item
         selectedItemRect = renderer?.itemRect(by: renderer?.selectedCellID) ?? .zero
     }
@@ -762,11 +733,6 @@ private struct TreemapPanelView: View {
     }
 
     private func updateSelectedRect() {
-        if selectedItemWasSetFromTreemap {
-            selectedItemWasSetFromTreemap = false
-            return
-        }
-
         guard let item: DiskItem = selectedItem.wrappedValue,
               let rootItem: DiskItem = session.rootItem,
               itemIsInTree(item, root: rootItem) else {
