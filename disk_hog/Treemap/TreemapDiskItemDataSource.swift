@@ -21,6 +21,10 @@ nonisolated final class TreemapDiskItemDataSource: TreemapViewRendererDataSource
         rootItem // ✓ Z: TreeMapViewController.m:108 return [[self document] zoomedItem].
     } // ✓ Z: TreeMapViewController.m:109 closes rootItem.
 
+    static func kindStatistics(for rootItem: DiskItem) -> [TreemapKindStatistic] { // ✓ Swift-only: exposes Z FileTypeColors/table data to the SwiftUI kind list.
+        TreemapDiskItemColorTable.kindStatistics(from: rootItem) // ✓ Swift-only: reuse the same kind order and colors as treemap drawing.
+    } // ✓ Swift-only: closes kind-statistics bridge.
+
     func treemapItemRendererChild(_ index: Int, of item: AnyObject) -> AnyObject { // ✓ Z: TreeMapViewController.m:113 treeMapView:child:ofItem:.
         let diskItem: DiskItem = itemAsDiskItem(item) // ✓ Z: TreeMapViewController.m:115 FSItem *fsItem = (item == nil ? [self rootItem] : item).
         if diskItem === rootItem && index >= diskItem.childCount { // ✓ Z: TreeMapViewController.m:117-118 root special-space child branch.
@@ -85,6 +89,17 @@ nonisolated final class TreemapDiskItemDataSource: TreemapViewRendererDataSource
         item.isFolder && !item.isPackage // ✓ Z: TreeMapViewController.m:133 document itemIsNode result is true for visible non-package folders.
     } // ✓ Swift-only: closes current Disk Hog itemIsNode bridge.
 } // ✓ Z: TreeMapViewController.m:409 closes TreeMapViewController implementation.
+
+nonisolated struct TreemapKindStatistic: Identifiable, Sendable { // ✓ Swift-only: immutable row model for Z-style file-kind table.
+    let kindName: String // ✓ Z: FileKindsTableController.m:72 table column uses represented kind name.
+    let size: UInt64 // ✓ Z: FileKindsTableController.m:97 size column comes from FileTypeStatistics.
+    let fileCount: Int // ✓ Z: FileKindsTableController.m:108 files column comes from FileTypeStatistics.
+    let color: NSColor // ✓ Z: FileKindsTableController.m:82 color column asks document FileTypeColors.
+
+    var id: String { // ✓ Swift-only: SwiftUI row identity.
+        kindName // ✓ Swift-only: one row per kind.
+    } // ✓ Swift-only: closes row identity.
+} // ✓ Swift-only: closes kind-statistic row model.
 
 private nonisolated final class TreemapDiskItemColorTable: @unchecked Sendable { // ✓ Z: FileTypeColors.m:20 @implementation FileTypeColors.
     private var colorsByKind: [String: NSColor] // ✓ Z: FileTypeColors.m:36 _colors = [[NSMutableDictionary alloc] init].
@@ -187,6 +202,29 @@ private nonisolated final class TreemapDiskItemColorTable: @unchecked Sendable {
         } // ✓ Swift-only: closes ordered kind sort.
     } // ✓ Swift-only: closes ordered kind computation.
 
+    static func kindStatistics(from rootItem: DiskItem) -> [TreemapKindStatistic] { // ✓ Swift-only: builds the visible file-kind table using the treemap palette order.
+        var statisticsByKind: [String: TreemapKindStatisticAccumulator] = [:] // ✓ Swift-only: accumulates Z-style file type statistics by kind.
+        collectLeafKindStatistics(from: rootItem, into: &statisticsByKind) // ✓ Swift-only: gather visible leaf kind size and file count.
+        let orderedKinds: [String] = statisticsByKind.keys.sorted { leftKind, rightKind in // ✓ Swift-only: same deterministic order used for color assignment.
+            let leftSize: UInt64 = statisticsByKind[leftKind]?.size ?? 0 // ✓ Swift-only: reads accumulated left kind size.
+            let rightSize: UInt64 = statisticsByKind[rightKind]?.size ?? 0 // ✓ Swift-only: reads accumulated right kind size.
+            if leftSize != rightSize { // ✓ Swift-only: primary order is size descending.
+                return leftSize > rightSize // ✓ Swift-only: larger kind appears earlier and receives earlier Z color.
+            } // ✓ Swift-only: closes size comparison.
+            return leftKind.localizedStandardCompare(rightKind) == .orderedAscending // ✓ Swift-only: deterministic tie-breaker.
+        } // ✓ Swift-only: closes kind order sort.
+        let colorTable: TreemapDiskItemColorTable = TreemapDiskItemColorTable(rootItem: rootItem) // ✓ Swift-only: use the exact same colors as the renderer.
+        return orderedKinds.map { kindName in // ✓ Swift-only: convert accumulated kind data into table rows.
+            let accumulator: TreemapKindStatisticAccumulator = statisticsByKind[kindName] ?? TreemapKindStatisticAccumulator() // ✓ Swift-only: retrieve accumulated row values.
+            return TreemapKindStatistic( // ✓ Swift-only: immutable table row.
+                kindName: kindName, // ✓ Z: FileKindsTableController.m:72 kind column.
+                size: accumulator.size, // ✓ Z: FileKindsTableController.m:97 size column.
+                fileCount: accumulator.fileCount, // ✓ Z: FileKindsTableController.m:108 files column.
+                color: colorTable.colorForKind(kindName) // ✓ Z: FileKindsTableController.m:82 color image uses FileTypeColors colorForKind.
+            ) // ✓ Swift-only: closes table row construction.
+        } // ✓ Swift-only: closes row mapping.
+    } // ✓ Swift-only: closes file-kind table statistics.
+
     private static func collectLeafKindSizes(from item: DiskItem, into sizeByKind: inout [String: UInt64]) { // ✓ Swift-only: mirrors TreemapInputDiagnostics leaf-kind collection.
         if item.isFolder && !item.isPackage { // ✓ Z: TreeMapViewController.m:133 folders are nodes and not colored as leaves.
             for child: DiskItem in item.children { // ✓ Z: TreeMapViewController.m:113-127 descends through child items.
@@ -198,6 +236,23 @@ private nonisolated final class TreemapDiskItemColorTable: @unchecked Sendable {
         sizeByKind[kindName, default: 0] += item.allocatedSizeValue // ✓ Swift-only: add leaf size used by treemap to kind bucket.
     } // ✓ Swift-only: closes leaf kind collection.
 
+    private static func collectLeafKindStatistics(from item: DiskItem, into statisticsByKind: inout [String: TreemapKindStatisticAccumulator]) { // ✓ Swift-only: mirrors collectLeafKindSizes while keeping file counts for table display.
+        if item.isFolder && !item.isPackage { // ✓ Z: TreeMapViewController.m:133 folders are nodes and not colored as leaves.
+            for child: DiskItem in item.children { // ✓ Z: TreeMapViewController.m:113-127 descends through child items.
+                collectLeafKindStatistics(from: child, into: &statisticsByKind) // ✓ Swift-only: recursively collect leaf kind statistics.
+            } // ✓ Swift-only: closes child traversal.
+            return // ✓ Swift-only: folders do not contribute a file-kind table row.
+        } // ✓ Swift-only: closes folder-node branch.
+        let kindName: String = kindName(for: item) // ✓ Z: FileTypeColors.m:105 [item kindName].
+        guard !kindName.isEmpty else { // ✓ Swift-only: omit unclassified empty kinds from the file-kind table.
+            return // ✓ Swift-only: closes empty-kind omission.
+        } // ✓ Swift-only: closes empty-kind guard.
+        var accumulator: TreemapKindStatisticAccumulator = statisticsByKind[kindName] ?? TreemapKindStatisticAccumulator() // ✓ Swift-only: existing or new kind bucket.
+        accumulator.size += item.allocatedSizeValue // ✓ Z: FileKindsTableController.m:97 size is accumulated per kind.
+        accumulator.fileCount += 1 // ✓ Z: FileKindsTableController.m:108 file count is accumulated per kind.
+        statisticsByKind[kindName] = accumulator // ✓ Swift-only: store updated kind bucket.
+    } // ✓ Swift-only: closes leaf kind statistics collection.
+
     private static func kindName(for item: DiskItem) -> String { // ✓ Z: FileTypeColors.m:105 asks item for kindName.
         if let kindName: String = item.kindName { // ✓ Z: FileTypeColors.m:105 uses [item kindName] from FSItem.
             return kindName // ✓ Z: FileTypeColors.m:105 uses [item kindName].
@@ -208,3 +263,8 @@ private nonisolated final class TreemapDiskItemColorTable: @unchecked Sendable {
         return "" // ✓ Swift-only: empty fallback mirrors TreemapInputDiagnostics empty kind.
     } // ✓ Swift-only: closes kind-name helper.
 } // ✓ Z: FileTypeColors.m:138 closes FileTypeColors implementation.
+
+private nonisolated struct TreemapKindStatisticAccumulator: Sendable { // ✓ Swift-only: mutable accumulator for kind table rows.
+    var size: UInt64 = 0 // ✓ Swift-only: accumulated byte size.
+    var fileCount: Int = 0 // ✓ Swift-only: accumulated file count.
+} // ✓ Swift-only: closes kind statistic accumulator.

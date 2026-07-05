@@ -233,6 +233,7 @@ private struct FileScanPlaceholderRowsView: View {
 
 private struct KindsPaneView: View {
     @ObservedObject var session: ScanSession
+    @State private var kindStatistics: [TreemapKindStatistic] = []
 
     var body: some View {
         VStack(spacing: 0) {
@@ -256,69 +257,31 @@ private struct KindsPaneView: View {
             }
         }
         .background(Color(nsColor: .controlBackgroundColor))
+        .onAppear {
+            updateKindStatistics()
+        }
+        .onChange(of: session.rootItem?.id) {
+            updateKindStatistics()
+        }
     }
 
-    private var kindStatistics: [KindStatistic] {
+    private func updateKindStatistics() {
         guard let rootItem: DiskItem = session.rootItem else {
-            return []
-        }
-
-        var statisticsByKind: [String: KindStatisticAccumulator] = [:]
-        Self.collectKindStatistics(from: rootItem, into: &statisticsByKind)
-        return statisticsByKind.map { key, accumulator in
-            KindStatistic(kindName: key, size: accumulator.size, fileCount: accumulator.fileCount)
-        }
-        .sorted { first, second in
-            if first.size != second.size {
-                return first.size > second.size
-            }
-
-            return first.kindName.localizedStandardCompare(second.kindName) == .orderedAscending
-        }
-    }
-
-    private static func collectKindStatistics(from item: DiskItem, into statisticsByKind: inout [String: KindStatisticAccumulator]) {
-        if item.childCount > 0 {
-            for child: DiskItem in item.children {
-                collectKindStatistics(from: child, into: &statisticsByKind)
-            }
+            kindStatistics = []
             return
         }
 
-        let kindName: String = item.kindName ?? (item.isFolder ? "folder" : "")
-        guard !kindName.isEmpty else {
-            return
-        }
-
-        var accumulator: KindStatisticAccumulator = statisticsByKind[kindName] ?? KindStatisticAccumulator()
-        accumulator.size += item.allocatedSizeValue
-        accumulator.fileCount += 1
-        statisticsByKind[kindName] = accumulator
+        kindStatistics = TreemapDiskItemDataSource.kindStatistics(for: rootItem)
     }
-}
-
-private struct KindStatistic: Identifiable {
-    let kindName: String
-    let size: UInt64
-    let fileCount: Int
-
-    var id: String {
-        kindName
-    }
-}
-
-private struct KindStatisticAccumulator {
-    var size: UInt64 = 0
-    var fileCount: Int = 0
 }
 
 private struct KindStatisticRowView: View {
-    let statistic: KindStatistic
+    let statistic: TreemapKindStatistic
 
     var body: some View {
         HStack(spacing: Metrics.tableColumnSpacing) {
             RoundedRectangle(cornerRadius: Metrics.kindSwatchCornerRadius)
-                .fill(Color(nsColor: .systemBlue))
+                .fill(Color(nsColor: statistic.color))
                 .frame(width: Metrics.kindSwatchWidth, height: Metrics.kindSwatchHeight)
                 .frame(width: Metrics.kindColorColumnWidth, alignment: .leading)
             Text(statistic.kindName)
