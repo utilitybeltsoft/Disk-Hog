@@ -1,8 +1,9 @@
+import Combine
 import SwiftUI
 
 struct ScanWindowView: View {
     @StateObject private var session: ScanSession
-    @State private var selectedItem: DiskItem?
+    @StateObject private var selectionCoordinator: ScanWindowSelectionCoordinator = ScanWindowSelectionCoordinator()
     @State private var hoveredItem: DiskItem?
     @State private var shouldSkipNextOutlineSelectionSync: Bool = false
 
@@ -15,19 +16,19 @@ struct ScanWindowView: View {
             VSplitView {
                 HSplitView {
                     FilesPaneView(session: session)
-                        .environment(\.selectedScanItem, $selectedItem)
+                        .environment(\.selectedScanItem, selectedItemBinding)
                         .environment(\.hoveredScanItem, $hoveredItem)
                         .environment(\.skipNextOutlineSelectionSync, $shouldSkipNextOutlineSelectionSync)
                         .frame(minWidth: Metrics.filesPaneMinimumWidth, idealWidth: Metrics.filesPaneIdealWidth)
 
                     KindsPaneView(session: session)
-                        .environment(\.selectedScanItem, $selectedItem)
+                        .environment(\.selectedScanItem, selectedItemBinding)
                         .frame(minWidth: Metrics.kindsPaneMinimumWidth, idealWidth: Metrics.kindsPaneIdealWidth)
                 }
                 .frame(minHeight: Metrics.topPaneMinimumHeight, idealHeight: Metrics.topPaneIdealHeight)
 
                 TreemapPanelView(session: session)
-                    .environment(\.selectedScanItem, $selectedItem)
+                    .environment(\.selectedScanItem, selectedItemBinding)
                     .environment(\.hoveredScanItem, $hoveredItem)
                     .environment(\.skipNextOutlineSelectionSync, $shouldSkipNextOutlineSelectionSync)
                     .frame(minWidth: Metrics.treemapMinimumWidth, minHeight: Metrics.treemapMinimumHeight)
@@ -36,7 +37,7 @@ struct ScanWindowView: View {
             .padding(.top, Metrics.mainSplitTopPadding)
 
             ZStatusFieldsView(session: session)
-                .environment(\.selectedScanItem, $selectedItem)
+                .environment(\.selectedScanItem, selectedItemBinding)
                 .environment(\.hoveredScanItem, $hoveredItem)
         }
         .frame(minWidth: Metrics.windowMinimumWidth, minHeight: Metrics.windowMinimumHeight)
@@ -49,11 +50,11 @@ struct ScanWindowView: View {
             updateScanWindowCommandState()
         }
         .onChange(of: session.rootItem?.id) {
-            selectedItem = session.rootItem
+            selectionCoordinator.setSelectedItem(session.rootItem)
             hoveredItem = nil
             updateScanWindowCommandState()
         }
-        .onChange(of: selectedItem?.id) {
+        .onChange(of: selectionCoordinator.selectedItem?.id) {
             updateScanWindowCommandState()
         }
         #if FILE_MATCHING_DIAGNOSTICS
@@ -65,8 +66,29 @@ struct ScanWindowView: View {
 
     private func updateScanWindowCommandState() {
         ScanWindowCommandState.shared.activate(session: session)
-        ScanWindowCommandState.shared.updateSelectedItem(selectedItem)
+        ScanWindowCommandState.shared.updateSelectedItem(selectionCoordinator.selectedItem)
         ScanWindowCommandState.shared.updateScanState(from: session)
+    }
+
+    private var selectedItemBinding: Binding<DiskItem?> {
+        Binding {
+            selectionCoordinator.selectedItem
+        } set: { newSelectedItem in
+            selectionCoordinator.setSelectedItem(newSelectedItem)
+        }
+    }
+}
+
+@MainActor
+private final class ScanWindowSelectionCoordinator: ObservableObject {
+    @Published private(set) var selectedItem: DiskItem?
+
+    func setSelectedItem(_ item: DiskItem?) {
+        guard selectedItem !== item else {
+            return
+        }
+
+        selectedItem = item
     }
 }
 
