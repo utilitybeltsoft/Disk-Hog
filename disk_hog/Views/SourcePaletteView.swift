@@ -9,6 +9,9 @@ struct SourcePaletteView: View {
     @AppStorage(SourcePaletteDefaults.showExternalVolumesKey) private var showExternalVolumes: Bool = false
     @AppStorage(SourcePaletteDefaults.showNetworkVolumesKey) private var showNetworkVolumes: Bool = false
     @AppStorage(SourcePaletteDefaults.showDiskImagesKey) private var showDiskImages: Bool = false
+    @AppStorage(DiskScanSettingsDefaultsKeys.showPackageContents) private var showPackageContents: Bool = false
+    @AppStorage(DiskScanSettingsDefaultsKeys.ignoreCreatorCode) private var ignoreCreatorCode: Bool = false
+    @AppStorage(DiskScanSettingsDefaultsKeys.showPhysicalFileSize) private var showPhysicalFileSize: Bool = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: Metrics.outerSpacing) {
@@ -16,19 +19,30 @@ struct SourcePaletteView: View {
                 SourceTableHeaderView()
 
                 ScrollView {
-                    LazyVStack(spacing: 0) {
-                        ForEach(Array(filteredSources.enumerated()), id: \.element.id) { index, source in
-                            SourceTableRowView(
-                                source: source,
-                                isAlternateRow: index.isMultiple(of: Metrics.alternateRowModulo) == false,
-                                isSelected: selectedSourceID == source.id
-                            )
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                selectedSourceID = source.id
-                            }
-                            .onTapGesture(count: Metrics.doubleClickCount) {
-                                openSource(source)
+                    ZStack(alignment: .top) {
+                        SourceBlankClickCatcherView {
+                            selectedSourceID = nil
+                        }
+                        .frame(maxWidth: .infinity, minHeight: Metrics.volumeListHeight)
+
+                        LazyVStack(spacing: 0) {
+                            ForEach(Array(filteredSources.enumerated()), id: \.element.id) { index, source in
+                                SourceTableRowView(
+                                    source: source,
+                                    isAlternateRow: index.isMultiple(of: Metrics.alternateRowModulo) == false,
+                                    isSelected: selectedSourceID == source.id
+                                )
+                                .contentShape(Rectangle())
+                                .overlay {
+                                    SourceRowClickCatcherView(
+                                        onSingleClick: {
+                                            selectedSourceID = source.id
+                                        },
+                                        onDoubleClick: {
+                                            openSource(source)
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
@@ -55,7 +69,11 @@ struct SourcePaletteView: View {
                 }
                 .frame(height: Metrics.buttonHeight)
                 .popover(isPresented: $showsScanSettings) {
-                    ScanSettingsPlaceholderView()
+                    ScanSettingsPopoverView(
+                        showPackageContents: $showPackageContents,
+                        ignoreCreatorCode: $ignoreCreatorCode,
+                        showPhysicalFileSize: $showPhysicalFileSize
+                    )
                 }
 
                 Button {
@@ -79,11 +97,9 @@ struct SourcePaletteView: View {
                 .help("Select a folder to scan")
 
                 Button {
-                    if let selectedSource: ScanSource = selectedSource {
-                        openSource(selectedSource)
-                    }
+                    scanSelectedVolume()
                 } label: {
-                    Text("Scan Volume")
+                    Text("Scan Selected Volume")
                         .font(.system(size: Metrics.standardFontSize))
                 }
                 .frame(height: Metrics.buttonHeight)
@@ -96,16 +112,22 @@ struct SourcePaletteView: View {
         }
         .frame(minWidth: Metrics.windowMinimumWidth, minHeight: Metrics.windowMinimumHeight)
         .onAppear {
-            seedSelectionIfNeeded()
+            updateCommandState()
+        }
+        .onChange(of: selectedSourceID) {
+            updateCommandState()
         }
         .onChange(of: showExternalVolumes) {
             reconcileSelectionWithVisibleSources()
+            updateCommandState()
         }
         .onChange(of: showNetworkVolumes) {
             reconcileSelectionWithVisibleSources()
+            updateCommandState()
         }
         .onChange(of: showDiskImages) {
             reconcileSelectionWithVisibleSources()
+            updateCommandState()
         }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didMountNotification)) { _ in
             refreshSources()
@@ -115,6 +137,12 @@ struct SourcePaletteView: View {
         }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didRenameVolumeNotification)) { _ in
             refreshSources()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .sourcePaletteChooseFolderToScan)) { _ in
+            chooseFolder()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .sourcePaletteScanSelectedVolume)) { _ in
+            scanSelectedVolume()
         }
     }
 
@@ -154,7 +182,20 @@ struct SourcePaletteView: View {
     }
 
     private func openSource(_ source: ScanSource) {
-        openWindow(value: source)
+        let scanSource: ScanSource = source.applyingScanSettings(currentScanSettings)
+        if ScanWindowRegistry.shared.activateWindow(for: scanSource) {
+            return
+        }
+
+        openWindow(value: scanSource)
+    }
+
+    private var currentScanSettings: DiskScanSettings {
+        DiskScanSettings(
+            usePhysicalSize: showPhysicalFileSize,
+            lookInsidePackages: showPackageContents,
+            ignoreCreatorCode: ignoreCreatorCode
+        )
     }
 
     private func refreshSources() {
@@ -165,13 +206,7 @@ struct SourcePaletteView: View {
            filteredSources.contains(where: { source in source.id == previousSelectionID }) {
             selectedSourceID = previousSelectionID
         } else {
-            selectedSourceID = filteredSources.first?.id
-        }
-    }
-
-    private func seedSelectionIfNeeded() {
-        if selectedSourceID == nil {
-            selectedSourceID = filteredSources.first?.id
+            selectedSourceID = nil
         }
     }
 
@@ -181,7 +216,7 @@ struct SourcePaletteView: View {
             return
         }
 
-        selectedSourceID = filteredSources.first?.id
+        selectedSourceID = nil
     }
 
     private func chooseFolder() {
@@ -200,6 +235,88 @@ struct SourcePaletteView: View {
         let source: ScanSource = ScanSourceProvider.scanSource(for: url, bookmarkData: bookmarkData)
         openSource(source)
     }
+
+    private func scanSelectedVolume() {
+        guard let selectedSource: ScanSource = selectedSource else {
+            return
+        }
+
+        openSource(selectedSource)
+    }
+
+    private func updateCommandState() {
+        SourcePaletteCommandState.shared.canScanSelectedVolume = selectedSource != nil
+    }
+}
+
+private struct SourceBlankClickCatcherView: NSViewRepresentable {
+    let onClick: () -> Void
+
+    func makeNSView(context: Context) -> SourceBlankClickCatcherNSView {
+        let view: SourceBlankClickCatcherNSView = SourceBlankClickCatcherNSView()
+        view.onClick = onClick
+        return view
+    }
+
+    func updateNSView(_ nsView: SourceBlankClickCatcherNSView, context: Context) {
+        nsView.onClick = onClick
+    }
+}
+
+private final class SourceBlankClickCatcherNSView: NSView {
+    var onClick: () -> Void = {}
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        self
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        onClick()
+    }
+}
+
+private struct SourceRowClickCatcherView: NSViewRepresentable {
+    let onSingleClick: () -> Void
+    let onDoubleClick: () -> Void
+
+    func makeNSView(context: Context) -> SourceRowClickCatcherNSView {
+        let view: SourceRowClickCatcherNSView = SourceRowClickCatcherNSView()
+        view.onSingleClick = onSingleClick
+        view.onDoubleClick = onDoubleClick
+        return view
+    }
+
+    func updateNSView(_ nsView: SourceRowClickCatcherNSView, context: Context) {
+        nsView.onSingleClick = onSingleClick
+        nsView.onDoubleClick = onDoubleClick
+    }
+}
+
+private final class SourceRowClickCatcherNSView: NSView {
+    var onSingleClick: () -> Void = {}
+    var onDoubleClick: () -> Void = {}
+    private var pendingSingleClick: DispatchWorkItem?
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        self
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        if event.clickCount >= SourcePaletteMetrics.doubleClickCount {
+            pendingSingleClick?.cancel()
+            pendingSingleClick = nil
+            onDoubleClick()
+            return
+        }
+
+        pendingSingleClick?.cancel()
+        let workItem: DispatchWorkItem = DispatchWorkItem { [weak self] in
+            self?.onSingleClick()
+            self?.pendingSingleClick = nil
+        }
+        pendingSingleClick = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + NSEvent.doubleClickInterval, execute: workItem)
+    }
 }
 
 private struct ButtonLabel: View {
@@ -213,17 +330,53 @@ private struct ButtonLabel: View {
     }
 }
 
-private struct ScanSettingsPlaceholderView: View {
+private struct ScanSettingsPopoverView: View {
+    @Binding var showPackageContents: Bool
+    @Binding var ignoreCreatorCode: Bool
+    @Binding var showPhysicalFileSize: Bool
+
     var body: some View {
         VStack(alignment: .leading, spacing: Metrics.scanSettingsSpacing) {
-            Text("Scan Settings")
-                .font(.system(size: Metrics.standardFontSize, weight: .semibold))
-            Text("Settings applied to the next scan will live here.")
+            ScanSettingsRowView(
+                title: "Show Package Contents",
+                description: "Treat application and document packages as folders so their contents appear in the scan.",
+                isOn: $showPackageContents
+            )
+            ScanSettingsRowView(
+                title: "Ignore Creator Code",
+                description: "If set, e.g. PDF files opened by the Finder with Acrobat or Preview are regarded to have the same kind.",
+                isOn: $ignoreCreatorCode
+            )
+            ScanSettingsRowView(
+                title: "Show Physical File Size",
+                description: "The physical size is the space that a file occupies on a drive. Many applications show the logical size, which is the size of a file's content.",
+                isOn: $showPhysicalFileSize
+            )
+            Text("These settings apply to the next volume or folder you open.")
                 .font(.system(size: Metrics.standardFontSize))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(Metrics.scanSettingsPadding)
         .frame(width: Metrics.scanSettingsWidth, alignment: .leading)
+    }
+}
+
+private struct ScanSettingsRowView: View {
+    let title: String
+    let description: String
+    @Binding var isOn: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Metrics.scanSettingsDescriptionSpacing) {
+            Toggle(title, isOn: $isOn)
+                .font(.system(size: Metrics.standardFontSize))
+            Text(description)
+                .font(.system(size: Metrics.standardFontSize))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.leading, Metrics.scanSettingsDescriptionIndent)
+        }
     }
 }
 
@@ -474,8 +627,10 @@ enum SourcePaletteMetrics {
     static let windowMinimumWidth: CGFloat = 798
     static let windowMinimumHeight: CGFloat = 390
     static let scanSettingsPadding: CGFloat = 14
-    static let scanSettingsSpacing: CGFloat = 6
-    static let scanSettingsWidth: CGFloat = 260
+    static let scanSettingsSpacing: CGFloat = 14
+    static let scanSettingsDescriptionSpacing: CGFloat = 2
+    static let scanSettingsDescriptionIndent: CGFloat = 18
+    static let scanSettingsWidth: CGFloat = 380
     static let singleLineLimit: Int = 1
     static let doubleClickCount: Int = 2
 }

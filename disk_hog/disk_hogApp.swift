@@ -4,12 +4,13 @@
 //
 //
 
+import AppKit
 import SwiftUI
 
 @main
 struct DiskHogApp: App {
     var body: some Scene {
-        WindowGroup("Choose Source", id: WindowIDs.sourcePalette) {
+        WindowGroup("Choose Source to Scan", id: WindowIDs.sourcePalette) {
             ContentView()
         }
         .defaultSize(width: SourcePaletteWindowDefaults.width, height: SourcePaletteWindowDefaults.height)
@@ -28,14 +29,20 @@ struct DiskHogApp: App {
 }
 
 private struct DiskHogCommands: Commands {
-    @Environment(\.openWindow) private var openWindow
+    @ObservedObject private var commandState: SourcePaletteCommandState = .shared
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
-            Button("New Scan Window") {
-                openWindow(id: WindowIDs.sourcePalette)
+            Button("Choose Folder to Scan") {
+                NotificationCenter.default.post(name: .sourcePaletteChooseFolderToScan, object: nil)
             }
-            .keyboardShortcut("n", modifiers: .command)
+            .keyboardShortcut("o", modifiers: .command)
+
+            Button("Scan Selected Volume") {
+                NotificationCenter.default.post(name: .sourcePaletteScanSelectedVolume, object: nil)
+            }
+            .keyboardShortcut(.defaultAction)
+            .disabled(commandState.canScanSelectedVolume == false)
         }
     }
 }

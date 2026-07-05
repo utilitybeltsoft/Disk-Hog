@@ -112,7 +112,6 @@ nonisolated enum TreemapInputDiagnostics {
     ) -> [String: Any] {
         [
             "app": "Disk Hog",
-            "ignoreCreatorCode": false,
             "recordType": "metadata",
             "rootDisplayName": diagnosticDisplayName(for: root),
             "rootPath": root.path,
@@ -120,7 +119,8 @@ nonisolated enum TreemapInputDiagnostics {
             "showFreeSpace": false,
             "showOtherSpace": false,
             "showPackageContents": settings.lookInsidePackages,
-            "showPhysicalFileSize": settings.usePhysicalSize
+            "showPhysicalFileSize": settings.usePhysicalSize,
+            "ignoreCreatorCode": settings.ignoreCreatorCode
         ]
     }
 

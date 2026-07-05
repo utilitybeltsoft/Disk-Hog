@@ -27,7 +27,7 @@ final class ScanSession: ObservableObject {
 
     init(source: ScanSource) {
         self.source = source
-        self.settings = .diskInventoryZDefault
+        self.settings = source.scanSettings ?? .diskInventoryZDefault
         self.scanner = DiskInventoryZScanner()
         self.state = .ready
         self.startedAt = nil

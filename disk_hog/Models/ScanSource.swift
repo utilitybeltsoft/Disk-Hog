@@ -21,6 +21,7 @@ struct ScanSource: Codable, Hashable, Identifiable {
     let isEjectableVolume: Bool?
     let isInternalVolume: Bool?
     let isDiskImageVolume: Bool?
+    let scanSettings: DiskScanSettings?
 
     init(
         path: String,
@@ -33,7 +34,8 @@ struct ScanSource: Codable, Hashable, Identifiable {
         isRemovableVolume: Bool? = nil,
         isEjectableVolume: Bool? = nil,
         isInternalVolume: Bool? = nil,
-        isDiskImageVolume: Bool? = nil
+        isDiskImageVolume: Bool? = nil,
+        scanSettings: DiskScanSettings? = nil
     ) {
         self.path = path
         self.displayName = displayName
@@ -46,10 +48,15 @@ struct ScanSource: Codable, Hashable, Identifiable {
         self.isEjectableVolume = isEjectableVolume
         self.isInternalVolume = isInternalVolume
         self.isDiskImageVolume = isDiskImageVolume
+        self.scanSettings = scanSettings
     }
 
     var id: String {
         path
+    }
+
+    var scanWindowRegistryKey: String {
+        url.standardizedFileURL.resolvingSymlinksInPath().path
     }
 
     nonisolated var url: URL {
@@ -91,6 +98,23 @@ struct ScanSource: Codable, Hashable, Identifiable {
             options: [.withSecurityScope],
             relativeTo: nil,
             bookmarkDataIsStale: &isStale
+        )
+    }
+
+    func applyingScanSettings(_ settings: DiskScanSettings) -> ScanSource {
+        ScanSource(
+            path: path,
+            displayName: displayName,
+            bookmarkData: bookmarkData,
+            volumeFormat: volumeFormat,
+            totalCapacity: totalCapacity,
+            availableCapacity: availableCapacity,
+            isLocalVolume: isLocalVolume,
+            isRemovableVolume: isRemovableVolume,
+            isEjectableVolume: isEjectableVolume,
+            isInternalVolume: isInternalVolume,
+            isDiskImageVolume: isDiskImageVolume,
+            scanSettings: settings
         )
     }
 }

@@ -26,6 +26,7 @@ struct ScanWindowView: View {
         }
         .frame(minWidth: Metrics.windowMinimumWidth, minHeight: Metrics.windowMinimumHeight)
         .background(Color(nsColor: .windowBackgroundColor))
+        .background(ScanWindowRegistrationView(source: session.source))
     }
 }
 
