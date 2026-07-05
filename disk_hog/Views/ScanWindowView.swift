@@ -529,7 +529,7 @@ private struct TreemapPanelView: View {
         selectedItemWasSetFromTreemap = true
         skipNextOutlineSelectionSync.wrappedValue = true
         selectedItem.wrappedValue = result.item
-        selectedItemRect = renderer?.itemRect(by: result.cellID) ?? .zero
+        selectedItemRect = renderer?.itemRect(by: renderer?.selectedCellID) ?? .zero
     }
 
     private func treemapHitResult(at location: CGPoint, size: CGSize) -> TreemapHitResult? {
@@ -558,7 +558,7 @@ private struct TreemapPanelView: View {
 
         let path: [AnyObject] = item.pathFromRoot().map { $0 as AnyObject }
         renderer?.selectItem(byPathToItem: path)
-        selectedItemRect = renderer?.itemRect(byPathToItem: path) ?? .zero
+        selectedItemRect = renderer?.itemRect(by: renderer?.selectedCellID) ?? .zero
     }
 
     private func itemIsInTree(_ item: DiskItem, root: DiskItem) -> Bool {

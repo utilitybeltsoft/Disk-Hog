@@ -34,6 +34,10 @@ nonisolated final class TreemapViewRenderer: @unchecked Sendable { // ✓ Z: Tre
         selectedRenderer == nil ? nil : selectedRenderer!.item // ✓ Z: TreeMapView.m:334 return _selectedRenderer == nil ? nil : [_selectedRenderer item].
     } // ✓ Z: TreeMapView.m:335 closes selectedItem.
 
+    var selectedCellID: TreemapCellID? { // ✓ Swift-only: exposes the renderer-owned selected cell for SwiftUI drawing.
+        selectedRenderer // ✓ Z: TreeMapView.h:23 _selectedRenderer is the authoritative selected cell.
+    } // ✓ Swift-only: closes selected cell accessor.
+
     var rootCellID: TreemapCellID? { // ✓ Swift-only: exposes root renderer for SwiftUI/AppKit integration that cannot access ivars.
         rootItemRenderer // ✓ Z: TreeMapView.h:20 _rootItemRenderer is retained as the root cell identity.
     } // ✓ Swift-only: closes root renderer accessor.
