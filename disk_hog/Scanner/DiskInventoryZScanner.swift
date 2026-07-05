@@ -69,7 +69,6 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable { // ✓ Swif
 
             let values: URLResourceValues = try childURL.resourceValues(forKeys: Set(Self.topLevelResourceKeys)) // ✓ Z: FileSystemDoc.m:633-641 getResourceValue for top-level isDir/isPkg/isVol from prefetched keys.
             let orphan: DiskItem = Self.makeItem(url: childURL, parent: rootItem, values: values) // ✓ Z: FileSystemDoc.m:628 FSItem *orphan = [[FSItem alloc] initWithURL: childURL].
-            progressState.recordItem(orphan) // ✓ Z: FSItem.m:955-958 increments g_folderCount/g_fileCount after FSItem initialization.
             let isDirectory: Bool = values.isDirectory ?? false // ✓ Z: FileSystemDoc.m:634 BOOL isDir plus NSURLIsDirectoryKey.
             let isPackage: Bool = values.isPackage ?? false // ✓ Z: FileSystemDoc.m:634 BOOL isPkg plus NSURLIsPackageKey.
             let isVolume: Bool = values.isVolume ?? false // ✓ Z: FileSystemDoc.m:634 BOOL isVol plus NSURLIsVolumeKey.
