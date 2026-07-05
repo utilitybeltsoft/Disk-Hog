@@ -642,13 +642,24 @@ private struct TreemapPanelView: View {
                 }
 
                 if selectedItemRect != .zero {
-                    Rectangle()
-                        .stroke(Color.accentColor, lineWidth: Metrics.treemapSelectionLineWidth)
-                        .frame(width: selectedItemRect.width, height: selectedItemRect.height)
-                        .position(
-                            x: selectedItemRect.midX,
-                            y: selectedItemRect.midY
-                        )
+                    let visibleRect: NSRect = visibleSelectionRect(
+                        for: selectedItemRect,
+                        in: proxy.size
+                    )
+                    ZStack {
+                        Rectangle()
+                            .stroke(Color.black, lineWidth: Metrics.treemapSelectionOuterLineWidth)
+                        Rectangle()
+                            .stroke(Color.white, lineWidth: Metrics.treemapSelectionMiddleLineWidth)
+                        Rectangle()
+                            .stroke(Color.yellow, lineWidth: Metrics.treemapSelectionInnerLineWidth)
+                    }
+                    .frame(width: visibleRect.width, height: visibleRect.height)
+                    .position(
+                        x: visibleRect.midX,
+                        y: visibleRect.midY
+                    )
+                    .allowsHitTesting(false)
                 }
             }
             .contentShape(Rectangle())
@@ -766,6 +777,33 @@ private struct TreemapPanelView: View {
         let path: [AnyObject] = item.pathFromRoot().map { $0 as AnyObject }
         renderer?.selectItem(byPathToItem: path)
         selectedItemRect = renderer?.itemRect(by: renderer?.selectedCellID) ?? .zero
+    }
+
+    private func visibleSelectionRect(for rect: NSRect, in size: CGSize) -> NSRect {
+        let boundsRect: NSRect = NSRect(origin: .zero, size: size)
+        let visibleWidth: CGFloat = min(
+            max(rect.width, Metrics.treemapMinimumSelectionSide),
+            boundsRect.width
+        )
+        let visibleHeight: CGFloat = min(
+            max(rect.height, Metrics.treemapMinimumSelectionSide),
+            boundsRect.height
+        )
+        let visibleOriginX: CGFloat = min(
+            max(rect.midX - visibleWidth / 2, boundsRect.minX),
+            boundsRect.maxX - visibleWidth
+        )
+        let visibleOriginY: CGFloat = min(
+            max(rect.midY - visibleHeight / 2, boundsRect.minY),
+            boundsRect.maxY - visibleHeight
+        )
+
+        return NSRect(
+            x: visibleOriginX,
+            y: visibleOriginY,
+            width: visibleWidth,
+            height: visibleHeight
+        )
     }
 
     private func itemIsInTree(_ item: DiskItem, root: DiskItem) -> Bool {
@@ -923,7 +961,10 @@ private enum ScanWindowMetrics {
     static let placeholderPathLineLimit: Int = 3
     static let treemapIconSize: CGFloat = 48
     static let minimumRenderableTreemapSide: CGFloat = 2
-    static let treemapSelectionLineWidth: CGFloat = 2
+    static let treemapMinimumSelectionSide: CGFloat = 12
+    static let treemapSelectionOuterLineWidth: CGFloat = 5
+    static let treemapSelectionMiddleLineWidth: CGFloat = 3
+    static let treemapSelectionInnerLineWidth: CGFloat = 1
     static let singleLineLimit: Int = 1
     static let statusFieldSpacing: CGFloat = 2
     static let statusFieldFontSize: CGFloat = 11
