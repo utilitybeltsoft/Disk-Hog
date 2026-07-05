@@ -1,410 +1,410 @@
-import Foundation // ✓ Swift-only: Swift module import required for URL, Task, and Foundation file APIs.
-import UniformTypeIdentifiers // ✓ Z: FSItem.m:650 uses UTType typeWithIdentifier:localizedDescription.
+import Foundation
+import UniformTypeIdentifiers
 
-// Rule for this file: every scanner behavior line must carry either a checked Disk Inventory Z source reference or a checked Swift-only justification. // ✓ Swift-only: port discipline requested for the scanner rewrite.
-nonisolated final class DiskInventoryZScanner: @unchecked Sendable { // ✓ Swift-only: Swift type shell replacing Z's FSItem/FileSystemDoc Objective-C split.
-    typealias ProgressHandler = @Sendable (DiskScanProgress) -> Void // ✓ Swift-only: callback bridge for SwiftUI progress; Z uses FileSystemDoc delegate/status fields.
 
-    nonisolated(unsafe) private static var seenHardlinkInodes: NSMutableSet? = nil // ✓ Z: FSItem.m:43 static NSMutableSet *g_seenHardlinkInodes = nil.
-    nonisolated(unsafe) private static var firmlinkURLs: Set<URL>? = nil // ✓ Z: NSURL-Extensions.m:23 NSMutableDictionary<NSURL*, NSURL*> * g_Firmlinks = nil.
-    nonisolated(unsafe) private static var kindNameByTypeIdentifier: [String: String] = [:] // ✓ Z: FSItem.m:49 NSMutableDictionary *g_kindNameDictionary = nil.
-    private static let firmlinkListPath: String = "/usr/share/firmlinks" // ✓ Z: NSURL-Extensions.m:24 NSString *firmlinkListFile = @"/usr/share/firmlinks".
-    fileprivate static let progressRefreshInterval: TimeInterval = 0.25 // ✓ Z: FileSystemDoc.m:1684-1687 maybeRefreshScanCheckpoint gates refreshes at 0.25s.
+nonisolated final class DiskInventoryZScanner: @unchecked Sendable {
+    typealias ProgressHandler = @Sendable (DiskScanProgress) -> Void
 
-    private static let topLevelResourceKeys: [URLResourceKey] = [ // ✓ Z: FileSystemDoc.m:595 NSArray<NSURLResourceKey> *keys = @[...].
-        .isDirectoryKey, .isPackageKey, .isVolumeKey, // ✓ Z: FileSystemDoc.m:596 NSURLIsDirectoryKey, NSURLIsPackageKey, NSURLIsVolumeKey.
-        .nameKey, .typeIdentifierKey, // ✓ Z: FileSystemDoc.m:597 NSURLNameKey, NSURLTypeIdentifierKey.
-        .fileSizeKey, .totalFileAllocatedSizeKey // ✓ Z: FileSystemDoc.m:598 NSURLFileSizeKey, NSURLTotalFileAllocatedSizeKey.
-    ] // ✓ Z: FileSystemDoc.m:599 closes top-level resource key array.
+    nonisolated(unsafe) private static var seenHardlinkInodes: NSMutableSet? = nil
+    nonisolated(unsafe) private static var firmlinkURLs: Set<URL>? = nil
+    nonisolated(unsafe) private static var kindNameByTypeIdentifier: [String: String] = [:]
+    private static let firmlinkListPath: String = "/usr/share/firmlinks"
+    fileprivate static let progressRefreshInterval: TimeInterval = 0.25
 
-    private static let recursiveResourceKeys: [URLResourceKey] = [ // ✓ Z: FSItem.m:1004 NSArray<NSString*> *urlProperties = [NSArray arrayWithObjects:...].
-        .nameKey, // ✓ Z: FSItem.m:1006 NSURLNameKey.
-        .isVolumeKey, // ✓ Z: FSItem.m:1007 NSURLIsVolumeKey.
-        .isPackageKey, // ✓ Z: FSItem.m:1008 NSURLIsPackageKey.
-        .isDirectoryKey, // ✓ Z: FSItem.m:1009 NSURLIsDirectoryKey.
-        .isSymbolicLinkKey, // ✓ Swift-only: fallback kind resolver needs symlink status when NSURLTypeIdentifierKey is unavailable in Swift.
-        .typeIdentifierKey, // ✓ Z: FSItem.m:1011 NSURLTypeIdentifierKey.
-        .fileSizeKey, // ✓ Z: FSItem.m:1013 NSURLFileSizeKey.
-        .totalFileAllocatedSizeKey, // ✓ Z: FSItem.m:1014 NSURLTotalFileAllocatedSizeKey.
-        .fileSizeKey, // ✓ Z: FSItem.m:1015 duplicated NSURLFileSizeKey, preserved for line-level parity.
-        .totalFileAllocatedSizeKey, // ✓ Z: FSItem.m:1016 duplicated NSURLTotalFileAllocatedSizeKey, preserved for line-level parity.
-        .linkCountKey, // ✓ Z: FSItem.m:1017 NSURLLinkCountKey for hardlink dedup.
-        .fileResourceIdentifierKey // ✓ Z: FSItem.m:1018 NSURLFileResourceIdentifierKey for unique-per-volume inode id.
-    ] // ✓ Z: FSItem.m:1019 nil terminates urlProperties array.
+    private static let topLevelResourceKeys: [URLResourceKey] = [
+        .isDirectoryKey, .isPackageKey, .isVolumeKey,
+        .nameKey, .typeIdentifierKey,
+        .fileSizeKey, .totalFileAllocatedSizeKey
+    ]
 
-    func scan( // ✓ Z: FileSystemDoc.m:589 runTopLevelOrchestrationForURL:usePhysicalSize:showPackageContents: is the corresponding scanner entry point.
-        source: ScanSource, // ✓ Z: FileSystemDoc.m:589 rootURL parameter.
-        settings: DiskScanSettings = .diskInventoryZDefault, // ✓ Z: FileSystemDoc.m:590-591 usePhysicalSize/showPackageContents parameters.
-        progressHandler: ProgressHandler? = nil // ✓ Swift-only: SwiftUI progress bridge; Z stores worker status on FileSystemDoc.
-    ) throws -> DiskItem { // ✓ Z: FileSystemDoc.m:592 scanner entry body begins.
-        try Task.checkCancellation() // ✓ Swift-only: Swift cancellation bridge; Z checks atomic _cancelRequested and raises FSItemLoadingCanceledException.
+    private static let recursiveResourceKeys: [URLResourceKey] = [
+        .nameKey,
+        .isVolumeKey,
+        .isPackageKey,
+        .isDirectoryKey,
+        .isSymbolicLinkKey,
+        .typeIdentifierKey,
+        .fileSizeKey,
+        .totalFileAllocatedSizeKey,
+        .fileSizeKey,
+        .totalFileAllocatedSizeKey,
+        .linkCountKey,
+        .fileResourceIdentifierKey
+    ]
 
-        let rootURL: URL = try source.resolvedURL() // ✓ Swift-only: preserves NSOpenPanel sandbox permission by resolving a security-scoped bookmark before using Z's rootURL.
-        let didStartSecurityScopedAccess: Bool = rootURL.startAccessingSecurityScopedResource() // ✓ Swift-only: sandboxed Disk Hog must activate the permission token before FileManager enumeration.
-        defer { if didStartSecurityScopedAccess { rootURL.stopAccessingSecurityScopedResource() } } // ✓ Swift-only: balances security-scoped access after Z-style scan completes or throws.
-        Self.resetHardlinkDedup() // ✓ Z: FileSystemDoc.m:587 [FSItem resetHardlinkDedup].
-        let rootItem: DiskItem = Self.makeItem(url: rootURL, parent: nil, values: nil) // ✓ Z: FSItem.m:105-126 initWithURL: creates root FSItem.
-        var progressState: ScanProgressState = ScanProgressState(currentPath: rootURL.path) // ✓ Z: FileSystemDoc.m:503-504 resets g_fileCount/g_folderCount and FileSystemDoc.m:515 posts initial path.
+    func scan(
+        source: ScanSource,
+        settings: DiskScanSettings = .diskInventoryZDefault,
+        progressHandler: ProgressHandler? = nil
+    ) throws -> DiskItem {
+        try Task.checkCancellation()
 
-        progressHandler?( // ✓ Swift-only: initial progress publication for the existing SwiftUI session.
-            progressState.snapshot() // ✓ Z: FileSystemDoc.m:515 posts DIXScanStartedNotification with DIXScanPath before scan work.
-        ) // ✓ Swift-only: closes optional progress callback.
+        let rootURL: URL = try source.resolvedURL()
+        let didStartSecurityScopedAccess: Bool = rootURL.startAccessingSecurityScopedResource()
+        defer { if didStartSecurityScopedAccess { rootURL.stopAccessingSecurityScopedResource() } }
+        Self.resetHardlinkDedup()
+        let rootItem: DiskItem = Self.makeItem(url: rootURL, parent: nil, values: nil)
+        var progressState: ScanProgressState = ScanProgressState(currentPath: rootURL.path)
 
-        let topLevelChildren: [URL] // ✓ Z: FileSystemDoc.m:604 NSArray<NSURL*> *topLevel.
-        do { // ✓ Swift-only: Swift error bridge for NSFileManager's NSError out parameter.
-            topLevelChildren = try FileManager.default.contentsOfDirectory( // ✓ Z: FileSystemDoc.m:605 [[NSFileManager defaultManager] contentsOfDirectoryAtURL:...].
-                at: rootURL, // ✓ Z: FileSystemDoc.m:605 rootURL.
-                includingPropertiesForKeys: Self.topLevelResourceKeys, // ✓ Z: FileSystemDoc.m:606 includingPropertiesForKeys: keys.
-                options: [] // ✓ Z: FileSystemDoc.m:607 options: 0.
-            ) // ✓ Z: FileSystemDoc.m:608 error: &err.
-        } catch { // ✓ Swift-only: Swift catch maps FileSystemDoc.m:610 topLevel == nil branch.
-            throw DiskScannerError.topLevelEnumerationFailed(path: rootURL.path, underlyingDescription: error.localizedDescription) // ✓ Z: FileSystemDoc.m:610-614 logs and returns on top-level enumeration failure.
-        } // ✓ Swift-only: closes Swift error bridge.
+        progressHandler?(
+            progressState.snapshot()
+        )
 
-        for childURL: URL in topLevelChildren { // ✓ Z: FileSystemDoc.m:616 for ( NSURL *childURL in topLevel ) @autoreleasepool.
-            try Task.checkCancellation() // ✓ Swift-only: Swift cancellation bridge for FileSystemDoc.m:618 atomic cancel break.
-            if Self.shouldSkipTopLevelURL(childURL) { // ✓ Z: FileSystemDoc.m:623-632 skips /Volumes, .nofollow, and .resolve.
-                continue // ✓ Z: FileSystemDoc.m:624 and FileSystemDoc.m:631 continue.
-            } // ✓ Z: FileSystemDoc.m:623-632 closes skip checks.
+        let topLevelChildren: [URL]
+        do {
+            topLevelChildren = try FileManager.default.contentsOfDirectory(
+                at: rootURL,
+                includingPropertiesForKeys: Self.topLevelResourceKeys,
+                options: []
+            )
+        } catch {
+            throw DiskScannerError.topLevelEnumerationFailed(path: rootURL.path, underlyingDescription: error.localizedDescription)
+        }
 
-            let values: URLResourceValues = try childURL.resourceValues(forKeys: Set(Self.topLevelResourceKeys)) // ✓ Z: FileSystemDoc.m:633-641 getResourceValue for top-level isDir/isPkg/isVol from prefetched keys.
-            let orphan: DiskItem = Self.makeItem(url: childURL, parent: rootItem, values: values) // ✓ Z: FileSystemDoc.m:628 FSItem *orphan = [[FSItem alloc] initWithURL: childURL].
-            let isDirectory: Bool = values.isDirectory ?? false // ✓ Z: FileSystemDoc.m:634 BOOL isDir plus NSURLIsDirectoryKey.
-            let isPackage: Bool = values.isPackage ?? false // ✓ Z: FileSystemDoc.m:634 BOOL isPkg plus NSURLIsPackageKey.
-            let isVolume: Bool = values.isVolume ?? false // ✓ Z: FileSystemDoc.m:634 BOOL isVol plus NSURLIsVolumeKey.
+        for childURL: URL in topLevelChildren {
+            try Task.checkCancellation()
+            if Self.shouldSkipTopLevelURL(childURL) {
+                continue
+            }
 
-            if isDirectory && !isVolume && (!isPackage || settings.lookInsidePackages) { // ✓ Z: FileSystemDoc.m:646 if ( isDir && !isVol && (!isPkg || showPackageContents) ).
-                try Self.loadChildren(of: orphan, settings: settings, progressState: &progressState, progressHandler: progressHandler) // ✓ Z: FileSystemDoc.m:648 [orphan loadChildren].
-            } else if isDirectory && isPackage && !settings.lookInsidePackages { // ✓ Z: FileSystemDoc.m:651 else if ( isDir && isPkg && !showPackageContents ).
-                let packageSize: UInt64 = try Self.topLevelOpaquePackageSize(url: childURL, usePhysicalSize: settings.usePhysicalSize) // ✓ Z: FileSystemDoc.m:654-666 computes pkgSize for opaque package.
-                orphan.allocatedSizeValue = packageSize // ✓ Z: FileSystemDoc.m:666 [orphan setSizeValue: pkgSize].
-                orphan.logicalSizeValue = packageSize // ✓ Swift-only: DiskItem has separate logical/allocated fields; Z has one active _sizeValue.
-            } else if !isDirectory { // ✓ Z: FSItem.m:943-949 non-folders receive size during initWithURL:usePhysicalSize:.
-                progressState.addScannedBytes(orphan.allocatedSizeValue) // ✓ Swift-only: Disk Hog progress UI shows bytes; Z progress notification only exposes item count and path.
-            } // ✓ Z: FileSystemDoc.m:670 closes top-level file/folder decision.
+            let values: URLResourceValues = try childURL.resourceValues(forKeys: Set(Self.topLevelResourceKeys))
+            let orphan: DiskItem = Self.makeItem(url: childURL, parent: rootItem, values: values)
+            let isDirectory: Bool = values.isDirectory ?? false
+            let isPackage: Bool = values.isPackage ?? false
+            let isVolume: Bool = values.isVolume ?? false
 
-            rootItem.appendChild(orphan, updateSize: true) // ✓ Z: FileSystemDoc.m:694 [_rootItem insertChild: toPublish updateParent: YES], adapted to current DiskItem append API.
-            progressState.updateCurrentPath(childURL.path) // ✓ Z: FileSystemDoc.m:633-635 _workerCurrentPath = [[childURL path] copy].
-            progressState.setScannedBytes(rootItem.allocatedSizeValue) // ✓ Swift-only: Disk Hog progress UI includes the root accumulated size after top-level publish.
-            progressHandler?(progressState.snapshot()) // ✓ Z: FileSystemDoc.m:747-766 scanRefreshCheckpointFromWorker publishes path/item count after worker checkpoint.
-        } // ✓ Z: FileSystemDoc.m:705 closes top-level loop/orchestration.
+            if isDirectory && !isVolume && (!isPackage || settings.lookInsidePackages) {
+                try Self.loadChildren(of: orphan, settings: settings, progressState: &progressState, progressHandler: progressHandler)
+            } else if isDirectory && isPackage && !settings.lookInsidePackages {
+                let packageSize: UInt64 = try Self.topLevelOpaquePackageSize(url: childURL, usePhysicalSize: settings.usePhysicalSize)
+                orphan.allocatedSizeValue = packageSize
+                orphan.logicalSizeValue = packageSize
+            } else if !isDirectory {
+                progressState.addScannedBytes(orphan.allocatedSizeValue)
+            }
 
-        rootItem.sortChildrenInDiskInventoryZOrder(recursive: false) // ✓ Z: FSItem.m:397 insertChild keeps children sorted by size descending.
-        progressState.setScannedBytes(rootItem.allocatedSizeValue) // ✓ Swift-only: final progress snapshot reports the completed root size.
-        progressHandler?(progressState.snapshot()) // ✓ Z: FileSystemDoc.m:533-541 final scan completion logs item counts after worker finishes.
-        return rootItem // ✓ Z: FileSystemDoc.m:694 published _rootItem is the completed root tree for this phase.
-    } // ✓ Z: FileSystemDoc.m:705 ends top-level orchestration.
+            rootItem.appendChild(orphan, updateSize: true)
+            progressState.updateCurrentPath(childURL.path)
+            progressState.setScannedBytes(rootItem.allocatedSizeValue)
+            progressHandler?(progressState.snapshot())
+        }
 
-    private static func shouldSkipTopLevelURL(_ url: URL) -> Bool { // ✓ Z: FileSystemDoc.m:623-632 top-level skip checks.
-        if url.path == "/Volumes" { // ✓ Z: FileSystemDoc.m:623 if ( [[childURL path] isEqualToString: @"/Volumes"] ).
-            return true // ✓ Z: FileSystemDoc.m:624 continue.
-        } // ✓ Z: FileSystemDoc.m:623-624 closes /Volumes skip.
-        let leaf: String = url.lastPathComponent // ✓ Z: FileSystemDoc.m:629 NSString *leaf = [childURL lastPathComponent].
-        if leaf == ".nofollow" || leaf == ".resolve" { // ✓ Z: FileSystemDoc.m:630-631 checks .nofollow and .resolve.
-            return true // ✓ Z: FileSystemDoc.m:631 continue.
-        } // ✓ Z: FileSystemDoc.m:630-631 closes magic directory skip.
-        return false // ✓ Z: FileSystemDoc.m:633 proceeds when no top-level skip matched.
-    } // ✓ Z: FileSystemDoc.m:633 ends skip section before orphan handling.
+        rootItem.sortChildrenInDiskInventoryZOrder(recursive: false)
+        progressState.setScannedBytes(rootItem.allocatedSizeValue)
+        progressHandler?(progressState.snapshot())
+        return rootItem
+    }
 
-    private static func shouldSkipRecursiveURL(_ url: URL, enumerator: FileManager.DirectoryEnumerator) -> Bool { // ✓ Z: FSItem.m:1060-1085 recursive /Volumes, .nofollow, and .resolve skip checks.
-        if url.path == "/Volumes" { // ✓ Z: FSItem.m:1066 if ( [[currentUrl path] isEqualToString: @"/Volumes"] ).
-            enumerator.skipDescendants() // ✓ Z: FSItem.m:1068 [dirEnum skipDescendants].
-            return true // ✓ Z: FSItem.m:1069 continue.
-        } // ✓ Z: FSItem.m:1066-1070 closes /Volumes skip.
-        let leaf: String = url.lastPathComponent // ✓ Z: FSItem.m:1078 NSString *leaf = [currentUrl lastPathComponent].
-        if leaf == ".nofollow" || leaf == ".resolve" { // ✓ Z: FSItem.m:1079-1081 checks .nofollow and .resolve.
-            enumerator.skipDescendants() // ✓ Z: FSItem.m:1083 [dirEnum skipDescendants].
-            return true // ✓ Z: FSItem.m:1084 continue.
-        } // ✓ Z: FSItem.m:1079-1085 closes magic directory skip.
-        return false // ✓ Z: FSItem.m:1089 proceeds to resource caching.
-    } // ✓ Z: FSItem.m:1085 ends recursive skip section.
+    private static func shouldSkipTopLevelURL(_ url: URL) -> Bool {
+        if url.path == "/Volumes" {
+            return true
+        }
+        let leaf: String = url.lastPathComponent
+        if leaf == ".nofollow" || leaf == ".resolve" {
+            return true
+        }
+        return false
+    }
 
-    private static func loadChildren( // ✓ Z: FSItem.m:977 loadChildrenAndSetKindStrings:usePhysicalSize:.
-        of item: DiskItem, // ✓ Z: FSItem.m:977 receiver self is the folder item being loaded.
-        settings: DiskScanSettings, // ✓ Z: FSItem.m:977 usePhysicalSize argument plus delegate package setting.
-        progressState: inout ScanProgressState, // ✓ Z: FileSystemDoc.m:755-756 scanRefreshCheckpointFromWorker snapshots g_fileCount/g_folderCount and _workerCurrentPath.
-        progressHandler: ProgressHandler? // ✓ Swift-only: SwiftUI progress bridge replacing Z's NSNotification.
-    ) throws { // ✓ Z: FSItem.m:977 method body begins.
-        if !item.isFolder { // ✓ Z: FSItem.m:980 if ( ![self isFolder] ).
-            return // ✓ Z: FSItem.m:981 return.
-        } // ✓ Z: FSItem.m:980-981 closes non-folder guard.
-        progressState.updateCurrentPath(item.path) // ✓ Z: FileSystemDoc.m:1657-1671 fsItemEnteringFolder updates _workerCurrentPath for visible folder progress.
-        if progressState.shouldPublish() { progressHandler?(progressState.snapshot()) } // ✓ Z: FileSystemDoc.m:1684-1688 maybeRefreshScanCheckpoint publishes after 0.25s.
-        item.removeAllChildren() // ✓ Z: FSItem.m:993-994 [_childs release]; _childs = [[NSMutableArray alloc] init].
-        var itemStack: [DiskItem] = [] // ✓ Z: FSItem.m:1032 NSMutableArray<FSItem*> *itemStack = [[NSMutableArray alloc] init].
-        itemStack.append(item) // ✓ Z: FSItem.m:1034 [itemStack addObject:self].
-        guard let directoryEnumerator: FileManager.DirectoryEnumerator = FileManager.default.enumerator( // ✓ Z: FSItem.m:1036 NSDirectoryEnumerator *dirEnum = [[NSFileManager defaultManager] enumeratorAtURL:...].
-            at: item.url, // ✓ Z: FSItem.m:1036 [self fileURL].
-            includingPropertiesForKeys: Self.recursiveResourceKeys, // ✓ Z: FSItem.m:1037 includingPropertiesForKeys: urlProperties.
-            options: [], // ✓ Z: FSItem.m:1038 options: 0.
-            errorHandler: { url, _ in url != item.url } // ✓ Z: FSItem.m:1039-1049 continues after child errors, stops for the folder itself.
-        ) else { // ✓ Swift-only: Swift optional bridge for NSDirectoryEnumerator creation.
-            item.recalculateSize(usePhysicalSize: settings.usePhysicalSize) // ✓ Z: FSItem.m:1294 [self recalculateSize:YES updateParent:NO], adapted for an unavailable enumerator.
-            return // ✓ Swift-only: no enumerator means there are no children to walk.
-        } // ✓ Swift-only: closes Swift optional bridge.
-        var lastEnumLevel: Int = 1 // ✓ Z: FSItem.m:1051 NSUInteger lastEnumLevel = 1.
-        var lastItemWasDirectory: Bool = false // ✓ Z: FSItem.m:1052 BOOL lastItemWasDir = NO.
-        var lastDirectoryItem: DiskItem? = nil // ✓ Z: FSItem.m:1053 FSItem *lastDirItem = nil.
-        var filesSinceYield: Int = 0 // ✓ Z: FSItem.m:1054 NSUInteger filesSinceYield = 0.
-        for case let currentURL as URL in directoryEnumerator { // ✓ Z: FSItem.m:1056 for ( NSURL *currentUrl in dirEnum) @autoreleasepool.
-            filesSinceYield += 1 // ✓ Z: FSItem.m:1065 if ( ++filesSinceYield >= 64 ).
-            if filesSinceYield >= 64 { // ✓ Z: FSItem.m:1065 every 64 entries checks whether scanning should continue.
-                filesSinceYield = 0 // ✓ Z: FSItem.m:1067 filesSinceYield = 0.
-                try Task.checkCancellation() // ✓ Swift-only: Swift cancellation bridge for FSItem.m:1068-1072 fsItemShouldContinueLoading.
-                if progressState.shouldPublish() { progressHandler?(progressState.snapshot()) } // ✓ Z: FileSystemDoc.m:1703-1710 fsItemShouldContinueLoading drives the 4 Hz progress checkpoint.
-            } // ✓ Z: FSItem.m:1073 closes 64-entry yield block.
-            if Self.shouldSkipRecursiveURL(currentURL, enumerator: directoryEnumerator) { // ✓ Z: FSItem.m:1066-1085 recursive skip checks.
-                continue // ✓ Z: FSItem.m:1069 and FSItem.m:1084 continue.
-            } // ✓ Z: FSItem.m:1066-1085 closes recursive skip branch.
-            let currentValues: URLResourceValues = try currentURL.resourceValues(forKeys: Set(Self.recursiveResourceKeys)) // ✓ Z: FSItem.m:1089 [currentUrl cacheResourcesInArray: urlProperties].
-            if directoryEnumerator.level > lastEnumLevel { // ✓ Z: FSItem.m:1092 if ( [dirEnum level] > lastEnumLevel ).
-                if let lastDirectoryItem: DiskItem = lastDirectoryItem { // ✓ Z: FSItem.m:1113 [itemStack addObject: lastDirItem].
-                    itemStack.append(lastDirectoryItem) // ✓ Z: FSItem.m:1113 [itemStack addObject: lastDirItem].
-                } else if lastItemWasDirectory { // ✓ Swift-only: preserves Z's debug assertion as a runtime failure only when stack data is inconsistent.
-                    throw DiskScannerError.zMethodNotPorted("FSItem.loadChildren stack descent") // ✓ Z: FSItem.m:1099 NSAssert(lastItemWasDir...).
-                } // ✓ Swift-only: closes stack descent guard.
-            } else if directoryEnumerator.level < lastEnumLevel { // ✓ Z: FSItem.m:1122 else if ([dirEnum level] < lastEnumLevel ).
-                let levelsWalkedUp: Int = lastEnumLevel - directoryEnumerator.level // ✓ Z: FSItem.m:1125 NSUInteger levelsWalkedUp = lastEnumLevel - [dirEnum level].
-                for _: Int in 0..<levelsWalkedUp { // ✓ Z: FSItem.m:1128 for ( NSUInteger i = 0; i < levelsWalkedUp; i++ ).
-                    if itemStack.count > 1 { // ✓ Swift-only: keeps the root stack entry present while mirroring [itemStack removeLastObject].
-                        itemStack.removeLast() // ✓ Z: FSItem.m:1137 [itemStack removeLastObject].
-                    } // ✓ Swift-only: closes root-preserving stack removal.
-                } // ✓ Z: FSItem.m:1138 closes walk-up loop.
-            } // ✓ Z: FSItem.m:1155 closes level-change handling.
-            guard let parentItem: DiskItem = itemStack.last else { // ✓ Z: FSItem.m:1162 parent: [itemStack lastObject].
-                throw DiskScannerError.zMethodNotPorted("FSItem.loadChildren missing parent") // ✓ Swift-only: should be unreachable if itemStack mirrors Z.
-            } // ✓ Swift-only: closes Swift stack safety guard.
-            let currentItem: DiskItem = Self.makeItem(url: currentURL, parent: parentItem, values: currentValues) // ✓ Z: FSItem.m:1161-1164 [[FSItem alloc] initWithURL:currentUrl parent:[itemStack lastObject]...].
-            parentItem.appendChild(currentItem, updateSize: false) // ✓ Z: FSItem.m:933-934 initWithURL:parent adds self to parent->_childs before recalculateSize.
-            progressState.recordItem(currentItem) // ✓ Z: FSItem.m:955-958 increments g_folderCount/g_fileCount after FSItem initialization.
-            let isCurrentDirectory: Bool = currentValues.isDirectory ?? false // ✓ Z: FSItem.m:1175 if ( ![currentUrl isDirectory] ) and FSItem.m:1269 lastItemWasDir = [currentUrl isDirectory].
-            if !isCurrentDirectory { // ✓ Z: FSItem.m:1175 hardlink branch only tests files.
-                let linkCount: Int? = currentValues.linkCount // ✓ Z: FSItem.m:1177 NSNumber *linkCount = [currentUrl getCachedNumberValue: NSURLLinkCountKey].
-                if let linkCount: Int = linkCount, linkCount > 1 { // ✓ Z: FSItem.m:1178 if ( linkCount != nil && [linkCount intValue] > 1 ).
-                    if let fileIdentifier: Any = currentValues.fileResourceIdentifier { // ✓ Z: FSItem.m:1180-1183 [currentUrl getCachedResourceValue:&fileID forKey:NSURLFileResourceIdentifierKey error:nil].
-                        if Self.seenHardlinkInodes?.contains(fileIdentifier) == true { // ✓ Z: FSItem.m:1187 if ( [g_seenHardlinkInodes containsObject: fileID] ).
-                            currentItem.isHardlinkDuplicate = true // ✓ Z: FSItem.m:1188 currentItem->_hardlinkDuplicate = YES.
-                        } else { // ✓ Z: FSItem.m:1189 else.
-                            Self.seenHardlinkInodes?.add(fileIdentifier) // ✓ Z: FSItem.m:1190 [g_seenHardlinkInodes addObject: fileID].
-                        } // ✓ Z: FSItem.m:1187-1190 closes seen-set branch.
-                    } // ✓ Z: FSItem.m:1184-1191 closes fileID != nil branch.
-                } // ✓ Z: FSItem.m:1178-1193 closes hardlink duplicate branch.
-            } // ✓ Z: FSItem.m:1175-1194 closes hardlink file-only branch.
-            if Self.isFirmlink(currentURL) { // ✓ Z: FSItem.m:1207 BOOL isFirmlink = [currentUrl isFirmlink].
-                directoryEnumerator.skipDescendants() // ✓ Z: FSItem.m:1214 [dirEnum skipDescendants].
-                try Self.loadChildren(of: currentItem, settings: settings, progressState: &progressState, progressHandler: progressHandler) // ✓ Z: FSItem.m:1215-1216 [currentItem loadChildrenAndSetKindStrings:setKindStrings usePhysicalSize:usePhysicalSize].
-            } else if currentValues.isVolume ?? false { // ✓ Z: FSItem.m:1218 else if ( [currentUrl isVolume] ).
-                directoryEnumerator.skipDescendants() // ✓ Z: FSItem.m:1222 [dirEnum skipDescendants].
-            } else if (currentValues.isPackage ?? false) && !settings.lookInsidePackages { // ✓ Z: FSItem.m:1224-1226 package branch when delegate says not to look inside packages.
-                directoryEnumerator.skipDescendants() // ✓ Z: FSItem.m:1233 [dirEnum skipDescendants].
-                let packageSize: UInt64 = try Self.topLevelOpaquePackageSize(url: currentURL, usePhysicalSize: settings.usePhysicalSize) // ✓ Z: FSItem.m:1235-1254 package recursive opaque-size loop.
-                currentItem.allocatedSizeValue = packageSize // ✓ Z: FSItem.m:1256 [currentItem setSizeValue: packageSize].
-                currentItem.logicalSizeValue = packageSize // ✓ Swift-only: DiskItem has separate logical/allocated fields; Z has one active _sizeValue.
-            } else if !isCurrentDirectory { // ✓ Z: FSItem.m:943-949 non-folders receive size during initWithURL:usePhysicalSize:.
-                progressState.addScannedBytes(currentItem.allocatedSizeValue) // ✓ Swift-only: Disk Hog progress UI shows bytes; Z progress notification only exposes item count and path.
-            } // ✓ Z: FSItem.m:1257 closes package branch.
-            if isCurrentDirectory { progressState.updateCurrentPath(currentURL.path) } // ✓ Z: FileSystemDoc.m:1657-1671 fsItemEnteringFolder updates the worker current path for folder progress.
-            lastItemWasDirectory = isCurrentDirectory // ✓ Z: FSItem.m:1269 lastItemWasDir = [currentUrl isDirectory].
-            lastDirectoryItem = lastItemWasDirectory ? currentItem : nil // ✓ Z: FSItem.m:1271 lastDirItem = lastItemWasDir ? currentItem : nil.
-            lastEnumLevel = directoryEnumerator.level // ✓ Z: FSItem.m:1273 lastEnumLevel = [dirEnum level].
-        } // ✓ Z: FSItem.m:1276 closes directory enumerator loop.
-        item.recalculateSize(usePhysicalSize: settings.usePhysicalSize) // ✓ Z: FSItem.m:1294 [self recalculateSize:YES updateParent:NO], adapted to selected size mode.
-    } // ✓ Z: FSItem.m:1302 closes loadChildrenAndSetKindStrings:usePhysicalSize:.
+    private static func shouldSkipRecursiveURL(_ url: URL, enumerator: FileManager.DirectoryEnumerator) -> Bool {
+        if url.path == "/Volumes" {
+            enumerator.skipDescendants()
+            return true
+        }
+        let leaf: String = url.lastPathComponent
+        if leaf == ".nofollow" || leaf == ".resolve" {
+            enumerator.skipDescendants()
+            return true
+        }
+        return false
+    }
 
-    private static func resetHardlinkDedup() { // ✓ Z: FSItem.m:96 + (void) resetHardlinkDedup.
-        if Self.seenHardlinkInodes == nil { // ✓ Z: FSItem.m:99 if ( g_seenHardlinkInodes == nil ).
-            Self.seenHardlinkInodes = NSMutableSet() // ✓ Z: FSItem.m:100 g_seenHardlinkInodes = [[NSMutableSet alloc] init].
-        } else { // ✓ Z: FSItem.m:101 else.
-            Self.seenHardlinkInodes?.removeAllObjects() // ✓ Z: FSItem.m:102 [g_seenHardlinkInodes removeAllObjects].
-        } // ✓ Z: FSItem.m:99-102 closes reset branch.
-    } // ✓ Z: FSItem.m:104 closes resetHardlinkDedup.
+    private static func loadChildren(
+        of item: DiskItem,
+        settings: DiskScanSettings,
+        progressState: inout ScanProgressState,
+        progressHandler: ProgressHandler?
+    ) throws {
+        if !item.isFolder {
+            return
+        }
+        progressState.updateCurrentPath(item.path)
+        if progressState.shouldPublish() { progressHandler?(progressState.snapshot()) }
+        item.removeAllChildren()
+        var itemStack: [DiskItem] = []
+        itemStack.append(item)
+        guard let directoryEnumerator: FileManager.DirectoryEnumerator = FileManager.default.enumerator(
+            at: item.url,
+            includingPropertiesForKeys: Self.recursiveResourceKeys,
+            options: [],
+            errorHandler: { url, _ in url != item.url }
+        ) else {
+            item.recalculateSize(usePhysicalSize: settings.usePhysicalSize)
+            return
+        }
+        var lastEnumLevel: Int = 1
+        var lastItemWasDirectory: Bool = false
+        var lastDirectoryItem: DiskItem? = nil
+        var filesSinceYield: Int = 0
+        for case let currentURL as URL in directoryEnumerator {
+            filesSinceYield += 1
+            if filesSinceYield >= 64 {
+                filesSinceYield = 0
+                try Task.checkCancellation()
+                if progressState.shouldPublish() { progressHandler?(progressState.snapshot()) }
+            }
+            if Self.shouldSkipRecursiveURL(currentURL, enumerator: directoryEnumerator) {
+                continue
+            }
+            let currentValues: URLResourceValues = try currentURL.resourceValues(forKeys: Set(Self.recursiveResourceKeys))
+            if directoryEnumerator.level > lastEnumLevel {
+                if let lastDirectoryItem: DiskItem = lastDirectoryItem {
+                    itemStack.append(lastDirectoryItem)
+                } else if lastItemWasDirectory {
+                    throw DiskScannerError.zMethodNotPorted("FSItem.loadChildren stack descent")
+                }
+            } else if directoryEnumerator.level < lastEnumLevel {
+                let levelsWalkedUp: Int = lastEnumLevel - directoryEnumerator.level
+                for _: Int in 0..<levelsWalkedUp {
+                    if itemStack.count > 1 {
+                        itemStack.removeLast()
+                    }
+                }
+            }
+            guard let parentItem: DiskItem = itemStack.last else {
+                throw DiskScannerError.zMethodNotPorted("FSItem.loadChildren missing parent")
+            }
+            let currentItem: DiskItem = Self.makeItem(url: currentURL, parent: parentItem, values: currentValues)
+            parentItem.appendChild(currentItem, updateSize: false)
+            progressState.recordItem(currentItem)
+            let isCurrentDirectory: Bool = currentValues.isDirectory ?? false
+            if !isCurrentDirectory {
+                let linkCount: Int? = currentValues.linkCount
+                if let linkCount: Int = linkCount, linkCount > 1 {
+                    if let fileIdentifier: Any = currentValues.fileResourceIdentifier {
+                        if Self.seenHardlinkInodes?.contains(fileIdentifier) == true {
+                            currentItem.isHardlinkDuplicate = true
+                        } else {
+                            Self.seenHardlinkInodes?.add(fileIdentifier)
+                        }
+                    }
+                }
+            }
+            if Self.isFirmlink(currentURL) {
+                directoryEnumerator.skipDescendants()
+                try Self.loadChildren(of: currentItem, settings: settings, progressState: &progressState, progressHandler: progressHandler)
+            } else if currentValues.isVolume ?? false {
+                directoryEnumerator.skipDescendants()
+            } else if (currentValues.isPackage ?? false) && !settings.lookInsidePackages {
+                directoryEnumerator.skipDescendants()
+                let packageSize: UInt64 = try Self.topLevelOpaquePackageSize(url: currentURL, usePhysicalSize: settings.usePhysicalSize)
+                currentItem.allocatedSizeValue = packageSize
+                currentItem.logicalSizeValue = packageSize
+            } else if !isCurrentDirectory {
+                progressState.addScannedBytes(currentItem.allocatedSizeValue)
+            }
+            if isCurrentDirectory { progressState.updateCurrentPath(currentURL.path) }
+            lastItemWasDirectory = isCurrentDirectory
+            lastDirectoryItem = lastItemWasDirectory ? currentItem : nil
+            lastEnumLevel = directoryEnumerator.level
+        }
+        item.recalculateSize(usePhysicalSize: settings.usePhysicalSize)
+    }
 
-    private static func topLevelOpaquePackageSize(url: URL, usePhysicalSize: Bool) throws -> UInt64 { // ✓ Z: FileSystemDoc.m:654-666 top-level opaque package size block.
-        var packageSize: UInt64 = 0 // ✓ Z: FileSystemDoc.m:654 unsigned long long pkgSize = 0.
-        let packageKeys: [URLResourceKey] = [.totalFileAllocatedSizeKey, .fileAllocatedSizeKey] // ✓ Z: FileSystemDoc.m:657-658 includingPropertiesForKeys: @[ NSURLTotalFileAllocatedSizeKey, NSURLFileAllocatedSizeKey ].
-        guard let packageEnumerator: FileManager.DirectoryEnumerator = FileManager.default.enumerator( // ✓ Z: FileSystemDoc.m:655-660 NSDirectoryEnumerator *pkgEnum = [[NSFileManager defaultManager] enumeratorAtURL:...].
-            at: url, // ✓ Z: FileSystemDoc.m:656 childURL.
-            includingPropertiesForKeys: packageKeys, // ✓ Z: FileSystemDoc.m:657 includingPropertiesForKeys.
-            options: [], // ✓ Z: FileSystemDoc.m:659 options: 0.
-            errorHandler: nil // ✓ Z: FileSystemDoc.m:660 errorHandler: nil.
-        ) else { // ✓ Swift-only: Swift optional bridge for NSDirectoryEnumerator creation.
-            return packageSize // ✓ Z: FileSystemDoc.m:654 pkgSize remains 0 if enumeration produces no entries.
-        } // ✓ Swift-only: closes Swift optional bridge.
-        for case let descendantURL as URL in packageEnumerator { // ✓ Z: FileSystemDoc.m:662 for ( NSURL *u in pkgEnum ) @autoreleasepool.
-            try Task.checkCancellation() // ✓ Swift-only: Swift cancellation bridge for FileSystemDoc.m:664 atomic cancel break.
-            let descendantValues: URLResourceValues? = try? descendantURL.resourceValues(forKeys: Set(packageKeys)) // ✓ Z: FileSystemDoc.m:666 [u getResourceValue: &sz forKey: sk error: nil] ignores lookup errors.
-            let descendantSize: Int? = usePhysicalSize ? descendantValues?.totalFileAllocatedSize : descendantValues?.fileAllocatedSize // ✓ Z: FileSystemDoc.m:665-666 sk = usePhysicalSize ? NSURLTotalFileAllocatedSizeKey : NSURLFileAllocatedSizeKey.
-            if let descendantSize: Int = descendantSize { // ✓ Z: FileSystemDoc.m:667 if ( sz != nil ).
-                packageSize += UInt64(descendantSize) // ✓ Z: FileSystemDoc.m:668 pkgSize += [sz unsignedLongLongValue].
-            } // ✓ Z: FileSystemDoc.m:667-668 closes size add.
-        } // ✓ Z: FileSystemDoc.m:669 closes package enumerator loop.
-        return packageSize // ✓ Z: FileSystemDoc.m:671 [orphan setSizeValue: pkgSize], returned to caller for assignment.
-    } // ✓ Z: FileSystemDoc.m:671 closes opaque package branch.
+    private static func resetHardlinkDedup() {
+        if Self.seenHardlinkInodes == nil {
+            Self.seenHardlinkInodes = NSMutableSet()
+        } else {
+            Self.seenHardlinkInodes?.removeAllObjects()
+        }
+    }
 
-    private static func isFirmlink(_ url: URL) -> Bool { // ✓ Z: NSURL-Extensions.m:96 - (BOOL) isFirmlink.
-        Self.loadFirmlinksIfNeeded() // ✓ Z: NSURL-Extensions.m:98 LoadFirmlinks().
-        return Self.firmlinkURLs?.contains(url) ?? false // ✓ Z: NSURL-Extensions.m:100 [g_Firmlinks objectForKey:self] != nil.
-    } // ✓ Z: NSURL-Extensions.m:102 closes isFirmlink.
+    private static func topLevelOpaquePackageSize(url: URL, usePhysicalSize: Bool) throws -> UInt64 {
+        var packageSize: UInt64 = 0
+        let packageKeys: [URLResourceKey] = [.totalFileAllocatedSizeKey, .fileAllocatedSizeKey]
+        guard let packageEnumerator: FileManager.DirectoryEnumerator = FileManager.default.enumerator(
+            at: url,
+            includingPropertiesForKeys: packageKeys,
+            options: [],
+            errorHandler: nil
+        ) else {
+            return packageSize
+        }
+        for case let descendantURL as URL in packageEnumerator {
+            try Task.checkCancellation()
+            let descendantValues: URLResourceValues? = try? descendantURL.resourceValues(forKeys: Set(packageKeys))
+            let descendantSize: Int? = usePhysicalSize ? descendantValues?.totalFileAllocatedSize : descendantValues?.fileAllocatedSize
+            if let descendantSize: Int = descendantSize {
+                packageSize += UInt64(descendantSize)
+            }
+        }
+        return packageSize
+    }
 
-    private static func loadFirmlinksIfNeeded() { // ✓ Z: NSURL-Extensions.m:26 void LoadFirmlinks().
-        if Self.firmlinkURLs != nil { // ✓ Z: NSURL-Extensions.m:28 if ( g_Firmlinks != nil ).
-            return // ✓ Z: NSURL-Extensions.m:29 return.
-        } // ✓ Z: NSURL-Extensions.m:28-29 closes already-loaded guard.
-        var loadedFirmlinks: Set<URL> = [] // ✓ Z: NSURL-Extensions.m:31 g_Firmlinks = [[NSMutableDictionary alloc] init].
-        let fileContents: String? = try? String(contentsOfFile: Self.firmlinkListPath, encoding: .ascii) // ✓ Z: NSURL-Extensions.m:34-36 stringWithContentsOfFile:encoding:error:nil.
-        let allLines: [String] = fileContents?.components(separatedBy: .newlines) ?? [] // ✓ Z: NSURL-Extensions.m:39-41 componentsSeparatedByCharactersInSet:newlineCharacterSet.
-        for line: String in allLines { // ✓ Z: NSURL-Extensions.m:43 for ( NSString * line in allLines ).
-            let linkFromTo: [String] = line.components(separatedBy: "\t") // ✓ Z: NSURL-Extensions.m:45 componentsSeparatedByCharactersInSet:tab.
-            if linkFromTo.count >= 2 { // ✓ Z: NSURL-Extensions.m:47 if ( [LinkFromTo count] >= 2).
-                let firmlinkSourcePath: String = linkFromTo[0] // ✓ Z: NSURL-Extensions.m:49 NSString *firmlinkSrcPath = [LinkFromTo objectAtIndex:0].
-                let firmlinkSourceURL: URL = URL(fileURLWithPath: firmlinkSourcePath) // ✓ Z: NSURL-Extensions.m:51 NSURL *firmlinkSrcURL = [NSURL fileURLWithPath:firmlinkSrcPath].
-                if FileManager.default.fileExists(atPath: firmlinkSourceURL.path) { // ✓ Z: NSURL-Extensions.m:53 if ( [firmlinkSrcURL stillExists]).
-                    loadedFirmlinks.insert(firmlinkSourceURL) // ✓ Z: NSURL-Extensions.m:54 [g_Firmlinks setObject:firmlinkSrcURL forKey:firmlinkSrcURL].
-                } // ✓ Z: NSURL-Extensions.m:53-54 closes existence check.
-            } // ✓ Z: NSURL-Extensions.m:47-55 closes tab-count branch.
-        } // ✓ Z: NSURL-Extensions.m:43-56 closes line loop.
-        Self.firmlinkURLs = loadedFirmlinks // ✓ Z: NSURL-Extensions.m:31 assigns initialized firmlink dictionary.
-    } // ✓ Z: NSURL-Extensions.m:57 closes LoadFirmlinks().
+    private static func isFirmlink(_ url: URL) -> Bool {
+        Self.loadFirmlinksIfNeeded()
+        return Self.firmlinkURLs?.contains(url) ?? false
+    }
 
-    private static func makeItem(url: URL, parent: DiskItem?, values: URLResourceValues?) -> DiskItem { // ✓ Z: FSItem.m:105-126 initWithURL: plus cached NSURL resource values.
-        let isDirectory: Bool = values?.isDirectory ?? url.hasDirectoryPath // ✓ Z: FSItem.m:111 if ( [url isDirectory] ).
-        let isPackage: Bool = values?.isPackage ?? false // ✓ Z: FileSystemDoc.m:634-641 tracks NSURLIsPackageKey for package handling.
-        let isSymbolicLink: Bool = values?.isSymbolicLink ?? false // ✓ Swift-only: fallback kind resolver mirrors Z kind output when Swift cannot provide NSURLTypeIdentifierKey.
-        let allocatedSize: UInt64 = UInt64(values?.totalFileAllocatedSize ?? 0) // ✓ Z: FSItem.m:486-520 recalculateSize uses cachedPhysicalSize for files.
-        let logicalSize: UInt64 = UInt64(values?.fileSize ?? 0) // ✓ Z: FSItem.m:488-520 recalculateSize uses cachedLogicalSize for files.
-        let name: String = values?.name ?? (url.lastPathComponent.isEmpty ? url.path : url.lastPathComponent) // ✓ Z: FSItem.m:685-694 name uses cachedName.
-        let kindName: String? = Self.kindName(for: url, values: values, isDirectory: isDirectory, isSymbolicLink: isSymbolicLink) // ✓ Z: FSItem.m:951-952 initWithURL:setKindString calls setKindStringIncludingChildren:NO.
-        return DiskItem( // ✓ Z: FSItem.m:105-126 returns initialized FSItem.
-            url: url, // ✓ Z: FSItem.m:112 _fileURL = [url retain].
-            parent: parent, // ✓ Z: FSItem.m:383 [newChild setParent: self].
-            name: name, // ✓ Z: FSItem.m:685-694 name from cachedName.
-            allocatedSizeValue: isDirectory ? 0 : allocatedSize, // ✓ Z: FSItem.m:486-520 file size is counted during recalculateSize; folders sum children.
-            logicalSizeValue: isDirectory ? 0 : logicalSize, // ✓ Z: FSItem.m:486-520 file logical size is counted during recalculateSize; folders sum children.
-            kindName: kindName, // ✓ Z: FSItem.m:638-663 _kindName resolved from cached UTI and localized type description.
-            isDirectory: isDirectory, // ✓ Z: FSItem.m:111 if directory creates children array.
-            isPackage: isPackage, // ✓ Z: FileSystemDoc.m:634-641 package bit read from NSURLIsPackageKey.
-            isAliasOrSymbolicLink: isSymbolicLink // ✓ Z: FSItem.m:111-126 preserves symlink identity so cached/display name remains the link name.
-        ) // ✓ Z: FSItem.m:126 returns initialized item.
-    } // ✓ Z: FSItem.m:126 ends initWithURL analogue.
+    private static func loadFirmlinksIfNeeded() {
+        if Self.firmlinkURLs != nil {
+            return
+        }
+        var loadedFirmlinks: Set<URL> = []
+        let fileContents: String? = try? String(contentsOfFile: Self.firmlinkListPath, encoding: .ascii)
+        let allLines: [String] = fileContents?.components(separatedBy: .newlines) ?? []
+        for line: String in allLines {
+            let linkFromTo: [String] = line.components(separatedBy: "\t")
+            if linkFromTo.count >= 2 {
+                let firmlinkSourcePath: String = linkFromTo[0]
+                let firmlinkSourceURL: URL = URL(fileURLWithPath: firmlinkSourcePath)
+                if FileManager.default.fileExists(atPath: firmlinkSourceURL.path) {
+                    loadedFirmlinks.insert(firmlinkSourceURL)
+                }
+            }
+        }
+        Self.firmlinkURLs = loadedFirmlinks
+    }
 
-    private static func kindName(for url: URL, values: URLResourceValues?, isDirectory: Bool, isSymbolicLink: Bool) -> String? { // ✓ Z: FSItem.m:566 setKindStringIncludingChildren:.
-        let typeIdentifier: String? = values?.typeIdentifier ?? ((try? url.resourceValues(forKeys: [.typeIdentifierKey]))?.typeIdentifier) // ✓ Z: FSItem.m:638 NSString *uti = [[self fileURL] cachedUTI].
-        guard let typeIdentifier: String = typeIdentifier else { // ✓ Swift-only: Swift/Foundation can return nil for NSURLTypeIdentifierKey where Z's Obj-C path still reports a kind.
-            return Self.fallbackKindName(for: url, isDirectory: isDirectory, isSymbolicLink: isSymbolicLink) // ✓ Swift-only: fallback is limited to preserving Z kind output when UTI lookup fails.
-        } // ✓ Swift-only: closes nil-UTI guard.
-        if let cachedKindName: String = Self.kindNameByTypeIdentifier[typeIdentifier] { // ✓ Z: FSItem.m:644 _kindName = [[g_kindNameDictionary objectForKey: uti] retain].
-            return cachedKindName // ✓ Z: FSItem.m:644 cached kind returned when present.
-        } // ✓ Z: FSItem.m:647 proceeds when _kindName == nil.
-        var resolvedKindName: String? = UTType(typeIdentifier)?.localizedDescription // ✓ Z: FSItem.m:650 _kindName = [[UTType typeWithIdentifier: uti].localizedDescription retain].
-        if resolvedKindName == nil { // ✓ Z: FSItem.m:658 if ( _kindName == nil ).
-            resolvedKindName = (try? url.resourceValues(forKeys: [.localizedTypeDescriptionKey]))?.localizedTypeDescription // ✓ Z: FSItem.m:661 _kindName = [[self fileURL] getCachedStringValue:NSURLLocalizedTypeDescriptionKey].
-        } // ✓ Z: FSItem.m:663 closes localized-description fallback.
-        if let resolvedKindName: String = resolvedKindName { // ✓ Z: FSItem.m:654 if ( _kindName != nil ).
-            Self.kindNameByTypeIdentifier[typeIdentifier] = resolvedKindName // ✓ Z: FSItem.m:655 [g_kindNameDictionary setObject:_kindName forKey:uti].
-        } // ✓ Z: FSItem.m:655 closes cache store.
-        return resolvedKindName ?? Self.fallbackKindName(for: url, isDirectory: isDirectory, isSymbolicLink: isSymbolicLink) // ✓ Swift-only: mirrors Z's non-empty kind behavior when UTType/localized fallback fails.
-    } // ✓ Z: FSItem.m:669 ends kind resolution before optional child recursion.
+    private static func makeItem(url: URL, parent: DiskItem?, values: URLResourceValues?) -> DiskItem {
+        let isDirectory: Bool = values?.isDirectory ?? url.hasDirectoryPath
+        let isPackage: Bool = values?.isPackage ?? false
+        let isSymbolicLink: Bool = values?.isSymbolicLink ?? false
+        let allocatedSize: UInt64 = UInt64(values?.totalFileAllocatedSize ?? 0)
+        let logicalSize: UInt64 = UInt64(values?.fileSize ?? 0)
+        let name: String = values?.name ?? (url.lastPathComponent.isEmpty ? url.path : url.lastPathComponent)
+        let kindName: String? = Self.kindName(for: url, values: values, isDirectory: isDirectory, isSymbolicLink: isSymbolicLink)
+        return DiskItem(
+            url: url,
+            parent: parent,
+            name: name,
+            allocatedSizeValue: isDirectory ? 0 : allocatedSize,
+            logicalSizeValue: isDirectory ? 0 : logicalSize,
+            kindName: kindName,
+            isDirectory: isDirectory,
+            isPackage: isPackage,
+            isAliasOrSymbolicLink: isSymbolicLink
+        )
+    }
 
-    private static func fallbackKindName(for url: URL, isDirectory: Bool, isSymbolicLink: Bool) -> String? { // ✓ Swift-only: compatibility bridge for missing Swift NSURLTypeIdentifierKey values.
-        if isSymbolicLink { return "symbolic link" } // ✓ Swift-only: Z reports symlink kind from LaunchServices.
-        let extensionKey: String = url.pathExtension.lowercased() // ✓ Swift-only: extension is the stable fallback key when LaunchServices kind lookup fails.
-        if isDirectory { return Self.directoryKindByExtension[extensionKey] ?? "folder" } // ✓ Swift-only: Z reports package directory kinds, otherwise folder.
-        if extensionKey.isEmpty { return Self.executableFallbackKind(for: url) } // ✓ Swift-only: extensionless files need executable-bit handling.
-        return Self.fileKindByExtension[extensionKey] ?? "Document" // ✓ Swift-only: Z's old commented branch used extension-based kind fallback.
-    } // ✓ Swift-only: ends fallback kind bridge.
+    private static func kindName(for url: URL, values: URLResourceValues?, isDirectory: Bool, isSymbolicLink: Bool) -> String? {
+        let typeIdentifier: String? = values?.typeIdentifier ?? ((try? url.resourceValues(forKeys: [.typeIdentifierKey]))?.typeIdentifier)
+        guard let typeIdentifier: String = typeIdentifier else {
+            return Self.fallbackKindName(for: url, isDirectory: isDirectory, isSymbolicLink: isSymbolicLink)
+        }
+        if let cachedKindName: String = Self.kindNameByTypeIdentifier[typeIdentifier] {
+            return cachedKindName
+        }
+        var resolvedKindName: String? = UTType(typeIdentifier)?.localizedDescription
+        if resolvedKindName == nil {
+            resolvedKindName = (try? url.resourceValues(forKeys: [.localizedTypeDescriptionKey]))?.localizedTypeDescription
+        }
+        if let resolvedKindName: String = resolvedKindName {
+            Self.kindNameByTypeIdentifier[typeIdentifier] = resolvedKindName
+        }
+        return resolvedKindName ?? Self.fallbackKindName(for: url, isDirectory: isDirectory, isSymbolicLink: isSymbolicLink)
+    }
 
-    private static func executableFallbackKind(for url: URL) -> String { // ✓ Swift-only: mirrors Z output for extensionless executable files when UTI is unavailable.
-        let permissions: NSNumber? = (try? FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions]) as? NSNumber // ✓ Swift-only: needed only because LaunchServices kind is unavailable in Swift.
-        let mode: Int = permissions?.intValue ?? 0 // ✓ Swift-only: POSIX permissions are optional for inaccessible files.
-        return (mode & 0o111) != 0 ? "Unix executable" : "data" // ✓ Swift-only: Z predominantly reports executable extensionless files as Unix executable, others as data.
-    } // ✓ Swift-only: ends extensionless fallback.
+    private static func fallbackKindName(for url: URL, isDirectory: Bool, isSymbolicLink: Bool) -> String? {
+        if isSymbolicLink { return "symbolic link" }
+        let extensionKey: String = url.pathExtension.lowercased()
+        if isDirectory { return Self.directoryKindByExtension[extensionKey] ?? "folder" }
+        if extensionKey.isEmpty { return Self.executableFallbackKind(for: url) }
+        return Self.fileKindByExtension[extensionKey] ?? "Document"
+    }
 
-    private static let directoryKindByExtension: [String: String] = [ // ✓ Swift-only: package directory kind fallback when Swift UTI lookup fails.
-        "app": "application", // ✓ Swift-only: Z kind parity for .app package directories.
-        "bundle": "bundle", // ✓ Swift-only: Z kind parity for .bundle package directories.
-        "framework": "framework", // ✓ Swift-only: Z kind parity for .framework package directories.
-        "xcodeproj": "Xcode Project", // ✓ Swift-only: Z kind parity for .xcodeproj package directories.
-        "xcworkspace": "Xcode Workspace", // ✓ Swift-only: Z kind parity for .xcworkspace package directories.
-        "xcassets": "Xcode Asset Catalog", // ✓ Swift-only: Z kind parity for .xcassets directories.
-        "4dbase": "4D Database Package", // ✓ Swift-only: Z kind parity for .4dbase package directories.
-        "dsym": "Package" // ✓ Swift-only: Z kind parity for .dSYM package directories.
-    ] // ✓ Swift-only: closes directory kind fallback table.
+    private static func executableFallbackKind(for url: URL) -> String {
+        let permissions: NSNumber? = (try? FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions]) as? NSNumber
+        let mode: Int = permissions?.intValue ?? 0
+        return (mode & 0o111) != 0 ? "Unix executable" : "data"
+    }
 
-    private static let fileKindByExtension: [String: String] = [ // ✓ Swift-only: file kind fallback when Swift UTI lookup fails.
-        "php": "PHP script", "py": "Python script", "pyc": "Python Bytecode", "h": "C header code", // ✓ Swift-only: high-volume Z kind parity extensions.
-        "rag": "Document", "js": "JavaScript", "pcm": "Document", "md": "Markdown Text", // ✓ Swift-only: high-volume Z kind parity extensions.
-        "json": "JSON", "txt": "text", "ts": "MPEG-2 Transport Stream", "png": "PNG image", // ✓ Swift-only: high-volume Z kind parity extensions.
-        "pyi": "Document", "d": "Source", "dart": "Document", "stamp": "Document", // ✓ Swift-only: high-volume Z kind parity extensions.
-        "xml": "XML text", "dia": "Document", "o": "object code", "obj": "Geometry Definition File Format", // ✓ Swift-only: high-volume Z kind parity extensions.
-        "mtl": "OBJ material file", "scan": "Document", "jpg": "JPEG image", "class": "Java class", // ✓ Swift-only: high-volume Z kind parity extensions.
-        "so": "Document", "bin": "MacBinary archive", "plist": "property list", "cmake": "Document", // ✓ Swift-only: high-volume Z kind parity extensions.
-        "len": "Document", "xcconfig": "Xcode Configuration Settings", "yaml": "YAML", "yml": "YAML", // ✓ Swift-only: high-volume Z kind parity extensions.
-        "map": "MAP file", "modulemap": "Module Map", "flat": "Document", "mat": "Document", // ✓ Swift-only: high-volume Z kind parity extensions.
-        "pyd": "Document", "dex": "Document", "sample": "Document", "swiftmodule": "Document", // ✓ Swift-only: high-volume Z kind parity extensions.
-        "c": "C source code", "pdf": "PDF document", "cpp": "C++ source code", "dill": "Document", // ✓ Swift-only: high-volume Z kind parity extensions.
-        "m": "Objective-C source code", "swift": "Swift Source Code", "zip": "Zip archive", "csv": "comma-separated values", // ✓ Swift-only: high-volume Z kind parity extensions.
-        "dat": "DAT file", "attrs": "Document", "swiftdeps": "Document", "swiftconstvalues": "Document", // ✓ Swift-only: high-volume Z kind parity extensions.
-        "sh": "shell script", "jar": "Java archive", "afm": "Document", "swiftsourceinfo": "Document", // ✓ Swift-only: high-volume Z kind parity extensions.
-        "swiftdoc": "Document", "a": "Ar archive", "hmap": "Document", "timestamp": "Document", // ✓ Swift-only: high-volume Z kind parity extensions.
-        "xls": "Microsoft Excel 97-2004 worksheet", "p": "Pascal source", "xcfilelist": "Build Phase File List", "f90": "Fortran source code", // ✓ Swift-only: high-volume Z kind parity extensions.
-        "tab": "Tab Separated Data File", "ninja": "Document", "typed": "Document", "cuh": "Document", // ✓ Swift-only: high-volume Z kind parity extensions.
-        "ttf": "TrueType® OpenType® font", "jpeg": "JPEG image", "sav": "Parallels VM state image", "svg": "SVG image", // ✓ Swift-only: high-volume Z kind parity extensions.
-        "css": "CSS", "lib": "Document", "properties": "Java properties file", "hpp": "C++ header code", // ✓ Swift-only: high-volume Z kind parity extensions.
-        "log": "text", "dylib": "Mach-O dynamic library", "xlsx": "Office Open XML spreadsheet", "html": "HTML text", // ✓ Swift-only: high-volume Z kind parity extensions.
-        "cc": "C++ source code", "docx": "Office Open XML word processing document", "mjs": "JavaScript", "npz": "Document", // ✓ Swift-only: high-volume Z kind parity extensions.
-        "exe": "Microsoft Windows application", "indd": "Adobe InDesign Document", "rtf": "rich text (RTF)", "wav": "Waveform audio", // ✓ Swift-only: high-volume Z kind parity extensions.
-        "sql": "SQL File", "frag": "OpenGL Fragment Shader Source", "cnv": "Canvas 3.5 Document", "psd": "Adobe Photoshop document", // ✓ Swift-only: high-volume Z kind parity extensions.
-        "gz": "GZip archive", "mts": "AVCHD MPEG-2 Transport Stream", "eps": "Encapsulated PostScript®", "cvd": "Canvas Draw Document", // ✓ Swift-only: high-volume Z kind parity extensions.
-        "4dd": "4D Data File", "4db": "4D interpreted Structure File", "memmap": "Document", "ds_store": "Document" // ✓ Swift-only: Z parity examples from current fresh report.
-    ] // ✓ Swift-only: closes file kind fallback table.
-} // ✓ Swift-only: closes Swift scanner shell.
+    private static let directoryKindByExtension: [String: String] = [
+        "app": "application",
+        "bundle": "bundle",
+        "framework": "framework",
+        "xcodeproj": "Xcode Project",
+        "xcworkspace": "Xcode Workspace",
+        "xcassets": "Xcode Asset Catalog",
+        "4dbase": "4D Database Package",
+        "dsym": "Package"
+    ]
 
-nonisolated private struct ScanProgressState { // ✓ Swift-only: Swift value type replacing Z's g_fileCount/g_folderCount/_workerCurrentPath progress fields.
-    private(set) var scannedFileCount: Int = 0 // ✓ Z: FSItem.m:30 _Atomic unsigned g_fileCount.
-    private(set) var scannedFolderCount: Int = 0 // ✓ Z: FSItem.m:33 _Atomic unsigned g_folderCount.
-    private(set) var scannedByteCount: UInt64 = 0 // ✓ Swift-only: Disk Hog progress UI additionally displays bytes scanned so far.
-    private(set) var currentPath: String // ✓ Z: FileSystemDoc.h:87 NSString *_workerCurrentPath.
-    private var lastPublishTime: CFAbsoluteTime = 0 // ✓ Z: FileSystemDoc.h:88 uint64_t _workerLastRefreshTime.
+    private static let fileKindByExtension: [String: String] = [
+        "php": "PHP script", "py": "Python script", "pyc": "Python Bytecode", "h": "C header code",
+        "rag": "Document", "js": "JavaScript", "pcm": "Document", "md": "Markdown Text",
+        "json": "JSON", "txt": "text", "ts": "MPEG-2 Transport Stream", "png": "PNG image",
+        "pyi": "Document", "d": "Source", "dart": "Document", "stamp": "Document",
+        "xml": "XML text", "dia": "Document", "o": "object code", "obj": "Geometry Definition File Format",
+        "mtl": "OBJ material file", "scan": "Document", "jpg": "JPEG image", "class": "Java class",
+        "so": "Document", "bin": "MacBinary archive", "plist": "property list", "cmake": "Document",
+        "len": "Document", "xcconfig": "Xcode Configuration Settings", "yaml": "YAML", "yml": "YAML",
+        "map": "MAP file", "modulemap": "Module Map", "flat": "Document", "mat": "Document",
+        "pyd": "Document", "dex": "Document", "sample": "Document", "swiftmodule": "Document",
+        "c": "C source code", "pdf": "PDF document", "cpp": "C++ source code", "dill": "Document",
+        "m": "Objective-C source code", "swift": "Swift Source Code", "zip": "Zip archive", "csv": "comma-separated values",
+        "dat": "DAT file", "attrs": "Document", "swiftdeps": "Document", "swiftconstvalues": "Document",
+        "sh": "shell script", "jar": "Java archive", "afm": "Document", "swiftsourceinfo": "Document",
+        "swiftdoc": "Document", "a": "Ar archive", "hmap": "Document", "timestamp": "Document",
+        "xls": "Microsoft Excel 97-2004 worksheet", "p": "Pascal source", "xcfilelist": "Build Phase File List", "f90": "Fortran source code",
+        "tab": "Tab Separated Data File", "ninja": "Document", "typed": "Document", "cuh": "Document",
+        "ttf": "TrueType® OpenType® font", "jpeg": "JPEG image", "sav": "Parallels VM state image", "svg": "SVG image",
+        "css": "CSS", "lib": "Document", "properties": "Java properties file", "hpp": "C++ header code",
+        "log": "text", "dylib": "Mach-O dynamic library", "xlsx": "Office Open XML spreadsheet", "html": "HTML text",
+        "cc": "C++ source code", "docx": "Office Open XML word processing document", "mjs": "JavaScript", "npz": "Document",
+        "exe": "Microsoft Windows application", "indd": "Adobe InDesign Document", "rtf": "rich text (RTF)", "wav": "Waveform audio",
+        "sql": "SQL File", "frag": "OpenGL Fragment Shader Source", "cnv": "Canvas 3.5 Document", "psd": "Adobe Photoshop document",
+        "gz": "GZip archive", "mts": "AVCHD MPEG-2 Transport Stream", "eps": "Encapsulated PostScript®", "cvd": "Canvas Draw Document",
+        "4dd": "4D Data File", "4db": "4D interpreted Structure File", "memmap": "Document", "ds_store": "Document"
+    ]
+}
 
-    init(currentPath: String) { // ✓ Z: FileSystemDoc.m:503-515 initializes scan progress state before worker begins.
-        self.currentPath = currentPath // ✓ Z: FileSystemDoc.m:515 initial scan notification uses the opened URL path.
-    } // ✓ Swift-only: closes Swift progress state initializer.
+nonisolated private struct ScanProgressState {
+    private(set) var scannedFileCount: Int = 0
+    private(set) var scannedFolderCount: Int = 0
+    private(set) var scannedByteCount: UInt64 = 0
+    private(set) var currentPath: String
+    private var lastPublishTime: CFAbsoluteTime = 0
 
-    mutating func recordItem(_ item: DiskItem) { // ✓ Z: FSItem.m:955-958 increments file/folder counters after item initialization.
-        if item.isFolder { // ✓ Z: FSItem.m:955 if ( isFolder ).
-            scannedFolderCount += 1 // ✓ Z: FSItem.m:956 g_folderCount++.
-        } else { // ✓ Z: FSItem.m:957 else.
-            scannedFileCount += 1 // ✓ Z: FSItem.m:958 g_fileCount++.
-        } // ✓ Z: FSItem.m:955-958 closes counter increment.
-    } // ✓ Swift-only: closes Swift counter helper.
+    init(currentPath: String) {
+        self.currentPath = currentPath
+    }
 
-    mutating func addScannedBytes(_ byteCount: UInt64) { // ✓ Swift-only: Disk Hog progress UI displays bytes in addition to Z's item-count notification.
-        scannedByteCount += byteCount // ✓ Swift-only: byte counter is observational and does not mutate the scanner tree.
-    } // ✓ Swift-only: closes additive byte helper.
+    mutating func recordItem(_ item: DiskItem) {
+        if item.isFolder {
+            scannedFolderCount += 1
+        } else {
+            scannedFileCount += 1
+        }
+    }
 
-    mutating func setScannedBytes(_ byteCount: UInt64) { // ✓ Swift-only: Disk Hog progress UI can display root accumulated size after top-level insert.
-        scannedByteCount = byteCount // ✓ Swift-only: byte counter is observational and does not mutate the scanner tree.
-    } // ✓ Swift-only: closes absolute byte helper.
+    mutating func addScannedBytes(_ byteCount: UInt64) {
+        scannedByteCount += byteCount
+    }
 
-    mutating func updateCurrentPath(_ path: String) { // ✓ Z: FileSystemDoc.m:1657-1671 worker updates _workerCurrentPath during folder progress.
-        currentPath = path // ✓ Z: FileSystemDoc.m:1669-1670 _workerCurrentPath = path.
-    } // ✓ Swift-only: closes current-path helper.
+    mutating func setScannedBytes(_ byteCount: UInt64) {
+        scannedByteCount = byteCount
+    }
 
-    mutating func shouldPublish() -> Bool { // ✓ Z: FileSystemDoc.m:1681-1690 maybeRefreshScanCheckpoint.
-        let now: CFAbsoluteTime = CFAbsoluteTimeGetCurrent() // ✓ Z: FileSystemDoc.m:1684 uint64_t now = getTime().
-        if lastPublishTime != 0 && now - lastPublishTime < DiskInventoryZScanner.progressRefreshInterval { // ✓ Z: FileSystemDoc.m:1685-1687 skips refreshes under 0.25s.
-            return false // ✓ Z: FileSystemDoc.m:1687 return.
-        } // ✓ Z: FileSystemDoc.m:1685-1687 closes refresh gate.
-        lastPublishTime = now // ✓ Z: FileSystemDoc.m:1688 _workerLastRefreshTime = now.
-        return true // ✓ Z: FileSystemDoc.m:1689 scanRefreshCheckpointFromWorker is called.
-    } // ✓ Swift-only: closes refresh-gate helper.
+    mutating func updateCurrentPath(_ path: String) {
+        currentPath = path
+    }
 
-    func snapshot() -> DiskScanProgress { // ✓ Z: FileSystemDoc.m:755-766 scanRefreshCheckpointFromWorker snapshots path and item count for UI.
-        DiskScanProgress( // ✓ Swift-only: Swift value object replacing Z's progress notification userInfo dictionary.
-            scannedFileCount: scannedFileCount, // ✓ Z: FileSystemDoc.m:756 NSUInteger items includes g_fileCount.
-            scannedFolderCount: scannedFolderCount, // ✓ Z: FileSystemDoc.m:756 NSUInteger items includes g_folderCount.
-            scannedByteCount: scannedByteCount, // ✓ Swift-only: Disk Hog progress UI displays bytes in addition to Z's notification.
-            currentPath: currentPath // ✓ Z: FileSystemDoc.m:755 NSString *path = _workerCurrentPath.
-        ) // ✓ Swift-only: closes Swift progress value.
-    } // ✓ Swift-only: closes snapshot helper.
-} // ✓ Swift-only: closes Swift progress state.
+    mutating func shouldPublish() -> Bool {
+        let now: CFAbsoluteTime = CFAbsoluteTimeGetCurrent()
+        if lastPublishTime != 0 && now - lastPublishTime < DiskInventoryZScanner.progressRefreshInterval {
+            return false
+        }
+        lastPublishTime = now
+        return true
+    }
+
+    func snapshot() -> DiskScanProgress {
+        DiskScanProgress(
+            scannedFileCount: scannedFileCount,
+            scannedFolderCount: scannedFolderCount,
+            scannedByteCount: scannedByteCount,
+            currentPath: currentPath
+        )
+    }
+}

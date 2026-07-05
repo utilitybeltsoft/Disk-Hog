@@ -99,7 +99,6 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 51CD97232FF09A6800A37403 /* Build configuration list for PBXNativeTarget "disk_hog" */;
 			buildPhases = (
-				51CD97302FF0A00000A37403 /* Check Scanner Z Mapping */,
 				51CD97312FF0B00000A37403 /* Check Treemap Z Mapping */,
 				51CD96FE2FF09A6500A37403 /* Sources */,
 				51CD96FF2FF09A6500A37403 /* Frameworks */,
@@ -234,28 +233,6 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		51CD97302FF0A00000A37403 /* Check Scanner Z Mapping */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-				"$(SRCROOT)/disk_hog/Scanner",
-				"$(SRCROOT)/disk_hog/Scanner/DiskInventoryZScanner.swift",
-				"$(SRCROOT)/../scripts/check_scanner_z_mapping.py",
-			);
-			name = "Check Scanner Z Mapping";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "python3 \"$SRCROOT/../scripts/check_scanner_z_mapping.py\" --repo-root \"$SRCROOT/..\"\n";
-		};
 		51CD97312FF0B00000A37403 /* Check Treemap Z Mapping */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
