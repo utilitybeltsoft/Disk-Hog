@@ -202,6 +202,9 @@ private struct FileTreeRowView: View {
             .onHover { isHovered in
                 hoveredItem.wrappedValue = isHovered ? item : nil
             }
+            .contextMenu {
+                DiskItemContextMenu(item: item)
+            }
             .id(item.id)
 
             if isExpanded {
@@ -430,6 +433,9 @@ private struct TreemapPanelView: View {
             .onContinuousHover { phase in
                 updateHoveredTreemapItem(phase: phase, size: proxy.size)
             }
+            .contextMenu {
+                DiskItemContextMenu(item: hoveredItem.wrappedValue ?? selectedItem.wrappedValue)
+            }
             .onAppear {
                 renderIfNeeded(for: proxy.size)
             }
@@ -546,6 +552,25 @@ private struct TreemapPanelView: View {
 private struct TreemapHitResult {
     let item: DiskItem
     let cellID: TreemapCellID
+}
+
+private struct DiskItemContextMenu: View {
+    let item: DiskItem?
+
+    var body: some View {
+        if let item: DiskItem = item, item.isSpecialItem == false {
+            Button("Open") {
+                NSWorkspace.shared.open(item.url)
+            }
+
+            Button("Reveal in Finder") {
+                NSWorkspace.shared.activateFileViewerSelecting([item.url])
+            }
+        } else {
+            Button("No Item Selected") {}
+                .disabled(true)
+        }
+    }
 }
 
 private struct RenderedTreemap {
