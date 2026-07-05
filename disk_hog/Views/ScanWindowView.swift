@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ScanWindowView: View {
     @StateObject private var session: ScanSession
+    @State private var selectedItem: DiskItem?
 
     init(source: ScanSource) {
         _session = StateObject(wrappedValue: ScanSession(source: source))
@@ -12,6 +13,7 @@ struct ScanWindowView: View {
             VSplitView {
                 HSplitView {
                     FilesPaneView(session: session)
+                        .environment(\.selectedScanItem, $selectedItem)
                         .frame(minWidth: Metrics.filesPaneMinimumWidth, idealWidth: Metrics.filesPaneIdealWidth)
 
                     KindsPaneView(session: session)
@@ -20,18 +22,23 @@ struct ScanWindowView: View {
                 .frame(minHeight: Metrics.topPaneMinimumHeight, idealHeight: Metrics.topPaneIdealHeight)
 
                 TreemapPanelView(session: session)
+                    .environment(\.selectedScanItem, $selectedItem)
                     .frame(minWidth: Metrics.treemapMinimumWidth, minHeight: Metrics.treemapMinimumHeight)
             }
             .padding(.horizontal, Metrics.mainSplitHorizontalPadding)
             .padding(.top, Metrics.mainSplitTopPadding)
 
             ZStatusFieldsView(session: session)
+                .environment(\.selectedScanItem, $selectedItem)
         }
         .frame(minWidth: Metrics.windowMinimumWidth, minHeight: Metrics.windowMinimumHeight)
         .background(Color(nsColor: .windowBackgroundColor))
         .background(ScanWindowRegistrationView(source: session.source))
         .onAppear {
             session.startScan()
+        }
+        .onChange(of: session.rootItem?.id) {
+            selectedItem = session.rootItem
         }
         #if FILE_MATCHING_DIAGNOSTICS
         .onAppear {
@@ -53,8 +60,21 @@ struct ScanWindowView: View {
     #endif
 }
 
+private struct SelectedScanItemKey: EnvironmentKey {
+    static let defaultValue: Binding<DiskItem?> = .constant(nil)
+}
+
+private extension EnvironmentValues {
+    var selectedScanItem: Binding<DiskItem?> {
+        get { self[SelectedScanItemKey.self] }
+        set { self[SelectedScanItemKey.self] = newValue }
+    }
+}
+
 private struct FilesPaneView: View {
     @ObservedObject var session: ScanSession
+    @Environment(\.selectedScanItem) private var selectedItem
+    @State private var expandedItemIDs: Set<ObjectIdentifier> = []
 
     var body: some View {
         VStack(spacing: 0) {
@@ -66,37 +86,123 @@ private struct FilesPaneView: View {
             }
 
             ScrollView {
-                LazyVStack(spacing: 0) {
-                    if let rootItem: DiskItem = session.rootItem {
-                        ForEach(rootItem.children) { child in
-                            FileRowView(item: child)
+                ScrollViewReader { proxy in
+                    LazyVStack(spacing: 0) {
+                        if let rootItem: DiskItem = session.rootItem {
+                            FileTreeRowView(
+                                item: rootItem,
+                                depth: 0,
+                                expandedItemIDs: $expandedItemIDs
+                            )
+                        } else {
+                            FileScanPlaceholderRowsView(session: session)
                         }
-                    } else {
-                        FileScanPlaceholderRowsView(session: session)
+                    }
+                    .onChange(of: selectedItem.wrappedValue?.id) {
+                        guard let item: DiskItem = selectedItem.wrappedValue else {
+                            return
+                        }
+
+                        expandAncestors(of: item)
+                        proxy.scrollTo(item.id, anchor: .center)
+                    }
+                    .onChange(of: session.rootItem?.id) {
+                        guard let rootItem: DiskItem = session.rootItem else {
+                            expandedItemIDs.removeAll()
+                            return
+                        }
+
+                        expandedItemIDs.insert(rootItem.id)
                     }
                 }
             }
         }
         .background(Color(nsColor: .controlBackgroundColor))
     }
+
+    private func expandAncestors(of item: DiskItem) {
+        var ancestor: DiskItem? = item.parent
+        while let currentAncestor: DiskItem = ancestor {
+            expandedItemIDs.insert(currentAncestor.id)
+            ancestor = currentAncestor.parent
+        }
+    }
 }
 
-private struct FileRowView: View {
+private struct FileTreeRowView: View {
     let item: DiskItem
+    let depth: Int
+    @Binding var expandedItemIDs: Set<ObjectIdentifier>
+    @Environment(\.selectedScanItem) private var selectedItem
+
+    private var isExpanded: Bool {
+        expandedItemIDs.contains(item.id)
+    }
+
+    private var isSelected: Bool {
+        selectedItem.wrappedValue === item
+    }
 
     var body: some View {
-        HStack(spacing: Metrics.tableColumnSpacing) {
-            Text(item.displayName)
-                .lineLimit(Metrics.singleLineLimit)
-                .truncationMode(.middle)
+        VStack(spacing: 0) {
+            HStack(spacing: Metrics.tableColumnSpacing) {
+                HStack(spacing: Metrics.outlineDisclosureSpacing) {
+                    Color.clear
+                        .frame(width: CGFloat(depth) * Metrics.outlineIndentWidth)
+                    Button {
+                        toggleExpansion()
+                    } label: {
+                        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                            .font(.system(size: Metrics.outlineDisclosureIconSize, weight: .medium))
+                            .frame(width: Metrics.outlineDisclosureWidth)
+                            .opacity(item.isFolder ? 1 : 0)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(item.isFolder == false)
+
+                    Image(nsImage: NSWorkspace.shared.icon(forFile: item.path))
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: Metrics.outlineIconWidth, height: Metrics.outlineIconWidth)
+
+                    Text(item.displayName)
+                        .lineLimit(Metrics.singleLineLimit)
+                        .truncationMode(.middle)
+                }
                 .frame(maxWidth: .infinity, alignment: .leading)
-            Text(ByteCountFormatter.string(fromByteCount: Int64(item.allocatedSizeValue), countStyle: .file))
-                .monospacedDigit()
-                .frame(width: Metrics.filesSizeColumnWidth, alignment: .trailing)
+
+                Text(ByteCountFormatter.string(fromByteCount: Int64(item.allocatedSizeValue), countStyle: .file))
+                    .monospacedDigit()
+                    .frame(width: Metrics.filesSizeColumnWidth, alignment: .trailing)
+            }
+            .font(.system(size: Metrics.tableFontSize))
+            .padding(.horizontal, Metrics.tableHorizontalPadding)
+            .frame(height: Metrics.tableRowHeight)
+            .background(isSelected ? Color.accentColor.opacity(Metrics.outlineSelectionOpacity) : Color.clear)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                selectedItem.wrappedValue = item
+            }
+            .id(item.id)
+
+            if isExpanded {
+                ForEach(item.children) { child in
+                    FileTreeRowView(
+                        item: child,
+                        depth: depth + 1,
+                        expandedItemIDs: $expandedItemIDs
+                    )
+                }
+            }
         }
-        .font(.system(size: Metrics.tableFontSize))
-        .padding(.horizontal, Metrics.tableHorizontalPadding)
-        .frame(height: Metrics.tableRowHeight)
+    }
+
+    private func toggleExpansion() {
+        if isExpanded {
+            expandedItemIDs.remove(item.id)
+        } else {
+            expandedItemIDs.insert(item.id)
+        }
     }
 }
 
@@ -252,9 +358,13 @@ private struct TableHeaderRowView<Content: View>: View {
 
 private struct TreemapPanelView: View {
     @ObservedObject var session: ScanSession
+    @Environment(\.selectedScanItem) private var selectedItem
     @State private var renderedImage: NSImage?
     @State private var renderedRootID: ObjectIdentifier?
     @State private var renderedSize: CGSize = .zero
+    @State private var renderer: TreemapViewRenderer?
+    @State private var rendererDataSource: TreemapDiskItemDataSource?
+    @State private var selectedItemRect: NSRect = .zero
 
     var body: some View {
         GeometryReader { proxy in
@@ -270,7 +380,24 @@ private struct TreemapPanelView: View {
                 } else {
                     TreemapPlaceholderContent(source: session.source)
                 }
+
+                if selectedItemRect != .zero {
+                    Rectangle()
+                        .stroke(Color.accentColor, lineWidth: Metrics.treemapSelectionLineWidth)
+                        .frame(width: selectedItemRect.width, height: selectedItemRect.height)
+                        .position(
+                            x: selectedItemRect.midX,
+                            y: proxy.size.height - selectedItemRect.midY
+                        )
+                }
             }
+            .contentShape(Rectangle())
+            .gesture(
+                SpatialTapGesture()
+                    .onEnded { value in
+                        selectTreemapItem(at: value.location, size: proxy.size)
+                    }
+            )
             .onAppear {
                 renderIfNeeded(for: proxy.size)
             }
@@ -280,7 +407,12 @@ private struct TreemapPanelView: View {
             .onChange(of: session.rootItem?.id) { _, _ in
                 renderedImage = nil
                 renderedRootID = nil
+                renderer = nil
+                rendererDataSource = nil
                 renderIfNeeded(for: proxy.size)
+            }
+            .onChange(of: selectedItem.wrappedValue?.id) {
+                updateSelectedRect()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -291,6 +423,9 @@ private struct TreemapPanelView: View {
             renderedImage = nil
             renderedRootID = nil
             renderedSize = .zero
+            renderer = nil
+            rendererDataSource = nil
+            selectedItemRect = .zero
             return
         }
 
@@ -305,10 +440,14 @@ private struct TreemapPanelView: View {
 
         renderedRootID = rootItem.id
         renderedSize = size
-        renderedImage = Self.renderImage(rootItem: rootItem, size: size)
+        let renderedTreemap: RenderedTreemap? = Self.renderTreemap(rootItem: rootItem, size: size)
+        renderedImage = renderedTreemap?.image
+        renderer = renderedTreemap?.renderer
+        rendererDataSource = renderedTreemap?.dataSource
+        updateSelectedRect()
     }
 
-    private static func renderImage(rootItem: DiskItem, size: CGSize) -> NSImage? {
+    private static func renderTreemap(rootItem: DiskItem, size: CGSize) -> RenderedTreemap? {
         let dataSource: TreemapDiskItemDataSource = TreemapDiskItemDataSource(rootItem: rootItem)
         let renderer: TreemapViewRenderer = TreemapViewRenderer(
             rootItem: dataSource.root,
@@ -318,8 +457,47 @@ private struct TreemapPanelView: View {
         let bounds: NSRect = NSRect(origin: .zero, size: size)
         renderer.reloadData()
         renderer.calcLayout(bounds)
-        return renderer.drawInCache(size: size)?.treemapSuitableImage()
+        guard let image: NSImage = renderer.drawInCache(size: size)?.treemapSuitableImage() else {
+            return nil
+        }
+
+        return RenderedTreemap(image: image, renderer: renderer, dataSource: dataSource)
     }
+
+    private func selectTreemapItem(at location: CGPoint, size: CGSize) {
+        let rendererPoint: NSPoint = NSPoint(x: location.x, y: size.height - location.y)
+        guard let cellID: TreemapCellID = renderer?.cellID(by: rendererPoint, inViewCoordinates: false),
+              let item: DiskItem = renderer?.item(by: cellID) as? DiskItem,
+              !item.isSpecialItem else {
+            return
+        }
+
+        selectedItem.wrappedValue = item
+        selectedItemRect = renderer?.itemRect(by: cellID) ?? .zero
+    }
+
+    private func updateSelectedRect() {
+        guard let item: DiskItem = selectedItem.wrappedValue,
+              let rootItem: DiskItem = session.rootItem,
+              itemIsInTree(item, root: rootItem) else {
+            selectedItemRect = .zero
+            return
+        }
+
+        let path: [AnyObject] = item.pathFromRoot().map { $0 as AnyObject }
+        renderer?.selectItem(byPathToItem: path)
+        selectedItemRect = renderer?.itemRect(byPathToItem: path) ?? .zero
+    }
+
+    private func itemIsInTree(_ item: DiskItem, root: DiskItem) -> Bool {
+        item.pathFromRoot().first === root
+    }
+}
+
+private struct RenderedTreemap {
+    let image: NSImage
+    let renderer: TreemapViewRenderer
+    let dataSource: TreemapDiskItemDataSource
 }
 
 private struct TreemapPlaceholderContent: View {
@@ -345,6 +523,7 @@ private struct TreemapPlaceholderContent: View {
 
 private struct ZStatusFieldsView: View {
     @ObservedObject var session: ScanSession
+    @Environment(\.selectedScanItem) private var selectedItem
 
     var body: some View {
         TimelineView(.periodic(from: Date(), by: Metrics.timerRefreshInterval)) { context in
@@ -366,16 +545,25 @@ private struct ZStatusFieldsView: View {
     }
 
     private func statusName(referenceDate: Date) -> String {
-        if let rootItem: DiskItem = session.rootItem {
-            return rootItem.displayName
+        if let selectedItem: DiskItem = selectedItem.wrappedValue {
+            if selectedItem.isRoot {
+                return selectedItem.displayName
+            }
+
+            return "\(selectedItem.displayName) (\(selectedItem.displayFolderName))"
         }
 
         return session.currentPath
     }
 
     private func statusSize(referenceDate: Date) -> String {
-        if let rootItem: DiskItem = session.rootItem {
-            return ByteCountFormatter.string(fromByteCount: Int64(rootItem.allocatedSizeValue), countStyle: .file)
+        if let selectedItem: DiskItem = selectedItem.wrappedValue {
+            let size: String = ByteCountFormatter.string(fromByteCount: Int64(selectedItem.allocatedSizeValue), countStyle: .file)
+            guard !selectedItem.isFolder, let kindName: String = selectedItem.kindName else {
+                return size
+            }
+
+            return "\(kindName), \(size)"
         }
 
         let elapsedTime: String = DurationFormatter.scanDuration(session.elapsedTime(referenceDate: referenceDate))
@@ -406,6 +594,12 @@ private enum ScanWindowMetrics {
     static let tableHeaderFontSize: CGFloat = 11
     static let tableFontSize: CGFloat = 12
     static let filesSizeColumnWidth: CGFloat = 76
+    static let outlineIndentWidth: CGFloat = 16
+    static let outlineDisclosureSpacing: CGFloat = 2
+    static let outlineDisclosureWidth: CGFloat = 12
+    static let outlineDisclosureIconSize: CGFloat = 9
+    static let outlineIconWidth: CGFloat = 16
+    static let outlineSelectionOpacity: CGFloat = 0.22
     static let kindColorColumnWidth: CGFloat = 35
     static let kindSizeColumnWidth: CGFloat = 72
     static let kindFilesColumnWidth: CGFloat = 50
@@ -417,6 +611,7 @@ private enum ScanWindowMetrics {
     static let placeholderPathLineLimit: Int = 3
     static let treemapIconSize: CGFloat = 48
     static let minimumRenderableTreemapSide: CGFloat = 2
+    static let treemapSelectionLineWidth: CGFloat = 2
     static let singleLineLimit: Int = 1
     static let statusFieldSpacing: CGFloat = 2
     static let statusFieldFontSize: CGFloat = 11

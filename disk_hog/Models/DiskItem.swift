@@ -128,6 +128,18 @@ nonisolated final class DiskItem: Identifiable, Hashable, @unchecked Sendable {
         childrenStorage[index]
     }
 
+    func pathFromRoot() -> [DiskItem] {
+        var items: [DiskItem] = []
+        var currentItem: DiskItem? = self
+
+        while let item: DiskItem = currentItem {
+            items.append(item)
+            currentItem = item.parent
+        }
+
+        return items.reversed()
+    }
+
     func appendChild(_ child: DiskItem, updateSize: Bool = true) {
         child.parent = self
         childrenStorage.append(child)
