@@ -17,6 +17,7 @@ struct ScanWindowView: View {
                         .frame(minWidth: Metrics.filesPaneMinimumWidth, idealWidth: Metrics.filesPaneIdealWidth)
 
                     KindsPaneView(session: session)
+                        .environment(\.selectedScanItem, $selectedItem)
                         .frame(minWidth: Metrics.kindsPaneMinimumWidth, idealWidth: Metrics.kindsPaneIdealWidth)
                 }
                 .frame(minHeight: Metrics.topPaneMinimumHeight, idealHeight: Metrics.topPaneIdealHeight)
@@ -233,7 +234,9 @@ private struct FileScanPlaceholderRowsView: View {
 
 private struct KindsPaneView: View {
     @ObservedObject var session: ScanSession
+    @Environment(\.selectedScanItem) private var selectedItem
     @State private var kindStatistics: [TreemapKindStatistic] = []
+    @State private var selectedKindName: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -249,9 +252,26 @@ private struct KindsPaneView: View {
             }
 
             ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(kindStatistics) { statistic in
-                        KindStatisticRowView(statistic: statistic)
+                ScrollViewReader { proxy in
+                    LazyVStack(spacing: 0) {
+                        ForEach(kindStatistics) { statistic in
+                            KindStatisticRowView(
+                                statistic: statistic,
+                                isSelected: statistic.kindName == selectedKindName
+                            )
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                selectedKindName = statistic.kindName
+                            }
+                            .id(statistic.kindName)
+                        }
+                    }
+                    .onChange(of: selectedKindName) {
+                        guard let selectedKindName: String else {
+                            return
+                        }
+
+                        proxy.scrollTo(selectedKindName, anchor: .center)
                     }
                 }
             }
@@ -263,6 +283,9 @@ private struct KindsPaneView: View {
         .onChange(of: session.rootItem?.id) {
             updateKindStatistics()
         }
+        .onChange(of: selectedItem.wrappedValue?.id) {
+            updateSelectedKindName()
+        }
     }
 
     private func updateKindStatistics() {
@@ -272,11 +295,25 @@ private struct KindsPaneView: View {
         }
 
         kindStatistics = TreemapDiskItemDataSource.kindStatistics(for: rootItem)
+        updateSelectedKindName()
+    }
+
+    private func updateSelectedKindName() {
+        guard let item: DiskItem = selectedItem.wrappedValue,
+              !item.isFolder,
+              let kindName: String = item.kindName,
+              kindStatistics.contains(where: { $0.kindName == kindName }) else {
+            selectedKindName = nil
+            return
+        }
+
+        selectedKindName = kindName
     }
 }
 
 private struct KindStatisticRowView: View {
     let statistic: TreemapKindStatistic
+    let isSelected: Bool
 
     var body: some View {
         HStack(spacing: Metrics.tableColumnSpacing) {
@@ -298,6 +335,7 @@ private struct KindStatisticRowView: View {
         .font(.system(size: Metrics.tableFontSize))
         .padding(.horizontal, Metrics.tableHorizontalPadding)
         .frame(height: Metrics.tableRowHeight)
+        .background(isSelected ? Color.accentColor.opacity(Metrics.tableSelectionOpacity) : Color.clear)
     }
 }
 
@@ -563,6 +601,7 @@ private enum ScanWindowMetrics {
     static let outlineDisclosureIconSize: CGFloat = 9
     static let outlineIconWidth: CGFloat = 16
     static let outlineSelectionOpacity: CGFloat = 0.22
+    static let tableSelectionOpacity: CGFloat = 0.22
     static let kindColorColumnWidth: CGFloat = 35
     static let kindSizeColumnWidth: CGFloat = 72
     static let kindFilesColumnWidth: CGFloat = 50
