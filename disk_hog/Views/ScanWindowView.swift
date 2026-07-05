@@ -102,148 +102,333 @@ private extension EnvironmentValues {
 private struct FilesPaneView: View {
     @ObservedObject var session: ScanSession
     @Environment(\.selectedScanItem) private var selectedItem
+    @Environment(\.hoveredScanItem) private var hoveredItem
     @Environment(\.skipNextOutlineSelectionSync) private var skipNextOutlineSelectionSync
-    @State private var expandedItemIDs: Set<ObjectIdentifier> = []
 
     var body: some View {
-        VStack(spacing: 0) {
-            TableHeaderRowView {
-                Text("Name")
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Text("Size")
-                    .frame(width: Metrics.filesSizeColumnWidth, alignment: .trailing)
-            }
-
-            ScrollView {
-                ScrollViewReader { proxy in
-                    LazyVStack(spacing: 0) {
-                        if let rootItem: DiskItem = session.rootItem {
-                            FileTreeRowView(
-                                item: rootItem,
-                                depth: 0,
-                                expandedItemIDs: $expandedItemIDs
-                            )
-                        } else {
-                            FileScanPlaceholderRowsView(session: session)
-                        }
-                    }
-                    .onChange(of: selectedItem.wrappedValue?.id) {
-                        guard let item: DiskItem = selectedItem.wrappedValue else {
-                            return
-                        }
-
-                        if skipNextOutlineSelectionSync.wrappedValue {
-                            skipNextOutlineSelectionSync.wrappedValue = false
-                            return
-                        }
-
-                        expandAncestors(of: item)
-                        proxy.scrollTo(item.id, anchor: .center)
-                    }
-                    .onChange(of: session.rootItem?.id) {
-                        guard let rootItem: DiskItem = session.rootItem else {
-                            expandedItemIDs.removeAll()
-                            return
-                        }
-
-                        expandedItemIDs.insert(rootItem.id)
-                    }
-                }
+        Group {
+            if let rootItem: DiskItem = session.rootItem {
+                DiskItemOutlineView(
+                    rootItem: rootItem,
+                    selectedItem: selectedItem,
+                    hoveredItem: hoveredItem,
+                    skipNextOutlineSelectionSync: skipNextOutlineSelectionSync
+                )
+            } else {
+                FileScanPlaceholderRowsView(session: session)
             }
         }
         .background(Color(nsColor: .controlBackgroundColor))
     }
-
-    private func expandAncestors(of item: DiskItem) {
-        var ancestor: DiskItem? = item.parent
-        while let currentAncestor: DiskItem = ancestor {
-            expandedItemIDs.insert(currentAncestor.id)
-            ancestor = currentAncestor.parent
-        }
-    }
 }
 
-private struct FileTreeRowView: View {
-    let item: DiskItem
-    let depth: Int
-    @Binding var expandedItemIDs: Set<ObjectIdentifier>
-    @Environment(\.selectedScanItem) private var selectedItem
-    @Environment(\.hoveredScanItem) private var hoveredItem
+private struct DiskItemOutlineView: NSViewRepresentable {
+    let rootItem: DiskItem
+    let selectedItem: Binding<DiskItem?>
+    let hoveredItem: Binding<DiskItem?>
+    let skipNextOutlineSelectionSync: Binding<Bool>
 
-    private var isExpanded: Bool {
-        expandedItemIDs.contains(item.id)
+    func makeCoordinator() -> Coordinator {
+        Coordinator(
+            selectedItem: selectedItem,
+            hoveredItem: hoveredItem,
+            skipNextOutlineSelectionSync: skipNextOutlineSelectionSync
+        )
     }
 
-    private var isSelected: Bool {
-        selectedItem.wrappedValue === item
+    func makeNSView(context: Context) -> NSScrollView {
+        let outlineView: NSOutlineView = NSOutlineView()
+        outlineView.headerView = NSTableHeaderView()
+        outlineView.rowHeight = Metrics.tableRowHeight
+        outlineView.indentationPerLevel = Metrics.outlineIndentWidth
+        outlineView.allowsMultipleSelection = false
+        outlineView.columnAutoresizingStyle = .firstColumnOnlyAutoresizingStyle
+        outlineView.autoresizesOutlineColumn = true
+        outlineView.usesAlternatingRowBackgroundColors = false
+        outlineView.backgroundColor = .controlBackgroundColor
+
+        let nameColumn: NSTableColumn = NSTableColumn(identifier: ColumnID.name)
+        nameColumn.title = "Name"
+        nameColumn.minWidth = Metrics.outlineNameColumnMinimumWidth
+        nameColumn.resizingMask = .autoresizingMask
+        outlineView.addTableColumn(nameColumn)
+        outlineView.outlineTableColumn = nameColumn
+
+        let sizeColumn: NSTableColumn = NSTableColumn(identifier: ColumnID.size)
+        sizeColumn.title = "Size"
+        sizeColumn.width = Metrics.filesSizeColumnWidth
+        sizeColumn.minWidth = Metrics.filesSizeColumnWidth
+        sizeColumn.maxWidth = Metrics.filesSizeColumnWidth
+        sizeColumn.resizingMask = []
+        outlineView.addTableColumn(sizeColumn)
+
+        outlineView.delegate = context.coordinator
+        outlineView.dataSource = context.coordinator
+        outlineView.target = context.coordinator
+        outlineView.doubleAction = #selector(Coordinator.doubleClick(_:))
+
+        let scrollView: NSScrollView = NSScrollView()
+        scrollView.hasVerticalScroller = true
+        scrollView.hasHorizontalScroller = true
+        scrollView.autohidesScrollers = true
+        scrollView.documentView = outlineView
+        context.coordinator.outlineView = outlineView
+        context.coordinator.reload(rootItem: rootItem)
+        return scrollView
     }
 
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: Metrics.tableColumnSpacing) {
-                HStack(spacing: Metrics.outlineDisclosureSpacing) {
-                    Color.clear
-                        .frame(width: CGFloat(depth) * Metrics.outlineIndentWidth)
-                    Button {
-                        toggleExpansion()
-                    } label: {
-                        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                            .font(.system(size: Metrics.outlineDisclosureIconSize, weight: .medium))
-                            .frame(width: Metrics.outlineDisclosureWidth)
-                            .opacity(item.isFolder ? 1 : 0)
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(item.isFolder == false)
+    func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        context.coordinator.selectedItem = selectedItem
+        context.coordinator.hoveredItem = hoveredItem
+        context.coordinator.skipNextOutlineSelectionSync = skipNextOutlineSelectionSync
+        context.coordinator.reloadIfNeeded(rootItem: rootItem)
+        context.coordinator.syncSelectionIfNeeded(selectedItem.wrappedValue)
+    }
 
-                    Image(nsImage: NSWorkspace.shared.icon(forFile: item.path))
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: Metrics.outlineIconWidth, height: Metrics.outlineIconWidth)
+    final class Coordinator: NSObject, NSOutlineViewDataSource, NSOutlineViewDelegate {
+        var selectedItem: Binding<DiskItem?>
+        var hoveredItem: Binding<DiskItem?>
+        var skipNextOutlineSelectionSync: Binding<Bool>
+        weak var outlineView: NSOutlineView?
+        private var rootItem: DiskItem?
+        private var isApplyingSelection: Bool = false
 
-                    Text(item.displayName)
-                        .lineLimit(Metrics.singleLineLimit)
-                        .truncationMode(.middle)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+        init(
+            selectedItem: Binding<DiskItem?>,
+            hoveredItem: Binding<DiskItem?>,
+            skipNextOutlineSelectionSync: Binding<Bool>
+        ) {
+            self.selectedItem = selectedItem
+            self.hoveredItem = hoveredItem
+            self.skipNextOutlineSelectionSync = skipNextOutlineSelectionSync
+        }
 
-                Text(ByteCountFormatter.string(fromByteCount: Int64(item.allocatedSizeValue), countStyle: .file))
-                    .monospacedDigit()
-                    .frame(width: Metrics.filesSizeColumnWidth, alignment: .trailing)
+        func reloadIfNeeded(rootItem: DiskItem) {
+            guard self.rootItem !== rootItem else {
+                return
             }
-            .font(.system(size: Metrics.tableFontSize))
-            .padding(.horizontal, Metrics.tableHorizontalPadding)
-            .frame(height: Metrics.tableRowHeight)
-            .background(isSelected ? Color.accentColor.opacity(Metrics.outlineSelectionOpacity) : Color.clear)
-            .contentShape(Rectangle())
-            .onTapGesture {
-                selectedItem.wrappedValue = item
-            }
-            .onHover { isHovered in
-                hoveredItem.wrappedValue = isHovered ? item : nil
-            }
-            .contextMenu {
-                DiskItemContextMenu(item: item)
-            }
-            .id(item.id)
 
-            if isExpanded {
-                ForEach(item.children) { child in
-                    FileTreeRowView(
-                        item: child,
-                        depth: depth + 1,
-                        expandedItemIDs: $expandedItemIDs
-                    )
-                }
+            reload(rootItem: rootItem)
+        }
+
+        func reload(rootItem: DiskItem) {
+            self.rootItem = rootItem
+            outlineView?.reloadData()
+            outlineView?.expandItem(rootItem)
+        }
+
+        func syncSelectionIfNeeded(_ item: DiskItem?) {
+            guard let outlineView: NSOutlineView = outlineView else {
+                return
             }
+
+            if skipNextOutlineSelectionSync.wrappedValue {
+                skipNextOutlineSelectionSync.wrappedValue = false
+                return
+            }
+
+            guard let item: DiskItem = item else {
+                isApplyingSelection = true
+                outlineView.deselectAll(nil)
+                isApplyingSelection = false
+                return
+            }
+
+            if outlineView.item(atRow: outlineView.selectedRow) as? DiskItem === item {
+                return
+            }
+
+            expandAncestors(of: item)
+            let row: Int = outlineView.row(forItem: item)
+            guard row >= 0 else {
+                isApplyingSelection = true
+                outlineView.deselectAll(nil)
+                isApplyingSelection = false
+                return
+            }
+
+            isApplyingSelection = true
+            outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+            outlineView.scrollRowToVisible(row)
+            isApplyingSelection = false
+        }
+
+        func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
+            guard let item: DiskItem = item as? DiskItem else {
+                return rootItem == nil ? 0 : 1
+            }
+
+            return item.childCount
+        }
+
+        func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any {
+            guard let item: DiskItem = item as? DiskItem else {
+                return rootItem!
+            }
+
+            return item.child(at: index)
+        }
+
+        func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool {
+            guard let item: DiskItem = item as? DiskItem else {
+                return false
+            }
+
+            return item.childCount > 0
+        }
+
+        func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
+            guard let item: DiskItem = item as? DiskItem,
+                  let tableColumn: NSTableColumn = tableColumn else {
+                return nil
+            }
+
+            if tableColumn.identifier == ColumnID.size {
+                return sizeCell(for: item, outlineView: outlineView)
+            }
+
+            return nameCell(for: item, outlineView: outlineView)
+        }
+
+        func outlineViewSelectionDidChange(_ notification: Notification) {
+            guard !isApplyingSelection,
+                  let outlineView: NSOutlineView = outlineView else {
+                return
+            }
+
+            selectedItem.wrappedValue = outlineView.selectedRow >= 0 ? outlineView.item(atRow: outlineView.selectedRow) as? DiskItem : nil
+        }
+
+        func outlineView(_ outlineView: NSOutlineView, shouldSelectItem item: Any) -> Bool {
+            item is DiskItem
+        }
+
+        func outlineView(_ outlineView: NSOutlineView, mouseDownInHeaderOf tableColumn: NSTableColumn) {}
+
+        @objc func doubleClick(_ sender: Any?) {
+            guard let outlineView: NSOutlineView = outlineView,
+                  outlineView.clickedRow >= 0,
+                  let item: DiskItem = outlineView.item(atRow: outlineView.clickedRow) as? DiskItem,
+                  item.childCount > 0 else {
+                return
+            }
+
+            if outlineView.isItemExpanded(item) {
+                outlineView.collapseItem(item)
+            } else {
+                outlineView.expandItem(item)
+            }
+        }
+
+        private func expandAncestors(of item: DiskItem) {
+            var ancestors: [DiskItem] = []
+            var ancestor: DiskItem? = item.parent
+            while let currentAncestor: DiskItem = ancestor {
+                ancestors.append(currentAncestor)
+                ancestor = currentAncestor.parent
+            }
+
+            for ancestor: DiskItem in ancestors.reversed() {
+                outlineView?.expandItem(ancestor)
+            }
+        }
+
+        private func nameCell(for item: DiskItem, outlineView: NSOutlineView) -> NSTableCellView {
+            let identifier: NSUserInterfaceItemIdentifier = CellID.name
+            let cell: DiskItemNameCellView = outlineView.makeView(withIdentifier: identifier, owner: self) as? DiskItemNameCellView ?? DiskItemNameCellView()
+            cell.identifier = identifier
+            cell.configure(item: item)
+            return cell
+        }
+
+        private func sizeCell(for item: DiskItem, outlineView: NSOutlineView) -> NSTableCellView {
+            let identifier: NSUserInterfaceItemIdentifier = CellID.size
+            let cell: DiskItemSizeCellView = outlineView.makeView(withIdentifier: identifier, owner: self) as? DiskItemSizeCellView ?? DiskItemSizeCellView()
+            cell.identifier = identifier
+            cell.configure(item: item)
+            return cell
         }
     }
 
-    private func toggleExpansion() {
-        if isExpanded {
-            expandedItemIDs.remove(item.id)
-        } else {
-            expandedItemIDs.insert(item.id)
+    private final class DiskItemNameCellView: NSTableCellView {
+        private let iconImageView: NSImageView = NSImageView()
+        private let titleTextField: NSTextField = NSTextField(labelWithString: "")
+
+        override init(frame frameRect: NSRect) {
+            super.init(frame: frameRect)
+            setup()
         }
+
+        required init?(coder: NSCoder) {
+            super.init(coder: coder)
+            setup()
+        }
+
+        func configure(item: DiskItem) {
+            iconImageView.image = NSWorkspace.shared.icon(forFile: item.path)
+            titleTextField.stringValue = item.displayName
+        }
+
+        private func setup() {
+            imageView = iconImageView
+            textField = titleTextField
+            iconImageView.translatesAutoresizingMaskIntoConstraints = false
+            titleTextField.translatesAutoresizingMaskIntoConstraints = false
+            titleTextField.lineBreakMode = .byTruncatingMiddle
+            titleTextField.font = NSFont.systemFont(ofSize: Metrics.tableFontSize)
+            addSubview(iconImageView)
+            addSubview(titleTextField)
+            NSLayoutConstraint.activate([
+                iconImageView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Metrics.outlineCellHorizontalPadding),
+                iconImageView.centerYAnchor.constraint(equalTo: centerYAnchor),
+                iconImageView.widthAnchor.constraint(equalToConstant: Metrics.outlineIconWidth),
+                iconImageView.heightAnchor.constraint(equalToConstant: Metrics.outlineIconWidth),
+                titleTextField.leadingAnchor.constraint(equalTo: iconImageView.trailingAnchor, constant: Metrics.outlineIconTextSpacing),
+                titleTextField.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -Metrics.outlineCellHorizontalPadding),
+                titleTextField.centerYAnchor.constraint(equalTo: centerYAnchor)
+            ])
+        }
+    }
+
+    private final class DiskItemSizeCellView: NSTableCellView {
+        private let sizeTextField: NSTextField = NSTextField(labelWithString: "")
+
+        override init(frame frameRect: NSRect) {
+            super.init(frame: frameRect)
+            setup()
+        }
+
+        required init?(coder: NSCoder) {
+            super.init(coder: coder)
+            setup()
+        }
+
+        func configure(item: DiskItem) {
+            sizeTextField.stringValue = ByteCountFormatter.string(fromByteCount: Int64(item.allocatedSizeValue), countStyle: .file)
+        }
+
+        private func setup() {
+            textField = sizeTextField
+            sizeTextField.alignment = .right
+            sizeTextField.font = NSFont.monospacedDigitSystemFont(ofSize: Metrics.tableFontSize, weight: .regular)
+            sizeTextField.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(sizeTextField)
+            NSLayoutConstraint.activate([
+                sizeTextField.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Metrics.outlineCellHorizontalPadding),
+                sizeTextField.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -Metrics.outlineCellHorizontalPadding),
+                sizeTextField.centerYAnchor.constraint(equalTo: centerYAnchor)
+            ])
+        }
+    }
+
+    private enum ColumnID {
+        static let name: NSUserInterfaceItemIdentifier = NSUserInterfaceItemIdentifier("name")
+        static let size: NSUserInterfaceItemIdentifier = NSUserInterfaceItemIdentifier("size")
+    }
+
+    private enum CellID {
+        static let name: NSUserInterfaceItemIdentifier = NSUserInterfaceItemIdentifier("nameCell")
+        static let size: NSUserInterfaceItemIdentifier = NSUserInterfaceItemIdentifier("sizeCell")
     }
 }
 
@@ -695,11 +880,14 @@ private enum ScanWindowMetrics {
     static let tableHeaderFontSize: CGFloat = 11
     static let tableFontSize: CGFloat = 12
     static let filesSizeColumnWidth: CGFloat = 76
+    static let outlineNameColumnMinimumWidth: CGFloat = 180
     static let outlineIndentWidth: CGFloat = 16
     static let outlineDisclosureSpacing: CGFloat = 2
     static let outlineDisclosureWidth: CGFloat = 12
     static let outlineDisclosureIconSize: CGFloat = 9
     static let outlineIconWidth: CGFloat = 16
+    static let outlineCellHorizontalPadding: CGFloat = 3
+    static let outlineIconTextSpacing: CGFloat = 4
     static let outlineSelectionOpacity: CGFloat = 0.22
     static let tableSelectionOpacity: CGFloat = 0.22
     static let kindColorColumnWidth: CGFloat = 35
