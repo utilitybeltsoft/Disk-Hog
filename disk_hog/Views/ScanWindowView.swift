@@ -237,6 +237,7 @@ private struct KindsPaneView: View {
     @Environment(\.selectedScanItem) private var selectedItem
     @State private var kindStatistics: [TreemapKindStatistic] = []
     @State private var selectedKindName: String?
+    @State private var shouldScrollToSelectedKind: Bool = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -261,6 +262,7 @@ private struct KindsPaneView: View {
                             )
                             .contentShape(Rectangle())
                             .onTapGesture {
+                                shouldScrollToSelectedKind = false
                                 selectedKindName = statistic.kindName
                             }
                             .id(statistic.kindName)
@@ -271,7 +273,12 @@ private struct KindsPaneView: View {
                             return
                         }
 
+                        guard shouldScrollToSelectedKind else {
+                            return
+                        }
+
                         proxy.scrollTo(selectedKindName, anchor: .center)
+                        shouldScrollToSelectedKind = false
                     }
                 }
             }
@@ -303,10 +310,12 @@ private struct KindsPaneView: View {
               !item.isFolder,
               let kindName: String = item.kindName,
               kindStatistics.contains(where: { $0.kindName == kindName }) else {
+            shouldScrollToSelectedKind = false
             selectedKindName = nil
             return
         }
 
+        shouldScrollToSelectedKind = true
         selectedKindName = kindName
     }
 }
