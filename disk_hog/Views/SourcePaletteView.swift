@@ -111,6 +111,7 @@ struct SourcePaletteView: View {
             .padding(.bottom, Metrics.windowPadding)
         }
         .frame(minWidth: Metrics.windowMinimumWidth, minHeight: Metrics.windowMinimumHeight)
+        .background(SourcePaletteCloseRegistrationView())
         .onAppear {
             updateCommandState()
         }
@@ -401,6 +402,24 @@ private struct VolumeFilterView: View {
             Spacer()
         }
         .toggleStyle(.switch)
+    }
+}
+
+private struct SourcePaletteCloseRegistrationView: NSViewRepresentable {
+    func makeNSView(context: Context) -> SourcePaletteCloseRegistrationNSView {
+        SourcePaletteCloseRegistrationNSView()
+    }
+
+    func updateNSView(_ nsView: SourcePaletteCloseRegistrationNSView, context: Context) {}
+}
+
+private final class SourcePaletteCloseRegistrationNSView: NSView {
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        if newWindow == nil {
+            NSApp.terminate(nil)
+        }
+
+        super.viewWillMove(toWindow: newWindow)
     }
 }
 
