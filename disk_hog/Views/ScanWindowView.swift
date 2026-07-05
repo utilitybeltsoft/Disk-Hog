@@ -3,6 +3,7 @@ import SwiftUI
 struct ScanWindowView: View {
     @StateObject private var session: ScanSession
     @State private var selectedItem: DiskItem?
+    @State private var hoveredItem: DiskItem?
 
     init(source: ScanSource) {
         _session = StateObject(wrappedValue: ScanSession(source: source))
@@ -14,6 +15,7 @@ struct ScanWindowView: View {
                 HSplitView {
                     FilesPaneView(session: session)
                         .environment(\.selectedScanItem, $selectedItem)
+                        .environment(\.hoveredScanItem, $hoveredItem)
                         .frame(minWidth: Metrics.filesPaneMinimumWidth, idealWidth: Metrics.filesPaneIdealWidth)
 
                     KindsPaneView(session: session)
@@ -24,6 +26,7 @@ struct ScanWindowView: View {
 
                 TreemapPanelView(session: session)
                     .environment(\.selectedScanItem, $selectedItem)
+                    .environment(\.hoveredScanItem, $hoveredItem)
                     .frame(minWidth: Metrics.treemapMinimumWidth, minHeight: Metrics.treemapMinimumHeight)
             }
             .padding(.horizontal, Metrics.mainSplitHorizontalPadding)
@@ -31,6 +34,7 @@ struct ScanWindowView: View {
 
             ZStatusFieldsView(session: session)
                 .environment(\.selectedScanItem, $selectedItem)
+                .environment(\.hoveredScanItem, $hoveredItem)
         }
         .frame(minWidth: Metrics.windowMinimumWidth, minHeight: Metrics.windowMinimumHeight)
         .background(Color(nsColor: .windowBackgroundColor))
@@ -40,6 +44,7 @@ struct ScanWindowView: View {
         }
         .onChange(of: session.rootItem?.id) {
             selectedItem = session.rootItem
+            hoveredItem = nil
         }
         #if FILE_MATCHING_DIAGNOSTICS
         .onAppear {
@@ -65,10 +70,19 @@ private struct SelectedScanItemKey: EnvironmentKey {
     static let defaultValue: Binding<DiskItem?> = .constant(nil)
 }
 
+private struct HoveredScanItemKey: EnvironmentKey {
+    static let defaultValue: Binding<DiskItem?> = .constant(nil)
+}
+
 private extension EnvironmentValues {
     var selectedScanItem: Binding<DiskItem?> {
         get { self[SelectedScanItemKey.self] }
         set { self[SelectedScanItemKey.self] = newValue }
+    }
+
+    var hoveredScanItem: Binding<DiskItem?> {
+        get { self[HoveredScanItemKey.self] }
+        set { self[HoveredScanItemKey.self] = newValue }
     }
 }
 
@@ -135,6 +149,7 @@ private struct FileTreeRowView: View {
     let depth: Int
     @Binding var expandedItemIDs: Set<ObjectIdentifier>
     @Environment(\.selectedScanItem) private var selectedItem
+    @Environment(\.hoveredScanItem) private var hoveredItem
 
     private var isExpanded: Bool {
         expandedItemIDs.contains(item.id)
@@ -183,6 +198,9 @@ private struct FileTreeRowView: View {
             .contentShape(Rectangle())
             .onTapGesture {
                 selectedItem.wrappedValue = item
+            }
+            .onHover { isHovered in
+                hoveredItem.wrappedValue = isHovered ? item : nil
             }
             .id(item.id)
 
@@ -369,6 +387,7 @@ private struct TableHeaderRowView<Content: View>: View {
 private struct TreemapPanelView: View {
     @ObservedObject var session: ScanSession
     @Environment(\.selectedScanItem) private var selectedItem
+    @Environment(\.hoveredScanItem) private var hoveredItem
     @State private var renderedImage: NSImage?
     @State private var renderedRootID: ObjectIdentifier?
     @State private var renderedSize: CGSize = .zero
@@ -408,6 +427,9 @@ private struct TreemapPanelView: View {
                         selectTreemapItem(at: value.location, size: proxy.size)
                     }
             )
+            .onContinuousHover { phase in
+                updateHoveredTreemapItem(phase: phase, size: proxy.size)
+            }
             .onAppear {
                 renderIfNeeded(for: proxy.size)
             }
@@ -475,15 +497,32 @@ private struct TreemapPanelView: View {
     }
 
     private func selectTreemapItem(at location: CGPoint, size: CGSize) {
+        guard let result: TreemapHitResult = treemapHitResult(at: location, size: size) else {
+            return
+        }
+
+        selectedItem.wrappedValue = result.item
+        selectedItemRect = renderer?.itemRect(by: result.cellID) ?? .zero
+    }
+
+    private func updateHoveredTreemapItem(phase: HoverPhase, size: CGSize) {
+        switch phase {
+        case .active(let location):
+            hoveredItem.wrappedValue = treemapHitResult(at: location, size: size)?.item
+        case .ended:
+            hoveredItem.wrappedValue = nil
+        }
+    }
+
+    private func treemapHitResult(at location: CGPoint, size: CGSize) -> TreemapHitResult? {
         let rendererPoint: NSPoint = NSPoint(x: location.x, y: size.height - location.y)
         guard let cellID: TreemapCellID = renderer?.cellID(by: rendererPoint, inViewCoordinates: false),
               let item: DiskItem = renderer?.item(by: cellID) as? DiskItem,
               !item.isSpecialItem else {
-            return
+            return nil
         }
 
-        selectedItem.wrappedValue = item
-        selectedItemRect = renderer?.itemRect(by: cellID) ?? .zero
+        return TreemapHitResult(item: item, cellID: cellID)
     }
 
     private func updateSelectedRect() {
@@ -502,6 +541,11 @@ private struct TreemapPanelView: View {
     private func itemIsInTree(_ item: DiskItem, root: DiskItem) -> Bool {
         item.pathFromRoot().first === root
     }
+}
+
+private struct TreemapHitResult {
+    let item: DiskItem
+    let cellID: TreemapCellID
 }
 
 private struct RenderedTreemap {
@@ -534,6 +578,7 @@ private struct TreemapPlaceholderContent: View {
 private struct ZStatusFieldsView: View {
     @ObservedObject var session: ScanSession
     @Environment(\.selectedScanItem) private var selectedItem
+    @Environment(\.hoveredScanItem) private var hoveredItem
 
     var body: some View {
         TimelineView(.periodic(from: Date(), by: Metrics.timerRefreshInterval)) { context in
@@ -555,21 +600,21 @@ private struct ZStatusFieldsView: View {
     }
 
     private func statusName(referenceDate: Date) -> String {
-        if let selectedItem: DiskItem = selectedItem.wrappedValue {
-            if selectedItem.isRoot {
-                return selectedItem.displayName
+        if let statusItem: DiskItem = statusItem {
+            if statusItem.isRoot {
+                return statusItem.displayName
             }
 
-            return "\(selectedItem.displayName) (\(selectedItem.displayFolderName))"
+            return "\(statusItem.displayName) (\(statusItem.displayFolderName))"
         }
 
         return session.currentPath
     }
 
     private func statusSize(referenceDate: Date) -> String {
-        if let selectedItem: DiskItem = selectedItem.wrappedValue {
-            let size: String = ByteCountFormatter.string(fromByteCount: Int64(selectedItem.allocatedSizeValue), countStyle: .file)
-            guard !selectedItem.isFolder, let kindName: String = selectedItem.kindName else {
+        if let statusItem: DiskItem = statusItem {
+            let size: String = ByteCountFormatter.string(fromByteCount: Int64(statusItem.allocatedSizeValue), countStyle: .file)
+            guard !statusItem.isFolder, let kindName: String = statusItem.kindName else {
                 return size
             }
 
@@ -579,6 +624,10 @@ private struct ZStatusFieldsView: View {
         let elapsedTime: String = DurationFormatter.scanDuration(session.elapsedTime(referenceDate: referenceDate))
         let scannedSize: String = ByteCountFormatter.string(fromByteCount: Int64(session.scannedByteCount), countStyle: .file)
         return "\(session.state.title) - \(session.scannedItemCount) items - \(scannedSize) - elapsed \(elapsedTime)"
+    }
+
+    private var statusItem: DiskItem? {
+        hoveredItem.wrappedValue ?? selectedItem.wrappedValue
     }
 }
 
