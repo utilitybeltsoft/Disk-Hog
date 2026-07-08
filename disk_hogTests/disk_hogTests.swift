@@ -127,6 +127,27 @@ struct DiskItemTests {
         #expect(folder.displayPath == "scan/folder")
         #expect(file.displayPath == "scan/folder/file.txt")
     }
+
+    @Test func childURLDerivesFromParentAndSurvivesRemoval() {
+        let root: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan"),
+            isDirectory: true
+        )
+        let child: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/folder"),
+            isDirectory: true
+        )
+
+        root.appendChild(child)
+
+        #expect(child.path == "/scan/folder")
+        #expect(child.url.path == "/scan/folder")
+
+        root.removeAllChildren()
+
+        #expect(child.path == "/scan/folder")
+        #expect(child.url.path == "/scan/folder")
+    }
 }
 
 struct TreemapDiskItemDataSourceTests {

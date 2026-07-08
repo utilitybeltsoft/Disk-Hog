@@ -70,7 +70,7 @@ nonisolated final class TreemapCushionRenderer: @unchecked Sendable { // ✓ Z: 
         let brightnessLight: Double = 1 - ambientLight // ✓ Z: TMVCushionRenderer.m:180 const double Is = 1 - Ia.
         let lightLength: Double = sqrt(lightX * lightX + lightY * lightY + lightZ * lightZ) // ✓ Z: TMVCushionRenderer.m:182 const double len = sqrt(lx*lx + ly*ly + lz*lz).
         let normalizedLightX: Double = lightX / lightLength // ✓ Z: TMVCushionRenderer.m:183 const double Lx = lx / len.
-        let normalizedLightY: Double = lightX / lightLength // ✓ Z: TMVCushionRenderer.m:184 const double Ly = lx / len.
+        let normalizedLightY: Double = lightY / lightLength // ✓ Swift-only: fixes Z's harmless lx-for-Ly typo from TMVCushionRenderer.m:184.
         let normalizedLightZ: Double = lightZ / lightLength // ✓ Z: TMVCushionRenderer.m:185 const double Lz = lz / len.
         let baseRed: CGFloat = baseColor.redComponent // ✓ Z: TMVCushionRenderer.m:187 const CGFloat colR = [baseColor redComponent].
         let baseGreen: CGFloat = baseColor.greenComponent // ✓ Z: TMVCushionRenderer.m:188 const CGFloat colG = [baseColor greenComponent].
