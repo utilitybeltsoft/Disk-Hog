@@ -60,6 +60,9 @@ struct ScanWindowView: View {
         .onAppear {
             session.startScan()
         }
+        .onDisappear {
+            session.cancel()
+        }
         .onChange(of: session.rootItem?.id) {
             selectionCoordinator.setSelectedItem(session.rootItem)
             hoveredItem = nil
@@ -1699,25 +1702,38 @@ private struct ZStatusFieldsView: View {
 
     var body: some View {
         TimelineView(.periodic(from: Date(), by: Metrics.timerRefreshInterval)) { context in
-            VStack(alignment: .leading, spacing: Metrics.statusFieldSpacing) {
-                Text(selectedStatusLine)
-                    .lineLimit(Metrics.singleLineLimit)
-                    .truncationMode(.middle)
-                    .textSelection(.enabled)
-                if let hoverStatusLine: String = hoverStatusLine {
-                    Text(hoverStatusLine)
+            HStack(alignment: .top, spacing: Metrics.statusFieldControlSpacing) {
+                VStack(alignment: .leading, spacing: Metrics.statusFieldSpacing) {
+                    Text(selectedStatusLine)
+                        .lineLimit(Metrics.singleLineLimit)
+                        .truncationMode(.middle)
+                        .textSelection(.enabled)
+                    if let hoverStatusLine: String = hoverStatusLine {
+                        Text(hoverStatusLine)
+                            .lineLimit(Metrics.singleLineLimit)
+                            .truncationMode(.middle)
+                            .textSelection(.enabled)
+                    }
+                    Text(progressSummary(referenceDate: context.date))
+                        .lineLimit(Metrics.singleLineLimit)
+                        .truncationMode(.middle)
+                        .textSelection(.enabled)
+                    Text(scanTotalsSummary(referenceDate: context.date))
                         .lineLimit(Metrics.singleLineLimit)
                         .truncationMode(.middle)
                         .textSelection(.enabled)
                 }
-                Text(progressSummary(referenceDate: context.date))
-                    .lineLimit(Metrics.singleLineLimit)
-                    .truncationMode(.middle)
-                    .textSelection(.enabled)
-                Text(scanTotalsSummary(referenceDate: context.date))
-                    .lineLimit(Metrics.singleLineLimit)
-                    .truncationMode(.middle)
-                    .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                if session.state == .scanning {
+                    Button {
+                        session.cancel()
+                    } label: {
+                        Label("Cancel Scan", systemImage: "xmark.circle")
+                    }
+                    .controlSize(.small)
+                    .help("Cancel Scan")
+                }
             }
             .font(.system(size: Metrics.statusFieldFontSize))
             .padding(.horizontal, Metrics.statusFieldHorizontalPadding)
@@ -1834,6 +1850,7 @@ private enum ScanWindowMetrics {
     static let treemapSelectionInnerLineWidth: CGFloat = 1
     static let singleLineLimit: Int = 1
     static let statusFieldSpacing: CGFloat = 2
+    static let statusFieldControlSpacing: CGFloat = 8
     static let statusFieldFontSize: CGFloat = 11
     static let statusFieldHeight: CGFloat = 88
     static let statusFieldHorizontalPadding: CGFloat = 17

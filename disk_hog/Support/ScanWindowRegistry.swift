@@ -95,7 +95,6 @@ final class ScanWindowRegistrationNSView: NSView {
         if newWindow == nil, let registeredWindow: NSWindow = registeredWindow {
             ScanWindowRegistry.shared.unregister(registeredWindow, for: source)
             self.registeredWindow = nil
-            NSApp.terminate(nil)
         }
 
         super.viewWillMove(toWindow: newWindow)
