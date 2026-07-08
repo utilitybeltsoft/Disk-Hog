@@ -48,7 +48,7 @@ nonisolated final class TreemapItemRenderer: @unchecked Sendable { // ✓ Z: TMV
     } // ✓ Z: TMVItem.m:108 closes setCushionColor:.
 
     func calcLayout(_ proposedRect: NSRect) { // ✓ Z: TMVItem.m:110 - calcLayout:.
-        let rect: NSRect = proposedRect.integral // ✓ Z: TMVItem.m:117 rect = NSIntegralRect(rect).
+        let rect: NSRect = NSIntegralRect(proposedRect) // ✓ Z: TMVItem.m:117 rect = NSIntegralRect(rect).
         if rectValue.equalTo(rect) { // ✓ Z: TMVItem.m:119 if (NSEqualRects(_rect, rect)).
             return // ✓ Z: TMVItem.m:120 return.
         } // ✓ Z: TMVItem.m:119-120 closes unchanged-rect guard.
@@ -95,6 +95,49 @@ nonisolated final class TreemapItemRenderer: @unchecked Sendable { // ✓ Z: TMV
     var childCount: Int { // ✓ Z: TMVItem.m:228 - childCount.
         childRenderers?.count ?? 0 // ✓ Z: TMVItem.m:230 return [_childRenderers count].
     } // ✓ Z: TMVItem.m:231 closes childCount.
+
+    func appendRendererIndex(to index: inout [ObjectIdentifier: TreemapItemRenderer]) { // ✓ Swift-only: builds a direct item-to-renderer lookup for AppKit/SwiftUI selection sync without changing Z layout.
+        index[ObjectIdentifier(renderedItem)] = self // ✓ Swift-only: indexes this translated TMVItem equivalent by rendered item pointer identity.
+        guard let childRenderers: [TreemapItemRenderer] = childRenderers else { // ✓ Swift-only: leaf renderers have no children to index.
+            return // ✓ Swift-only: closes leaf indexing branch.
+        } // ✓ Swift-only: closes child-renderer existence guard.
+
+        for childRenderer: TreemapItemRenderer in childRenderers { // ✓ Swift-only: recursively indexes the translated TMVItem child renderer tree.
+            childRenderer.appendRendererIndex(to: &index) // ✓ Swift-only: adds descendant renderer identities for direct selection.
+        } // ✓ Swift-only: closes child index traversal.
+    } // ✓ Swift-only: closes renderer-index helper.
+
+    func appendLayoutDiagnostics(to rows: inout [[String: Any]], depth: Int, childIndex: Int, sequence: inout Int) { // ✓ Swift-only: records post-layout TMVItem-equivalent rows for Z parity comparison.
+        let diskItem: DiskItem? = renderedItem as? DiskItem // ✓ Swift-only: Disk Hog's rendered item is the translated FSItem model.
+        rows.append([ // ✓ Swift-only: begins JSON-compatible diagnostic dictionary.
+            "recordType": "layout", // ✓ Swift-only: row type used by compare_treemap_layouts.py.
+            "sequence": sequence, // ✓ Swift-only: preorder renderer sequence matching TMVItem traversal.
+            "depth": depth, // ✓ Swift-only: renderer depth for locating the first divergent subtree.
+            "childIndex": childIndex, // ✓ Swift-only: sibling index for locating the first divergent subtree.
+            "path": diskItem?.path ?? "", // ✓ Swift-only: absolute path equivalent to FSItem path.
+            "displayPath": diskItem?.displayPath ?? "", // ✓ Swift-only: display path equivalent to FSItem displayPath.
+            "displayName": diskItem?.displayName ?? String(describing: renderedItem), // ✓ Swift-only: display name equivalent to FSItem displayName.
+            "kindName": diskItem?.kindName ?? "", // ✓ Swift-only: kind string equivalent to FSItem kindName.
+            "isLeaf": isLeaf, // ✓ Swift-only: records current translated TMVItem leaf decision.
+            "isNode": !isLeaf, // ✓ Swift-only: records inverse leaf decision for readability.
+            "childCount": childCount, // ✓ Swift-only: records renderer child count after createChildRenderers.
+            "weight": weight, // ✓ Swift-only: records treemap weight supplied by data source.
+            "rectX": Double(rectValue.origin.x), // ✓ Swift-only: records assigned layout rectangle origin x.
+            "rectY": Double(rectValue.origin.y), // ✓ Swift-only: records assigned layout rectangle origin y.
+            "rectWidth": Double(rectValue.size.width), // ✓ Swift-only: records assigned layout rectangle width.
+            "rectHeight": Double(rectValue.size.height) // ✓ Swift-only: records assigned layout rectangle height.
+        ]) // ✓ Swift-only: closes diagnostic dictionary append.
+        sequence += 1 // ✓ Swift-only: advances preorder renderer sequence.
+
+        for (index, childRenderer) in (childRenderers ?? []).enumerated() { // ✓ Swift-only: recursively mirrors TMVItem child renderer traversal.
+            childRenderer.appendLayoutDiagnostics( // ✓ Swift-only: appends child renderer diagnostics.
+                to: &rows, // ✓ Swift-only: passes shared row buffer.
+                depth: depth + 1, // ✓ Swift-only: increments diagnostic depth.
+                childIndex: index, // ✓ Swift-only: records child index within this renderer.
+                sequence: &sequence // ✓ Swift-only: passes shared preorder counter.
+            ) // ✓ Swift-only: closes child diagnostic append call.
+        } // ✓ Swift-only: closes child renderer diagnostic loop.
+    } // ✓ Swift-only: closes layout diagnostic walker.
 
     func child(at index: Int) -> TreemapItemRenderer { // ✓ Z: TMVItem.m:223 - childAtIndex:.
         childRenderers![index] // ✓ Z: TMVItem.m:225 return [_childRenderers objectAtIndex:childIndex].

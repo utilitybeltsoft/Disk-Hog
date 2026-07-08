@@ -22,6 +22,7 @@ struct DiskHogApp: App {
                 SourcePaletteView()
             }
         }
+        .defaultSize(width: ScanWindowDefaults.width, height: ScanWindowDefaults.height)
         .commands {
             DiskHogCommands()
         }
@@ -76,4 +77,9 @@ private enum WindowIDs {
 private enum SourcePaletteWindowDefaults {
     static let width: CGFloat = SourcePaletteMetrics.windowMinimumWidth
     static let height: CGFloat = SourcePaletteMetrics.windowMinimumHeight
+}
+
+private enum ScanWindowDefaults {
+    static let width: CGFloat = 837
+    static let height: CGFloat = 1080
 }

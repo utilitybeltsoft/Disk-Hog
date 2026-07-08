@@ -23,6 +23,7 @@ nonisolated final class TreemapViewRenderer: @unchecked Sendable { // ✓ Z: Tre
     private var touchedRenderer: TreemapItemRenderer? // ✓ Z: TreeMapView.h:24 TMVItem *_touchedRenderer.
     private var cachedContent: NSBitmapImageRep? // ✓ Z: TreeMapView.h:25 NSBitmapImageRep *_cachedContent.
     private let rootItem: AnyObject // ✓ Swift-only: Swift uses an explicit root item where Z passes nil to mean root.
+    private var rendererIndex: [ObjectIdentifier: TreemapItemRenderer] = [:] // ✓ Swift-only: selection acceleration table layered beside Z's renderer tree.
 
     init(rootItem: AnyObject, dataSource: TreemapViewRendererDataSource, delegate: TreemapViewRendererDelegate?) { // ✓ Z: TreeMapView.m:35 initWithFrame: plus TreeMapView.m:125 setDataSource: and TreeMapView.m:101 setDelegate:.
         self.rootItem = rootItem // ✓ Swift-only: stores explicit Swift root replacing Z's nil-root convention from TreeMapView.h:78.
@@ -85,6 +86,14 @@ nonisolated final class TreemapViewRenderer: @unchecked Sendable { // ✓ Z: Tre
         } // ✓ Z: TreeMapView.m:364-365 closes found-renderer branch.
     } // ✓ Z: TreeMapView.m:366 closes selectItemByPathToItem:.
 
+    func selectItem(byRenderedItem item: AnyObject) -> Bool { // ✓ Swift-only: direct item selection for SwiftUI/AppKit synchronization.
+        guard let renderer: TreemapItemRenderer = rendererIndex[ObjectIdentifier(item)] else { // ✓ Swift-only: index may be empty before first layout pass.
+            return false // ✓ Swift-only: caller can fall back to Z's path walk.
+        } // ✓ Swift-only: closes direct-index miss guard.
+        selectItem(by: renderer) // ✓ Swift-only: selects the translated TMVItem equivalent found by pointer identity.
+        return true // ✓ Swift-only: reports that direct selection succeeded.
+    } // ✓ Swift-only: closes direct rendered-item selection helper.
+
     func itemRect(by cellID: TreemapCellID?) -> NSRect { // ✓ Z: TreeMapView.m:368 - itemRectByCellId:.
         if let cellID: TreemapCellID = cellID { // ✓ Z: TreeMapView.m:372 if (cellId != nil).
             return cellID.rect // ✓ Z: TreeMapView.m:375 return converted [cellId rect].
@@ -105,8 +114,16 @@ nonisolated final class TreemapViewRenderer: @unchecked Sendable { // ✓ Z: Tre
 
     func calcLayout(_ bounds: NSRect) { // ✓ Z: TreeMapView.m:189-192 updateLayout branch calls [_rootItemRenderer calcLayout:viewBounds].
         rootItemRenderer?.calcLayout(bounds) // ✓ Z: TreeMapView.m:192 [_rootItemRenderer calcLayout:viewBounds].
+        rebuildRendererIndex() // ✓ Swift-only: keeps the direct selection index aligned with the latest translated TMVItem tree.
         deallocContentCache() // ✓ Z: TreeMapView.m:194 [self deallocContentCache].
     } // ✓ Swift-only: closes extracted layout helper for non-NSView integration.
+
+    func layoutDiagnosticsRows() -> [[String: Any]] { // ✓ Swift-only: exposes the translated TMVItem rectangle tree for Z parity comparison.
+        var rows: [[String: Any]] = [] // ✓ Swift-only: JSON-compatible diagnostic row buffer.
+        var sequence: Int = 0 // ✓ Swift-only: preorder renderer row counter.
+        rootItemRenderer?.appendLayoutDiagnostics(to: &rows, depth: 0, childIndex: 0, sequence: &sequence) // ✓ Swift-only: starts diagnostic traversal at root renderer.
+        return rows // ✓ Swift-only: returns diagnostic rows to the file writer.
+    } // ✓ Swift-only: closes layout diagnostic row accessor.
 
     func drawInCache(size: NSSize, scale: CGFloat = 1, colorSpace: NSColorSpace? = nil) -> NSBitmapImageRep? { // ✓ Z: TreeMapView.m:659 - drawInCache.
         if cachedContent != nil { // ✓ Z: TreeMapView.m:661 if (_cachedContent != nil).
@@ -133,6 +150,11 @@ nonisolated final class TreemapViewRenderer: @unchecked Sendable { // ✓ Z: Tre
             cachedContent = nil // ✓ Z: TreeMapView.m:683-684 release and nil _cachedContent.
         } // ✓ Z: TreeMapView.m:681-685 closes cache-release branch.
     } // ✓ Z: TreeMapView.m:686 closes deallocContentCache.
+
+    private func rebuildRendererIndex() { // ✓ Swift-only: rebuilds direct selection lookup after Z-style layout creates/refreshes renderer geometry.
+        rendererIndex.removeAll(keepingCapacity: true) // ✓ Swift-only: clears stale renderer identities before repopulating.
+        rootItemRenderer?.appendRendererIndex(to: &rendererIndex) // ✓ Swift-only: indexes the root translated TMVItem tree.
+    } // ✓ Swift-only: closes renderer-index rebuild helper.
 
     private func findTreemapItem(byPathToDataItem path: [AnyObject]) -> TreemapItemRenderer? { // ✓ Z: TreeMapView.m:688 - findTMVItemByPathToDataItem:.
         if rootItemRenderer == nil { // ✓ Z: TreeMapView.m:690 if (_rootItemRenderer == nil).

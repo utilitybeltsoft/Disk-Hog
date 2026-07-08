@@ -62,6 +62,7 @@ struct ScanWindowRegistrationView: NSViewRepresentable {
 final class ScanWindowRegistrationNSView: NSView {
     var source: ScanSource
     private weak var registeredWindow: NSWindow?
+    private var didScheduleInitialWindowSize: Bool = false
 
     init(source: ScanSource) {
         self.source = source
@@ -85,6 +86,7 @@ final class ScanWindowRegistrationNSView: NSView {
             return
         }
 
+        scheduleInitialWindowSizeIfNeeded(for: window)
         ScanWindowRegistry.shared.register(window, for: source)
         registeredWindow = window
     }
@@ -98,4 +100,62 @@ final class ScanWindowRegistrationNSView: NSView {
 
         super.viewWillMove(toWindow: newWindow)
     }
+
+    private func scheduleInitialWindowSizeIfNeeded(for window: NSWindow) {
+        guard didScheduleInitialWindowSize == false else {
+            return
+        }
+
+        didScheduleInitialWindowSize = true
+        applyInitialWindowSize(to: window, attempt: 0)
+        DispatchQueue.main.async { [weak window] in
+            guard let window: NSWindow = window else {
+                return
+            }
+
+            self.applyInitialWindowSize(to: window, attempt: 1)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + ScanWindowInitialGeometry.restorationDelay) { [weak window] in
+            guard let window: NSWindow = window else {
+                return
+            }
+
+            self.applyInitialWindowSize(to: window, attempt: 2)
+        }
+    }
+
+    private func applyInitialWindowSize(to window: NSWindow, attempt: Int) {
+        window.minSize = window.frameRect(forContentRect: NSRect(origin: .zero, size: ScanWindowInitialGeometry.minimumContentSize)).size
+        window.setContentSize(ScanWindowInitialGeometry.contentSize)
+        writeWindowFrameDiagnostics(window: window, attempt: attempt)
+    }
+
+    private func writeWindowFrameDiagnostics(window: NSWindow, attempt: Int) {
+        let contentRect: NSRect = window.contentLayoutRect
+        let frameRect: NSRect = window.frame
+        let diagnostics: [String: Any] = [
+            "app": "Disk Hog",
+            "recordType": "scan-window-frame",
+            "attempt": attempt,
+            "contentWidth": Double(contentRect.width),
+            "contentHeight": Double(contentRect.height),
+            "frameWidth": Double(frameRect.width),
+            "frameHeight": Double(frameRect.height),
+            "timestamp": Date().timeIntervalSince1970
+        ]
+
+        do {
+            let data: Data = try JSONSerialization.data(withJSONObject: diagnostics, options: [.prettyPrinted, .sortedKeys])
+            try data.write(to: ScanWindowInitialGeometry.diagnosticsURL, options: .atomic)
+        } catch {
+            NSLog("Disk Hog scan window frame diagnostics failed: \(String(describing: error))")
+        }
+    }
+}
+
+private enum ScanWindowInitialGeometry {
+    static let contentSize: NSSize = NSSize(width: 837, height: 1080)
+    static let minimumContentSize: NSSize = NSSize(width: 837, height: 1080)
+    static let restorationDelay: TimeInterval = 0.15
+    static let diagnosticsURL: URL = URL(fileURLWithPath: "/tmp/diskhog-scan-window-frame.json")
 }
