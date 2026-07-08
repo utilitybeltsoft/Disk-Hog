@@ -1600,21 +1600,21 @@ private struct ZStatusFieldsView: View {
             HStack(alignment: .top, spacing: Metrics.statusFieldControlSpacing) {
                 VStack(alignment: .leading, spacing: Metrics.statusFieldSpacing) {
                     Text(selectedStatusLine)
-                        .lineLimit(Metrics.singleLineLimit)
+                        .lineLimit(1)
                         .truncationMode(.middle)
                         .textSelection(.enabled)
                     if let hoverStatusLine: String = hoverStatusLine {
                         Text(hoverStatusLine)
-                            .lineLimit(Metrics.singleLineLimit)
+                            .lineLimit(1)
                             .truncationMode(.middle)
                             .textSelection(.enabled)
                     }
                     Text(progressSummary(referenceDate: context.date))
-                        .lineLimit(Metrics.singleLineLimit)
+                        .lineLimit(1)
                         .truncationMode(.middle)
                         .textSelection(.enabled)
                     Text(scanTotalsSummary(referenceDate: context.date))
-                        .lineLimit(Metrics.singleLineLimit)
+                        .lineLimit(1)
                         .truncationMode(.middle)
                         .textSelection(.enabled)
                 }
@@ -1743,7 +1743,6 @@ private enum ScanWindowMetrics {
     static let treemapSelectionOuterLineWidth: CGFloat = 5
     static let treemapSelectionMiddleLineWidth: CGFloat = 3
     static let treemapSelectionInnerLineWidth: CGFloat = 1
-    static let singleLineLimit: Int = 1
     static let statusFieldSpacing: CGFloat = 2
     static let statusFieldControlSpacing: CGFloat = 8
     static let statusFieldFontSize: CGFloat = 11

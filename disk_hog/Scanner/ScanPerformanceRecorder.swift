@@ -45,13 +45,13 @@ nonisolated final class ScanPerformanceRecorder: @unchecked Sendable {
         lock.lock()
         var metric: ScanPerformanceMetric = metrics[metricName] ?? ScanPerformanceMetric()
         metric.seconds += seconds
-        metric.count += Metrics.singleCount
+        metric.count += 1
         metrics[metricName] = metric
         lock.unlock()
         #endif
     }
 
-    func addCount(_ metricName: String, count: UInt64 = Metrics.singleCount) {
+    func addCount(_ metricName: String, count: UInt64 = 1) {
         #if SCAN_PERFORMANCE_PROFILING
         lock.lock()
         var metric: ScanPerformanceMetric = metrics[metricName] ?? ScanPerformanceMetric()
@@ -137,7 +137,6 @@ nonisolated private struct ScanPerformanceMetric: Encodable {
 
 nonisolated private enum ScanPerformanceRecorderMetrics {
     static let schemaName: String = "diskhog-scan-profile-v1"
-    static let singleCount: UInt64 = 1
 }
 
 private typealias Metrics = ScanPerformanceRecorderMetrics

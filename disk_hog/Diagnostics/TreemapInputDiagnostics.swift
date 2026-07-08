@@ -47,8 +47,8 @@ nonisolated enum TreemapInputDiagnostics {
             root,
             parent: nil,
             displayFolderPath: Metrics.emptyDisplayPath,
-            depth: Metrics.rootDepth,
-            childIndex: Metrics.rootChildIndex,
+            depth: 0,
+            childIndex: 0,
             lineNumber: &lineNumber,
             palette: palette,
             writeLine: writeLine
@@ -72,7 +72,7 @@ nonisolated enum TreemapInputDiagnostics {
             displayFolderPath: displayFolderPath,
             displayName: displayName
         )
-        lineNumber += Metrics.lineIncrement
+        lineNumber += 1
         try writeLine(
             jsonData(
                 for: itemDictionary(
@@ -97,7 +97,7 @@ nonisolated enum TreemapInputDiagnostics {
                 item.child(at: index),
                 parent: item,
                 displayFolderPath: displayPath,
-                depth: depth + Metrics.depthIncrement,
+                depth: depth + 1,
                 childIndex: index,
                 lineNumber: &lineNumber,
                 palette: palette,
@@ -143,7 +143,7 @@ nonisolated enum TreemapInputDiagnostics {
             "displayName": displayName,
             "displayPath": displayPath,
             "isFolder": item.isFolder,
-            "isLeafForTreemap": isTreemapNode ? Metrics.falseInteger : Metrics.trueInteger,
+            "isLeafForTreemap": isTreemapNode ? 0 : 1,
             "isNodeForTreemap": isTreemapNode,
             "isPackage": item.isPackage,
             "isSpecialItem": item.isSpecialItem,
@@ -432,12 +432,6 @@ private nonisolated enum TreemapInputDiagnosticsMetrics {
     static let emptyDisplayPath: String = ""
     static let jsonEncodingFailureData: Data = Data("{\"recordType\":\"error\",\"message\":\"JSON encoding failed\"}".utf8)
     static let newlineData: Data = Data("\n".utf8)
-    static let falseInteger: Int = 0
-    static let trueInteger: Int = 1
-    static let rootDepth: Int = 0
-    static let rootChildIndex: Int = 0
-    static let depthIncrement: Int = 1
-    static let lineIncrement: Int = 1
 }
 
 private nonisolated enum DiskInventoryZDiagnosticPaletteMetrics {

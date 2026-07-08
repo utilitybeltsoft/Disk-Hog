@@ -29,7 +29,7 @@ struct SourcePaletteView: View {
                             ForEach(Array(filteredSources.enumerated()), id: \.element.id) { index, source in
                                 SourceTableRowView(
                                     source: source,
-                                    isAlternateRow: index.isMultiple(of: Metrics.alternateRowModulo) == false,
+                                    isAlternateRow: index.isMultiple(of: 2) == false,
                                     isSelected: selectedSourceID == source.id
                                 )
                                 .contentShape(Rectangle())
@@ -303,7 +303,7 @@ private final class SourceRowClickCatcherNSView: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
-        if event.clickCount >= SourcePaletteMetrics.doubleClickCount {
+        if event.clickCount >= 2 {
             pendingSingleClick?.cancel()
             pendingSingleClick = nil
             onDoubleClick()
@@ -327,7 +327,7 @@ private struct ButtonLabel: View {
     var body: some View {
         Label(title, systemImage: systemImage)
             .font(.system(size: Metrics.standardFontSize))
-            .lineLimit(Metrics.singleLineLimit)
+            .lineLimit(1)
     }
 }
 
@@ -460,11 +460,11 @@ private struct SourceTableRowView: View {
                 VStack(alignment: .leading, spacing: Metrics.sourceTextSpacing) {
                     Text(source.displayName)
                         .font(.system(size: Metrics.standardFontSize))
-                        .lineLimit(Metrics.singleLineLimit)
+                        .lineLimit(1)
                     Text(subtitle)
                         .font(.system(size: Metrics.standardFontSize))
                         .foregroundStyle(.secondary)
-                        .lineLimit(Metrics.singleLineLimit)
+                        .lineLimit(1)
                         .truncationMode(.middle)
                 }
             }
@@ -632,7 +632,6 @@ enum SourcePaletteMetrics {
     static let sizeColumnWidth: CGFloat = 88
     static let percentColumnWidth: CGFloat = 52
     static let usageColumnWidth: CGFloat = 96
-    static let alternateRowModulo: Int = 2
     static let selectionOpacity: CGFloat = 0.22
     static let listCornerRadius: CGFloat = 4
     static let usageBarHeight: CGFloat = 8
@@ -650,8 +649,6 @@ enum SourcePaletteMetrics {
     static let scanSettingsDescriptionSpacing: CGFloat = 2
     static let scanSettingsDescriptionIndent: CGFloat = 18
     static let scanSettingsWidth: CGFloat = 380
-    static let singleLineLimit: Int = 1
-    static let doubleClickCount: Int = 2
 }
 
 private typealias Metrics = SourcePaletteMetrics
