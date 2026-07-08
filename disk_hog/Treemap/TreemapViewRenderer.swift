@@ -52,12 +52,16 @@ nonisolated final class TreemapViewRenderer: @unchecked Sendable { // ✓ Z: Tre
         deallocContentCache() // ✓ Z: TreeMapView.m:405 [self deallocContentCache].
         selectedRenderer = nil // ✓ Z: TreeMapView.m:407 _selectedRenderer = nil.
         touchedRenderer = nil // ✓ Z: TreeMapView.m:408 _touchedRenderer = nil.
-        guard let dataSource: TreemapViewRendererDataSource = dataSource else { return } // ✓ Swift-only: weak data source can be nil after owner lifetime; reload cannot proceed.
+        guard let dataSource: TreemapViewRendererDataSource = dataSource else { // ✓ Swift-only: weak data source can be nil after owner lifetime; reload cannot proceed.
+            rendererIndex.removeAll(keepingCapacity: false) // ✓ Swift-only: clears stale direct selection lookup when the renderer tree cannot be rebuilt.
+            return // ✓ Swift-only: exits reload with no data source available.
+        } // ✓ Swift-only: closes weak data-source guard.
         if rootItemRenderer == nil { // ✓ Z: TreeMapView.m:410 if (_rootItemRenderer == nil).
             rootItemRenderer = TreemapItemRenderer(dataSource: dataSource, delegate: delegate, renderedItem: rootItem) // ✓ Z: TreeMapView.m:412-415 alloc initWithDataSource:delegate:renderedItem:nil treeMapView:self.
         } else { // ✓ Z: TreeMapView.m:417 else.
             rootItemRenderer?.refresh(with: rootItem) // ✓ Z: TreeMapView.m:418 [_rootItemRenderer refreshWithItem:nil].
         } // ✓ Z: TreeMapView.m:410-418 closes root renderer create/refresh branch.
+        rebuildRendererIndex() // ✓ Swift-only: indexes the eager renderer tree once per data reload instead of on every layout pass.
     } // ✓ Z: TreeMapView.m:424 closes reloadData.
 
     func cellID(by point: NSPoint, inViewCoordinates viewCoordinates: Bool) -> TreemapCellID? { // ✓ Z: TreeMapView.m:320 cellIdByPoint:inViewCoords:.
@@ -114,7 +118,6 @@ nonisolated final class TreemapViewRenderer: @unchecked Sendable { // ✓ Z: Tre
 
     func calcLayout(_ bounds: NSRect) { // ✓ Z: TreeMapView.m:189-192 updateLayout branch calls [_rootItemRenderer calcLayout:viewBounds].
         rootItemRenderer?.calcLayout(bounds) // ✓ Z: TreeMapView.m:192 [_rootItemRenderer calcLayout:viewBounds].
-        rebuildRendererIndex() // ✓ Swift-only: keeps the direct selection index aligned with the latest translated TMVItem tree.
         deallocContentCache() // ✓ Z: TreeMapView.m:194 [self deallocContentCache].
     } // ✓ Swift-only: closes extracted layout helper for non-NSView integration.
 
@@ -151,7 +154,7 @@ nonisolated final class TreemapViewRenderer: @unchecked Sendable { // ✓ Z: Tre
         } // ✓ Z: TreeMapView.m:681-685 closes cache-release branch.
     } // ✓ Z: TreeMapView.m:686 closes deallocContentCache.
 
-    private func rebuildRendererIndex() { // ✓ Swift-only: rebuilds direct selection lookup after Z-style layout creates/refreshes renderer geometry.
+    private func rebuildRendererIndex() { // ✓ Swift-only: rebuilds direct selection lookup after Z-style reload creates/refreshes the eager renderer tree.
         rendererIndex.removeAll(keepingCapacity: true) // ✓ Swift-only: clears stale renderer identities before repopulating.
         rootItemRenderer?.appendRendererIndex(to: &rendererIndex) // ✓ Swift-only: indexes the root translated TMVItem tree.
     } // ✓ Swift-only: closes renderer-index rebuild helper.

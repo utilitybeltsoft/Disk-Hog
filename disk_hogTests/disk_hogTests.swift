@@ -178,6 +178,35 @@ struct TreemapDiskItemDataSourceTests {
     }
 }
 
+struct TreemapViewRendererTests {
+
+    @Test func renderedItemSelectionWorksImmediatelyAfterReload() {
+        let root: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan"),
+            isDirectory: true
+        )
+        let child: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/file.txt"),
+            allocatedSizeValue: 4096,
+            logicalSizeValue: 12,
+            kindName: "Plain Text"
+        )
+        root.appendChild(child)
+
+        let dataSource: TreemapDiskItemDataSource = TreemapDiskItemDataSource(rootItem: root)
+        let renderer: TreemapViewRenderer = TreemapViewRenderer(
+            rootItem: root,
+            dataSource: dataSource,
+            delegate: dataSource
+        )
+
+        renderer.reloadData()
+
+        #expect(renderer.selectItem(byRenderedItem: child) == true)
+        #expect(renderer.selectedItem === child)
+    }
+}
+
 struct DiskInventoryZScannerTests {
 
     @Test func concurrentScansKeepHardlinkDedupStateIsolated() async throws {
