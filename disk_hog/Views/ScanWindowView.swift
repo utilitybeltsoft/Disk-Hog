@@ -757,7 +757,7 @@ private struct KindsPaneView: View {
             return
         }
 
-        kindStatistics = TreemapDiskItemDataSource.kindStatistics(
+        kindStatistics = session.presentationMetrics?.kindStatistics ?? TreemapDiskItemDataSource.kindStatistics(
             for: rootItem,
             usePhysicalSize: session.scanSettings.usePhysicalSize
         )
@@ -1146,6 +1146,7 @@ private struct TreemapPanelView: View {
             AppKitTreemapView(
                 source: session.source,
                 rootItem: session.rootItem,
+                presentationMetrics: session.presentationMetrics,
                 selectionCoordinator: selectionCoordinator,
                 hoveredItem: hoveredItem,
                 activePane: activePane
@@ -1161,6 +1162,7 @@ private struct TreemapPanelView: View {
 private struct AppKitTreemapView: NSViewRepresentable {
     let source: ScanSource
     let rootItem: DiskItem?
+    let presentationMetrics: TreemapPresentationMetrics?
     let selectionCoordinator: ScanWindowSelectionCoordinator
     let hoveredItem: Binding<DiskItem?>
     let activePane: Binding<ScanWindowPane?>
@@ -1184,7 +1186,7 @@ private struct AppKitTreemapView: NSViewRepresentable {
         }
         context.coordinator.view = view
         context.coordinator.observeSelection()
-        view.configure(source: source, rootItem: rootItem, selectedItem: selectionCoordinator.selectedItem)
+        view.configure(source: source, rootItem: rootItem, presentationMetrics: presentationMetrics, selectedItem: selectionCoordinator.selectedItem)
         return view
     }
 
@@ -1192,7 +1194,7 @@ private struct AppKitTreemapView: NSViewRepresentable {
         context.coordinator.selectionCoordinator = selectionCoordinator
         context.coordinator.hoveredItem = hoveredItem
         context.coordinator.activePane = activePane
-        nsView.configure(source: source, rootItem: rootItem, selectedItem: selectionCoordinator.selectedItem)
+        nsView.configure(source: source, rootItem: rootItem, presentationMetrics: presentationMetrics, selectedItem: selectionCoordinator.selectedItem)
     }
 
     final class Coordinator {
@@ -1226,6 +1228,7 @@ private final class ZStyleTreemapNSView: NSView {
 
     private var source: ScanSource?
     private var rootItem: DiskItem?
+    private var presentationMetrics: TreemapPresentationMetrics?
     private var selectedItem: DiskItem?
     private var renderer: TreemapViewRenderer?
     private var rendererDataSource: TreemapDiskItemDataSource?
@@ -1239,11 +1242,12 @@ private final class ZStyleTreemapNSView: NSView {
         true
     }
 
-    func configure(source: ScanSource, rootItem: DiskItem?, selectedItem: DiskItem?) {
+    func configure(source: ScanSource, rootItem: DiskItem?, presentationMetrics: TreemapPresentationMetrics?, selectedItem: DiskItem?) {
         self.source = source
 
-        if self.rootItem !== rootItem {
+        if self.rootItem !== rootItem || self.presentationMetrics !== presentationMetrics {
             self.rootItem = rootItem
+            self.presentationMetrics = presentationMetrics
             rebuildRenderer()
         }
 
@@ -1402,7 +1406,8 @@ private final class ZStyleTreemapNSView: NSView {
 
         let dataSource: TreemapDiskItemDataSource = TreemapDiskItemDataSource(
             rootItem: rootItem,
-            usePhysicalSize: source?.scanSettings?.usePhysicalSize ?? DiskScanSettings.diskInventoryZDefault.usePhysicalSize
+            usePhysicalSize: source?.scanSettings?.usePhysicalSize ?? DiskScanSettings.diskInventoryZDefault.usePhysicalSize,
+            presentationMetrics: presentationMetrics
         )
         let renderer: TreemapViewRenderer = TreemapViewRenderer(
             rootItem: dataSource.root,

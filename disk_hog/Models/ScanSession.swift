@@ -14,6 +14,7 @@ final class ScanSession: ObservableObject {
     @Published private(set) var scannedByteCount: UInt64
     @Published private(set) var currentPath: String
     @Published private(set) var rootItem: DiskItem?
+    @Published private(set) var presentationMetrics: TreemapPresentationMetrics?
     @Published private(set) var errorMessage: String?
     #if FILE_MATCHING_DIAGNOSTICS
     @Published private(set) var diagnosticsExportState: DiagnosticsExportState
@@ -35,6 +36,7 @@ final class ScanSession: ObservableObject {
         self.scannedByteCount = 0
         self.currentPath = source.path
         self.rootItem = nil
+        self.presentationMetrics = nil
         self.errorMessage = nil
         #if FILE_MATCHING_DIAGNOSTICS
         self.diagnosticsExportState = .idle
@@ -64,6 +66,7 @@ final class ScanSession: ObservableObject {
         scannedByteCount = 0
         currentPath = source.path
         rootItem = nil
+        presentationMetrics = nil
         errorMessage = nil
 
         let source: ScanSource = source
@@ -92,9 +95,14 @@ final class ScanSession: ObservableObject {
                 progressContinuation.finish()
                 await progressTask.value
                 try Task.checkCancellation()
+                let presentationMetrics: TreemapPresentationMetrics = TreemapPresentationMetrics(
+                    rootItem: rootItem,
+                    usePhysicalSize: settings.usePhysicalSize
+                )
+                try Task.checkCancellation()
 
                 await MainActor.run {
-                    self.finishScan(rootItem: rootItem)
+                    self.finishScan(rootItem: rootItem, presentationMetrics: presentationMetrics)
                 }
             } catch is CancellationError {
                 progressContinuation.finish()
@@ -173,7 +181,8 @@ final class ScanSession: ObservableObject {
         currentPath = progress.currentPath
     }
 
-    private func finishScan(rootItem: DiskItem) {
+    private func finishScan(rootItem: DiskItem, presentationMetrics: TreemapPresentationMetrics) {
+        self.presentationMetrics = presentationMetrics
         self.rootItem = rootItem
         state = .complete
         completedAt = Date()
