@@ -1,45 +1,28 @@
 import AppKit
 
-typealias TreemapCellID = TreemapItemRenderer
-
-nonisolated protocol TreemapViewRendererDataSource: TreemapItemRendererDataSource {
-}
-
-nonisolated protocol TreemapViewRendererDelegate: TreemapItemRendererDelegate {
-    func treemapViewRendererShouldSelectItem(_ item: AnyObject) -> Bool
-}
-
-extension TreemapViewRendererDelegate {
-    func treemapViewRendererShouldSelectItem(_ item: AnyObject) -> Bool {
-        true
-    }
-}
-
 nonisolated final class TreemapViewRenderer: @unchecked Sendable {
     private var rootItemRenderer: TreemapItemRenderer?
-    private weak var delegate: TreemapViewRendererDelegate?
-    private weak var dataSource: TreemapViewRendererDataSource?
+    private weak var dataSource: TreemapDiskItemDataSource?
     private var selectedRenderer: TreemapItemRenderer?
     private var touchedRenderer: TreemapItemRenderer?
     private var cachedContent: NSBitmapImageRep?
-    private let rootItem: AnyObject
+    private let rootItem: DiskItem
     private var rendererIndex: [ObjectIdentifier: TreemapItemRenderer] = [:]
 
-    init(rootItem: AnyObject, dataSource: TreemapViewRendererDataSource, delegate: TreemapViewRendererDelegate?) {
-        self.rootItem = rootItem
+    init(dataSource: TreemapDiskItemDataSource) {
+        self.rootItem = dataSource.root
         self.dataSource = dataSource
-        self.delegate = delegate
     }
 
-    var selectedItem: AnyObject? {
+    var selectedItem: DiskItem? {
         selectedRenderer == nil ? nil : selectedRenderer!.item
     }
 
-    var selectedCellID: TreemapCellID? {
+    var selectedCellID: TreemapItemRenderer? {
         selectedRenderer
     }
 
-    var rootCellID: TreemapCellID? {
+    var rootCellID: TreemapItemRenderer? {
         rootItemRenderer
     }
 
@@ -52,37 +35,37 @@ nonisolated final class TreemapViewRenderer: @unchecked Sendable {
         deallocContentCache()
         selectedRenderer = nil
         touchedRenderer = nil
-        guard let dataSource: TreemapViewRendererDataSource = dataSource else {
+        guard let dataSource: TreemapDiskItemDataSource = dataSource else {
             rendererIndex.removeAll(keepingCapacity: false)
             return
         }
         if rootItemRenderer == nil {
-            rootItemRenderer = TreemapItemRenderer(dataSource: dataSource, delegate: delegate, renderedItem: rootItem)
+            rootItemRenderer = TreemapItemRenderer(dataSource: dataSource, renderedItem: rootItem)
         } else {
             rootItemRenderer?.refresh(with: rootItem)
         }
         rebuildRendererIndex()
     }
 
-    func cellID(by point: NSPoint, inViewCoordinates viewCoordinates: Bool) -> TreemapCellID? {
+    func cellID(by point: NSPoint, inViewCoordinates viewCoordinates: Bool) -> TreemapItemRenderer? {
         let rendererPoint: NSPoint = point
         _ = viewCoordinates
         return rootItemRenderer?.hitTest(rendererPoint)
     }
 
-    func item(by cellID: TreemapCellID) -> AnyObject {
+    func item(by cellID: TreemapItemRenderer) -> DiskItem {
         cellID.item
     }
 
-    func selectItem(by cellID: TreemapCellID?) {
+    func selectItem(by cellID: TreemapItemRenderer?) {
         guard cellID !== selectedRenderer else { return }
-        if let item: AnyObject = cellID?.item, delegate?.treemapViewRendererShouldSelectItem(item) == false {
+        if let item: DiskItem = cellID?.item, dataSource?.shouldSelect(item) == false {
             return
         }
         selectedRenderer = cellID
     }
 
-    func selectItem(byPathToItem path: [AnyObject]) {
+    func selectItem(byPathToItem path: [DiskItem]) {
         assert(path.count > 0, "path must contain at least 1 component")
         let rendererToSelect: TreemapItemRenderer? = findTreemapItem(byPathToDataItem: path)
         if rendererToSelect != nil {
@@ -90,7 +73,7 @@ nonisolated final class TreemapViewRenderer: @unchecked Sendable {
         }
     }
 
-    func selectItem(byRenderedItem item: AnyObject) -> Bool {
+    func selectItem(byRenderedItem item: DiskItem) -> Bool {
         guard let renderer: TreemapItemRenderer = rendererIndex[ObjectIdentifier(item)] else {
             return false
         }
@@ -98,15 +81,15 @@ nonisolated final class TreemapViewRenderer: @unchecked Sendable {
         return true
     }
 
-    func itemRect(by cellID: TreemapCellID?) -> NSRect {
-        if let cellID: TreemapCellID = cellID {
+    func itemRect(by cellID: TreemapItemRenderer?) -> NSRect {
+        if let cellID: TreemapItemRenderer = cellID {
             return cellID.rect
         } else {
             return .zero
         }
     }
 
-    func itemRect(byPathToItem path: [AnyObject]) -> NSRect {
+    func itemRect(byPathToItem path: [DiskItem]) -> NSRect {
         assert(path.count > 0, "path must contain at least 1 component")
         let renderer: TreemapItemRenderer? = findTreemapItem(byPathToDataItem: path)
         if let renderer: TreemapItemRenderer = renderer {
@@ -159,14 +142,14 @@ nonisolated final class TreemapViewRenderer: @unchecked Sendable {
         rootItemRenderer?.appendRendererIndex(to: &rendererIndex)
     }
 
-    private func findTreemapItem(byPathToDataItem path: [AnyObject]) -> TreemapItemRenderer? {
+    private func findTreemapItem(byPathToDataItem path: [DiskItem]) -> TreemapItemRenderer? {
         if rootItemRenderer == nil {
             return nil
         }
         assert(path.count > 0, "path must contain at least 1 component")
         var parent: TreemapItemRenderer = rootItemRenderer!
         var child: TreemapItemRenderer? = rootItemRenderer
-        for dataItem: AnyObject in path.dropFirst() {
+        for dataItem: DiskItem in path.dropFirst() {
             child = parent.childEnumerator.first { renderer in
                 renderer.item === dataItem
             }

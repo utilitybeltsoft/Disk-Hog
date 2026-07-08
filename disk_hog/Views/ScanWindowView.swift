@@ -1353,11 +1353,7 @@ private final class ZStyleTreemapNSView: NSView {
             usePhysicalSize: source?.scanSettings?.usePhysicalSize ?? DiskScanSettings.diskInventoryZDefault.usePhysicalSize,
             presentationMetrics: presentationMetrics
         )
-        let renderer: TreemapViewRenderer = TreemapViewRenderer(
-            rootItem: dataSource.root,
-            dataSource: dataSource,
-            delegate: dataSource
-        )
+        let renderer: TreemapViewRenderer = TreemapViewRenderer(dataSource: dataSource)
         renderer.reloadData()
         rendererDataSource = dataSource
         self.renderer = renderer
@@ -1374,7 +1370,7 @@ private final class ZStyleTreemapNSView: NSView {
         }
 
         if renderer?.selectItem(byRenderedItem: item) == false {
-            let path: [AnyObject] = item.pathFromRoot().map { $0 as AnyObject }
+            let path: [DiskItem] = item.pathFromRoot()
             renderer?.selectItem(byPathToItem: path)
         }
     }
@@ -1403,7 +1399,7 @@ private final class ZStyleTreemapNSView: NSView {
     }
 
     private func drawSelection() {
-        guard let selectedCellID: TreemapCellID = renderer?.selectedCellID else {
+        guard let selectedCellID: TreemapItemRenderer = renderer?.selectedCellID else {
             return
         }
 
@@ -1436,8 +1432,8 @@ private final class ZStyleTreemapNSView: NSView {
 
     private func hitResult(for windowLocation: NSPoint) -> TreemapHitResult? {
         let point: NSPoint = convert(windowLocation, from: nil)
-        guard let cellID: TreemapCellID = renderer?.cellID(by: point, inViewCoordinates: false),
-              let item: DiskItem = renderer?.item(by: cellID) as? DiskItem,
+        guard let cellID: TreemapItemRenderer = renderer?.cellID(by: point, inViewCoordinates: false),
+              let item: DiskItem = renderer?.item(by: cellID),
               !item.isSpecialItem else {
             return nil
         }
@@ -1556,11 +1552,7 @@ private final class ZStyleTreemapNSView: NSView {
 
         let size: CGSize = CGSize(width: width, height: height)
         let dataSource: TreemapDiskItemDataSource = TreemapDiskItemDataSource(rootItem: rootItem)
-        let renderer: TreemapViewRenderer = TreemapViewRenderer(
-            rootItem: dataSource.root,
-            dataSource: dataSource,
-            delegate: dataSource
-        )
+        let renderer: TreemapViewRenderer = TreemapViewRenderer(dataSource: dataSource)
         renderer.reloadData()
         renderer.calcLayout(NSRect(origin: .zero, size: size))
         writeTreemapLayoutDiagnostics(
@@ -1595,7 +1587,7 @@ private final class ZStyleTreemapNSView: NSView {
 
 private struct TreemapHitResult {
     let item: DiskItem
-    let cellID: TreemapCellID
+    let cellID: TreemapItemRenderer
 }
 
 private struct ZStatusFieldsView: View {

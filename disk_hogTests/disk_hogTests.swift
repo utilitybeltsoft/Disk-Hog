@@ -168,8 +168,8 @@ struct TreemapDiskItemDataSourceTests {
             usePhysicalSize: false
         )
 
-        #expect(physicalDataSource.treemapItemRendererWeight(of: root) == 4096)
-        #expect(logicalDataSource.treemapItemRendererWeight(of: root) == 12)
+        #expect(physicalDataSource.weight(of: root) == 4096)
+        #expect(logicalDataSource.weight(of: root) == 12)
     }
 
     @Test func kindStatisticsUseSelectedPhysicalOrLogicalSizeMode() {
@@ -215,11 +215,7 @@ struct TreemapViewRendererTests {
         root.appendChild(child)
 
         let dataSource: TreemapDiskItemDataSource = TreemapDiskItemDataSource(rootItem: root)
-        let renderer: TreemapViewRenderer = TreemapViewRenderer(
-            rootItem: root,
-            dataSource: dataSource,
-            delegate: dataSource
-        )
+        let renderer: TreemapViewRenderer = TreemapViewRenderer(dataSource: dataSource)
 
         renderer.reloadData()
 

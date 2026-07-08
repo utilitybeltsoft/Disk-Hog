@@ -1,6 +1,6 @@
 import AppKit
 
-nonisolated final class TreemapDiskItemDataSource: TreemapViewRendererDataSource, TreemapViewRendererDelegate, @unchecked Sendable {
+nonisolated final class TreemapDiskItemDataSource: @unchecked Sendable {
     private let rootItem: DiskItem
     private let showFreeSpace: Bool
     private let showOtherSpace: Bool
@@ -27,28 +27,25 @@ nonisolated final class TreemapDiskItemDataSource: TreemapViewRendererDataSource
         TreemapPresentationMetrics(rootItem: rootItem, usePhysicalSize: usePhysicalSize).kindStatistics
     }
 
-    func treemapItemRendererChild(_ index: Int, of item: AnyObject) -> AnyObject {
-        let diskItem: DiskItem = itemAsDiskItem(item)
-        if diskItem === rootItem && index >= diskItem.childCount {
-            if (index - diskItem.childCount) == 0 {
-                return (showOtherSpace ? otherSpaceItem : freeSpaceItem) ?? diskItem
+    func child(_ index: Int, of item: DiskItem) -> DiskItem {
+        if item === rootItem && index >= item.childCount {
+            if (index - item.childCount) == 0 {
+                return (showOtherSpace ? otherSpaceItem : freeSpaceItem) ?? item
             } else {
-                return freeSpaceItem ?? diskItem
+                return freeSpaceItem ?? item
             }
         } else {
-            return diskItem.child(at: index)
+            return item.child(at: index)
         }
     }
 
-    func treemapItemRendererIsNode(_ item: AnyObject) -> Bool {
-        let diskItem: DiskItem = itemAsDiskItem(item)
-        return !diskItem.isSpecialItem && itemIsNode(diskItem)
+    func isNode(_ item: DiskItem) -> Bool {
+        !item.isSpecialItem && item.isFolder && !item.isPackage
     }
 
-    func treemapItemRendererNumberOfChildren(of item: AnyObject) -> Int {
-        let diskItem: DiskItem = itemAsDiskItem(item)
-        var childCount: Int = diskItem.childCount
-        if diskItem === rootItem {
+    func numberOfChildren(of item: DiskItem) -> Int {
+        var childCount: Int = item.childCount
+        if item === rootItem {
             if showFreeSpace {
                 childCount += 1
             }
@@ -59,10 +56,9 @@ nonisolated final class TreemapDiskItemDataSource: TreemapViewRendererDataSource
         return childCount
     }
 
-    func treemapItemRendererWeight(of item: AnyObject) -> UInt64 {
-        let diskItem: DiskItem = itemAsDiskItem(item)
-        var size: UInt64 = diskItem.sizeValue(usePhysicalSize: usePhysicalSize)
-        if diskItem === rootItem {
+    func weight(of item: DiskItem) -> UInt64 {
+        var size: UInt64 = item.sizeValue(usePhysicalSize: usePhysicalSize)
+        if item === rootItem {
             if showFreeSpace, let freeSpaceItem: DiskItem = freeSpaceItem {
                 size += freeSpaceItem.sizeValue(usePhysicalSize: usePhysicalSize)
             }
@@ -73,22 +69,13 @@ nonisolated final class TreemapDiskItemDataSource: TreemapViewRendererDataSource
         return size
     }
 
-    func treemapItemRendererWillDisplay(_ item: AnyObject, with renderer: TreemapItemRenderer) {
-        let diskItem: DiskItem = itemAsDiskItem(item)
-        let color: NSColor = colorTable.color(for: diskItem)
+    func prepareRenderer(_ renderer: TreemapItemRenderer, for item: DiskItem) {
+        let color: NSColor = colorTable.color(for: item)
         renderer.setCushionColor(color)
     }
 
-    func treemapViewRendererShouldSelectItem(_ item: AnyObject) -> Bool {
-        !itemAsDiskItem(item).isSpecialItem
-    }
-
-    private func itemAsDiskItem(_ item: AnyObject) -> DiskItem {
-        item as! DiskItem
-    }
-
-    private func itemIsNode(_ item: DiskItem) -> Bool {
-        item.isFolder && !item.isPackage
+    func shouldSelect(_ item: DiskItem) -> Bool {
+        !item.isSpecialItem
     }
 }
 
