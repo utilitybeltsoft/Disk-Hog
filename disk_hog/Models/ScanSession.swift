@@ -68,6 +68,16 @@ final class ScanSession: ObservableObject {
 
         let source: ScanSource = source
         let settings: DiskScanSettings = settings
+        let progressStream: AsyncStream<DiskScanProgress>
+        let progressContinuation: AsyncStream<DiskScanProgress>.Continuation
+
+        (progressStream, progressContinuation) = AsyncStream.makeStream(of: DiskScanProgress.self)
+
+        let progressTask: Task<Void, Never> = Task { [weak self] in
+            for await progress: DiskScanProgress in progressStream {
+                self?.applyProgress(progress)
+            }
+        }
 
         scanTask = Task.detached(priority: .userInitiated) {
             do {
@@ -76,21 +86,25 @@ final class ScanSession: ObservableObject {
                     source: source,
                     settings: settings
                 ) { progress in
-                    Task { @MainActor in
-                        self.applyProgress(progress)
-                    }
+                    progressContinuation.yield(progress)
                 }
 
+                progressContinuation.finish()
+                await progressTask.value
                 try Task.checkCancellation()
 
                 await MainActor.run {
                     self.finishScan(rootItem: rootItem)
                 }
             } catch is CancellationError {
+                progressContinuation.finish()
+                await progressTask.value
                 await MainActor.run {
                     self.finishCancellation()
                 }
             } catch {
+                progressContinuation.finish()
+                await progressTask.value
                 await MainActor.run {
                     self.finishFailure(error)
                 }
