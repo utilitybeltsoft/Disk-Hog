@@ -1703,7 +1703,7 @@ private enum ScanWindowMetrics {
     static let topPanePreferredFraction: CGFloat = 460.0 / 930.0
     static let treemapMinimumWidth: CGFloat = 817
     static let treemapMinimumHeight: CGFloat = 300
-    static let splitAreaMinimumHeight: CGFloat = 930
+    static let splitAreaMinimumHeight: CGFloat = topPaneMinimumHeight + treemapMinimumHeight
     static let windowMinimumWidth: CGFloat = ScanWindowGeometry.minimumWidth
     static let windowMinimumHeight: CGFloat = ScanWindowGeometry.minimumHeight
     static let mainSplitHorizontalPadding: CGFloat = 10
