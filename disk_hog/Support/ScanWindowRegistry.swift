@@ -130,7 +130,16 @@ final class ScanWindowRegistrationNSView: NSView {
 }
 
 private enum ScanWindowInitialGeometry {
-    static let contentSize: NSSize = NSSize(width: 837, height: 1080)
-    static let minimumContentSize: NSSize = NSSize(width: 837, height: 1080)
+    static let contentSize: NSSize = ScanWindowGeometry.defaultContentSize
+    static let minimumContentSize: NSSize = ScanWindowGeometry.minimumContentSize
     static let restorationDelay: TimeInterval = 0.15
+}
+
+nonisolated enum ScanWindowGeometry {
+    static let defaultContentSize: NSSize = NSSize(width: 837, height: 1080)
+    static let minimumContentSize: NSSize = defaultContentSize
+    static let defaultWidth: CGFloat = defaultContentSize.width
+    static let defaultHeight: CGFloat = defaultContentSize.height
+    static let minimumWidth: CGFloat = minimumContentSize.width
+    static let minimumHeight: CGFloat = minimumContentSize.height
 }

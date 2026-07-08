@@ -327,18 +327,12 @@ private struct FilesPaneView: View {
     @Environment(\.activeScanWindowPane) private var activePane
 
     var body: some View {
-        Group {
-            if let rootItem: DiskItem = session.rootItem {
-                DiskItemOutlineView(
-                    rootItem: rootItem,
-                    usePhysicalSize: session.scanSettings.usePhysicalSize,
-                    selectionCoordinator: selectionCoordinator,
-                    activePane: activePane
-                )
-            } else {
-                EmptyDiskItemOutlineView()
-            }
-        }
+        DiskItemOutlineView(
+            rootItem: session.rootItem,
+            usePhysicalSize: session.scanSettings.usePhysicalSize,
+            selectionCoordinator: selectionCoordinator,
+            activePane: activePane
+        )
         .background(Color(nsColor: .controlBackgroundColor))
         .overlay {
             PaneBorderView(isActive: activePane.wrappedValue == .files)
@@ -347,7 +341,7 @@ private struct FilesPaneView: View {
 }
 
 private struct DiskItemOutlineView: NSViewRepresentable {
-    let rootItem: DiskItem
+    let rootItem: DiskItem?
     let usePhysicalSize: Bool
     let selectionCoordinator: ScanWindowSelectionCoordinator
     let activePane: Binding<ScanWindowPane?>
@@ -437,7 +431,7 @@ private struct DiskItemOutlineView: NSViewRepresentable {
             }
         }
 
-        func reloadIfNeeded(rootItem: DiskItem) {
+        func reloadIfNeeded(rootItem: DiskItem?) {
             guard self.rootItem !== rootItem else {
                 return
             }
@@ -445,10 +439,12 @@ private struct DiskItemOutlineView: NSViewRepresentable {
             reload(rootItem: rootItem)
         }
 
-        func reload(rootItem: DiskItem) {
+        func reload(rootItem: DiskItem?) {
             self.rootItem = rootItem
             outlineView?.reloadData()
-            outlineView?.expandItem(rootItem)
+            if let rootItem: DiskItem = rootItem {
+                outlineView?.expandItem(rootItem)
+            }
         }
 
         func updateSizeMode(_ usePhysicalSize: Bool) {
@@ -668,58 +664,6 @@ private struct DiskItemOutlineView: NSViewRepresentable {
     private enum CellID {
         static let name: NSUserInterfaceItemIdentifier = NSUserInterfaceItemIdentifier("nameCell")
         static let size: NSUserInterfaceItemIdentifier = NSUserInterfaceItemIdentifier("sizeCell")
-    }
-}
-
-private struct EmptyDiskItemOutlineView: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSScrollView {
-        let outlineView: NSOutlineView = NSOutlineView()
-        outlineView.headerView = NSTableHeaderView()
-        outlineView.rowHeight = Metrics.tableRowHeight
-        outlineView.intercellSpacing = NSSize(width: Metrics.tableIntercellWidth, height: Metrics.tableIntercellHeight)
-        outlineView.indentationPerLevel = Metrics.outlineIndentWidth
-        outlineView.allowsMultipleSelection = false
-        outlineView.columnAutoresizingStyle = .firstColumnOnlyAutoresizingStyle
-        outlineView.autoresizesOutlineColumn = true
-        outlineView.usesAlternatingRowBackgroundColors = false
-        outlineView.backgroundColor = .controlBackgroundColor
-        outlineView.delegate = context.coordinator
-        outlineView.dataSource = context.coordinator
-
-        let nameColumn: NSTableColumn = NSTableColumn(identifier: DiskItemOutlineView.ColumnID.name)
-        nameColumn.title = "Name"
-        nameColumn.minWidth = Metrics.outlineNameColumnMinimumWidth
-        nameColumn.resizingMask = [.autoresizingMask, .userResizingMask]
-        outlineView.addTableColumn(nameColumn)
-        outlineView.outlineTableColumn = nameColumn
-
-        let sizeColumn: NSTableColumn = NSTableColumn(identifier: DiskItemOutlineView.ColumnID.size)
-        sizeColumn.title = "Size"
-        sizeColumn.headerCell.alignment = .right
-        sizeColumn.width = Metrics.filesSizeColumnWidth
-        sizeColumn.minWidth = Metrics.filesSizeColumnWidth
-        sizeColumn.resizingMask = .userResizingMask
-        outlineView.addTableColumn(sizeColumn)
-
-        let scrollView: NSScrollView = NSScrollView()
-        scrollView.hasVerticalScroller = true
-        scrollView.hasHorizontalScroller = true
-        scrollView.autohidesScrollers = true
-        scrollView.borderType = .bezelBorder
-        scrollView.documentView = outlineView
-        return scrollView
-    }
-
-    func updateNSView(_ scrollView: NSScrollView, context: Context) {}
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
-    }
-
-    final class Coordinator: NSObject, NSOutlineViewDataSource, NSOutlineViewDelegate {
-        func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
-            0
-        }
     }
 }
 
@@ -1385,7 +1329,7 @@ private final class ZStyleTreemapNSView: NSView {
             return
         }
 
-        NSWorkspace.shared.open(item.url)
+        DiskItemWorkspaceActions.open(item)
     }
 
     @objc private func revealMenuItem(_ sender: NSMenuItem) {
@@ -1393,7 +1337,7 @@ private final class ZStyleTreemapNSView: NSView {
             return
         }
 
-        NSWorkspace.shared.activateFileViewerSelecting([item.url])
+        DiskItemWorkspaceActions.revealInFinder(item)
     }
 
     private func rebuildRenderer() {
@@ -1768,8 +1712,8 @@ private enum ScanWindowMetrics {
     static let treemapMinimumWidth: CGFloat = 817
     static let treemapMinimumHeight: CGFloat = 300
     static let splitAreaMinimumHeight: CGFloat = 930
-    static let windowMinimumWidth: CGFloat = 837
-    static let windowMinimumHeight: CGFloat = 1080
+    static let windowMinimumWidth: CGFloat = ScanWindowGeometry.minimumWidth
+    static let windowMinimumHeight: CGFloat = ScanWindowGeometry.minimumHeight
     static let mainSplitHorizontalPadding: CGFloat = 10
     static let tableRowHeight: CGFloat = 20
     static let tableCellHorizontalPadding: CGFloat = 3

@@ -80,6 +80,6 @@ private enum SourcePaletteWindowDefaults {
 }
 
 private enum ScanWindowDefaults {
-    static let width: CGFloat = 837
-    static let height: CGFloat = 1080
+    static let width: CGFloat = ScanWindowGeometry.defaultWidth
+    static let height: CGFloat = ScanWindowGeometry.defaultHeight
 }

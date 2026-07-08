@@ -183,24 +183,24 @@ nonisolated final class DiskInventoryZScanner {
     }
 
     private static func shouldSkipTopLevelURL(_ url: URL) -> Bool {
-        if url.path == "/Volumes" {
-            return true
-        }
-        let leaf: String = url.lastPathComponent
-        if leaf == ".nofollow" || leaf == ".resolve" {
-            return true
-        }
-        return false
+        shouldSkipURL(url)
     }
 
     private static func shouldSkipRecursiveURL(_ url: URL, enumerator: FileManager.DirectoryEnumerator) -> Bool {
+        guard shouldSkipURL(url) else {
+            return false
+        }
+
+        enumerator.skipDescendants()
+        return true
+    }
+
+    private static func shouldSkipURL(_ url: URL) -> Bool {
         if url.path == "/Volumes" {
-            enumerator.skipDescendants()
             return true
         }
         let leaf: String = url.lastPathComponent
         if leaf == ".nofollow" || leaf == ".resolve" {
-            enumerator.skipDescendants()
             return true
         }
         return false

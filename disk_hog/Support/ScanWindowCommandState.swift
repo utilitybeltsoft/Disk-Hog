@@ -46,7 +46,7 @@ final class ScanWindowCommandState: ObservableObject {
             return
         }
 
-        NSWorkspace.shared.open(selectedItem.url)
+        DiskItemWorkspaceActions.open(selectedItem)
     }
 
     func revealSelectedItemInFinder() {
@@ -54,7 +54,7 @@ final class ScanWindowCommandState: ObservableObject {
             return
         }
 
-        NSWorkspace.shared.activateFileViewerSelecting([selectedItem.url])
+        DiskItemWorkspaceActions.revealInFinder(selectedItem)
     }
 
     private func updateSelectedItemAvailability(_ item: DiskItem?) {
@@ -76,4 +76,15 @@ final class ScanWindowCommandState: ObservableObject {
         }
     }
     #endif
+}
+
+@MainActor
+enum DiskItemWorkspaceActions {
+    static func open(_ item: DiskItem) {
+        NSWorkspace.shared.open(item.url)
+    }
+
+    static func revealInFinder(_ item: DiskItem) {
+        NSWorkspace.shared.activateFileViewerSelecting([item.url])
+    }
 }
