@@ -22,13 +22,11 @@ final class ScanSession: ObservableObject {
     let source: ScanSource
 
     private let settings: DiskScanSettings
-    private let scanner: DiskInventoryZScanner
     private var scanTask: Task<Void, Never>?
 
     init(source: ScanSource) {
         self.source = source
         self.settings = source.scanSettings ?? .diskInventoryZDefault
-        self.scanner = DiskInventoryZScanner()
         self.state = .ready
         self.startedAt = nil
         self.completedAt = nil
@@ -70,10 +68,10 @@ final class ScanSession: ObservableObject {
 
         let source: ScanSource = source
         let settings: DiskScanSettings = settings
-        let scanner: DiskInventoryZScanner = scanner
 
         scanTask = Task.detached(priority: .userInitiated) {
             do {
+                let scanner: DiskInventoryZScanner = DiskInventoryZScanner()
                 let rootItem: DiskItem = try scanner.scan(
                     source: source,
                     settings: settings

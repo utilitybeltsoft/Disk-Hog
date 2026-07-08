@@ -2,12 +2,12 @@ import Foundation
 import UniformTypeIdentifiers
 
 
-nonisolated final class DiskInventoryZScanner: @unchecked Sendable {
+nonisolated final class DiskInventoryZScanner {
     typealias ProgressHandler = @Sendable (DiskScanProgress) -> Void
 
-    nonisolated(unsafe) private static var seenHardlinkInodes: NSMutableSet? = nil
-    nonisolated(unsafe) private static var firmlinkURLs: Set<URL>? = nil
-    nonisolated(unsafe) private static var kindNameByTypeIdentifier: [String: String] = [:]
+    private let seenHardlinkInodes: NSMutableSet = NSMutableSet()
+    private var kindNameByTypeIdentifier: [String: String] = [:]
+    private static let firmlinkURLs: Set<URL> = DiskInventoryZScanner.loadFirmlinks()
     private static let firmlinkListPath: String = "/usr/share/firmlinks"
     fileprivate static let progressRefreshInterval: TimeInterval = 0.25
 
@@ -42,8 +42,8 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable {
         let rootURL: URL = try source.resolvedURL()
         let didStartSecurityScopedAccess: Bool = rootURL.startAccessingSecurityScopedResource()
         defer { if didStartSecurityScopedAccess { rootURL.stopAccessingSecurityScopedResource() } }
-        Self.resetHardlinkDedup()
-        let rootItem: DiskItem = Self.makeItem(url: rootURL, parent: nil, values: nil)
+        resetHardlinkDedup()
+        let rootItem: DiskItem = makeItem(url: rootURL, parent: nil, values: nil)
         var progressState: ScanProgressState = ScanProgressState(currentPath: rootURL.path)
 
         progressHandler?(
@@ -68,13 +68,13 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable {
             }
 
             let values: URLResourceValues = try childURL.resourceValues(forKeys: Set(Self.topLevelResourceKeys))
-            let orphan: DiskItem = Self.makeItem(url: childURL, parent: rootItem, values: values)
+            let orphan: DiskItem = makeItem(url: childURL, parent: rootItem, values: values)
             let isDirectory: Bool = values.isDirectory ?? false
             let isPackage: Bool = values.isPackage ?? false
             let isVolume: Bool = values.isVolume ?? false
 
             if isDirectory && !isVolume && (!isPackage || settings.lookInsidePackages) {
-                try Self.loadChildren(of: orphan, settings: settings, progressState: &progressState, progressHandler: progressHandler)
+                try loadChildren(of: orphan, settings: settings, progressState: &progressState, progressHandler: progressHandler)
             } else if isDirectory && isPackage && !settings.lookInsidePackages {
                 let packageSize: UInt64 = try Self.topLevelOpaquePackageSize(url: childURL, usePhysicalSize: settings.usePhysicalSize)
                 orphan.allocatedSizeValue = packageSize
@@ -119,7 +119,7 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable {
         return false
     }
 
-    private static func loadChildren(
+    private func loadChildren(
         of item: DiskItem,
         settings: DiskScanSettings,
         progressState: inout ScanProgressState,
@@ -174,7 +174,7 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable {
             guard let parentItem: DiskItem = itemStack.last else {
                 throw DiskScannerError.zMethodNotPorted("FSItem.loadChildren missing parent")
             }
-            let currentItem: DiskItem = Self.makeItem(url: currentURL, parent: parentItem, values: currentValues)
+            let currentItem: DiskItem = makeItem(url: currentURL, parent: parentItem, values: currentValues)
             parentItem.appendChild(currentItem, updateSize: false)
             progressState.recordItem(currentItem)
             let isCurrentDirectory: Bool = currentValues.isDirectory ?? false
@@ -182,17 +182,17 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable {
                 let linkCount: Int? = currentValues.linkCount
                 if let linkCount: Int = linkCount, linkCount > 1 {
                     if let fileIdentifier: Any = currentValues.fileResourceIdentifier {
-                        if Self.seenHardlinkInodes?.contains(fileIdentifier) == true {
+                        if seenHardlinkInodes.contains(fileIdentifier) {
                             currentItem.isHardlinkDuplicate = true
                         } else {
-                            Self.seenHardlinkInodes?.add(fileIdentifier)
+                            seenHardlinkInodes.add(fileIdentifier)
                         }
                     }
                 }
             }
             if Self.isFirmlink(currentURL) {
                 directoryEnumerator.skipDescendants()
-                try Self.loadChildren(of: currentItem, settings: settings, progressState: &progressState, progressHandler: progressHandler)
+                try loadChildren(of: currentItem, settings: settings, progressState: &progressState, progressHandler: progressHandler)
             } else if currentValues.isVolume ?? false {
                 directoryEnumerator.skipDescendants()
             } else if (currentValues.isPackage ?? false) && !settings.lookInsidePackages {
@@ -211,12 +211,8 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable {
         item.recalculateSize(usePhysicalSize: settings.usePhysicalSize)
     }
 
-    private static func resetHardlinkDedup() {
-        if Self.seenHardlinkInodes == nil {
-            Self.seenHardlinkInodes = NSMutableSet()
-        } else {
-            Self.seenHardlinkInodes?.removeAllObjects()
-        }
+    private func resetHardlinkDedup() {
+        seenHardlinkInodes.removeAllObjects()
     }
 
     private static func topLevelOpaquePackageSize(url: URL, usePhysicalSize: Bool) throws -> UInt64 {
@@ -242,14 +238,10 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable {
     }
 
     private static func isFirmlink(_ url: URL) -> Bool {
-        Self.loadFirmlinksIfNeeded()
-        return Self.firmlinkURLs?.contains(url) ?? false
+        Self.firmlinkURLs.contains(url)
     }
 
-    private static func loadFirmlinksIfNeeded() {
-        if Self.firmlinkURLs != nil {
-            return
-        }
+    private static func loadFirmlinks() -> Set<URL> {
         var loadedFirmlinks: Set<URL> = []
         let fileContents: String? = try? String(contentsOfFile: Self.firmlinkListPath, encoding: .ascii)
         let allLines: [String] = fileContents?.components(separatedBy: .newlines) ?? []
@@ -263,17 +255,17 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable {
                 }
             }
         }
-        Self.firmlinkURLs = loadedFirmlinks
+        return loadedFirmlinks
     }
 
-    private static func makeItem(url: URL, parent: DiskItem?, values: URLResourceValues?) -> DiskItem {
+    private func makeItem(url: URL, parent: DiskItem?, values: URLResourceValues?) -> DiskItem {
         let isDirectory: Bool = values?.isDirectory ?? url.hasDirectoryPath
         let isPackage: Bool = values?.isPackage ?? false
         let isSymbolicLink: Bool = values?.isSymbolicLink ?? false
         let allocatedSize: UInt64 = UInt64(values?.totalFileAllocatedSize ?? 0)
         let logicalSize: UInt64 = UInt64(values?.fileSize ?? 0)
         let name: String = values?.name ?? (url.lastPathComponent.isEmpty ? url.path : url.lastPathComponent)
-        let kindName: String? = Self.kindName(for: url, values: values, isDirectory: isDirectory, isSymbolicLink: isSymbolicLink)
+        let kindName: String? = kindName(for: url, values: values, isDirectory: isDirectory, isSymbolicLink: isSymbolicLink)
         return DiskItem(
             url: url,
             parent: parent,
@@ -287,12 +279,12 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable {
         )
     }
 
-    private static func kindName(for url: URL, values: URLResourceValues?, isDirectory: Bool, isSymbolicLink: Bool) -> String? {
+    private func kindName(for url: URL, values: URLResourceValues?, isDirectory: Bool, isSymbolicLink: Bool) -> String? {
         let typeIdentifier: String? = values?.typeIdentifier ?? ((try? url.resourceValues(forKeys: [.typeIdentifierKey]))?.typeIdentifier)
         guard let typeIdentifier: String = typeIdentifier else {
             return Self.fallbackKindName(for: url, isDirectory: isDirectory, isSymbolicLink: isSymbolicLink)
         }
-        if let cachedKindName: String = Self.kindNameByTypeIdentifier[typeIdentifier] {
+        if let cachedKindName: String = kindNameByTypeIdentifier[typeIdentifier] {
             return cachedKindName
         }
         var resolvedKindName: String? = UTType(typeIdentifier)?.localizedDescription
@@ -300,7 +292,7 @@ nonisolated final class DiskInventoryZScanner: @unchecked Sendable {
             resolvedKindName = (try? url.resourceValues(forKeys: [.localizedTypeDescriptionKey]))?.localizedTypeDescription
         }
         if let resolvedKindName: String = resolvedKindName {
-            Self.kindNameByTypeIdentifier[typeIdentifier] = resolvedKindName
+            kindNameByTypeIdentifier[typeIdentifier] = resolvedKindName
         }
         return resolvedKindName ?? Self.fallbackKindName(for: url, isDirectory: isDirectory, isSymbolicLink: isSymbolicLink)
     }

@@ -117,3 +117,49 @@ struct DiskItemTests {
         #expect(file.displayPath == "scan/folder/file.txt")
     }
 }
+
+struct DiskInventoryZScannerTests {
+
+    @Test func concurrentScansKeepHardlinkDedupStateIsolated() async throws {
+        let firstRootURL: URL = try Self.makeHardlinkFixture(named: "first")
+        let secondRootURL: URL = try Self.makeHardlinkFixture(named: "second")
+        defer {
+            try? FileManager.default.removeItem(at: firstRootURL)
+            try? FileManager.default.removeItem(at: secondRootURL)
+        }
+
+        async let firstScan: DiskItem = DiskInventoryZScanner().scan(
+            source: ScanSource(path: firstRootURL.path, displayName: firstRootURL.lastPathComponent)
+        )
+        async let secondScan: DiskItem = DiskInventoryZScanner().scan(
+            source: ScanSource(path: secondRootURL.path, displayName: secondRootURL.lastPathComponent)
+        )
+
+        let firstRoot: DiskItem = try await firstScan
+        let secondRoot: DiskItem = try await secondScan
+
+        #expect(Self.hardlinkDuplicateCount(in: firstRoot) == 1)
+        #expect(Self.hardlinkDuplicateCount(in: secondRoot) == 1)
+    }
+
+    private static func makeHardlinkFixture(named name: String) throws -> URL {
+        let rootURL: URL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("disk-hog-\(name)-\(UUID().uuidString)", isDirectory: true)
+        let folderURL: URL = rootURL.appendingPathComponent("folder", isDirectory: true)
+        let originalURL: URL = folderURL.appendingPathComponent("original.dat")
+        let linkedURL: URL = folderURL.appendingPathComponent("linked.dat")
+
+        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        try Data(repeating: 0x5A, count: 4096).write(to: originalURL)
+        try FileManager.default.linkItem(at: originalURL, to: linkedURL)
+
+        return rootURL
+    }
+
+    private static func hardlinkDuplicateCount(in item: DiskItem) -> Int {
+        let currentCount: Int = item.isHardlinkDuplicate ? 1 : 0
+        return item.children.reduce(currentCount) { count, child in
+            count + hardlinkDuplicateCount(in: child)
+        }
+    }
+}
