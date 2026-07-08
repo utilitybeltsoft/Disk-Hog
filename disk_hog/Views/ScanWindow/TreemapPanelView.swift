@@ -184,11 +184,14 @@ private final class ZStyleTreemapNSView: NSView {
         if renderer?.rootCellID?.rect != viewBounds {
             renderer?.calcLayout(viewBounds)
             syncSelectionToRenderer()
-            Self.writeTreemapBoundsDiagnostics(rootItem: rootItem, size: viewBounds.size)
+            TreemapLayoutDiagnostics.writeBounds(rootItem: rootItem, size: viewBounds.size)
             #if TREEMAP_LAYOUT_DIAGNOSTICS
             if let renderer: TreemapViewRenderer = renderer {
-                Self.writeTreemapLayoutDiagnostics(rootItem: rootItem, size: viewBounds.size, renderer: renderer)
-                Self.writeTreemapLayoutDiagnosticsUsingZBoundsIfAvailable(rootItem: rootItem)
+                TreemapLayoutDiagnostics.writeLayout(rootItem: rootItem, size: viewBounds.size, renderer: renderer)
+                TreemapLayoutDiagnostics.writeLayoutUsingZBoundsIfAvailable(
+                    rootItem: rootItem,
+                    minimumRenderableSide: ScanWindowMetrics.minimumRenderableTreemapSide
+                )
             }
             #endif
         }
@@ -400,112 +403,6 @@ private final class ZStyleTreemapNSView: NSView {
         }
     }
 
-    private static func writeTreemapBoundsDiagnostics(rootItem: DiskItem, size: CGSize) {
-        #if TREEMAP_LAYOUT_DIAGNOSTICS
-        let diagnostics: [String: Any] = [
-            "app": "Disk Hog",
-            "recordType": "treemap-bounds",
-            "rootDisplayName": rootItem.displayName,
-            "rootPath": rootItem.path,
-            "pointX": 0,
-            "pointY": 0,
-            "pointWidth": Double(size.width),
-            "pointHeight": Double(size.height),
-            "layoutX": 0,
-            "layoutY": 0,
-            "layoutWidth": Double(size.width),
-            "layoutHeight": Double(size.height),
-            "pointAspect": size.height == 0 ? 0 : Double(size.width / size.height),
-            "layoutAspect": size.height == 0 ? 0 : Double(size.width / size.height),
-            "timestamp": Date().timeIntervalSince1970
-        ]
-        let outputURL: URL = URL(fileURLWithPath: "/tmp/diskhog-treemap-bounds.json")
-
-        do {
-            let data: Data = try JSONSerialization.data(
-                withJSONObject: diagnostics,
-                options: [.prettyPrinted, .sortedKeys]
-            )
-            try data.write(to: outputURL, options: .atomic)
-        } catch {
-            NSLog("Disk Hog treemap bounds diagnostics failed: \(String(describing: error))")
-        }
-        #endif
-    }
-
-    private static func writeTreemapLayoutDiagnostics(rootItem: DiskItem, size: CGSize, renderer: TreemapViewRenderer) {
-        let outputURL: URL = URL(fileURLWithPath: "/tmp/diskhog-treemap-layout.jsonl")
-        writeTreemapLayoutDiagnostics(rootItem: rootItem, size: size, renderer: renderer, outputURL: outputURL)
-    }
-
-    private static func writeTreemapLayoutDiagnostics(rootItem: DiskItem, size: CGSize, renderer: TreemapViewRenderer, outputURL: URL) {
-        var lines: [String] = []
-        let metadata: [String: Any] = [
-            "app": "Disk Hog",
-            "recordType": "metadata",
-            "rootDisplayName": rootItem.displayName,
-            "rootPath": rootItem.path,
-            "layoutWidth": Double(size.width),
-            "layoutHeight": Double(size.height),
-            "timestamp": Date().timeIntervalSince1970
-        ]
-
-        do {
-            lines.append(try jsonLine(for: metadata))
-            for row: [String: Any] in renderer.layoutDiagnosticsRows() {
-                lines.append(try jsonLine(for: row))
-            }
-            try lines.joined(separator: "\n").write(to: outputURL, atomically: true, encoding: .utf8)
-        } catch {
-            NSLog("Disk Hog treemap layout diagnostics failed: \(String(describing: error))")
-        }
-    }
-
-    private static func writeTreemapLayoutDiagnosticsUsingZBoundsIfAvailable(rootItem: DiskItem) {
-        let zBoundsURL: URL = URL(fileURLWithPath: "/tmp/disk-inventory-z-treemap-bounds.json")
-        guard let data: Data = try? Data(contentsOf: zBoundsURL),
-              let object: Any = try? JSONSerialization.jsonObject(with: data),
-              let diagnostics: [String: Any] = object as? [String: Any],
-              let width: Double = numericValue(from: diagnostics["layoutWidth"]),
-              let height: Double = numericValue(from: diagnostics["layoutHeight"]),
-              width >= ScanWindowMetrics.minimumRenderableTreemapSide,
-              height >= ScanWindowMetrics.minimumRenderableTreemapSide else {
-            return
-        }
-
-        let size: CGSize = CGSize(width: width, height: height)
-        let dataSource: TreemapDiskItemDataSource = TreemapDiskItemDataSource(rootItem: rootItem)
-        let renderer: TreemapViewRenderer = TreemapViewRenderer(dataSource: dataSource)
-        renderer.reloadData()
-        renderer.calcLayout(NSRect(origin: .zero, size: size))
-        writeTreemapLayoutDiagnostics(
-            rootItem: rootItem,
-            size: size,
-            renderer: renderer,
-            outputURL: URL(fileURLWithPath: "/tmp/diskhog-treemap-layout-zbounds.jsonl")
-        )
-    }
-
-    private static func numericValue(from value: Any?) -> Double? {
-        if let doubleValue: Double = value as? Double {
-            return doubleValue
-        }
-
-        if let intValue: Int = value as? Int {
-            return Double(intValue)
-        }
-
-        if let numberValue: NSNumber = value as? NSNumber {
-            return numberValue.doubleValue
-        }
-
-        return nil
-    }
-
-    private static func jsonLine(for dictionary: [String: Any]) throws -> String {
-        let data: Data = try JSONSerialization.data(withJSONObject: dictionary, options: [.sortedKeys])
-        return String(data: data, encoding: .utf8) ?? "{}"
-    }
 }
 
 private struct TreemapHitResult {
