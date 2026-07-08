@@ -1,0 +1,60 @@
+import AppKit
+
+enum ScanWindowMetrics {
+    static let windowContentSpacing: CGFloat = 4
+    static let timerRefreshInterval: TimeInterval = 1
+    static let filesPaneMinimumWidth: CGFloat = 480
+    static let filesPanePreferredFraction: CGFloat = 590.0 / 980.0
+    static let kindsPaneMinimumWidth: CGFloat = 240
+    static let topPaneMinimumHeight: CGFloat = 240
+    static let topPanePreferredFraction: CGFloat = 460.0 / 930.0
+    static let treemapMinimumWidth: CGFloat = 817
+    static let treemapMinimumHeight: CGFloat = 300
+    static let splitAreaMinimumHeight: CGFloat = topPaneMinimumHeight + treemapMinimumHeight
+    static let windowMinimumWidth: CGFloat = ScanWindowGeometry.minimumWidth
+    static let windowMinimumHeight: CGFloat = ScanWindowGeometry.minimumHeight
+    static let mainSplitHorizontalPadding: CGFloat = 10
+    static let tableRowHeight: CGFloat = 20
+    static let tableCellHorizontalPadding: CGFloat = 3
+    static let tableIntercellWidth: CGFloat = 3
+    static let tableIntercellHeight: CGFloat = 2
+    static let tableFontSize: CGFloat = 12
+    static let filesSizeColumnWidth: CGFloat = 76
+    static let outlineNameColumnMinimumWidth: CGFloat = 180
+    static let outlineIndentWidth: CGFloat = 16
+    static let outlineIconWidth: CGFloat = 16
+    static let outlineCellHorizontalPadding: CGFloat = 3
+    static let outlineIconTextSpacing: CGFloat = 4
+    static let kindColorColumnWidth: CGFloat = 35
+    static let kindColorColumnMinimumWidth: CGFloat = 20
+    static let kindNameColumnMinimumWidth: CGFloat = 51
+    static let kindSizeColumnWidth: CGFloat = 72
+    static let kindFilesColumnWidth: CGFloat = 50
+    static let kindSwatchCushionRidgeHeightFactor: CGFloat = 0.5
+    static let inactivePaneBorderWidth: CGFloat = 1
+    static let activePaneBorderWidth: CGFloat = 2
+    static let progressHeaderHorizontalPadding: CGFloat = 17
+    static let progressHeaderVerticalPadding: CGFloat = 5
+    static let progressHeaderLineSpacing: CGFloat = 2
+    static let placeholderSpacing: CGFloat = 10
+    static let placeholderPadding: CGFloat = 16
+    static let placeholderPathLineLimit: Int = 3
+    static let placeholderTitleFontSize: CGFloat = 22
+    static let placeholderPathFontSize: CGFloat = 13
+    static let placeholderTitleYOffset: CGFloat = 18
+    static let placeholderLineHeight: CGFloat = 24
+    static let treemapIconSize: CGFloat = 48
+    static let minimumRenderableTreemapSide: CGFloat = 2
+    static let treemapMinimumSelectionSide: CGFloat = 12
+    static let treemapLiveResizeImageFraction: CGFloat = 0.6
+    static let treemapSelectionOuterLineWidth: CGFloat = 5
+    static let treemapSelectionMiddleLineWidth: CGFloat = 3
+    static let treemapSelectionInnerLineWidth: CGFloat = 1
+    static let statusFieldSpacing: CGFloat = 2
+    static let statusFieldControlSpacing: CGFloat = 8
+    static let statusFieldFontSize: CGFloat = 11
+    static let statusFieldHeight: CGFloat = 88
+    static let statusFieldHorizontalPadding: CGFloat = 17
+    static let statusFieldBottomPadding: CGFloat = 12
+}
+
