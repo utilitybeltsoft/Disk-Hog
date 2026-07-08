@@ -124,6 +124,10 @@ nonisolated final class DiskItem: Identifiable, Hashable, @unchecked Sendable {
         return (displayFolderName as NSString).appendingPathComponent(displayName)
     }
 
+    func sizeValue(usePhysicalSize: Bool) -> UInt64 {
+        usePhysicalSize ? allocatedSizeValue : logicalSizeValue
+    }
+
     func child(at index: Int) -> DiskItem {
         childrenStorage[index]
     }

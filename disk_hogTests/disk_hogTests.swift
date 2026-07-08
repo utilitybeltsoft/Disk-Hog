@@ -31,6 +31,17 @@ struct DiskItemTests {
         #expect(root.logicalSizeValue == 12)
     }
 
+    @Test func sizeValueUsesSelectedPhysicalOrLogicalMode() {
+        let item: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/file.txt"),
+            allocatedSizeValue: 4096,
+            logicalSizeValue: 12
+        )
+
+        #expect(item.sizeValue(usePhysicalSize: true) == 4096)
+        #expect(item.sizeValue(usePhysicalSize: false) == 12)
+    }
+
     @Test func recalculatesRecursiveFolderSizesAndSortsLikeDiskInventoryZ() {
         let root: DiskItem = DiskItem(
             url: URL(fileURLWithPath: "/scan"),
@@ -118,6 +129,55 @@ struct DiskItemTests {
     }
 }
 
+struct TreemapDiskItemDataSourceTests {
+
+    @Test func weightUsesSelectedPhysicalOrLogicalSizeMode() {
+        let root: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan"),
+            allocatedSizeValue: 4096,
+            logicalSizeValue: 12
+        )
+
+        let physicalDataSource: TreemapDiskItemDataSource = TreemapDiskItemDataSource(
+            rootItem: root,
+            usePhysicalSize: true
+        )
+        let logicalDataSource: TreemapDiskItemDataSource = TreemapDiskItemDataSource(
+            rootItem: root,
+            usePhysicalSize: false
+        )
+
+        #expect(physicalDataSource.treemapItemRendererWeight(of: root) == 4096)
+        #expect(logicalDataSource.treemapItemRendererWeight(of: root) == 12)
+    }
+
+    @Test func kindStatisticsUseSelectedPhysicalOrLogicalSizeMode() {
+        let root: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan"),
+            isDirectory: true
+        )
+        let textFile: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/file.txt"),
+            allocatedSizeValue: 4096,
+            logicalSizeValue: 12,
+            kindName: "Plain Text"
+        )
+        root.appendChild(textFile)
+
+        let physicalStatistics: [TreemapKindStatistic] = TreemapDiskItemDataSource.kindStatistics(
+            for: root,
+            usePhysicalSize: true
+        )
+        let logicalStatistics: [TreemapKindStatistic] = TreemapDiskItemDataSource.kindStatistics(
+            for: root,
+            usePhysicalSize: false
+        )
+
+        #expect(physicalStatistics.map(\.size) == [4096])
+        #expect(logicalStatistics.map(\.size) == [12])
+    }
+}
+
 struct DiskInventoryZScannerTests {
 
     @Test func concurrentScansKeepHardlinkDedupStateIsolated() async throws {
@@ -164,6 +224,27 @@ struct DiskInventoryZScannerTests {
         #expect(folder?.children.map(\.name) == ["readable.txt"])
     }
 
+    @Test func opaquePackageKeepsSeparateAllocatedAndLogicalSizes() throws {
+        let rootURL: URL = try Self.makeOpaquePackageFixture()
+        defer {
+            try? FileManager.default.removeItem(at: rootURL)
+        }
+
+        let root: DiskItem = try DiskInventoryZScanner().scan(
+            source: ScanSource(path: rootURL.path, displayName: rootURL.lastPathComponent),
+            settings: DiskScanSettings(
+                usePhysicalSize: false,
+                lookInsidePackages: false,
+                ignoreCreatorCode: true
+            )
+        )
+        let package: DiskItem? = root.children.first { $0.name == "Example.app" }
+
+        #expect(package != nil)
+        #expect(package?.logicalSizeValue == 17)
+        #expect(package?.allocatedSizeValue != package?.logicalSizeValue)
+    }
+
     private static func makeHardlinkFixture(named name: String) throws -> URL {
         let rootURL: URL = FileManager.default.temporaryDirectory
             .appendingPathComponent("disk-hog-\(name)-\(UUID().uuidString)", isDirectory: true)
@@ -188,6 +269,21 @@ struct DiskInventoryZScannerTests {
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
         try "readable".write(to: readableURL, atomically: true, encoding: .utf8)
         try Data(repeating: 0x7A, count: 128).write(to: vanishedURL)
+
+        return rootURL
+    }
+
+    private static func makeOpaquePackageFixture() throws -> URL {
+        let rootURL: URL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("disk-hog-opaque-package-\(UUID().uuidString)", isDirectory: true)
+        let contentsURL: URL = rootURL
+            .appendingPathComponent("Example.app", isDirectory: true)
+            .appendingPathComponent("Contents", isDirectory: true)
+        let resourcesURL: URL = contentsURL.appendingPathComponent("Resources", isDirectory: true)
+
+        try FileManager.default.createDirectory(at: resourcesURL, withIntermediateDirectories: true)
+        try Data(repeating: 0x49, count: 5).write(to: contentsURL.appendingPathComponent("Info.plist"))
+        try Data(repeating: 0x50, count: 12).write(to: resourcesURL.appendingPathComponent("payload.txt"))
 
         return rootURL
     }

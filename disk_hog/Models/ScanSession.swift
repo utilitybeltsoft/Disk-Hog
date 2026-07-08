@@ -179,7 +179,7 @@ final class ScanSession: ObservableObject {
         completedAt = Date()
         scanTask = nil
         currentPath = rootItem.path
-        scannedByteCount = rootItem.allocatedSizeValue
+        scannedByteCount = rootItem.sizeValue(usePhysicalSize: settings.usePhysicalSize)
     }
 
     private func finishCancellation() {

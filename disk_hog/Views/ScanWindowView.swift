@@ -328,6 +328,7 @@ private struct FilesPaneView: View {
             if let rootItem: DiskItem = session.rootItem {
                 DiskItemOutlineView(
                     rootItem: rootItem,
+                    usePhysicalSize: session.scanSettings.usePhysicalSize,
                     selectionCoordinator: selectionCoordinator,
                     activePane: activePane
                 )
@@ -344,11 +345,13 @@ private struct FilesPaneView: View {
 
 private struct DiskItemOutlineView: NSViewRepresentable {
     let rootItem: DiskItem
+    let usePhysicalSize: Bool
     let selectionCoordinator: ScanWindowSelectionCoordinator
     let activePane: Binding<ScanWindowPane?>
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
+            usePhysicalSize: usePhysicalSize,
             selectionCoordinator: selectionCoordinator,
             activePane: activePane
         )
@@ -401,11 +404,13 @@ private struct DiskItemOutlineView: NSViewRepresentable {
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         context.coordinator.selectionCoordinator = selectionCoordinator
         context.coordinator.activePane = activePane
+        context.coordinator.updateSizeMode(usePhysicalSize)
         context.coordinator.reloadIfNeeded(rootItem: rootItem)
         context.coordinator.syncSelectionIfNeeded(selectionCoordinator.selectedItem)
     }
 
     final class Coordinator: NSObject, NSOutlineViewDataSource, NSOutlineViewDelegate {
+        private var usePhysicalSize: Bool
         var selectionCoordinator: ScanWindowSelectionCoordinator
         var activePane: Binding<ScanWindowPane?>
         weak var outlineView: NSOutlineView?
@@ -414,9 +419,11 @@ private struct DiskItemOutlineView: NSViewRepresentable {
         private var selectionCancellable: AnyCancellable?
 
         init(
+            usePhysicalSize: Bool,
             selectionCoordinator: ScanWindowSelectionCoordinator,
             activePane: Binding<ScanWindowPane?>
         ) {
+            self.usePhysicalSize = usePhysicalSize
             self.selectionCoordinator = selectionCoordinator
             self.activePane = activePane
         }
@@ -439,6 +446,15 @@ private struct DiskItemOutlineView: NSViewRepresentable {
             self.rootItem = rootItem
             outlineView?.reloadData()
             outlineView?.expandItem(rootItem)
+        }
+
+        func updateSizeMode(_ usePhysicalSize: Bool) {
+            guard self.usePhysicalSize != usePhysicalSize else {
+                return
+            }
+
+            self.usePhysicalSize = usePhysicalSize
+            outlineView?.reloadData()
         }
 
         func syncSelectionIfNeeded(_ item: DiskItem?) {
@@ -565,7 +581,7 @@ private struct DiskItemOutlineView: NSViewRepresentable {
             let identifier: NSUserInterfaceItemIdentifier = CellID.size
             let cell: DiskItemSizeCellView = outlineView.makeView(withIdentifier: identifier, owner: self) as? DiskItemSizeCellView ?? DiskItemSizeCellView()
             cell.identifier = identifier
-            cell.configure(item: item)
+            cell.configure(item: item, usePhysicalSize: usePhysicalSize)
             return cell
         }
     }
@@ -623,8 +639,8 @@ private struct DiskItemOutlineView: NSViewRepresentable {
             setup()
         }
 
-        func configure(item: DiskItem) {
-            sizeTextField.stringValue = ByteCountFormatter.string(fromByteCount: Int64(item.allocatedSizeValue), countStyle: .file)
+        func configure(item: DiskItem, usePhysicalSize: Bool) {
+            sizeTextField.stringValue = ByteCountFormatter.string(fromByteCount: Int64(item.sizeValue(usePhysicalSize: usePhysicalSize)), countStyle: .file)
         }
 
         private func setup() {
@@ -738,7 +754,10 @@ private struct KindsPaneView: View {
             return
         }
 
-        kindStatistics = TreemapDiskItemDataSource.kindStatistics(for: rootItem)
+        kindStatistics = TreemapDiskItemDataSource.kindStatistics(
+            for: rootItem,
+            usePhysicalSize: session.scanSettings.usePhysicalSize
+        )
         updateSelectedKindName()
     }
 
@@ -1378,7 +1397,10 @@ private final class ZStyleTreemapNSView: NSView {
             return
         }
 
-        let dataSource: TreemapDiskItemDataSource = TreemapDiskItemDataSource(rootItem: rootItem)
+        let dataSource: TreemapDiskItemDataSource = TreemapDiskItemDataSource(
+            rootItem: rootItem,
+            usePhysicalSize: source?.scanSettings?.usePhysicalSize ?? DiskScanSettings.diskInventoryZDefault.usePhysicalSize
+        )
         let renderer: TreemapViewRenderer = TreemapViewRenderer(
             rootItem: dataSource.root,
             dataSource: dataSource,
@@ -1722,7 +1744,10 @@ private struct ZStatusFieldsView: View {
     }
 
     private func statusLine(prefix: String, item: DiskItem) -> String {
-        let size: String = ByteCountFormatter.string(fromByteCount: Int64(item.allocatedSizeValue), countStyle: .file)
+        let size: String = ByteCountFormatter.string(
+            fromByteCount: Int64(item.sizeValue(usePhysicalSize: session.scanSettings.usePhysicalSize)),
+            countStyle: .file
+        )
         if let kindName: String = item.kindName, !kindName.isEmpty {
             return "\(prefix): \(item.path), \(kindName), \(size)"
         }

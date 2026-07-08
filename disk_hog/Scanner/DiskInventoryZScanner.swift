@@ -86,21 +86,21 @@ nonisolated final class DiskInventoryZScanner {
             if isDirectory && !isVolume && (!isPackage || settings.lookInsidePackages) {
                 try loadChildren(of: orphan, settings: settings, progressState: &progressState, progressHandler: progressHandler)
             } else if isDirectory && isPackage && !settings.lookInsidePackages {
-                let packageSize: UInt64 = try Self.topLevelOpaquePackageSize(url: childURL, usePhysicalSize: settings.usePhysicalSize)
-                orphan.allocatedSizeValue = packageSize
-                orphan.logicalSizeValue = packageSize
+                let packageSize: OpaquePackageSize = try Self.opaquePackageSize(url: childURL)
+                orphan.allocatedSizeValue = packageSize.allocated
+                orphan.logicalSizeValue = packageSize.logical
             } else if !isDirectory {
-                progressState.addScannedBytes(orphan.allocatedSizeValue)
+                progressState.addScannedBytes(orphan.sizeValue(usePhysicalSize: settings.usePhysicalSize))
             }
 
             rootItem.appendChild(orphan, updateSize: true)
             progressState.updateCurrentPath(childURL.path)
-            progressState.setScannedBytes(rootItem.allocatedSizeValue)
+            progressState.setScannedBytes(rootItem.sizeValue(usePhysicalSize: settings.usePhysicalSize))
             progressHandler?(progressState.snapshot())
         }
 
         rootItem.sortChildrenInDiskInventoryZOrder(recursive: false)
-        progressState.setScannedBytes(rootItem.allocatedSizeValue)
+        progressState.setScannedBytes(rootItem.sizeValue(usePhysicalSize: settings.usePhysicalSize))
         progressHandler?(progressState.snapshot())
         return rootItem
     }
@@ -213,11 +213,11 @@ nonisolated final class DiskInventoryZScanner {
                 directoryEnumerator.skipDescendants()
             } else if (currentValues.isPackage ?? false) && !settings.lookInsidePackages {
                 directoryEnumerator.skipDescendants()
-                let packageSize: UInt64 = try Self.topLevelOpaquePackageSize(url: currentURL, usePhysicalSize: settings.usePhysicalSize)
-                currentItem.allocatedSizeValue = packageSize
-                currentItem.logicalSizeValue = packageSize
+                let packageSize: OpaquePackageSize = try Self.opaquePackageSize(url: currentURL)
+                currentItem.allocatedSizeValue = packageSize.allocated
+                currentItem.logicalSizeValue = packageSize.logical
             } else if !isCurrentDirectory {
-                progressState.addScannedBytes(currentItem.allocatedSizeValue)
+                progressState.addScannedBytes(currentItem.sizeValue(usePhysicalSize: settings.usePhysicalSize))
             }
             if isCurrentDirectory { progressState.updateCurrentPath(currentURL.path) }
             lastItemWasDirectory = isCurrentDirectory
@@ -231,9 +231,9 @@ nonisolated final class DiskInventoryZScanner {
         seenHardlinkInodes.removeAllObjects()
     }
 
-    private static func topLevelOpaquePackageSize(url: URL, usePhysicalSize: Bool) throws -> UInt64 {
-        var packageSize: UInt64 = 0
-        let packageKeys: [URLResourceKey] = [.totalFileAllocatedSizeKey, .fileAllocatedSizeKey]
+    private static func opaquePackageSize(url: URL) throws -> OpaquePackageSize {
+        var packageSize: OpaquePackageSize = OpaquePackageSize()
+        let packageKeys: [URLResourceKey] = [.totalFileAllocatedSizeKey, .fileAllocatedSizeKey, .fileSizeKey]
         guard let packageEnumerator: FileManager.DirectoryEnumerator = FileManager.default.enumerator(
             at: url,
             includingPropertiesForKeys: packageKeys,
@@ -245,9 +245,11 @@ nonisolated final class DiskInventoryZScanner {
         for case let descendantURL as URL in packageEnumerator {
             try Task.checkCancellation()
             let descendantValues: URLResourceValues? = try? descendantURL.resourceValues(forKeys: Set(packageKeys))
-            let descendantSize: Int? = usePhysicalSize ? descendantValues?.totalFileAllocatedSize : descendantValues?.fileAllocatedSize
-            if let descendantSize: Int = descendantSize {
-                packageSize += UInt64(descendantSize)
+            if let allocatedSize: Int = descendantValues?.totalFileAllocatedSize ?? descendantValues?.fileAllocatedSize {
+                packageSize.allocated += UInt64(allocatedSize)
+            }
+            if let logicalSize: Int = descendantValues?.fileSize {
+                packageSize.logical += UInt64(logicalSize)
             }
         }
         return packageSize
@@ -365,6 +367,11 @@ nonisolated final class DiskInventoryZScanner {
         "gz": "GZip archive", "mts": "AVCHD MPEG-2 Transport Stream", "eps": "Encapsulated PostScript®", "cvd": "Canvas Draw Document",
         "4dd": "4D Data File", "4db": "4D interpreted Structure File", "memmap": "Document", "ds_store": "Document"
     ]
+}
+
+private nonisolated struct OpaquePackageSize: Sendable {
+    var allocated: UInt64 = 0
+    var logical: UInt64 = 0
 }
 
 nonisolated private struct ScanProgressState {
