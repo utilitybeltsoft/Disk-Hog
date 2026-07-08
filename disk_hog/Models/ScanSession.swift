@@ -82,7 +82,7 @@ final class ScanSession: ObservableObject {
         scanTask = Task.detached(priority: .userInitiated) {
             do {
                 let scanner: DiskInventoryZScanner = DiskInventoryZScanner()
-                let rootItem: DiskItem = try scanner.scan(
+                let rootItem: DiskItem = try await scanner.scan(
                     source: source,
                     settings: settings
                 ) { progress in

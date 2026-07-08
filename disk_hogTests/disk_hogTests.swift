@@ -202,7 +202,71 @@ struct DiskInventoryZScannerTests {
         #expect(Self.hardlinkDuplicateCount(in: secondRoot) == 1)
     }
 
-    @Test func recursiveScanSkipsItemsWhoseResourceValuesCannotBeRead() throws {
+    @Test func parallelTopLevelScanDeduplicatesHardlinksAcrossSubtrees() async throws {
+        let rootURL: URL = try Self.makeCrossTopLevelHardlinkFixture()
+        defer {
+            try? FileManager.default.removeItem(at: rootURL)
+        }
+
+        let root: DiskItem = try await DiskInventoryZScanner().scan(
+            source: ScanSource(path: rootURL.path, displayName: rootURL.lastPathComponent)
+        )
+
+        #expect(Self.hardlinkDuplicateCount(in: root) == 1)
+    }
+
+    @Test func scanProgressBytesDoNotMoveBackwards() async throws {
+        let rootURL: URL = try Self.makeCrossTopLevelHardlinkFixture()
+        defer {
+            try? FileManager.default.removeItem(at: rootURL)
+        }
+        let progressRecorder: ProgressRecorder = ProgressRecorder()
+
+        _ = try await DiskInventoryZScanner().scan(
+            source: ScanSource(path: rootURL.path, displayName: rootURL.lastPathComponent)
+        ) { progress in
+            await progressRecorder.record(progress)
+        }
+
+        let byteCounts: [UInt64] = await progressRecorder.byteCounts
+        #expect(zip(byteCounts, byteCounts.dropFirst()).allSatisfy { previous, next in
+            previous <= next
+        })
+    }
+
+    @Test func scanCancellationStopsConcurrentSubtreeWork() async throws {
+        let rootURL: URL = try Self.makeCancellationFixture()
+        defer {
+            try? FileManager.default.removeItem(at: rootURL)
+        }
+        let resourceValueReadCounter: LockedCounter = LockedCounter()
+        let scanner: DiskInventoryZScanner = DiskInventoryZScanner { url, keys in
+            resourceValueReadCounter.increment()
+            Thread.sleep(forTimeInterval: 0.002)
+            return try url.resourceValues(forKeys: keys)
+        }
+
+        let scanTask: Task<DiskItem, Error> = Task {
+            try await scanner.scan(
+                source: ScanSource(path: rootURL.path, displayName: rootURL.lastPathComponent)
+            )
+        }
+
+        while resourceValueReadCounter.value == 0 {
+            try await Task.sleep(for: .milliseconds(1))
+        }
+
+        scanTask.cancel()
+
+        do {
+            _ = try await scanTask.value
+            Issue.record("Expected scan cancellation to throw CancellationError.")
+        } catch is CancellationError {
+            #expect(true)
+        }
+    }
+
+    @Test func recursiveScanSkipsItemsWhoseResourceValuesCannotBeRead() async throws {
         let rootURL: URL = try Self.makeUnreadableResourceValueFixture()
         defer {
             try? FileManager.default.removeItem(at: rootURL)
@@ -215,7 +279,7 @@ struct DiskInventoryZScannerTests {
 
             return try url.resourceValues(forKeys: keys)
         }
-        let root: DiskItem = try scanner.scan(
+        let root: DiskItem = try await scanner.scan(
             source: ScanSource(path: rootURL.path, displayName: rootURL.lastPathComponent)
         )
         let folder: DiskItem? = root.children.first { $0.name == "folder" }
@@ -224,13 +288,13 @@ struct DiskInventoryZScannerTests {
         #expect(folder?.children.map(\.name) == ["readable.txt"])
     }
 
-    @Test func opaquePackageKeepsSeparateAllocatedAndLogicalSizes() throws {
+    @Test func opaquePackageKeepsSeparateAllocatedAndLogicalSizes() async throws {
         let rootURL: URL = try Self.makeOpaquePackageFixture()
         defer {
             try? FileManager.default.removeItem(at: rootURL)
         }
 
-        let root: DiskItem = try DiskInventoryZScanner().scan(
+        let root: DiskItem = try await DiskInventoryZScanner().scan(
             source: ScanSource(path: rootURL.path, displayName: rootURL.lastPathComponent),
             settings: DiskScanSettings(
                 usePhysicalSize: false,
@@ -255,6 +319,38 @@ struct DiskInventoryZScannerTests {
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
         try Data(repeating: 0x5A, count: 4096).write(to: originalURL)
         try FileManager.default.linkItem(at: originalURL, to: linkedURL)
+
+        return rootURL
+    }
+
+    private static func makeCrossTopLevelHardlinkFixture() throws -> URL {
+        let rootURL: URL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("disk-hog-cross-top-hardlinks-\(UUID().uuidString)", isDirectory: true)
+        let firstFolderURL: URL = rootURL.appendingPathComponent("first", isDirectory: true)
+        let secondFolderURL: URL = rootURL.appendingPathComponent("second", isDirectory: true)
+        let originalURL: URL = firstFolderURL.appendingPathComponent("shared.dat")
+        let linkedURL: URL = secondFolderURL.appendingPathComponent("shared-link.dat")
+
+        try FileManager.default.createDirectory(at: firstFolderURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: secondFolderURL, withIntermediateDirectories: true)
+        try Data(repeating: 0x48, count: 4096).write(to: originalURL)
+        try FileManager.default.linkItem(at: originalURL, to: linkedURL)
+
+        return rootURL
+    }
+
+    private static func makeCancellationFixture() throws -> URL {
+        let rootURL: URL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("disk-hog-cancellation-\(UUID().uuidString)", isDirectory: true)
+
+        for folderIndex: Int in 0..<8 {
+            let folderURL: URL = rootURL.appendingPathComponent("folder-\(folderIndex)", isDirectory: true)
+            try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+            for fileIndex: Int in 0..<80 {
+                try Data(repeating: UInt8(fileIndex % 255), count: 128)
+                    .write(to: folderURL.appendingPathComponent("file-\(fileIndex).dat"))
+            }
+        }
 
         return rootURL
     }
@@ -292,6 +388,31 @@ struct DiskInventoryZScannerTests {
         let currentCount: Int = item.isHardlinkDuplicate ? 1 : 0
         return item.children.reduce(currentCount) { count, child in
             count + hardlinkDuplicateCount(in: child)
+        }
+    }
+}
+
+private actor ProgressRecorder {
+    private(set) var byteCounts: [UInt64] = []
+
+    func record(_ progress: DiskScanProgress) {
+        byteCounts.append(progress.scannedByteCount)
+    }
+}
+
+private final class LockedCounter: @unchecked Sendable {
+    private let lock: NSLock = NSLock()
+    private var count: Int = 0
+
+    var value: Int {
+        lock.withLock {
+            count
+        }
+    }
+
+    func increment() {
+        lock.withLock {
+            count += 1
         }
     }
 }
