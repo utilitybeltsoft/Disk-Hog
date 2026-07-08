@@ -99,7 +99,6 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 51CD97232FF09A6800A37403 /* Build configuration list for PBXNativeTarget "disk_hog" */;
 			buildPhases = (
-				51CD97312FF0B00000A37403 /* Check Treemap Z Mapping */,
 				51CD96FE2FF09A6500A37403 /* Sources */,
 				51CD96FF2FF09A6500A37403 /* Frameworks */,
 				51CD97002FF09A6500A37403 /* Resources */,
@@ -231,35 +230,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
-
-/* Begin PBXShellScriptBuildPhase section */
-		51CD97312FF0B00000A37403 /* Check Treemap Z Mapping */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-				"$(SRCROOT)/disk_hog/Treemap",
-				"$(SRCROOT)/disk_hog/Treemap/TreemapBitmapHelpers.swift",
-				"$(SRCROOT)/disk_hog/Treemap/TreemapCushionRenderer.swift",
-				"$(SRCROOT)/disk_hog/Treemap/TreemapDiskItemDataSource.swift",
-				"$(SRCROOT)/disk_hog/Treemap/TreemapItemRenderer.swift",
-				"$(SRCROOT)/disk_hog/Treemap/TreemapViewRenderer.swift",
-				"$(SRCROOT)/../scripts/check_treemap_z_mapping.py",
-			);
-			name = "Check Treemap Z Mapping";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "python3 \"$SRCROOT/../scripts/check_treemap_z_mapping.py\" --repo-root \"$SRCROOT/..\"\n";
-		};
-/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		51CD96FE2FF09A6500A37403 /* Sources */ = {
