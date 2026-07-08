@@ -156,7 +156,13 @@ nonisolated final class DiskInventoryZScanner {
             if Self.shouldSkipRecursiveURL(currentURL, enumerator: directoryEnumerator) {
                 continue
             }
-            let currentValues: URLResourceValues = try currentURL.resourceValues(forKeys: Set(Self.recursiveResourceKeys))
+            let currentValues: URLResourceValues
+            do {
+                currentValues = try currentURL.resourceValues(forKeys: Set(Self.recursiveResourceKeys))
+            } catch {
+                directoryEnumerator.skipDescendants()
+                continue
+            }
             if directoryEnumerator.level > lastEnumLevel {
                 if let lastDirectoryItem: DiskItem = lastDirectoryItem {
                     itemStack.append(lastDirectoryItem)

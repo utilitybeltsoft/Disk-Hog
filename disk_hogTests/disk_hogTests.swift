@@ -142,6 +142,21 @@ struct DiskInventoryZScannerTests {
         #expect(Self.hardlinkDuplicateCount(in: secondRoot) == 1)
     }
 
+    @Test func recursiveScanSkipsItemsWhoseResourceValuesCannotBeRead() throws {
+        let rootURL: URL = try Self.makeUnreadableResourceValueFixture()
+        defer {
+            try? FileManager.default.removeItem(at: rootURL)
+        }
+
+        let root: DiskItem = try DiskInventoryZScanner().scan(
+            source: ScanSource(path: rootURL.path, displayName: rootURL.lastPathComponent)
+        )
+        let folder: DiskItem? = root.children.first { $0.name == "folder" }
+
+        #expect(folder != nil)
+        #expect(folder?.children.map(\.name) == ["readable.txt"])
+    }
+
     private static func makeHardlinkFixture(named name: String) throws -> URL {
         let rootURL: URL = FileManager.default.temporaryDirectory
             .appendingPathComponent("disk-hog-\(name)-\(UUID().uuidString)", isDirectory: true)
@@ -152,6 +167,24 @@ struct DiskInventoryZScannerTests {
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
         try Data(repeating: 0x5A, count: 4096).write(to: originalURL)
         try FileManager.default.linkItem(at: originalURL, to: linkedURL)
+
+        return rootURL
+    }
+
+    private static func makeUnreadableResourceValueFixture() throws -> URL {
+        let rootURL: URL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("disk-hog-unreadable-values-\(UUID().uuidString)", isDirectory: true)
+        let folderURL: URL = rootURL.appendingPathComponent("folder", isDirectory: true)
+        let readableURL: URL = folderURL.appendingPathComponent("readable.txt")
+        let brokenLinkURL: URL = folderURL.appendingPathComponent("broken-link")
+        let missingTargetURL: URL = folderURL.appendingPathComponent("missing-target")
+
+        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        try "readable".write(to: readableURL, atomically: true, encoding: .utf8)
+        try FileManager.default.createSymbolicLink(
+            atPath: brokenLinkURL.path,
+            withDestinationPath: missingTargetURL.path
+        )
 
         return rootURL
     }

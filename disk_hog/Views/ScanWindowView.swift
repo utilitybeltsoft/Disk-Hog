@@ -1,3 +1,4 @@
+import AppKit
 import Combine
 import SwiftUI
 
@@ -53,11 +54,11 @@ struct ScanWindowView: View {
         .frame(minWidth: Metrics.windowMinimumWidth, minHeight: Metrics.windowMinimumHeight)
         .background(Color(nsColor: .windowBackgroundColor))
         .background(ScanWindowRegistrationView(source: session.source))
+        .background(ScanWindowKeyObservationView {
+            activateScanWindowCommandState()
+        })
         .onAppear {
             session.startScan()
-        }
-        .onAppear {
-            updateScanWindowCommandState()
         }
         .onChange(of: session.rootItem?.id) {
             selectionCoordinator.setSelectedItem(session.rootItem)
@@ -74,9 +75,12 @@ struct ScanWindowView: View {
         #endif
     }
 
+    private func activateScanWindowCommandState() {
+        ScanWindowCommandState.shared.activate(session: session, selectedItem: selectionCoordinator.selectedItem)
+    }
+
     private func updateScanWindowCommandState() {
-        ScanWindowCommandState.shared.activate(session: session)
-        ScanWindowCommandState.shared.updateSelectedItem(selectionCoordinator.selectedItem)
+        ScanWindowCommandState.shared.updateSelectedItem(selectionCoordinator.selectedItem, from: session)
         ScanWindowCommandState.shared.updateScanState(from: session)
     }
 
@@ -106,6 +110,81 @@ private enum ScanWindowPane {
     case files
     case kinds
     case treemap
+}
+
+private struct ScanWindowKeyObservationView: NSViewRepresentable {
+    let onDidBecomeKey: @MainActor () -> Void
+
+    func makeNSView(context: Context) -> ScanWindowKeyObservationNSView {
+        ScanWindowKeyObservationNSView(onDidBecomeKey: onDidBecomeKey)
+    }
+
+    func updateNSView(_ nsView: ScanWindowKeyObservationNSView, context: Context) {
+        nsView.onDidBecomeKey = onDidBecomeKey
+    }
+}
+
+@MainActor
+private final class ScanWindowKeyObservationNSView: NSView {
+    var onDidBecomeKey: @MainActor () -> Void
+    private weak var observedWindow: NSWindow?
+    private var didBecomeKeyObserver: NSObjectProtocol?
+
+    init(onDidBecomeKey: @escaping @MainActor () -> Void) {
+        self.onDidBecomeKey = onDidBecomeKey
+        super.init(frame: .zero)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    deinit {
+        if let didBecomeKeyObserver: NSObjectProtocol {
+            NotificationCenter.default.removeObserver(didBecomeKeyObserver)
+        }
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        observeWindowIfNeeded(window)
+    }
+
+    private func observeWindowIfNeeded(_ window: NSWindow?) {
+        guard observedWindow !== window else {
+            return
+        }
+
+        if let didBecomeKeyObserver: NSObjectProtocol {
+            NotificationCenter.default.removeObserver(didBecomeKeyObserver)
+            self.didBecomeKeyObserver = nil
+        }
+
+        observedWindow = window
+
+        guard let window: NSWindow = window else {
+            return
+        }
+
+        didBecomeKeyObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didBecomeKeyNotification,
+            object: window,
+            queue: .main
+        ) { [weak self] _ in
+            self?.onDidBecomeKey()
+        }
+
+        if window.isKeyWindow {
+            DispatchQueue.main.async { [weak self, weak window] in
+                guard window?.isKeyWindow == true else {
+                    return
+                }
+
+                self?.onDidBecomeKey()
+            }
+        }
+    }
 }
 
 private struct SelectedScanItemKey: EnvironmentKey {

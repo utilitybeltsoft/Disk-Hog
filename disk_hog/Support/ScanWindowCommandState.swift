@@ -17,16 +17,18 @@ final class ScanWindowCommandState: ObservableObject {
 
     private init() {}
 
-    func activate(session: ScanSession) {
+    func activate(session: ScanSession, selectedItem: DiskItem?) {
         activeSession = session
+        updateSelectedItemAvailability(selectedItem)
         updateScanState(from: session)
     }
 
-    func updateSelectedItem(_ item: DiskItem?) {
-        selectedItem = item
-        let canActOnItem: Bool = item?.isSpecialItem == false
-        canOpenSelectedItem = canActOnItem
-        canRevealSelectedItem = canActOnItem
+    func updateSelectedItem(_ item: DiskItem?, from session: ScanSession) {
+        guard activeSession === session else {
+            return
+        }
+
+        updateSelectedItemAvailability(item)
     }
 
     func updateScanState(from session: ScanSession) {
@@ -53,6 +55,13 @@ final class ScanWindowCommandState: ObservableObject {
         }
 
         NSWorkspace.shared.activateFileViewerSelecting([selectedItem.url])
+    }
+
+    private func updateSelectedItemAvailability(_ item: DiskItem?) {
+        selectedItem = item
+        let canActOnItem: Bool = item?.isSpecialItem == false
+        canOpenSelectedItem = canActOnItem
+        canRevealSelectedItem = canActOnItem
     }
 
     #if FILE_MATCHING_DIAGNOSTICS
