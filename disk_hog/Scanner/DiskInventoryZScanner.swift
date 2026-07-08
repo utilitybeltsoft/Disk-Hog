@@ -4,9 +4,11 @@ import UniformTypeIdentifiers
 
 nonisolated final class DiskInventoryZScanner {
     typealias ProgressHandler = @Sendable (DiskScanProgress) -> Void
+    typealias ResourceValuesProvider = (URL, Set<URLResourceKey>) throws -> URLResourceValues
 
     private let seenHardlinkInodes: NSMutableSet = NSMutableSet()
     private var kindNameByTypeIdentifier: [String: String] = [:]
+    private let recursiveResourceValuesProvider: ResourceValuesProvider
     private static let firmlinkURLs: Set<URL> = DiskInventoryZScanner.loadFirmlinks()
     private static let firmlinkListPath: String = "/usr/share/firmlinks"
     fileprivate static let progressRefreshInterval: TimeInterval = 0.25
@@ -31,6 +33,14 @@ nonisolated final class DiskInventoryZScanner {
         .linkCountKey,
         .fileResourceIdentifierKey
     ]
+
+    init(
+        recursiveResourceValuesProvider: @escaping ResourceValuesProvider = { url, keys in
+            try url.resourceValues(forKeys: keys)
+        }
+    ) {
+        self.recursiveResourceValuesProvider = recursiveResourceValuesProvider
+    }
 
     func scan(
         source: ScanSource,
@@ -158,7 +168,7 @@ nonisolated final class DiskInventoryZScanner {
             }
             let currentValues: URLResourceValues
             do {
-                currentValues = try currentURL.resourceValues(forKeys: Set(Self.recursiveResourceKeys))
+                currentValues = try recursiveResourceValuesProvider(currentURL, Set(Self.recursiveResourceKeys))
             } catch {
                 directoryEnumerator.skipDescendants()
                 continue

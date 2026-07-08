@@ -148,7 +148,14 @@ struct DiskInventoryZScannerTests {
             try? FileManager.default.removeItem(at: rootURL)
         }
 
-        let root: DiskItem = try DiskInventoryZScanner().scan(
+        let scanner: DiskInventoryZScanner = DiskInventoryZScanner { url, keys in
+            if url.lastPathComponent == "vanished.dat" {
+                throw CocoaError(.fileNoSuchFile)
+            }
+
+            return try url.resourceValues(forKeys: keys)
+        }
+        let root: DiskItem = try scanner.scan(
             source: ScanSource(path: rootURL.path, displayName: rootURL.lastPathComponent)
         )
         let folder: DiskItem? = root.children.first { $0.name == "folder" }
@@ -176,15 +183,11 @@ struct DiskInventoryZScannerTests {
             .appendingPathComponent("disk-hog-unreadable-values-\(UUID().uuidString)", isDirectory: true)
         let folderURL: URL = rootURL.appendingPathComponent("folder", isDirectory: true)
         let readableURL: URL = folderURL.appendingPathComponent("readable.txt")
-        let brokenLinkURL: URL = folderURL.appendingPathComponent("broken-link")
-        let missingTargetURL: URL = folderURL.appendingPathComponent("missing-target")
+        let vanishedURL: URL = folderURL.appendingPathComponent("vanished.dat")
 
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
         try "readable".write(to: readableURL, atomically: true, encoding: .utf8)
-        try FileManager.default.createSymbolicLink(
-            atPath: brokenLinkURL.path,
-            withDestinationPath: missingTargetURL.path
-        )
+        try Data(repeating: 0x7A, count: 128).write(to: vanishedURL)
 
         return rootURL
     }
