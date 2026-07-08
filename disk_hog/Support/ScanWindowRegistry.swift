@@ -126,29 +126,6 @@ final class ScanWindowRegistrationNSView: NSView {
     private func applyInitialWindowSize(to window: NSWindow, attempt: Int) {
         window.minSize = window.frameRect(forContentRect: NSRect(origin: .zero, size: ScanWindowInitialGeometry.minimumContentSize)).size
         window.setContentSize(ScanWindowInitialGeometry.contentSize)
-        writeWindowFrameDiagnostics(window: window, attempt: attempt)
-    }
-
-    private func writeWindowFrameDiagnostics(window: NSWindow, attempt: Int) {
-        let contentRect: NSRect = window.contentLayoutRect
-        let frameRect: NSRect = window.frame
-        let diagnostics: [String: Any] = [
-            "app": "Disk Hog",
-            "recordType": "scan-window-frame",
-            "attempt": attempt,
-            "contentWidth": Double(contentRect.width),
-            "contentHeight": Double(contentRect.height),
-            "frameWidth": Double(frameRect.width),
-            "frameHeight": Double(frameRect.height),
-            "timestamp": Date().timeIntervalSince1970
-        ]
-
-        do {
-            let data: Data = try JSONSerialization.data(withJSONObject: diagnostics, options: [.prettyPrinted, .sortedKeys])
-            try data.write(to: ScanWindowInitialGeometry.diagnosticsURL, options: .atomic)
-        } catch {
-            NSLog("Disk Hog scan window frame diagnostics failed: \(String(describing: error))")
-        }
     }
 }
 
@@ -156,5 +133,4 @@ private enum ScanWindowInitialGeometry {
     static let contentSize: NSSize = NSSize(width: 837, height: 1080)
     static let minimumContentSize: NSSize = NSSize(width: 837, height: 1080)
     static let restorationDelay: TimeInterval = 0.15
-    static let diagnosticsURL: URL = URL(fileURLWithPath: "/tmp/diskhog-scan-window-frame.json")
 }

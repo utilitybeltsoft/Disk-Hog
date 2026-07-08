@@ -11,13 +11,6 @@ nonisolated struct DiskScanSettings: Codable, Hashable, Sendable {
         ignoreCreatorCode: false
     )
 
-    static func userDefaultsValue(userDefaults: UserDefaults = .standard) -> DiskScanSettings {
-        DiskScanSettings(
-            usePhysicalSize: userDefaults.object(forKey: DefaultsKeys.showPhysicalFileSize) as? Bool ?? true,
-            lookInsidePackages: userDefaults.bool(forKey: DefaultsKeys.showPackageContents),
-            ignoreCreatorCode: userDefaults.bool(forKey: DefaultsKeys.ignoreCreatorCode)
-        )
-    }
 }
 
 nonisolated enum DiskScanSettingsDefaultsKeys {
@@ -25,5 +18,3 @@ nonisolated enum DiskScanSettingsDefaultsKeys {
     static let ignoreCreatorCode: String = "IgnoreCreatorCode"
     static let showPhysicalFileSize: String = "ShowPhysicalFileSize"
 }
-
-private typealias DefaultsKeys = DiskScanSettingsDefaultsKeys

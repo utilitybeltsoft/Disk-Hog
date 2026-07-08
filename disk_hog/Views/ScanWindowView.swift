@@ -1654,52 +1654,6 @@ private struct TreemapHitResult {
     let cellID: TreemapCellID
 }
 
-private struct DiskItemContextMenu: View {
-    let item: DiskItem?
-
-    var body: some View {
-        if let item: DiskItem = item, item.isSpecialItem == false {
-            Button("Open") {
-                NSWorkspace.shared.open(item.url)
-            }
-
-            Button("Reveal in Finder") {
-                NSWorkspace.shared.activateFileViewerSelecting([item.url])
-            }
-        } else {
-            Button("No Item Selected") {}
-                .disabled(true)
-        }
-    }
-}
-
-private struct RenderedTreemap {
-    let image: NSImage
-    let renderer: TreemapViewRenderer
-    let dataSource: TreemapDiskItemDataSource
-}
-
-private struct TreemapPlaceholderContent: View {
-    let source: ScanSource
-
-    var body: some View {
-        VStack(spacing: Metrics.placeholderSpacing) {
-            Image(systemName: "square.grid.3x3")
-                .font(.system(size: Metrics.treemapIconSize))
-                .foregroundStyle(.secondary)
-            Text("Treemap")
-                .font(.title2.weight(.semibold))
-            Text(source.path)
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .lineLimit(Metrics.singleLineLimit)
-                .truncationMode(.middle)
-                .textSelection(.enabled)
-        }
-        .padding(Metrics.placeholderPadding)
-    }
-}
-
 private struct ZStatusFieldsView: View {
     @ObservedObject var session: ScanSession
     @Environment(\.selectedScanItem) private var selectedItem

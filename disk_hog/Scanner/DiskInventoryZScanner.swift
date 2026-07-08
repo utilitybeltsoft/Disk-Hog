@@ -256,7 +256,7 @@ nonisolated final class DiskInventoryZScanner {
                 if let lastDirectoryItem: DiskItem = lastDirectoryItem {
                     itemStack.append(lastDirectoryItem)
                 } else if lastItemWasDirectory {
-                    throw DiskScannerError.zMethodNotPorted("FSItem.loadChildren stack descent")
+                    throw DiskScannerError.traversalInconsistency("A directory was reported without a matching item.")
                 }
             } else if directoryEnumerator.level < lastEnumLevel {
                 let levelsWalkedUp: Int = lastEnumLevel - directoryEnumerator.level
@@ -267,7 +267,7 @@ nonisolated final class DiskInventoryZScanner {
                 }
             }
             guard let parentItem: DiskItem = itemStack.last else {
-                throw DiskScannerError.zMethodNotPorted("FSItem.loadChildren missing parent")
+                throw DiskScannerError.traversalInconsistency("A child item was reported without a parent.")
             }
             let currentItem: DiskItem = makeItem(url: currentURL, parent: parentItem, values: currentValues)
             parentItem.appendChild(currentItem, updateSize: false)
