@@ -4,6 +4,7 @@
 //
 //
 
+import AppKit
 import Foundation
 import Testing
 @testable import disk_hog
@@ -221,6 +222,51 @@ struct TreemapViewRendererTests {
 
         #expect(renderer.selectItem(byRenderedItem: child) == true)
         #expect(renderer.selectedItem === child)
+    }
+
+    @Test func emptyFolderCanBeMappedToItsTreemapRectWhenItHasArea() {
+        let root: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan"),
+            isDirectory: true
+        )
+        let emptyFolder: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/empty"),
+            isDirectory: true
+        )
+        root.appendChild(emptyFolder)
+
+        let dataSource: TreemapDiskItemDataSource = TreemapDiskItemDataSource(rootItem: root)
+        let renderer: TreemapViewRenderer = TreemapViewRenderer(dataSource: dataSource)
+        let bounds: NSRect = NSRect(x: 0, y: 0, width: 200, height: 100)
+
+        renderer.reloadData()
+        renderer.calcLayout(bounds)
+
+        #expect(renderer.selectItem(byRenderedItem: emptyFolder) == true)
+        #expect(renderer.itemRect(by: renderer.selectedCellID) == bounds)
+        #expect(renderer.item(by: renderer.cellID(by: NSPoint(x: 100, y: 50), inViewCoordinates: false)!) === emptyFolder)
+    }
+
+    @Test func wholeTreemapSelectionRectLeavesRoomForStroke() {
+        let visibleRect: NSRect = TreemapSelectionRect.visibleRect(
+            for: NSRect(x: 0, y: 0, width: 200, height: 100),
+            in: NSRect(x: 0, y: 0, width: 200, height: 100),
+            minimumSide: 12,
+            edgeInset: 2.5
+        )
+
+        #expect(visibleRect == NSRect(x: 2.5, y: 2.5, width: 195, height: 95))
+    }
+
+    @Test func zeroSizedSelectionRectExpandsAroundItsPosition() {
+        let visibleRect: NSRect = TreemapSelectionRect.visibleRect(
+            for: NSRect(x: 150, y: 40, width: 0, height: 0),
+            in: NSRect(x: 0, y: 0, width: 200, height: 100),
+            minimumSide: 12,
+            edgeInset: 2.5
+        )
+
+        #expect(visibleRect == NSRect(x: 144, y: 34, width: 12, height: 12))
     }
 }
 

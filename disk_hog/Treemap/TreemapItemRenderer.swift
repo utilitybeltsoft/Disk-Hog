@@ -142,6 +142,9 @@ nonisolated final class TreemapItemRenderer: @unchecked Sendable {
                 return hitChildRenderer
             }
         }
+        if childRenderers?.isEmpty == true {
+            return self
+        }
         return nil
     }
 

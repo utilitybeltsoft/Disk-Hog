@@ -240,7 +240,12 @@ final class ZStyleTreemapNSView: NSView {
             return
         }
 
-        let rect: NSRect = visibleSelectionRect(for: renderer?.itemRect(by: selectedCellID) ?? .zero)
+        let rect: NSRect = TreemapSelectionRect.visibleRect(
+            for: renderer?.itemRect(by: selectedCellID) ?? .zero,
+            in: bounds,
+            minimumSide: ScanWindowMetrics.treemapMinimumSelectionSide,
+            edgeInset: ScanWindowMetrics.treemapSelectionOuterLineWidth / 2
+        )
         guard rect != .zero else {
             return
         }
@@ -257,14 +262,6 @@ final class ZStyleTreemapNSView: NSView {
         let path: NSBezierPath = NSBezierPath(rect: rect)
         path.lineWidth = lineWidth
         path.stroke()
-    }
-
-    private func visibleSelectionRect(for rect: NSRect) -> NSRect {
-        let visibleWidth: CGFloat = min(max(rect.width, ScanWindowMetrics.treemapMinimumSelectionSide), bounds.width)
-        let visibleHeight: CGFloat = min(max(rect.height, ScanWindowMetrics.treemapMinimumSelectionSide), bounds.height)
-        let visibleOriginX: CGFloat = min(max(rect.midX - visibleWidth / 2, bounds.minX), bounds.maxX - visibleWidth)
-        let visibleOriginY: CGFloat = min(max(rect.midY - visibleHeight / 2, bounds.minY), bounds.maxY - visibleHeight)
-        return NSRect(x: visibleOriginX, y: visibleOriginY, width: visibleWidth, height: visibleHeight)
     }
 
     private func hitResult(for windowLocation: NSPoint) -> TreemapHitResult? {
