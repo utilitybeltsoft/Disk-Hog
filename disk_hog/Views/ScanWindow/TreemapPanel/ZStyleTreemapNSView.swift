@@ -95,16 +95,14 @@ final class ZStyleTreemapNSView: NSView {
         if renderer?.rootCellID?.rect != viewBounds {
             renderer?.calcLayout(viewBounds)
             syncSelectionToRenderer()
-            TreemapLayoutDiagnostics.writeBounds(rootItem: rootItem, size: viewBounds.size)
-            #if TREEMAP_LAYOUT_DIAGNOSTICS
             if let renderer: TreemapViewRenderer = renderer {
-                TreemapLayoutDiagnostics.writeLayout(rootItem: rootItem, size: viewBounds.size, renderer: renderer)
-                TreemapLayoutDiagnostics.writeLayoutUsingZBoundsIfAvailable(
+                TreemapLayoutDiagnostics.recordLayoutChange(
                     rootItem: rootItem,
+                    size: viewBounds.size,
+                    renderer: renderer,
                     minimumRenderableSide: ScanWindowMetrics.minimumRenderableTreemapSide
                 )
             }
-            #endif
         }
 
         _ = drawCachedImage(in: dirtyRect, sourceRect: dirtyRect, fraction: 1)

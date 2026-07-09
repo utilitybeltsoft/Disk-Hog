@@ -2,8 +2,23 @@ import AppKit
 import Foundation
 
 nonisolated enum TreemapLayoutDiagnostics {
-    static func writeBounds(rootItem: DiskItem, size: CGSize) {
-        #if TREEMAP_LAYOUT_DIAGNOSTICS
+    static func recordLayoutChange(
+        rootItem: DiskItem,
+        size: CGSize,
+        renderer: TreemapViewRenderer,
+        minimumRenderableSide: CGFloat
+    ) {
+#if TREEMAP_LAYOUT_DIAGNOSTICS
+        writeBounds(rootItem: rootItem, size: size)
+        writeLayout(rootItem: rootItem, size: size, renderer: renderer)
+        writeLayoutUsingZBoundsIfAvailable(
+            rootItem: rootItem,
+            minimumRenderableSide: minimumRenderableSide
+        )
+#endif
+    }
+
+    private static func writeBounds(rootItem: DiskItem, size: CGSize) {
         let diagnostics: [String: Any] = [
             "app": "Disk Hog",
             "recordType": "treemap-bounds",
@@ -32,15 +47,14 @@ nonisolated enum TreemapLayoutDiagnostics {
         } catch {
             NSLog("Disk Hog treemap bounds diagnostics failed: \(String(describing: error))")
         }
-        #endif
     }
 
-    static func writeLayout(rootItem: DiskItem, size: CGSize, renderer: TreemapViewRenderer) {
+    private static func writeLayout(rootItem: DiskItem, size: CGSize, renderer: TreemapViewRenderer) {
         let outputURL: URL = URL(fileURLWithPath: "/tmp/diskhog-treemap-layout.jsonl")
         writeLayout(rootItem: rootItem, size: size, renderer: renderer, outputURL: outputURL)
     }
 
-    static func writeLayoutUsingZBoundsIfAvailable(rootItem: DiskItem, minimumRenderableSide: CGFloat) {
+    private static func writeLayoutUsingZBoundsIfAvailable(rootItem: DiskItem, minimumRenderableSide: CGFloat) {
         let zBoundsURL: URL = URL(fileURLWithPath: "/tmp/disk-inventory-z-treemap-bounds.json")
         guard let data: Data = try? Data(contentsOf: zBoundsURL),
               let object: Any = try? JSONSerialization.jsonObject(with: data),
