@@ -287,6 +287,42 @@ struct TreemapViewRendererTests {
         #expect(renderer.materializedRendererCount == 4)
     }
 
+    @Test func squarifiedLayoutArrangesRowsByDescendingWeight() {
+        let root: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan"),
+            isDirectory: true
+        )
+        let large: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/large.bin"),
+            allocatedSizeValue: 600,
+            logicalSizeValue: 600
+        )
+        let medium: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/medium.bin"),
+            allocatedSizeValue: 300,
+            logicalSizeValue: 300
+        )
+        let small: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/small.bin"),
+            allocatedSizeValue: 100,
+            logicalSizeValue: 100
+        )
+        root.appendChild(large, updateSize: false)
+        root.appendChild(medium, updateSize: false)
+        root.appendChild(small, updateSize: false)
+        root.recalculateSize(usePhysicalSize: true)
+
+        let dataSource: TreemapDiskItemDataSource = TreemapDiskItemDataSource(rootItem: root)
+        let renderer: TreemapViewRenderer = TreemapViewRenderer(dataSource: dataSource)
+
+        renderer.reloadData()
+        renderer.calcLayout(NSRect(x: 0, y: 0, width: 100, height: 100))
+
+        #expect(renderer.itemRect(byPathToItem: [root, large]) == NSRect(x: 0, y: 0, width: 100, height: 60))
+        #expect(renderer.itemRect(byPathToItem: [root, medium]) == NSRect(x: 0, y: 60, width: 75, height: 40))
+        #expect(renderer.itemRect(byPathToItem: [root, small]) == NSRect(x: 75, y: 60, width: 25, height: 40))
+    }
+
     @Test func emptyFolderCanBeMappedToItsTreemapRectWhenItHasArea() {
         let root: DiskItem = DiskItem(
             url: URL(fileURLWithPath: "/scan"),
@@ -330,6 +366,36 @@ struct TreemapViewRendererTests {
         )
 
         #expect(visibleRect == NSRect(x: 144, y: 34, width: 12, height: 12))
+    }
+}
+
+struct TreemapCushionRendererTests {
+
+    @Test func colorNormalizationRedistributesOverflowAcrossRemainingChannels() {
+        var red: CGFloat = 1.4
+        var green: CGFloat = 0.8
+        var blue: CGFloat = 0.2
+
+        TreemapCushionRenderer.normalizeColorRed(&red, green: &green, blue: &blue)
+
+        #expect(Self.isNearlyEqual(red, 1.0))
+        #expect(Self.isNearlyEqual(green, 1.0))
+        #expect(Self.isNearlyEqual(blue, 0.4))
+    }
+
+    @Test func normalizeColorBalancesBrightnessAndPreservesAlpha() {
+        let normalizedColor: NSColor = TreemapCushionRenderer.normalizeColor(
+            NSColor(calibratedRed: 0, green: 0, blue: 0.9, alpha: 0.25)
+        )
+
+        #expect(Self.isNearlyEqual(normalizedColor.redComponent, 0.4))
+        #expect(Self.isNearlyEqual(normalizedColor.greenComponent, 0.4))
+        #expect(Self.isNearlyEqual(normalizedColor.blueComponent, 1.0))
+        #expect(Self.isNearlyEqual(normalizedColor.alphaComponent, 0.25))
+    }
+
+    private static func isNearlyEqual(_ first: CGFloat, _ second: CGFloat) -> Bool {
+        abs(first - second) < 0.0001
     }
 }
 
