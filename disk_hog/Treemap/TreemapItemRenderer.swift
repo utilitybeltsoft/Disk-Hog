@@ -8,12 +8,14 @@ nonisolated final class TreemapItemRenderer: @unchecked Sendable {
     private var rectValue: NSRect
     private var childRenderers: [TreemapItemRenderer]?
     private let cushionRenderer: TreemapCushionRenderer
+    private var childRendererReconciliationCountValue: Int
 
     init(dataSource: TreemapDiskItemDataSource, renderedItem item: DiskItem) {
         self.renderedItem = item
         self.dataSource = dataSource
         self.rectValue = .zero
         self.cushionRenderer = TreemapCushionRenderer()
+        self.childRendererReconciliationCountValue = 0
     }
 
     func refresh(with item: DiskItem) {
@@ -70,6 +72,12 @@ nonisolated final class TreemapItemRenderer: @unchecked Sendable {
     var materializedRendererCount: Int {
         1 + (childRenderers ?? []).reduce(0) { count, childRenderer in
             count + childRenderer.materializedRendererCount
+        }
+    }
+
+    var childRendererReconciliationCount: Int {
+        childRendererReconciliationCountValue + (childRenderers ?? []).reduce(0) { count, childRenderer in
+            count + childRenderer.childRendererReconciliationCount
         }
     }
 
@@ -269,6 +277,7 @@ nonisolated final class TreemapItemRenderer: @unchecked Sendable {
     }
 
     private func ensureChildRenderers() {
+        childRendererReconciliationCountValue += 1
         guard let dataSource: TreemapDiskItemDataSource = dataSource else { return }
         let childCount: Int = dataSource.numberOfChildren(of: renderedItem)
         if childRenderers == nil {

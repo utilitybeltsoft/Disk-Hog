@@ -323,6 +323,31 @@ struct TreemapViewRendererTests {
         #expect(renderer.itemRect(byPathToItem: [root, small]) == NSRect(x: 75, y: 60, width: 25, height: 40))
     }
 
+    @Test func wideFlatDirectoryLayoutReconcilesChildrenOnce() {
+        let root: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan"),
+            isDirectory: true
+        )
+        for index: Int in 0..<2_000 {
+            let child: DiskItem = DiskItem(
+                url: URL(fileURLWithPath: "/scan/file-\(index).bin"),
+                allocatedSizeValue: 1,
+                logicalSizeValue: 1
+            )
+            root.appendChild(child, updateSize: false)
+        }
+        root.recalculateSize(usePhysicalSize: true)
+
+        let dataSource: TreemapDiskItemDataSource = TreemapDiskItemDataSource(rootItem: root)
+        let renderer: TreemapViewRenderer = TreemapViewRenderer(dataSource: dataSource)
+
+        renderer.reloadData()
+        renderer.calcLayout(NSRect(x: 0, y: 0, width: 1_000, height: 1_000))
+
+        #expect(renderer.materializedRendererCount == 2_001)
+        #expect(renderer.childRendererReconciliationCount == 1)
+    }
+
     @Test func emptyFolderCanBeMappedToItsTreemapRectWhenItHasArea() {
         let root: DiskItem = DiskItem(
             url: URL(fileURLWithPath: "/scan"),

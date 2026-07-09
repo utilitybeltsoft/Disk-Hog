@@ -29,6 +29,10 @@ nonisolated final class TreemapViewRenderer: @unchecked Sendable {
         rootItemRenderer?.materializedRendererCount ?? 0
     }
 
+    var childRendererReconciliationCount: Int {
+        rootItemRenderer?.childRendererReconciliationCount ?? 0
+    }
+
     func invalidateCanvasCache() {
         deallocContentCache()
     }
