@@ -414,51 +414,12 @@ private struct SourcePaletteCloseRegistrationView: NSViewRepresentable {
 }
 
 private final class SourcePaletteCloseRegistrationNSView: NSView {
-    private weak var registeredWindow: NSWindow?
-    private var allowsCloseAfterConfirmation: Bool = false
-
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-
-        guard let window: NSWindow = window, registeredWindow !== window else {
-            return
-        }
-
-        registeredWindow = window
-        window.delegate = self
-    }
-}
-
-extension SourcePaletteCloseRegistrationNSView: NSWindowDelegate {
-    func windowShouldClose(_ sender: NSWindow) -> Bool {
-        if allowsCloseAfterConfirmation {
-            return true
-        }
-
-        let activeScanningSessions: [ScanSession] = ScanWindowRegistry.shared.activeScanningSessions
-        guard activeScanningSessions.isEmpty == false else {
-            allowsCloseAfterConfirmation = true
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        if newWindow == nil {
             NSApp.terminate(nil)
-            return true
         }
 
-        let alert: NSAlert = NSAlert()
-        alert.messageText = "Cancel active scans and quit?"
-        alert.informativeText = activeScanningSessions.count == 1
-            ? "One scan is still running. Closing the source palette will cancel it and quit Disk Hog."
-            : "\(activeScanningSessions.count) scans are still running. Closing the source palette will cancel them and quit Disk Hog."
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "Cancel Scans and Quit")
-        alert.addButton(withTitle: "Keep Scanning")
-
-        guard alert.runModal() == .alertFirstButtonReturn else {
-            return false
-        }
-
-        ScanWindowRegistry.shared.cancelActiveScans()
-        allowsCloseAfterConfirmation = true
-        NSApp.terminate(nil)
-        return true
+        super.viewWillMove(toWindow: newWindow)
     }
 }
 

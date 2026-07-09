@@ -9,6 +9,8 @@ import SwiftUI
 
 @main
 struct DiskHogApp: App {
+    @NSApplicationDelegateAdaptor(DiskHogApplicationDelegate.self) private var appDelegate
+
     var body: some Scene {
         WindowGroup("Choose Source to Scan", id: WindowIDs.sourcePalette) {
             ContentView()
@@ -26,6 +28,39 @@ struct DiskHogApp: App {
         .commands {
             DiskHogCommands()
         }
+    }
+}
+
+@MainActor
+private final class DiskHogApplicationDelegate: NSObject, NSApplicationDelegate {
+    private var allowsTerminationAfterConfirmation: Bool = false
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if allowsTerminationAfterConfirmation {
+            return .terminateNow
+        }
+
+        let activeScanningSessions: [ScanSession] = ScanWindowRegistry.shared.activeScanningSessions
+        guard activeScanningSessions.isEmpty == false else {
+            return .terminateNow
+        }
+
+        let alert: NSAlert = NSAlert()
+        alert.messageText = "Cancel active scans and quit?"
+        alert.informativeText = activeScanningSessions.count == 1
+            ? "One scan is still running. Quitting Disk Hog will cancel it."
+            : "\(activeScanningSessions.count) scans are still running. Quitting Disk Hog will cancel them."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Cancel Scans and Quit")
+        alert.addButton(withTitle: "Keep Scanning")
+
+        guard alert.runModal() == .alertFirstButtonReturn else {
+            return .terminateCancel
+        }
+
+        ScanWindowRegistry.shared.cancelActiveScans()
+        allowsTerminationAfterConfirmation = true
+        return .terminateNow
     }
 }
 
