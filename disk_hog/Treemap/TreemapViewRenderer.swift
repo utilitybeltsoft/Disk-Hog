@@ -7,7 +7,6 @@ nonisolated final class TreemapViewRenderer: @unchecked Sendable {
     private var touchedRenderer: TreemapItemRenderer?
     private var cachedContent: NSBitmapImageRep?
     private let rootItem: DiskItem
-    private var rendererIndex: [ObjectIdentifier: TreemapItemRenderer] = [:]
 
     init(dataSource: TreemapDiskItemDataSource) {
         self.rootItem = dataSource.root
@@ -26,6 +25,10 @@ nonisolated final class TreemapViewRenderer: @unchecked Sendable {
         rootItemRenderer
     }
 
+    var materializedRendererCount: Int {
+        rootItemRenderer?.materializedRendererCount ?? 0
+    }
+
     func invalidateCanvasCache() {
         deallocContentCache()
     }
@@ -36,7 +39,6 @@ nonisolated final class TreemapViewRenderer: @unchecked Sendable {
         selectedRenderer = nil
         touchedRenderer = nil
         guard let dataSource: TreemapDiskItemDataSource = dataSource else {
-            rendererIndex.removeAll(keepingCapacity: false)
             return
         }
         if rootItemRenderer == nil {
@@ -44,7 +46,6 @@ nonisolated final class TreemapViewRenderer: @unchecked Sendable {
         } else {
             rootItemRenderer?.refresh(with: rootItem)
         }
-        rebuildRendererIndex()
     }
 
     func cellID(by point: NSPoint, inViewCoordinates viewCoordinates: Bool) -> TreemapItemRenderer? {
@@ -74,7 +75,9 @@ nonisolated final class TreemapViewRenderer: @unchecked Sendable {
     }
 
     func selectItem(byRenderedItem item: DiskItem) -> Bool {
-        guard let renderer: TreemapItemRenderer = rendererIndex[ObjectIdentifier(item)] else {
+        let path: [DiskItem] = pathFromRoot(to: item)
+        guard path.isEmpty == false,
+              let renderer: TreemapItemRenderer = findTreemapItem(byPathToDataItem: path) else {
             return false
         }
         selectItem(by: renderer)
@@ -137,11 +140,6 @@ nonisolated final class TreemapViewRenderer: @unchecked Sendable {
         }
     }
 
-    private func rebuildRendererIndex() {
-        rendererIndex.removeAll(keepingCapacity: true)
-        rootItemRenderer?.appendRendererIndex(to: &rendererIndex)
-    }
-
     private func findTreemapItem(byPathToDataItem path: [DiskItem]) -> TreemapItemRenderer? {
         if rootItemRenderer == nil {
             return nil
@@ -159,5 +157,18 @@ nonisolated final class TreemapViewRenderer: @unchecked Sendable {
             parent = child!
         }
         return child
+    }
+
+    private func pathFromRoot(to item: DiskItem) -> [DiskItem] {
+        var path: [DiskItem] = []
+        var currentItem: DiskItem? = item
+        while let item: DiskItem = currentItem {
+            path.append(item)
+            if item === rootItem {
+                return path.reversed()
+            }
+            currentItem = item.parent
+        }
+        return []
     }
 }

@@ -248,6 +248,45 @@ struct TreemapViewRendererTests {
         #expect(renderer.selectedItem === child)
     }
 
+    @Test func rendererReloadDoesNotMaterializeFullTree() {
+        let root: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan"),
+            isDirectory: true
+        )
+        let selectedFolder: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/selected"),
+            isDirectory: true
+        )
+        let selectedFile: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/selected/file.txt"),
+            allocatedSizeValue: 100,
+            logicalSizeValue: 100
+        )
+        let siblingFolder: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/sibling"),
+            isDirectory: true
+        )
+        let siblingFile: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/sibling/file.txt"),
+            allocatedSizeValue: 100,
+            logicalSizeValue: 100
+        )
+        selectedFolder.appendChild(selectedFile)
+        siblingFolder.appendChild(siblingFile)
+        root.appendChild(selectedFolder)
+        root.appendChild(siblingFolder)
+
+        let dataSource: TreemapDiskItemDataSource = TreemapDiskItemDataSource(rootItem: root)
+        let renderer: TreemapViewRenderer = TreemapViewRenderer(dataSource: dataSource)
+
+        renderer.reloadData()
+
+        #expect(renderer.materializedRendererCount == 1)
+        #expect(renderer.selectItem(byRenderedItem: selectedFile) == true)
+        #expect(renderer.selectedItem === selectedFile)
+        #expect(renderer.materializedRendererCount == 4)
+    }
+
     @Test func emptyFolderCanBeMappedToItsTreemapRectWhenItHasArea() {
         let root: DiskItem = DiskItem(
             url: URL(fileURLWithPath: "/scan"),

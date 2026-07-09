@@ -14,20 +14,13 @@ nonisolated final class TreemapItemRenderer: @unchecked Sendable {
         self.dataSource = dataSource
         self.rectValue = .zero
         self.cushionRenderer = TreemapCushionRenderer()
-        if !isLeaf {
-            createChildRenderers()
-        }
     }
 
     func refresh(with item: DiskItem) {
         renderedItem = item
         rectValue = .zero
         cushionRenderer.setRect(.zero)
-        if !isLeaf {
-            createChildRenderers()
-        } else {
-            childRenderers = nil
-        }
+        childRenderers = nil
     }
 
     func setCushionColor(_ color: NSColor) {
@@ -74,24 +67,23 @@ nonisolated final class TreemapItemRenderer: @unchecked Sendable {
         rectValue
     }
 
+    var materializedRendererCount: Int {
+        1 + (childRenderers ?? []).reduce(0) { count, childRenderer in
+            count + childRenderer.materializedRendererCount
+        }
+    }
+
     var childEnumerator: [TreemapItemRenderer] {
-        assert(childRenderers != nil, "method 'childEnumerator' can only be invoked for nodes, not for leafs")
+        assert(!isLeaf, "method 'childEnumerator' can only be invoked for nodes, not for leafs")
+        ensureChildRenderers()
         return childRenderers ?? []
     }
 
     var childCount: Int {
-        childRenderers?.count ?? 0
-    }
-
-    func appendRendererIndex(to index: inout [ObjectIdentifier: TreemapItemRenderer]) {
-        index[ObjectIdentifier(renderedItem)] = self
-        guard let childRenderers: [TreemapItemRenderer] = childRenderers else {
-            return
+        guard !isLeaf, let dataSource: TreemapDiskItemDataSource = dataSource else {
+            return 0
         }
-
-        for childRenderer: TreemapItemRenderer in childRenderers {
-            childRenderer.appendRendererIndex(to: &index)
-        }
+        return dataSource.numberOfChildren(of: renderedItem)
     }
 
     func appendLayoutDiagnostics(to rows: inout [[String: Any]], depth: Int, childIndex: Int, sequence: inout Int) {
@@ -115,7 +107,8 @@ nonisolated final class TreemapItemRenderer: @unchecked Sendable {
         ])
         sequence += 1
 
-        for (index, childRenderer) in (childRenderers ?? []).enumerated() {
+        let currentChildRenderers: [TreemapItemRenderer] = isLeaf ? [] : childEnumerator
+        for (index, childRenderer) in currentChildRenderers.enumerated() {
             childRenderer.appendLayoutDiagnostics(
                 to: &rows,
                 depth: depth + 1,
@@ -126,7 +119,7 @@ nonisolated final class TreemapItemRenderer: @unchecked Sendable {
     }
 
     func child(at index: Int) -> TreemapItemRenderer {
-        childRenderers![index]
+        childEnumerator[index]
     }
 
     func hitTest(_ point: NSPoint) -> TreemapItemRenderer? {
@@ -136,13 +129,14 @@ nonisolated final class TreemapItemRenderer: @unchecked Sendable {
         if isLeaf {
             return self
         }
-        for childRenderer: TreemapItemRenderer in childRenderers ?? [] {
+        let currentChildRenderers: [TreemapItemRenderer] = childEnumerator
+        for childRenderer: TreemapItemRenderer in currentChildRenderers {
             let hitChildRenderer: TreemapItemRenderer? = childRenderer.hitTest(point)
             if hitChildRenderer != nil {
                 return hitChildRenderer
             }
         }
-        if childRenderers?.isEmpty == true {
+        if currentChildRenderers.isEmpty {
             return self
         }
         return nil
@@ -160,13 +154,14 @@ nonisolated final class TreemapItemRenderer: @unchecked Sendable {
             dataSource?.prepareRenderer(self, for: renderedItem)
             cushionRenderer.renderCushion(in: bitmap)
         } else {
-            for childRenderer: TreemapItemRenderer in childRenderers ?? [] {
+            for childRenderer: TreemapItemRenderer in childEnumerator {
                 childRenderer.drawCushion(in: bitmap, parentCushion: cushionRenderer, cushionHeightFactor: heightFactor * Self.cushionScaleFactor)
             }
         }
     }
 
     private func layoutChilds() {
+        ensureChildRenderers()
         var rows: [Double] = []
         var childsPerRow: [Int] = []
         var childWidths: [Double] = []
@@ -195,7 +190,7 @@ nonisolated final class TreemapItemRenderer: @unchecked Sendable {
                 } else {
                     childRect = NSRect(x: top, y: left, width: bottom - top, height: right - left)
                 }
-                childRenderers![childIndex].calcLayout(childRect)
+                childEnumerator[childIndex].calcLayout(childRect)
                 left = right
                 childIndex += 1
             }
@@ -204,7 +199,7 @@ nonisolated final class TreemapItemRenderer: @unchecked Sendable {
     }
 
     private func arrangeChildsOnRows(rows: inout [Double], childsPerRow: inout [Int], childWidths: inout [Double]) -> Bool {
-        let childCount: Int = childRenderers?.count ?? 0
+        let childCount: Int = childCount
         if weight == 0 {
             rows.append(1)
             childsPerRow.append(childCount)
@@ -241,9 +236,9 @@ nonisolated final class TreemapItemRenderer: @unchecked Sendable {
         var index: Int = startChildIndex
         var sizeUsed: Double = 0
         var rowHeight: Double = 0
-        let childCount: Int = childRenderers?.count ?? 0
+        let childCount: Int = childCount
         while index < childCount {
-            let childSize: Double = Double(childRenderers![index].weight)
+            let childSize: Double = Double(childEnumerator[index].weight)
             if childSize == 0 {
                 assert(index > startChildIndex)
                 break
@@ -260,20 +255,20 @@ nonisolated final class TreemapItemRenderer: @unchecked Sendable {
             index += 1
         }
         assert(index > startChildIndex)
-        while index < childCount && childRenderers![index].weight == 0 {
+        while index < childCount && childEnumerator[index].weight == 0 {
             index += 1
         }
         let childsUsed: Int = index - startChildIndex
         let rowSize: Double = mySize * rowHeight
         for offset: Int in 0..<childsUsed {
-            let childSize: Double = Double(childRenderers![startChildIndex + offset].weight)
+            let childSize: Double = Double(childEnumerator[startChildIndex + offset].weight)
             let childWidth: Double = childSize / rowSize
             childWidths.append(childWidth)
         }
         return RowCalculation(rowHeight: rowHeight, childsUsed: childsUsed)
     }
 
-    private func createChildRenderers() {
+    private func ensureChildRenderers() {
         guard let dataSource: TreemapDiskItemDataSource = dataSource else { return }
         let childCount: Int = dataSource.numberOfChildren(of: renderedItem)
         if childRenderers == nil {
@@ -287,7 +282,9 @@ nonisolated final class TreemapItemRenderer: @unchecked Sendable {
         for index: Int in 0..<childCount {
             let childItem: DiskItem = dataSource.child(index, of: renderedItem)
             if index < existingRendererCount {
-                childRenderers![index].refresh(with: childItem)
+                if childRenderers![index].item !== childItem {
+                    childRenderers![index].refresh(with: childItem)
+                }
             } else {
                 let childRenderer: TreemapItemRenderer = TreemapItemRenderer(dataSource: dataSource, renderedItem: childItem)
                 childRenderers!.append(childRenderer)
