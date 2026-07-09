@@ -2,23 +2,27 @@ import AppKit
 import SwiftUI
 
 struct ScanWindowRegistrationView: NSViewRepresentable {
+    let session: ScanSession
     let source: ScanSource
 
     func makeNSView(context: Context) -> ScanWindowRegistrationNSView {
-        ScanWindowRegistrationNSView(source: source)
+        ScanWindowRegistrationNSView(session: session, source: source)
     }
 
     func updateNSView(_ nsView: ScanWindowRegistrationNSView, context: Context) {
+        nsView.session = session
         nsView.source = source
     }
 }
 
 final class ScanWindowRegistrationNSView: NSView {
+    weak var session: ScanSession?
     var source: ScanSource
     private weak var registeredWindow: NSWindow?
     private let initialGeometryApplier: ScanWindowInitialGeometryApplier = ScanWindowInitialGeometryApplier()
 
-    init(source: ScanSource) {
+    init(session: ScanSession, source: ScanSource) {
+        self.session = session
         self.source = source
         super.init(frame: .zero)
     }
@@ -38,7 +42,9 @@ final class ScanWindowRegistrationNSView: NSView {
         }
 
         initialGeometryApplier.applyIfNeeded(to: window)
-        ScanWindowRegistry.shared.register(window, for: source)
+        if let session: ScanSession = session {
+            ScanWindowRegistry.shared.register(window, session: session, for: source)
+        }
         registeredWindow = window
     }
 

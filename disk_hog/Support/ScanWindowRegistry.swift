@@ -8,8 +8,8 @@ final class ScanWindowRegistry {
 
     private init() {}
 
-    func register(_ window: NSWindow, for source: ScanSource) {
-        windowsBySourceKey[source.scanWindowRegistryKey] = WeakScanWindow(window)
+    func register(_ window: NSWindow, session: ScanSession, for source: ScanSource) {
+        windowsBySourceKey[source.scanWindowRegistryKey] = WeakScanWindow(window, session: session)
     }
 
     func unregister(_ window: NSWindow, for source: ScanSource) {
@@ -36,12 +36,34 @@ final class ScanWindowRegistry {
         NSApp.activate(ignoringOtherApps: true)
         return true
     }
+
+    var activeScanningSessions: [ScanSession] {
+        windowsBySourceKey = windowsBySourceKey.filter { _, weakWindow in
+            weakWindow.window != nil
+        }
+        return windowsBySourceKey.values.compactMap { weakWindow in
+            guard let session: ScanSession = weakWindow.session,
+                  session.state == .scanning else {
+                return nil
+            }
+
+            return session
+        }
+    }
+
+    func cancelActiveScans() {
+        for session: ScanSession in activeScanningSessions {
+            session.cancel()
+        }
+    }
 }
 
 private final class WeakScanWindow {
     weak var window: NSWindow?
+    weak var session: ScanSession?
 
-    init(_ window: NSWindow) {
+    init(_ window: NSWindow, session: ScanSession) {
         self.window = window
+        self.session = session
     }
 }

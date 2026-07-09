@@ -51,7 +51,7 @@ struct ScanWindowView: View {
         }
         .frame(minWidth: ScanWindowMetrics.windowMinimumWidth, minHeight: ScanWindowMetrics.windowMinimumHeight)
         .background(Color(nsColor: .windowBackgroundColor))
-        .background(ScanWindowRegistrationView(source: session.source))
+        .background(ScanWindowRegistrationView(session: session, source: session.source))
         .background(ScanWindowKeyObservationView {
             activateScanWindowCommandState()
         })
