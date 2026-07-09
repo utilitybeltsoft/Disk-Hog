@@ -161,11 +161,11 @@ nonisolated final class TreemapItemRenderer: @unchecked Sendable {
     }
 
     private func layoutChilds() {
-        ensureChildRenderers()
+        let children: [TreemapItemRenderer] = childEnumerator
         var rows: [Double] = []
         var childsPerRow: [Int] = []
         var childWidths: [Double] = []
-        let horizontalRows: Bool = arrangeChildsOnRows(rows: &rows, childsPerRow: &childsPerRow, childWidths: &childWidths)
+        let horizontalRows: Bool = arrangeChildsOnRows(children: children, rows: &rows, childsPerRow: &childsPerRow, childWidths: &childWidths)
         let parentWidth: Int = Int(horizontalRows ? rectValue.width : rectValue.height)
         let parentHeight: Int = Int(horizontalRows ? rectValue.height : rectValue.width)
         let parentBottom: Int = Int(horizontalRows ? rectValue.maxY : rectValue.maxX)
@@ -190,7 +190,7 @@ nonisolated final class TreemapItemRenderer: @unchecked Sendable {
                 } else {
                     childRect = NSRect(x: top, y: left, width: bottom - top, height: right - left)
                 }
-                childEnumerator[childIndex].calcLayout(childRect)
+                children[childIndex].calcLayout(childRect)
                 left = right
                 childIndex += 1
             }
@@ -198,8 +198,8 @@ nonisolated final class TreemapItemRenderer: @unchecked Sendable {
         }
     }
 
-    private func arrangeChildsOnRows(rows: inout [Double], childsPerRow: inout [Int], childWidths: inout [Double]) -> Bool {
-        let childCount: Int = childCount
+    private func arrangeChildsOnRows(children: [TreemapItemRenderer], rows: inout [Double], childsPerRow: inout [Int], childWidths: inout [Double]) -> Bool {
+        let childCount: Int = children.count
         if weight == 0 {
             rows.append(1)
             childsPerRow.append(childCount)
@@ -222,7 +222,7 @@ nonisolated final class TreemapItemRenderer: @unchecked Sendable {
         }
         var index: Int = 0
         while index < childCount {
-            let result: RowCalculation = calculateRow(startChildIndex: index, rowWidth: width, childWidths: &childWidths)
+            let result: RowCalculation = calculateRow(children: children, startChildIndex: index, rowWidth: width, childWidths: &childWidths)
             rows.append(result.rowHeight)
             childsPerRow.append(result.childsUsed)
             index += result.childsUsed
@@ -230,15 +230,15 @@ nonisolated final class TreemapItemRenderer: @unchecked Sendable {
         return horizontal
     }
 
-    private func calculateRow(startChildIndex: Int, rowWidth: Double, childWidths: inout [Double]) -> RowCalculation {
+    private func calculateRow(children: [TreemapItemRenderer], startChildIndex: Int, rowWidth: Double, childWidths: inout [Double]) -> RowCalculation {
         let minProportion: Double = 0.4
         let mySize: Double = Double(weight)
         var index: Int = startChildIndex
         var sizeUsed: Double = 0
         var rowHeight: Double = 0
-        let childCount: Int = childCount
+        let childCount: Int = children.count
         while index < childCount {
-            let childSize: Double = Double(childEnumerator[index].weight)
+            let childSize: Double = Double(children[index].weight)
             if childSize == 0 {
                 assert(index > startChildIndex)
                 break
@@ -255,13 +255,13 @@ nonisolated final class TreemapItemRenderer: @unchecked Sendable {
             index += 1
         }
         assert(index > startChildIndex)
-        while index < childCount && childEnumerator[index].weight == 0 {
+        while index < childCount && children[index].weight == 0 {
             index += 1
         }
         let childsUsed: Int = index - startChildIndex
         let rowSize: Double = mySize * rowHeight
         for offset: Int in 0..<childsUsed {
-            let childSize: Double = Double(childEnumerator[startChildIndex + offset].weight)
+            let childSize: Double = Double(children[startChildIndex + offset].weight)
             let childWidth: Double = childSize / rowSize
             childWidths.append(childWidth)
         }
