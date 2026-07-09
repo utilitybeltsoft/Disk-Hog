@@ -63,7 +63,7 @@ nonisolated final class DiskInventoryZScanner {
         let didStartSecurityScopedAccess: Bool = rootURL.startAccessingSecurityScopedResource()
         defer { if didStartSecurityScopedAccess { rootURL.stopAccessingSecurityScopedResource() } }
         resetHardlinkDedup()
-        let rootItem: DiskItem = makeItem(url: rootURL, parent: nil, values: nil)
+        let rootBuilder: DiskItemBuilder = makeItem(url: rootURL, values: nil)
         var progressState: ScanProgressState = ScanProgressState(currentPath: rootURL.path)
 
         await progressHandler?(progressState.snapshot())
@@ -96,7 +96,7 @@ nonisolated final class DiskInventoryZScanner {
             topLevelWorkItems.append(
                 TopLevelScanWorkItem(
                     sourceOrder: sourceOrder,
-                    item: makeItem(url: childURL, parent: nil, values: values),
+                    item: makeItem(url: childURL, values: values),
                     isDirectory: values.isDirectory ?? false,
                     isPackage: values.isPackage ?? false,
                     isVolume: values.isVolume ?? false,
@@ -128,16 +128,16 @@ nonisolated final class DiskInventoryZScanner {
             }
 
             for try await result: TopLevelScanResult in taskGroup {
-                rootItem.appendChild(result.item, updateSize: true)
+                rootBuilder.appendChild(result.item, updateSize: true)
             }
         }
 
-        rootItem.sortChildrenInDiskInventoryZOrder(recursive: false, usePhysicalSize: settings.usePhysicalSize)
-        progressState.setScannedBytes(rootItem.sizeValue(usePhysicalSize: settings.usePhysicalSize))
+        rootBuilder.sortChildrenInDiskInventoryZOrder(recursive: false, usePhysicalSize: settings.usePhysicalSize)
+        progressState.setScannedBytes(rootBuilder.sizeValue(usePhysicalSize: settings.usePhysicalSize))
         progressState.setScannedFileCount(await progressAggregator.scannedFileCount)
         progressState.setScannedFolderCount(await progressAggregator.scannedFolderCount)
         await progressHandler?(progressState.snapshot())
-        return rootItem
+        return rootBuilder.freeze()
     }
 
     private func scanTopLevelWorkItem(
@@ -212,7 +212,7 @@ nonisolated final class DiskInventoryZScanner {
     }
 
     private func loadChildren(
-        of item: DiskItem,
+        of item: DiskItemBuilder,
         settings: DiskScanSettings,
         progressState: ScanProgressState,
         progressHandler: ProgressHandler?
@@ -224,7 +224,7 @@ nonisolated final class DiskInventoryZScanner {
         progressState.updateCurrentPath(item.path)
         if progressState.shouldPublish() { await progressHandler?(progressState.snapshot()) }
         item.removeAllChildren()
-        var itemStack: [DiskItem] = []
+        var itemStack: [DiskItemBuilder] = []
         itemStack.append(item)
         guard let directoryEnumerator: FileManager.DirectoryEnumerator = FileManager.default.enumerator(
             at: item.url,
@@ -238,7 +238,7 @@ nonisolated final class DiskInventoryZScanner {
         }
         var lastEnumLevel: Int = 1
         var lastItemWasDirectory: Bool = false
-        var lastDirectoryItem: DiskItem? = nil
+        var lastDirectoryItem: DiskItemBuilder? = nil
         var filesSinceYield: Int = 0
         while let currentURL: URL = directoryEnumerator.nextObject() as? URL {
             filesSinceYield += 1
@@ -258,7 +258,7 @@ nonisolated final class DiskInventoryZScanner {
                 continue
             }
             if directoryEnumerator.level > lastEnumLevel {
-                if let lastDirectoryItem: DiskItem = lastDirectoryItem {
+                if let lastDirectoryItem: DiskItemBuilder = lastDirectoryItem {
                     itemStack.append(lastDirectoryItem)
                 } else if lastItemWasDirectory {
                     throw DiskScannerError.traversalInconsistency("A directory was reported without a matching item.")
@@ -271,10 +271,10 @@ nonisolated final class DiskInventoryZScanner {
                     }
                 }
             }
-            guard let parentItem: DiskItem = itemStack.last else {
+            guard let parentItem: DiskItemBuilder = itemStack.last else {
                 throw DiskScannerError.traversalInconsistency("A child item was reported without a parent.")
             }
-            let currentItem: DiskItem = makeItem(url: currentURL, parent: parentItem, values: currentValues)
+            let currentItem: DiskItemBuilder = makeItem(url: currentURL, values: currentValues)
             parentItem.appendChild(currentItem, updateSize: false)
             progressState.recordItem(currentItem)
             let isCurrentDirectory: Bool = currentValues.isDirectory ?? false
@@ -313,7 +313,7 @@ nonisolated final class DiskInventoryZScanner {
         hardlinkDeduplicator.reset()
     }
 
-    private func markHardlinkDuplicateIfNeeded(item: DiskItem, values: URLResourceValues) {
+    private func markHardlinkDuplicateIfNeeded(item: DiskItemBuilder, values: URLResourceValues) {
         guard let linkCount: Int = values.linkCount,
               linkCount > 1,
               let fileIdentifier: Any = values.fileResourceIdentifier else {
@@ -368,7 +368,7 @@ nonisolated final class DiskInventoryZScanner {
         return loadedFirmlinks
     }
 
-    private func makeItem(url: URL, parent: DiskItem?, values: URLResourceValues?) -> DiskItem {
+    private func makeItem(url: URL, values: URLResourceValues?) -> DiskItemBuilder {
         let isDirectory: Bool = values?.isDirectory ?? url.hasDirectoryPath
         let isPackage: Bool = values?.isPackage ?? false
         let isSymbolicLink: Bool = values?.isSymbolicLink ?? false
@@ -376,9 +376,8 @@ nonisolated final class DiskInventoryZScanner {
         let logicalSize: UInt64 = UInt64(values?.fileSize ?? 0)
         let name: String = values?.name ?? (url.lastPathComponent.isEmpty ? url.path : url.lastPathComponent)
         let kindName: String? = kindName(for: url, values: values, isDirectory: isDirectory, isSymbolicLink: isSymbolicLink)
-        return DiskItem(
+        return DiskItemBuilder(
             url: url,
-            parent: parent,
             name: name,
             allocatedSizeValue: isDirectory ? 0 : allocatedSize,
             logicalSizeValue: isDirectory ? 0 : logicalSize,
@@ -467,7 +466,7 @@ private nonisolated struct OpaquePackageSize: Sendable {
 
 private nonisolated struct TopLevelScanWorkItem: @unchecked Sendable {
     let sourceOrder: Int
-    let item: DiskItem
+    let item: DiskItemBuilder
     let isDirectory: Bool
     let isPackage: Bool
     let isVolume: Bool
@@ -476,7 +475,7 @@ private nonisolated struct TopLevelScanWorkItem: @unchecked Sendable {
 
 private nonisolated struct TopLevelScanResult: Sendable {
     let sourceOrder: Int
-    let item: DiskItem
+    let item: DiskItemBuilder
 }
 
 // Hardlink byte ownership is intentionally first-claimer-wins across parallel
@@ -580,7 +579,7 @@ nonisolated private struct ScanProgressState {
         self.currentPath = currentPath
     }
 
-    mutating func recordItem(_ item: DiskItem) {
+    mutating func recordItem(_ item: DiskItemBuilder) {
         if item.isFolder {
             scannedFolderCount += 1
         } else {

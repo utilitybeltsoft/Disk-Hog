@@ -199,13 +199,13 @@ final class ZStyleTreemapNSView: NSView {
     private func syncSelectionToRenderer() {
         guard let item: DiskItem = selectedItem,
               let rootItem: DiskItem = rootItem,
-              item.pathFromRoot().first === rootItem else {
+              rootItem.descendantsMatchingAncestorPath(of: item).isEmpty == false else {
             renderer?.selectItem(by: nil)
             return
         }
 
         if renderer?.selectItem(byRenderedItem: item) == false {
-            let path: [DiskItem] = item.pathFromRoot()
+            let path: [DiskItem] = rootItem.descendantsMatchingAncestorPath(of: item)
             renderer?.selectItem(byPathToItem: path)
         }
     }

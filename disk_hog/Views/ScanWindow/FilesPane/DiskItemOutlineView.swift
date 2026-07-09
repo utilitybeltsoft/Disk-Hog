@@ -218,14 +218,12 @@ struct DiskItemOutlineView: NSViewRepresentable {
         }
 
         private func expandAncestors(of item: DiskItem) {
-            var ancestors: [DiskItem] = []
-            var ancestor: DiskItem? = item.parent
-            while let currentAncestor: DiskItem = ancestor {
-                ancestors.append(currentAncestor)
-                ancestor = currentAncestor.parent
+            guard let rootItem: DiskItem = rootItem else {
+                return
             }
 
-            for ancestor: DiskItem in ancestors.reversed() {
+            let ancestors: [DiskItem] = rootItem.descendantsMatchingAncestorPath(of: item).dropLast()
+            for ancestor: DiskItem in ancestors {
                 outlineView?.expandItem(ancestor)
             }
         }

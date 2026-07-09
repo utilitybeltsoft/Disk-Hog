@@ -1,20 +1,22 @@
 import Foundation
 
-nonisolated final class DiskItem: Identifiable, Hashable, @unchecked Sendable {
-    private(set) weak var parent: DiskItem?
-    private var childrenStorage: [DiskItem]
-    private var rootOrDetachedURL: URL?
+nonisolated final class DiskItem: Identifiable, Hashable, Sendable {
+    private let childrenStorage: [DiskItem]
     private let fileSystemName: String
     private let displayNameOverride: String?
+    private let urlValue: URL
+    private let folderNameValue: String
+    private let displayFolderNameValue: String
+    private let isRootValue: Bool
 
-    var itemType: DiskItemType
-    var allocatedSizeValue: UInt64
-    var logicalSizeValue: UInt64
-    var kindName: String?
-    var isDirectory: Bool
-    var isPackage: Bool
-    var isAliasOrSymbolicLink: Bool
-    var isHardlinkDuplicate: Bool
+    let itemType: DiskItemType
+    let allocatedSizeValue: UInt64
+    let logicalSizeValue: UInt64
+    let kindName: String?
+    let isDirectory: Bool
+    let isPackage: Bool
+    let isAliasOrSymbolicLink: Bool
+    let isHardlinkDuplicate: Bool
 
     var id: ObjectIdentifier {
         ObjectIdentifier(self)
@@ -22,7 +24,6 @@ nonisolated final class DiskItem: Identifiable, Hashable, @unchecked Sendable {
 
     init(
         url: URL,
-        parent: DiskItem? = nil,
         itemType: DiskItemType = .fileOrFolder,
         displayName: String? = nil,
         name: String? = nil,
@@ -32,14 +33,18 @@ nonisolated final class DiskItem: Identifiable, Hashable, @unchecked Sendable {
         isDirectory: Bool = false,
         isPackage: Bool = false,
         isAliasOrSymbolicLink: Bool = false,
-        isHardlinkDuplicate: Bool = false
+        isHardlinkDuplicate: Bool = false,
+        children: [DiskItem] = [],
+        isRoot: Bool = true,
+        displayFolderName: String? = nil
     ) {
-        self.parent = parent
-        self.childrenStorage = []
         let lastPathComponent: String = name ?? url.lastPathComponent
         self.fileSystemName = lastPathComponent.isEmpty ? url.path : lastPathComponent
         self.displayNameOverride = displayName == self.fileSystemName ? nil : displayName
-        self.rootOrDetachedURL = parent == nil ? url : nil
+        self.urlValue = url
+        self.folderNameValue = itemType == .fileOrFolder ? (url.path as NSString).deletingLastPathComponent : ""
+        self.displayFolderNameValue = displayFolderName ?? ""
+        self.isRootValue = isRoot
         self.itemType = itemType
         self.allocatedSizeValue = allocatedSizeValue
         self.logicalSizeValue = logicalSizeValue
@@ -48,6 +53,7 @@ nonisolated final class DiskItem: Identifiable, Hashable, @unchecked Sendable {
         self.isPackage = isPackage
         self.isAliasOrSymbolicLink = isAliasOrSymbolicLink
         self.isHardlinkDuplicate = isHardlinkDuplicate
+        self.childrenStorage = children
     }
 
     var children: [DiskItem] {
@@ -59,7 +65,7 @@ nonisolated final class DiskItem: Identifiable, Hashable, @unchecked Sendable {
     }
 
     var isRoot: Bool {
-        parent == nil
+        isRootValue
     }
 
     var isSpecialItem: Bool {
@@ -91,43 +97,19 @@ nonisolated final class DiskItem: Identifiable, Hashable, @unchecked Sendable {
     }
 
     var path: String {
-        if isSpecialItem {
-            return ""
-        }
-
-        if let parent: DiskItem = parent {
-            return (parent.path as NSString).appendingPathComponent(fileSystemName)
-        }
-
-        return rootOrDetachedURL?.path ?? fileSystemName
+        isSpecialItem ? "" : urlValue.path
     }
 
     var url: URL {
-        if let parent: DiskItem = parent {
-            return parent.url.appendingPathComponent(fileSystemName, isDirectory: isDirectory)
-        }
-
-        return rootOrDetachedURL ?? URL(fileURLWithPath: fileSystemName, isDirectory: isDirectory)
+        urlValue
     }
 
     var folderName: String {
-        if isSpecialItem {
-            return ""
-        }
-
-        if let parent: DiskItem = parent {
-            return parent.path
-        }
-
-        return (path as NSString).deletingLastPathComponent
+        folderNameValue
     }
 
     var displayFolderName: String {
-        guard !isSpecialItem, let parent: DiskItem = parent else {
-            return ""
-        }
-
-        return (parent.displayFolderName as NSString).appendingPathComponent(parent.displayName)
+        displayFolderNameValue
     }
 
     var displayPath: String {
@@ -146,21 +128,137 @@ nonisolated final class DiskItem: Identifiable, Hashable, @unchecked Sendable {
         childrenStorage[index]
     }
 
-    func pathFromRoot() -> [DiskItem] {
-        var items: [DiskItem] = []
-        var currentItem: DiskItem? = self
-
-        while let item: DiskItem = currentItem {
-            items.append(item)
-            currentItem = item.parent
+    func descendantsMatchingAncestorPath(of item: DiskItem) -> [DiskItem] {
+        guard containsPath(item.path) else {
+            return []
         }
 
-        return items.reversed()
+        if self === item {
+            return [self]
+        }
+
+        for child: DiskItem in childrenStorage {
+            let childPath: [DiskItem] = child.descendantsMatchingAncestorPath(of: item)
+            if childPath.isEmpty == false {
+                return [self] + childPath
+            }
+        }
+
+        return []
     }
 
-    func appendChild(_ child: DiskItem, updateSize: Bool = true) {
-        child.parent = self
-        child.rootOrDetachedURL = nil
+    private func containsPath(_ candidatePath: String) -> Bool {
+        if isSpecialItem {
+            return candidatePath.isEmpty
+        }
+
+        if candidatePath == path {
+            return true
+        }
+
+        let prefix: String = path.hasSuffix("/") ? path : path + "/"
+        return candidatePath.hasPrefix(prefix)
+    }
+
+    static func == (leftItem: DiskItem, rightItem: DiskItem) -> Bool {
+        leftItem === rightItem
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(ObjectIdentifier(self))
+    }
+}
+
+// Builder instances are mutable scanner-local construction state. Top-level
+// scan tasks transfer their builders back exactly once, then the root is frozen
+// into immutable Sendable DiskItem values before reaching UI code.
+nonisolated final class DiskItemBuilder: @unchecked Sendable {
+    private var childrenStorage: [DiskItemBuilder]
+    private let urlValue: URL
+    private let fileSystemName: String
+    private let displayNameOverride: String?
+
+    var itemType: DiskItemType
+    var allocatedSizeValue: UInt64
+    var logicalSizeValue: UInt64
+    var kindName: String?
+    var isDirectory: Bool
+    var isPackage: Bool
+    var isAliasOrSymbolicLink: Bool
+    var isHardlinkDuplicate: Bool
+
+    init(
+        url: URL,
+        itemType: DiskItemType = .fileOrFolder,
+        displayName: String? = nil,
+        name: String? = nil,
+        allocatedSizeValue: UInt64 = 0,
+        logicalSizeValue: UInt64 = 0,
+        kindName: String? = nil,
+        isDirectory: Bool = false,
+        isPackage: Bool = false,
+        isAliasOrSymbolicLink: Bool = false,
+        isHardlinkDuplicate: Bool = false
+    ) {
+        self.childrenStorage = []
+        self.urlValue = url
+        let lastPathComponent: String = name ?? url.lastPathComponent
+        self.fileSystemName = lastPathComponent.isEmpty ? url.path : lastPathComponent
+        self.displayNameOverride = displayName == self.fileSystemName ? nil : displayName
+        self.itemType = itemType
+        self.allocatedSizeValue = allocatedSizeValue
+        self.logicalSizeValue = logicalSizeValue
+        self.kindName = kindName
+        self.isDirectory = isDirectory
+        self.isPackage = isPackage
+        self.isAliasOrSymbolicLink = isAliasOrSymbolicLink
+        self.isHardlinkDuplicate = isHardlinkDuplicate
+    }
+
+    var children: [DiskItemBuilder] {
+        childrenStorage
+    }
+
+    var childCount: Int {
+        childrenStorage.count
+    }
+
+    var isSpecialItem: Bool {
+        itemType != .fileOrFolder
+    }
+
+    var isFolder: Bool {
+        isDirectory && !isAliasOrSymbolicLink
+    }
+
+    var displayName: String {
+        switch itemType {
+        case .fileOrFolder:
+            return displayNameOverride ?? fileSystemName
+        case .otherSpace:
+            return "space occupied by other files and folders"
+        case .freeSpace:
+            return "free space on drive"
+        }
+    }
+
+    var path: String {
+        isSpecialItem ? "" : urlValue.path
+    }
+
+    var url: URL {
+        urlValue
+    }
+
+    func sizeValue(usePhysicalSize: Bool) -> UInt64 {
+        usePhysicalSize ? allocatedSizeValue : logicalSizeValue
+    }
+
+    func child(at index: Int) -> DiskItemBuilder {
+        childrenStorage[index]
+    }
+
+    func appendChild(_ child: DiskItemBuilder, updateSize: Bool = true) {
         childrenStorage.append(child)
 
         if updateSize {
@@ -169,10 +267,6 @@ nonisolated final class DiskItem: Identifiable, Hashable, @unchecked Sendable {
     }
 
     func removeAllChildren() {
-        for child: DiskItem in childrenStorage {
-            child.rootOrDetachedURL = child.url
-            child.parent = nil
-        }
         childrenStorage.removeAll(keepingCapacity: true)
         allocatedSizeValue = 0
         logicalSizeValue = 0
@@ -180,7 +274,7 @@ nonisolated final class DiskItem: Identifiable, Hashable, @unchecked Sendable {
 
     func sortChildrenInDiskInventoryZOrder(recursive: Bool = true, usePhysicalSize: Bool) {
         if recursive {
-            for child: DiskItem in childrenStorage {
+            for child: DiskItemBuilder in childrenStorage {
                 child.sortChildrenInDiskInventoryZOrder(recursive: true, usePhysicalSize: usePhysicalSize)
             }
         }
@@ -202,18 +296,32 @@ nonisolated final class DiskItem: Identifiable, Hashable, @unchecked Sendable {
         return usePhysicalSize ? allocatedSizeValue : logicalSizeValue
     }
 
-    static func == (leftItem: DiskItem, rightItem: DiskItem) -> Bool {
-        leftItem === rightItem
-    }
-
-    func hash(into hasher: inout Hasher) {
-        hasher.combine(ObjectIdentifier(self))
+    func freeze(isRoot: Bool = true, displayFolderName: String = "") -> DiskItem {
+        let childDisplayFolderName: String = (displayFolderName as NSString).appendingPathComponent(displayName)
+        let frozenChildren: [DiskItem] = childrenStorage.map { child in
+            child.freeze(isRoot: false, displayFolderName: childDisplayFolderName)
+        }
+        return DiskItem(
+            url: urlValue,
+            itemType: itemType,
+            displayName: displayName,
+            name: fileSystemName,
+            allocatedSizeValue: allocatedSizeValue,
+            logicalSizeValue: logicalSizeValue,
+            kindName: kindName,
+            isDirectory: isDirectory,
+            isPackage: isPackage,
+            isAliasOrSymbolicLink: isAliasOrSymbolicLink,
+            isHardlinkDuplicate: isHardlinkDuplicate,
+            children: frozenChildren,
+            isRoot: isRoot,
+            displayFolderName: displayFolderName
+        )
     }
 
     private func addToSize(allocated: UInt64, logical: UInt64) {
         allocatedSizeValue += allocated
         logicalSizeValue += logical
-        parent?.addToSize(allocated: allocated, logical: logical)
     }
 
     private func recalculateFileOrFolderSize(usePhysicalSize: Bool) {
@@ -226,7 +334,7 @@ nonisolated final class DiskItem: Identifiable, Hashable, @unchecked Sendable {
             var logicalSize: UInt64 = 0
 
             let childRecalculationStartTime: CFAbsoluteTime = ScanPerformanceRecorder.isEnabled ? CFAbsoluteTimeGetCurrent() : 0
-            for child: DiskItem in childrenStorage {
+            for child: DiskItemBuilder in childrenStorage {
                 child.recalculateSize(usePhysicalSize: usePhysicalSize)
                 allocatedSize += child.allocatedSizeValue
                 logicalSize += child.logicalSizeValue
@@ -254,7 +362,7 @@ nonisolated final class DiskItem: Identifiable, Hashable, @unchecked Sendable {
         }
     }
 
-    private static func compareSize(_ firstItem: DiskItem, _ secondItem: DiskItem, usePhysicalSize: Bool) -> ComparisonResult {
+    private static func compareSize(_ firstItem: DiskItemBuilder, _ secondItem: DiskItemBuilder, usePhysicalSize: Bool) -> ComparisonResult {
         if firstItem.isSpecialItem != secondItem.isSpecialItem {
             return firstItem.isSpecialItem ? .orderedAscending : .orderedDescending
         }
@@ -277,8 +385,8 @@ nonisolated final class DiskItem: Identifiable, Hashable, @unchecked Sendable {
     }
 
     private static func compareSizeDescending(
-        _ firstItem: DiskItem,
-        _ secondItem: DiskItem,
+        _ firstItem: DiskItemBuilder,
+        _ secondItem: DiskItemBuilder,
         usePhysicalSize: Bool
     ) -> ComparisonResult {
         switch compareSize(firstItem, secondItem, usePhysicalSize: usePhysicalSize) {
@@ -292,7 +400,7 @@ nonisolated final class DiskItem: Identifiable, Hashable, @unchecked Sendable {
     }
 }
 
-nonisolated enum DiskItemType: Hashable {
+nonisolated enum DiskItemType: Hashable, Sendable {
     case fileOrFolder
     case otherSpace
     case freeSpace

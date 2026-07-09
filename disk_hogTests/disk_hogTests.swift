@@ -11,23 +11,25 @@ import Testing
 
 struct DiskItemTests {
 
-    @Test func appendChildSetsParentAndUpdatesSizes() {
-        let root: DiskItem = DiskItem(
+    @Test func builderFreezePreservesChildAncestryAndUpdatesSizes() {
+        let rootBuilder: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan"),
             isDirectory: true
         )
-        let child: DiskItem = DiskItem(
+        let childBuilder: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan/file.txt"),
             allocatedSizeValue: 4096,
             logicalSizeValue: 12,
             kindName: "Plain Text"
         )
 
-        root.appendChild(child)
+        rootBuilder.appendChild(childBuilder)
+        let root: DiskItem = rootBuilder.freeze()
+        let child: DiskItem = root.child(at: 0)
 
         #expect(root.childCount == 1)
         #expect(root.child(at: 0) === child)
-        #expect(child.parent === root)
+        #expect(root.descendantsMatchingAncestorPath(of: child) == [root, child])
         #expect(root.allocatedSizeValue == 4096)
         #expect(root.logicalSizeValue == 12)
     }
@@ -43,22 +45,49 @@ struct DiskItemTests {
         #expect(item.sizeValue(usePhysicalSize: false) == 12)
     }
 
-    @Test func recalculatesRecursiveFolderSizesAndSortsLikeDiskInventoryZ() {
-        let root: DiskItem = DiskItem(
+    @Test func descendantsMatchingAncestorPathRejectsSiblingPathPrefixes() {
+        let rootBuilder: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan"),
             isDirectory: true
         )
-        let smallFile: DiskItem = DiskItem(
+        let folderBuilder: DiskItemBuilder = DiskItemBuilder(
+            url: URL(fileURLWithPath: "/scan/folder"),
+            isDirectory: true
+        )
+        let siblingWithPrefixBuilder: DiskItemBuilder = DiskItemBuilder(
+            url: URL(fileURLWithPath: "/scan/folder-other"),
+            isDirectory: true
+        )
+
+        folderBuilder.appendChild(DiskItemBuilder(url: URL(fileURLWithPath: "/scan/folder/file.txt")))
+        rootBuilder.appendChild(folderBuilder)
+        rootBuilder.appendChild(siblingWithPrefixBuilder)
+
+        let root: DiskItem = rootBuilder.freeze()
+        let folder: DiskItem = root.child(at: 0)
+        let file: DiskItem = folder.child(at: 0)
+        let siblingWithPrefix: DiskItem = root.child(at: 1)
+
+        #expect(folder.descendantsMatchingAncestorPath(of: file) == [folder, file])
+        #expect(folder.descendantsMatchingAncestorPath(of: siblingWithPrefix).isEmpty)
+    }
+
+    @Test func recalculatesRecursiveFolderSizesAndSortsLikeDiskInventoryZ() {
+        let root: DiskItemBuilder = DiskItemBuilder(
+            url: URL(fileURLWithPath: "/scan"),
+            isDirectory: true
+        )
+        let smallFile: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan/2-small.bin"),
             allocatedSizeValue: 100,
             logicalSizeValue: 100
         )
-        let largeFile: DiskItem = DiskItem(
+        let largeFile: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan/10-large.bin"),
             allocatedSizeValue: 900,
             logicalSizeValue: 900
         )
-        let sameSizeByName: DiskItem = DiskItem(
+        let sameSizeByName: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan/1-same.bin"),
             allocatedSizeValue: 100,
             logicalSizeValue: 100
@@ -68,22 +97,23 @@ struct DiskItemTests {
         root.appendChild(largeFile, updateSize: false)
         root.appendChild(sameSizeByName, updateSize: false)
         root.recalculateSize(usePhysicalSize: true)
+        let frozenRoot: DiskItem = root.freeze()
 
-        #expect(root.allocatedSizeValue == 1100)
-        #expect(root.children.map(\.displayName) == ["10-large.bin", "2-small.bin", "1-same.bin"])
+        #expect(frozenRoot.allocatedSizeValue == 1100)
+        #expect(frozenRoot.children.map(\.displayName) == ["10-large.bin", "2-small.bin", "1-same.bin"])
     }
 
     @Test func recalculatingLogicalSizeSortsChildrenByLogicalSize() {
-        let root: DiskItem = DiskItem(
+        let root: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan"),
             isDirectory: true
         )
-        let allocatedOnly: DiskItem = DiskItem(
+        let allocatedOnly: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan/allocated-only.bin"),
             allocatedSizeValue: 4096,
             logicalSizeValue: 0
         )
-        let logicalContent: DiskItem = DiskItem(
+        let logicalContent: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan/logical-content.bin"),
             allocatedSizeValue: 512,
             logicalSizeValue: 128
@@ -92,17 +122,18 @@ struct DiskItemTests {
         root.appendChild(allocatedOnly, updateSize: false)
         root.appendChild(logicalContent, updateSize: false)
         root.recalculateSize(usePhysicalSize: false)
+        let frozenRoot: DiskItem = root.freeze()
 
-        #expect(root.logicalSizeValue == 128)
-        #expect(root.children.map(\.displayName) == ["logical-content.bin", "allocated-only.bin"])
+        #expect(frozenRoot.logicalSizeValue == 128)
+        #expect(frozenRoot.children.map(\.displayName) == ["logical-content.bin", "allocated-only.bin"])
     }
 
     @Test func duplicateHardlinkContributesZeroSize() {
-        let root: DiskItem = DiskItem(
+        let root: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan"),
             isDirectory: true
         )
-        let duplicate: DiskItem = DiskItem(
+        let duplicate: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan/duplicate.dat"),
             allocatedSizeValue: 4096,
             logicalSizeValue: 128,
@@ -111,14 +142,16 @@ struct DiskItemTests {
 
         root.appendChild(duplicate, updateSize: false)
         root.recalculateSize(usePhysicalSize: true)
+        let frozenRoot: DiskItem = root.freeze()
+        let frozenDuplicate: DiskItem = frozenRoot.child(at: 0)
 
-        #expect(duplicate.allocatedSizeValue == 0)
-        #expect(duplicate.logicalSizeValue == 0)
-        #expect(root.allocatedSizeValue == 0)
+        #expect(frozenDuplicate.allocatedSizeValue == 0)
+        #expect(frozenDuplicate.logicalSizeValue == 0)
+        #expect(frozenRoot.allocatedSizeValue == 0)
     }
 
     @Test func opaquePackageKeepsPrestampedSize() {
-        let package: DiskItem = DiskItem(
+        let package: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan/App.app"),
             allocatedSizeValue: 12345,
             logicalSizeValue: 6789,
@@ -127,48 +160,48 @@ struct DiskItemTests {
         )
 
         package.recalculateSize(usePhysicalSize: true)
+        let frozenPackage: DiskItem = package.freeze()
 
-        #expect(package.allocatedSizeValue == 12345)
-        #expect(package.logicalSizeValue == 6789)
+        #expect(frozenPackage.allocatedSizeValue == 12345)
+        #expect(frozenPackage.logicalSizeValue == 6789)
     }
 
     @Test func displayPathIsRelativeToRoot() {
-        let root: DiskItem = DiskItem(
+        let rootBuilder: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan"),
             isDirectory: true
         )
-        let folder: DiskItem = DiskItem(
+        let folderBuilder: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan/folder"),
             isDirectory: true
         )
-        let file: DiskItem = DiskItem(
+        let fileBuilder: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan/folder/file.txt")
         )
 
-        root.appendChild(folder)
-        folder.appendChild(file)
+        folderBuilder.appendChild(fileBuilder)
+        rootBuilder.appendChild(folderBuilder)
+        let root: DiskItem = rootBuilder.freeze()
+        let folder: DiskItem = root.child(at: 0)
+        let file: DiskItem = folder.child(at: 0)
 
         #expect(root.displayPath == "scan")
         #expect(folder.displayPath == "scan/folder")
         #expect(file.displayPath == "scan/folder/file.txt")
     }
 
-    @Test func childURLDerivesFromParentAndSurvivesRemoval() {
-        let root: DiskItem = DiskItem(
+    @Test func childURLIsStoredAfterFreeze() {
+        let rootBuilder: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan"),
             isDirectory: true
         )
-        let child: DiskItem = DiskItem(
+        let childBuilder: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan/folder"),
             isDirectory: true
         )
 
-        root.appendChild(child)
-
-        #expect(child.path == "/scan/folder")
-        #expect(child.url.path == "/scan/folder")
-
-        root.removeAllChildren()
+        rootBuilder.appendChild(childBuilder)
+        let child: DiskItem = rootBuilder.freeze().child(at: 0)
 
         #expect(child.path == "/scan/folder")
         #expect(child.url.path == "/scan/folder")
@@ -198,17 +231,18 @@ struct TreemapDiskItemDataSourceTests {
     }
 
     @Test func kindStatisticsUseSelectedPhysicalOrLogicalSizeMode() {
-        let root: DiskItem = DiskItem(
+        let rootBuilder: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan"),
             isDirectory: true
         )
-        let textFile: DiskItem = DiskItem(
+        let textFile: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan/file.txt"),
             allocatedSizeValue: 4096,
             logicalSizeValue: 12,
             kindName: "Plain Text"
         )
-        root.appendChild(textFile)
+        rootBuilder.appendChild(textFile)
+        let root: DiskItem = rootBuilder.freeze()
 
         let physicalStatistics: [TreemapKindStatistic] = TreemapDiskItemDataSource.kindStatistics(
             for: root,
@@ -228,17 +262,19 @@ struct TreemapDiskItemDataSourceTests {
 struct TreemapViewRendererTests {
 
     @Test func renderedItemSelectionWorksImmediatelyAfterReload() {
-        let root: DiskItem = DiskItem(
+        let rootBuilder: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan"),
             isDirectory: true
         )
-        let child: DiskItem = DiskItem(
+        let childBuilder: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan/file.txt"),
             allocatedSizeValue: 4096,
             logicalSizeValue: 12,
             kindName: "Plain Text"
         )
-        root.appendChild(child)
+        rootBuilder.appendChild(childBuilder)
+        let root: DiskItem = rootBuilder.freeze()
+        let child: DiskItem = root.child(at: 0)
 
         let dataSource: TreemapDiskItemDataSource = TreemapDiskItemDataSource(rootItem: root)
         let renderer: TreemapViewRenderer = TreemapViewRenderer(dataSource: dataSource)
@@ -250,32 +286,34 @@ struct TreemapViewRendererTests {
     }
 
     @Test func rendererReloadDoesNotMaterializeFullTree() {
-        let root: DiskItem = DiskItem(
+        let rootBuilder: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan"),
             isDirectory: true
         )
-        let selectedFolder: DiskItem = DiskItem(
+        let selectedFolder: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan/selected"),
             isDirectory: true
         )
-        let selectedFile: DiskItem = DiskItem(
+        let selectedFile: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan/selected/file.txt"),
             allocatedSizeValue: 100,
             logicalSizeValue: 100
         )
-        let siblingFolder: DiskItem = DiskItem(
+        let siblingFolder: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan/sibling"),
             isDirectory: true
         )
-        let siblingFile: DiskItem = DiskItem(
+        let siblingFile: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan/sibling/file.txt"),
             allocatedSizeValue: 100,
             logicalSizeValue: 100
         )
         selectedFolder.appendChild(selectedFile)
         siblingFolder.appendChild(siblingFile)
-        root.appendChild(selectedFolder)
-        root.appendChild(siblingFolder)
+        rootBuilder.appendChild(selectedFolder)
+        rootBuilder.appendChild(siblingFolder)
+        let root: DiskItem = rootBuilder.freeze()
+        let frozenSelectedFile: DiskItem = root.child(at: 0).child(at: 0)
 
         let dataSource: TreemapDiskItemDataSource = TreemapDiskItemDataSource(rootItem: root)
         let renderer: TreemapViewRenderer = TreemapViewRenderer(dataSource: dataSource)
@@ -283,35 +321,39 @@ struct TreemapViewRendererTests {
         renderer.reloadData()
 
         #expect(renderer.materializedRendererCount == 1)
-        #expect(renderer.selectItem(byRenderedItem: selectedFile) == true)
-        #expect(renderer.selectedItem === selectedFile)
+        #expect(renderer.selectItem(byRenderedItem: frozenSelectedFile) == true)
+        #expect(renderer.selectedItem === frozenSelectedFile)
         #expect(renderer.materializedRendererCount == 4)
     }
 
     @Test func squarifiedLayoutArrangesRowsByDescendingWeight() {
-        let root: DiskItem = DiskItem(
+        let rootBuilder: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan"),
             isDirectory: true
         )
-        let large: DiskItem = DiskItem(
+        let large: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan/large.bin"),
             allocatedSizeValue: 600,
             logicalSizeValue: 600
         )
-        let medium: DiskItem = DiskItem(
+        let medium: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan/medium.bin"),
             allocatedSizeValue: 300,
             logicalSizeValue: 300
         )
-        let small: DiskItem = DiskItem(
+        let small: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan/small.bin"),
             allocatedSizeValue: 100,
             logicalSizeValue: 100
         )
-        root.appendChild(large, updateSize: false)
-        root.appendChild(medium, updateSize: false)
-        root.appendChild(small, updateSize: false)
-        root.recalculateSize(usePhysicalSize: true)
+        rootBuilder.appendChild(large, updateSize: false)
+        rootBuilder.appendChild(medium, updateSize: false)
+        rootBuilder.appendChild(small, updateSize: false)
+        rootBuilder.recalculateSize(usePhysicalSize: true)
+        let root: DiskItem = rootBuilder.freeze()
+        let frozenLarge: DiskItem = root.child(at: 0)
+        let frozenMedium: DiskItem = root.child(at: 1)
+        let frozenSmall: DiskItem = root.child(at: 2)
 
         let dataSource: TreemapDiskItemDataSource = TreemapDiskItemDataSource(rootItem: root)
         let renderer: TreemapViewRenderer = TreemapViewRenderer(dataSource: dataSource)
@@ -319,25 +361,26 @@ struct TreemapViewRendererTests {
         renderer.reloadData()
         renderer.calcLayout(NSRect(x: 0, y: 0, width: 100, height: 100))
 
-        #expect(renderer.itemRect(byPathToItem: [root, large]) == NSRect(x: 0, y: 0, width: 100, height: 60))
-        #expect(renderer.itemRect(byPathToItem: [root, medium]) == NSRect(x: 0, y: 60, width: 75, height: 40))
-        #expect(renderer.itemRect(byPathToItem: [root, small]) == NSRect(x: 75, y: 60, width: 25, height: 40))
+        #expect(renderer.itemRect(byPathToItem: [root, frozenLarge]) == NSRect(x: 0, y: 0, width: 100, height: 60))
+        #expect(renderer.itemRect(byPathToItem: [root, frozenMedium]) == NSRect(x: 0, y: 60, width: 75, height: 40))
+        #expect(renderer.itemRect(byPathToItem: [root, frozenSmall]) == NSRect(x: 75, y: 60, width: 25, height: 40))
     }
 
     @Test func wideFlatDirectoryLayoutReconcilesChildrenOnce() {
-        let root: DiskItem = DiskItem(
+        let rootBuilder: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan"),
             isDirectory: true
         )
         for index: Int in 0..<2_000 {
-            let child: DiskItem = DiskItem(
+            let child: DiskItemBuilder = DiskItemBuilder(
                 url: URL(fileURLWithPath: "/scan/file-\(index).bin"),
                 allocatedSizeValue: 1,
                 logicalSizeValue: 1
             )
-            root.appendChild(child, updateSize: false)
+            rootBuilder.appendChild(child, updateSize: false)
         }
-        root.recalculateSize(usePhysicalSize: true)
+        rootBuilder.recalculateSize(usePhysicalSize: true)
+        let root: DiskItem = rootBuilder.freeze()
 
         let dataSource: TreemapDiskItemDataSource = TreemapDiskItemDataSource(rootItem: root)
         let renderer: TreemapViewRenderer = TreemapViewRenderer(dataSource: dataSource)
@@ -350,15 +393,17 @@ struct TreemapViewRendererTests {
     }
 
     @Test func emptyFolderCanBeMappedToItsTreemapRectWhenItHasArea() {
-        let root: DiskItem = DiskItem(
+        let rootBuilder: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan"),
             isDirectory: true
         )
-        let emptyFolder: DiskItem = DiskItem(
+        let emptyFolderBuilder: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan/empty"),
             isDirectory: true
         )
-        root.appendChild(emptyFolder)
+        rootBuilder.appendChild(emptyFolderBuilder)
+        let root: DiskItem = rootBuilder.freeze()
+        let emptyFolder: DiskItem = root.child(at: 0)
 
         let dataSource: TreemapDiskItemDataSource = TreemapDiskItemDataSource(rootItem: root)
         let renderer: TreemapViewRenderer = TreemapViewRenderer(dataSource: dataSource)

@@ -80,7 +80,7 @@ final class TreemapViewRenderer {
     }
 
     func selectItem(byRenderedItem item: DiskItem) -> Bool {
-        let path: [DiskItem] = pathFromRoot(to: item)
+        let path: [DiskItem] = rootItem.descendantsMatchingAncestorPath(of: item)
         guard path.isEmpty == false,
               let renderer: TreemapItemRenderer = findTreemapItem(byPathToDataItem: path) else {
             return false
@@ -162,18 +162,5 @@ final class TreemapViewRenderer {
             parent = child!
         }
         return child
-    }
-
-    private func pathFromRoot(to item: DiskItem) -> [DiskItem] {
-        var path: [DiskItem] = []
-        var currentItem: DiskItem? = item
-        while let item: DiskItem = currentItem {
-            path.append(item)
-            if item === rootItem {
-                return path.reversed()
-            }
-            currentItem = item.parent
-        }
-        return []
     }
 }
