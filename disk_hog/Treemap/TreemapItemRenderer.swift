@@ -95,14 +95,24 @@ final class TreemapItemRenderer {
         return dataSource.numberOfChildren(of: renderedItem)
     }
 
-    func appendLayoutDiagnostics(to rows: inout [[String: Any]], depth: Int, childIndex: Int, sequence: inout Int) {
+    func appendLayoutDiagnostics(
+        to rows: inout [[String: Any]],
+        displayFolderPath: String,
+        depth: Int,
+        childIndex: Int,
+        sequence: inout Int
+    ) {
+        let displayPath: String = Self.displayPath(
+            displayFolderPath: displayFolderPath,
+            displayName: renderedItem.displayName
+        )
         rows.append([
             "recordType": "layout",
             "sequence": sequence,
             "depth": depth,
             "childIndex": childIndex,
             "path": renderedItem.path,
-            "displayPath": renderedItem.displayPath,
+            "displayPath": displayPath,
             "displayName": renderedItem.displayName,
             "kindName": renderedItem.kindName ?? "",
             "isLeaf": isLeaf,
@@ -120,11 +130,20 @@ final class TreemapItemRenderer {
         for (index, childRenderer) in currentChildRenderers.enumerated() {
             childRenderer.appendLayoutDiagnostics(
                 to: &rows,
+                displayFolderPath: displayPath,
                 depth: depth + 1,
                 childIndex: index,
                 sequence: &sequence
             )
         }
+    }
+
+    private static func displayPath(displayFolderPath: String, displayName: String) -> String {
+        if displayFolderPath.isEmpty {
+            return displayName
+        }
+
+        return (displayFolderPath as NSString).appendingPathComponent(displayName)
     }
 
     func child(at index: Int) -> TreemapItemRenderer {

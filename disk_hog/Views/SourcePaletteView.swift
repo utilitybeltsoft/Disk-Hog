@@ -466,10 +466,10 @@ private final class SourcePaletteCloseRegistrationNSView: NSView {
         }
 
         let alert: NSAlert = NSAlert()
-        alert.messageText = "Cancel active scans?"
+        alert.messageText = "Cancel active scans before closing the source window?"
         alert.informativeText = activeScanningSessions.count == 1
-            ? "One scan is still running."
-            : "\(activeScanningSessions.count) scans are still running."
+            ? "One scan is still running. Disk Hog will keep the source window open after cancelling it."
+            : "\(activeScanningSessions.count) scans are still running. Disk Hog will keep the source window open after cancelling them."
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Cancel Active Scans")
         alert.addButton(withTitle: "Keep Scanning")

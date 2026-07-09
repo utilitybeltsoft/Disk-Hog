@@ -2,6 +2,8 @@ import AppKit
 
 @MainActor
 final class WindowCloseDelegateProxy: NSObject, NSWindowDelegate {
+    // NSWindow.delegate is weak; SwiftUI retains its scene delegate elsewhere on
+    // current macOS releases, so keep this weak and forward only while it lives.
     private weak var forwardingDelegate: (any NSWindowDelegate)?
     private let shouldClose: (NSWindow) -> Bool
 

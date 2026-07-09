@@ -166,30 +166,6 @@ struct DiskItemTests {
         #expect(frozenPackage.logicalSizeValue == 6789)
     }
 
-    @Test func displayPathIsRelativeToRoot() {
-        let rootBuilder: DiskItemBuilder = DiskItemBuilder(
-            url: URL(fileURLWithPath: "/scan"),
-            isDirectory: true
-        )
-        let folderBuilder: DiskItemBuilder = DiskItemBuilder(
-            url: URL(fileURLWithPath: "/scan/folder"),
-            isDirectory: true
-        )
-        let fileBuilder: DiskItemBuilder = DiskItemBuilder(
-            url: URL(fileURLWithPath: "/scan/folder/file.txt")
-        )
-
-        folderBuilder.appendChild(fileBuilder)
-        rootBuilder.appendChild(folderBuilder)
-        let root: DiskItem = rootBuilder.freeze()
-        let folder: DiskItem = root.child(at: 0)
-        let file: DiskItem = folder.child(at: 0)
-
-        #expect(root.displayPath == "scan")
-        #expect(folder.displayPath == "scan/folder")
-        #expect(file.displayPath == "scan/folder/file.txt")
-    }
-
     @Test func childURLIsStoredAfterFreeze() {
         let rootBuilder: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan"),
@@ -324,6 +300,37 @@ struct TreemapViewRendererTests {
         #expect(renderer.selectItem(byRenderedItem: frozenSelectedFile) == true)
         #expect(renderer.selectedItem === frozenSelectedFile)
         #expect(renderer.materializedRendererCount == 4)
+    }
+
+    @Test func layoutDiagnosticsAccumulateDisplayPathDuringTraversal() {
+        let rootBuilder: DiskItemBuilder = DiskItemBuilder(
+            url: URL(fileURLWithPath: "/scan"),
+            isDirectory: true
+        )
+        let folderBuilder: DiskItemBuilder = DiskItemBuilder(
+            url: URL(fileURLWithPath: "/scan/folder"),
+            isDirectory: true
+        )
+        let fileBuilder: DiskItemBuilder = DiskItemBuilder(
+            url: URL(fileURLWithPath: "/scan/folder/file.txt"),
+            allocatedSizeValue: 100,
+            logicalSizeValue: 100
+        )
+        folderBuilder.appendChild(fileBuilder)
+        rootBuilder.appendChild(folderBuilder)
+        rootBuilder.recalculateSize(usePhysicalSize: true)
+        let root: DiskItem = rootBuilder.freeze()
+
+        let dataSource: TreemapDiskItemDataSource = TreemapDiskItemDataSource(rootItem: root)
+        let renderer: TreemapViewRenderer = TreemapViewRenderer(dataSource: dataSource)
+
+        renderer.reloadData()
+        renderer.calcLayout(NSRect(x: 0, y: 0, width: 100, height: 100))
+
+        let displayPaths: [String] = renderer.layoutDiagnosticsRows().compactMap { row in
+            row["displayPath"] as? String
+        }
+        #expect(displayPaths == ["scan", "scan/folder", "scan/folder/file.txt"])
     }
 
     @Test func squarifiedLayoutArrangesRowsByDescendingWeight() {

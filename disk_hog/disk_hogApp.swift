@@ -46,7 +46,7 @@ private final class DiskHogApplicationDelegate: NSObject, NSApplicationDelegate 
         }
 
         let alert: NSAlert = NSAlert()
-        alert.messageText = "Cancel active scans and quit?"
+        alert.messageText = "Cancel active scans and quit Disk Hog?"
         alert.informativeText = activeScanningSessions.count == 1
             ? "One scan is still running. Quitting Disk Hog will cancel it."
             : "\(activeScanningSessions.count) scans are still running. Quitting Disk Hog will cancel them."

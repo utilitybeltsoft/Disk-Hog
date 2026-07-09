@@ -115,7 +115,13 @@ final class TreemapViewRenderer {
     func layoutDiagnosticsRows() -> [[String: Any]] {
         var rows: [[String: Any]] = []
         var sequence: Int = 0
-        rootItemRenderer?.appendLayoutDiagnostics(to: &rows, depth: 0, childIndex: 0, sequence: &sequence)
+        rootItemRenderer?.appendLayoutDiagnostics(
+            to: &rows,
+            displayFolderPath: "",
+            depth: 0,
+            childIndex: 0,
+            sequence: &sequence
+        )
         return rows
     }
 

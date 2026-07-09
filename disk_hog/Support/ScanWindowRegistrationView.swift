@@ -97,8 +97,8 @@ final class ScanWindowRegistrationNSView: NSView {
         }
 
         let alert: NSAlert = NSAlert()
-        alert.messageText = "Cancel scan and close this window?"
-        alert.informativeText = "This scan is still running."
+        alert.messageText = "Cancel this scan and close this window?"
+        alert.informativeText = "This scan is still running. Closing the window will cancel it."
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Cancel Scan and Close")
         alert.addButton(withTitle: "Keep Scanning")

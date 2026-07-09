@@ -5,8 +5,6 @@ nonisolated final class DiskItem: Identifiable, Hashable, Sendable {
     private let fileSystemName: String
     private let displayNameOverride: String?
     private let urlValue: URL
-    private let folderNameValue: String
-    private let displayFolderNameValue: String
     private let isRootValue: Bool
 
     let itemType: DiskItemType
@@ -35,15 +33,12 @@ nonisolated final class DiskItem: Identifiable, Hashable, Sendable {
         isAliasOrSymbolicLink: Bool = false,
         isHardlinkDuplicate: Bool = false,
         children: [DiskItem] = [],
-        isRoot: Bool = true,
-        displayFolderName: String? = nil
+        isRoot: Bool = true
     ) {
         let lastPathComponent: String = name ?? url.lastPathComponent
         self.fileSystemName = lastPathComponent.isEmpty ? url.path : lastPathComponent
         self.displayNameOverride = displayName == self.fileSystemName ? nil : displayName
         self.urlValue = url
-        self.folderNameValue = itemType == .fileOrFolder ? (url.path as NSString).deletingLastPathComponent : ""
-        self.displayFolderNameValue = displayFolderName ?? ""
         self.isRootValue = isRoot
         self.itemType = itemType
         self.allocatedSizeValue = allocatedSizeValue
@@ -102,22 +97,6 @@ nonisolated final class DiskItem: Identifiable, Hashable, Sendable {
 
     var url: URL {
         urlValue
-    }
-
-    var folderName: String {
-        folderNameValue
-    }
-
-    var displayFolderName: String {
-        displayFolderNameValue
-    }
-
-    var displayPath: String {
-        if isSpecialItem {
-            return displayName
-        }
-
-        return (displayFolderName as NSString).appendingPathComponent(displayName)
     }
 
     func sizeValue(usePhysicalSize: Bool) -> UInt64 {
@@ -296,10 +275,9 @@ nonisolated final class DiskItemBuilder: @unchecked Sendable {
         return usePhysicalSize ? allocatedSizeValue : logicalSizeValue
     }
 
-    func freeze(isRoot: Bool = true, displayFolderName: String = "") -> DiskItem {
-        let childDisplayFolderName: String = (displayFolderName as NSString).appendingPathComponent(displayName)
+    func freeze(isRoot: Bool = true) -> DiskItem {
         let frozenChildren: [DiskItem] = childrenStorage.map { child in
-            child.freeze(isRoot: false, displayFolderName: childDisplayFolderName)
+            child.freeze(isRoot: false)
         }
         return DiskItem(
             url: urlValue,
@@ -314,8 +292,7 @@ nonisolated final class DiskItemBuilder: @unchecked Sendable {
             isAliasOrSymbolicLink: isAliasOrSymbolicLink,
             isHardlinkDuplicate: isHardlinkDuplicate,
             children: frozenChildren,
-            isRoot: isRoot,
-            displayFolderName: displayFolderName
+            isRoot: isRoot
         )
     }
 
