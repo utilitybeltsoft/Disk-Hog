@@ -178,7 +178,7 @@ nonisolated final class DiskItem: Identifiable, Hashable, @unchecked Sendable {
         logicalSizeValue = 0
     }
 
-    func sortChildrenInDiskInventoryZOrder(recursive: Bool = true, usePhysicalSize: Bool = true) {
+    func sortChildrenInDiskInventoryZOrder(recursive: Bool = true, usePhysicalSize: Bool) {
         if recursive {
             for child: DiskItem in childrenStorage {
                 child.sortChildrenInDiskInventoryZOrder(recursive: true, usePhysicalSize: usePhysicalSize)

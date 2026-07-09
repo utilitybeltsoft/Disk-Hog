@@ -69,6 +69,7 @@ nonisolated final class TreemapDiskItemDataSource: @unchecked Sendable {
         return size
     }
 
+    @MainActor
     func prepareRenderer(_ renderer: TreemapItemRenderer, for item: DiskItem) {
         let color: NSColor = colorTable.color(for: item)
         renderer.setCushionColor(color)

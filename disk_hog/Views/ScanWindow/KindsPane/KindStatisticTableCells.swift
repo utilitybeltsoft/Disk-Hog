@@ -31,6 +31,11 @@ final class KindColorCellView: NSTableCellView {
     }
 
     private static func swatchImage(color: NSColor) -> NSImage {
+        let cacheKey: KindColorSwatchCacheKey = KindColorSwatchCacheKey(color: color)
+        if let cachedImage: NSImage = swatchImageCache[cacheKey] {
+            return cachedImage
+        }
+
         let imageSize: NSSize = NSSize(
             width: ScanWindowMetrics.kindColorColumnWidth,
             height: ScanWindowMetrics.tableRowHeight
@@ -46,10 +51,36 @@ final class KindColorCellView: NSTableCellView {
         renderer.addRidgeByHeightFactor(ScanWindowMetrics.kindSwatchCushionRidgeHeightFactor)
         renderer.renderCushion(in: bitmap)
         bitmap.size = imageSize
-        return bitmap.treemapSuitableImage()
+        let image: NSImage = bitmap.treemapSuitableImage()
+        swatchImageCache[cacheKey] = image
+        return image
     }
+
+    private static var swatchImageCache: [KindColorSwatchCacheKey: NSImage] = [:]
 }
 
+private struct KindColorSwatchCacheKey: Hashable {
+    let red: Int
+    let green: Int
+    let blue: Int
+    let alpha: Int
+    let width: Int
+    let height: Int
+
+    init(color: NSColor) {
+        let rgbColor: NSColor = color.usingColorSpace(.genericRGB) ?? color
+        self.red = Self.quantizedComponent(rgbColor.redComponent)
+        self.green = Self.quantizedComponent(rgbColor.greenComponent)
+        self.blue = Self.quantizedComponent(rgbColor.blueComponent)
+        self.alpha = Self.quantizedComponent(rgbColor.alphaComponent)
+        self.width = Int(ScanWindowMetrics.kindColorColumnWidth)
+        self.height = Int(ScanWindowMetrics.tableRowHeight)
+    }
+
+    private static func quantizedComponent(_ component: CGFloat) -> Int {
+        Int((component * 255).rounded())
+    }
+}
 
 final class KindTextCellView: NSTableCellView {
     private let text: NSTextField = NSTextField(labelWithString: "")

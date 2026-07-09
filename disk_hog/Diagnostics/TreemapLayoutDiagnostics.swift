@@ -1,7 +1,8 @@
 import AppKit
 import Foundation
 
-nonisolated enum TreemapLayoutDiagnostics {
+@MainActor
+enum TreemapLayoutDiagnostics {
     static func recordLayoutChange(
         rootItem: DiskItem,
         size: CGSize,

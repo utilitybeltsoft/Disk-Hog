@@ -1,6 +1,7 @@
 import AppKit
 
-nonisolated final class TreemapViewRenderer: @unchecked Sendable {
+@MainActor
+final class TreemapViewRenderer {
     private var rootItemRenderer: TreemapItemRenderer?
     private weak var dataSource: TreemapDiskItemDataSource?
     private var selectedRenderer: TreemapItemRenderer?

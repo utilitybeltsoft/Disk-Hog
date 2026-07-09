@@ -224,6 +224,7 @@ struct TreemapDiskItemDataSourceTests {
     }
 }
 
+@MainActor
 struct TreemapViewRendererTests {
 
     @Test func renderedItemSelectionWorksImmediatelyAfterReload() {

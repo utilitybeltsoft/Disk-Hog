@@ -1,6 +1,7 @@
 import AppKit
 
-nonisolated final class TreemapItemRenderer: @unchecked Sendable {
+@MainActor
+final class TreemapItemRenderer {
     private static let cushionScaleFactor: CGFloat = 0.9
 
     private weak var dataSource: TreemapDiskItemDataSource?

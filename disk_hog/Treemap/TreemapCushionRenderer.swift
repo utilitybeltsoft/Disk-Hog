@@ -1,8 +1,9 @@
 import AppKit
 
-nonisolated final class TreemapCushionRenderer: @unchecked Sendable {
-    private static let baseBrightness: CGFloat = 1.8
-    private static let maxRGBValue: CGFloat = 1.0
+@MainActor
+final class TreemapCushionRenderer {
+    private nonisolated static let baseBrightness: CGFloat = 1.8
+    private nonisolated static let maxRGBValue: CGFloat = 1.0
     private static let defaultCushionColor: NSColor = TreemapCushionRenderer.normalizeColor(NSColor(calibratedRed: 0, green: 0, blue: 0.9, alpha: 1))
 
     private(set) var rect: NSRect
@@ -103,7 +104,7 @@ nonisolated final class TreemapCushionRenderer: @unchecked Sendable {
         }
     }
 
-    static func normalizeColorRed(_ red: inout CGFloat, green: inout CGFloat, blue: inout CGFloat) {
+    nonisolated static func normalizeColorRed(_ red: inout CGFloat, green: inout CGFloat, blue: inout CGFloat) {
         if red > maxRGBValue {
             distributeRGB1(&red, toRGB2: &green, toRGB3: &blue)
         } else if green > maxRGBValue {
@@ -113,7 +114,7 @@ nonisolated final class TreemapCushionRenderer: @unchecked Sendable {
         }
     }
 
-    static func normalizeColor(_ color: NSColor) -> NSColor {
+    nonisolated static func normalizeColor(_ color: NSColor) -> NSColor {
         var colorInRGBSpace: NSColor = color
         if colorInRGBSpace.colorSpace != NSColorSpace.genericRGB {
             colorInRGBSpace = colorInRGBSpace.usingColorSpace(.genericRGB)!
@@ -131,7 +132,7 @@ nonisolated final class TreemapCushionRenderer: @unchecked Sendable {
         return NSColor(calibratedRed: red, green: green, blue: blue, alpha: alpha)
     }
 
-    private static func distributeRGB1(_ first: inout CGFloat, toRGB2 second: inout CGFloat, toRGB3 third: inout CGFloat) {
+    private nonisolated static func distributeRGB1(_ first: inout CGFloat, toRGB2 second: inout CGFloat, toRGB3 third: inout CGFloat) {
         var h: CGFloat = (first - maxRGBValue) / 2.0
         first = maxRGBValue
         second += h
