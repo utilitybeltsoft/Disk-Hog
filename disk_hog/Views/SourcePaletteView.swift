@@ -414,12 +414,71 @@ private struct SourcePaletteCloseRegistrationView: NSViewRepresentable {
 }
 
 private final class SourcePaletteCloseRegistrationNSView: NSView {
+    private weak var registeredWindow: NSWindow?
+    private weak var previousWindowDelegate: (any NSWindowDelegate)?
+    private var closeDelegateProxy: WindowCloseDelegateProxy?
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+
+        guard let window: NSWindow = window, registeredWindow !== window else {
+            return
+        }
+
+        restoreWindowDelegate()
+
+        previousWindowDelegate = window.delegate
+        let proxy: WindowCloseDelegateProxy = WindowCloseDelegateProxy(forwardingDelegate: previousWindowDelegate) { _ in
+            Self.shouldCloseSourcePalette()
+        }
+        closeDelegateProxy = proxy
+        registeredWindow = window
+        window.delegate = proxy
+    }
+
     override func viewWillMove(toWindow newWindow: NSWindow?) {
         if newWindow == nil {
-            NSApp.terminate(nil)
+            restoreWindowDelegate()
         }
 
         super.viewWillMove(toWindow: newWindow)
+    }
+
+    private func restoreWindowDelegate() {
+        guard let registeredWindow: NSWindow = registeredWindow else {
+            return
+        }
+
+        if registeredWindow.delegate === closeDelegateProxy {
+            registeredWindow.delegate = previousWindowDelegate
+        }
+
+        closeDelegateProxy = nil
+        previousWindowDelegate = nil
+        self.registeredWindow = nil
+    }
+
+    private static func shouldCloseSourcePalette() -> Bool {
+        let activeScanningSessions: [ScanSession] = ScanWindowRegistry.shared.activeScanningSessions
+        guard activeScanningSessions.isEmpty == false else {
+            NSApp.terminate(nil)
+            return false
+        }
+
+        let alert: NSAlert = NSAlert()
+        alert.messageText = "Cancel active scans?"
+        alert.informativeText = activeScanningSessions.count == 1
+            ? "One scan is still running."
+            : "\(activeScanningSessions.count) scans are still running."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Cancel Active Scans")
+        alert.addButton(withTitle: "Keep Scanning")
+
+        if alert.runModal() == .alertFirstButtonReturn {
+            ScanWindowRegistry.shared.cancelActiveScans()
+        }
+
+        return false
     }
 }
 
