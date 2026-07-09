@@ -73,6 +73,30 @@ struct DiskItemTests {
         #expect(root.children.map(\.displayName) == ["10-large.bin", "2-small.bin", "1-same.bin"])
     }
 
+    @Test func recalculatingLogicalSizeSortsChildrenByLogicalSize() {
+        let root: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan"),
+            isDirectory: true
+        )
+        let allocatedOnly: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/allocated-only.bin"),
+            allocatedSizeValue: 4096,
+            logicalSizeValue: 0
+        )
+        let logicalContent: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/logical-content.bin"),
+            allocatedSizeValue: 512,
+            logicalSizeValue: 128
+        )
+
+        root.appendChild(allocatedOnly, updateSize: false)
+        root.appendChild(logicalContent, updateSize: false)
+        root.recalculateSize(usePhysicalSize: false)
+
+        #expect(root.logicalSizeValue == 128)
+        #expect(root.children.map(\.displayName) == ["logical-content.bin", "allocated-only.bin"])
+    }
+
     @Test func duplicateHardlinkContributesZeroSize() {
         let root: DiskItem = DiskItem(
             url: URL(fileURLWithPath: "/scan"),
@@ -400,6 +424,24 @@ struct DiskInventoryZScannerTests {
         #expect(root.children.map(\.name) == ["readable.txt"])
     }
 
+    @Test func topLevelScanSortsChildrenByLogicalSizeWhenConfigured() async throws {
+        let rootURL: URL = try Self.makeLogicalSortFixture()
+        defer {
+            try? FileManager.default.removeItem(at: rootURL)
+        }
+
+        let root: DiskItem = try await DiskInventoryZScanner().scan(
+            source: ScanSource(path: rootURL.path, displayName: rootURL.lastPathComponent),
+            settings: DiskScanSettings(
+                usePhysicalSize: false,
+                lookInsidePackages: false,
+                ignoreCreatorCode: false
+            )
+        )
+
+        #expect(root.children.map(\.name) == ["sparse-logical-large.bin", "dense-allocated.bin"])
+    }
+
     @Test func opaquePackageKeepsSeparateAllocatedAndLogicalSizes() async throws {
         let rootURL: URL = try Self.makeOpaquePackageFixture()
         defer {
@@ -490,6 +532,22 @@ struct DiskInventoryZScannerTests {
         try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
         try "readable".write(to: readableURL, atomically: true, encoding: .utf8)
         try Data(repeating: 0x7A, count: 128).write(to: vanishedURL)
+
+        return rootURL
+    }
+
+    private static func makeLogicalSortFixture() throws -> URL {
+        let rootURL: URL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("disk-hog-logical-sort-\(UUID().uuidString)", isDirectory: true)
+        let denseAllocatedURL: URL = rootURL.appendingPathComponent("dense-allocated.bin")
+        let sparseLogicalLargeURL: URL = rootURL.appendingPathComponent("sparse-logical-large.bin")
+
+        try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
+        try Data(repeating: 0x41, count: 4096).write(to: denseAllocatedURL)
+        FileManager.default.createFile(atPath: sparseLogicalLargeURL.path, contents: nil)
+        let sparseFileHandle: FileHandle = try FileHandle(forWritingTo: sparseLogicalLargeURL)
+        try sparseFileHandle.truncate(atOffset: 1_048_576)
+        try sparseFileHandle.close()
 
         return rootURL
     }

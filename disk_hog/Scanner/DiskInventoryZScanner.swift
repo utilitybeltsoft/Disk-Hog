@@ -132,7 +132,7 @@ nonisolated final class DiskInventoryZScanner {
             }
         }
 
-        rootItem.sortChildrenInDiskInventoryZOrder(recursive: false)
+        rootItem.sortChildrenInDiskInventoryZOrder(recursive: false, usePhysicalSize: settings.usePhysicalSize)
         progressState.setScannedBytes(rootItem.sizeValue(usePhysicalSize: settings.usePhysicalSize))
         progressState.setScannedFileCount(await progressAggregator.scannedFileCount)
         progressState.setScannedFolderCount(await progressAggregator.scannedFolderCount)

@@ -178,15 +178,15 @@ nonisolated final class DiskItem: Identifiable, Hashable, @unchecked Sendable {
         logicalSizeValue = 0
     }
 
-    func sortChildrenInDiskInventoryZOrder(recursive: Bool = true) {
+    func sortChildrenInDiskInventoryZOrder(recursive: Bool = true, usePhysicalSize: Bool = true) {
         if recursive {
             for child: DiskItem in childrenStorage {
-                child.sortChildrenInDiskInventoryZOrder(recursive: true)
+                child.sortChildrenInDiskInventoryZOrder(recursive: true, usePhysicalSize: usePhysicalSize)
             }
         }
 
         childrenStorage.sort { firstChild, secondChild in
-            Self.compareSizeDescending(firstChild, secondChild) == .orderedAscending
+            Self.compareSizeDescending(firstChild, secondChild, usePhysicalSize: usePhysicalSize) == .orderedAscending
         }
     }
 
@@ -241,7 +241,7 @@ nonisolated final class DiskItem: Identifiable, Hashable, @unchecked Sendable {
             allocatedSizeValue = allocatedSize
             logicalSizeValue = logicalSize
             let sortStartTime: CFAbsoluteTime = ScanPerformanceRecorder.isEnabled ? CFAbsoluteTimeGetCurrent() : 0
-            sortChildrenInDiskInventoryZOrder(recursive: false)
+            sortChildrenInDiskInventoryZOrder(recursive: false, usePhysicalSize: usePhysicalSize)
             if ScanPerformanceRecorder.isEnabled {
                 ScanPerformanceRecorder.shared.addTime(
                     "recalculate.sort.total",
@@ -254,16 +254,19 @@ nonisolated final class DiskItem: Identifiable, Hashable, @unchecked Sendable {
         }
     }
 
-    private static func compareSize(_ firstItem: DiskItem, _ secondItem: DiskItem) -> ComparisonResult {
+    private static func compareSize(_ firstItem: DiskItem, _ secondItem: DiskItem, usePhysicalSize: Bool) -> ComparisonResult {
         if firstItem.isSpecialItem != secondItem.isSpecialItem {
             return firstItem.isSpecialItem ? .orderedAscending : .orderedDescending
         }
 
-        if firstItem.allocatedSizeValue > secondItem.allocatedSizeValue {
+        let firstSize: UInt64 = firstItem.sizeValue(usePhysicalSize: usePhysicalSize)
+        let secondSize: UInt64 = secondItem.sizeValue(usePhysicalSize: usePhysicalSize)
+
+        if firstSize > secondSize {
             return .orderedDescending
         }
 
-        if firstItem.allocatedSizeValue < secondItem.allocatedSizeValue {
+        if firstSize < secondSize {
             return .orderedAscending
         }
 
@@ -273,8 +276,12 @@ nonisolated final class DiskItem: Identifiable, Hashable, @unchecked Sendable {
         )
     }
 
-    private static func compareSizeDescending(_ firstItem: DiskItem, _ secondItem: DiskItem) -> ComparisonResult {
-        switch compareSize(firstItem, secondItem) {
+    private static func compareSizeDescending(
+        _ firstItem: DiskItem,
+        _ secondItem: DiskItem,
+        usePhysicalSize: Bool
+    ) -> ComparisonResult {
+        switch compareSize(firstItem, secondItem, usePhysicalSize: usePhysicalSize) {
         case .orderedDescending:
             return .orderedAscending
         case .orderedAscending:
