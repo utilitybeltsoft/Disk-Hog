@@ -28,14 +28,14 @@ struct DiskItemOutlineView: NSViewRepresentable {
         outlineView.usesAlternatingRowBackgroundColors = false
         outlineView.backgroundColor = .controlBackgroundColor
 
-        let nameColumn: NSTableColumn = NSTableColumn(identifier: ColumnID.name)
+        let nameColumn: NSTableColumn = NSTableColumn(identifier: DiskItemOutlineColumnID.name)
         nameColumn.title = "Name"
         nameColumn.minWidth = ScanWindowMetrics.outlineNameColumnMinimumWidth
         nameColumn.resizingMask = [.autoresizingMask, .userResizingMask]
         outlineView.addTableColumn(nameColumn)
         outlineView.outlineTableColumn = nameColumn
 
-        let sizeColumn: NSTableColumn = NSTableColumn(identifier: ColumnID.size)
+        let sizeColumn: NSTableColumn = NSTableColumn(identifier: DiskItemOutlineColumnID.size)
         sizeColumn.title = "Size"
         sizeColumn.headerCell.alignment = .right
         sizeColumn.width = ScanWindowMetrics.filesSizeColumnWidth
@@ -179,7 +179,7 @@ struct DiskItemOutlineView: NSViewRepresentable {
                 return nil
             }
 
-            if tableColumn.identifier == ColumnID.size {
+            if tableColumn.identifier == DiskItemOutlineColumnID.size {
                 return sizeCell(for: item, outlineView: outlineView)
             }
 
@@ -231,7 +231,7 @@ struct DiskItemOutlineView: NSViewRepresentable {
         }
 
         private func nameCell(for item: DiskItem, outlineView: NSOutlineView) -> NSTableCellView {
-            let identifier: NSUserInterfaceItemIdentifier = CellID.name
+            let identifier: NSUserInterfaceItemIdentifier = DiskItemOutlineCellID.name
             let cell: DiskItemNameCellView = outlineView.makeView(withIdentifier: identifier, owner: self) as? DiskItemNameCellView ?? DiskItemNameCellView()
             cell.identifier = identifier
             cell.configure(item: item)
@@ -239,92 +239,11 @@ struct DiskItemOutlineView: NSViewRepresentable {
         }
 
         private func sizeCell(for item: DiskItem, outlineView: NSOutlineView) -> NSTableCellView {
-            let identifier: NSUserInterfaceItemIdentifier = CellID.size
+            let identifier: NSUserInterfaceItemIdentifier = DiskItemOutlineCellID.size
             let cell: DiskItemSizeCellView = outlineView.makeView(withIdentifier: identifier, owner: self) as? DiskItemSizeCellView ?? DiskItemSizeCellView()
             cell.identifier = identifier
             cell.configure(item: item, usePhysicalSize: usePhysicalSize)
             return cell
         }
-    }
-
-    private final class DiskItemNameCellView: NSTableCellView {
-        private let iconImageView: NSImageView = NSImageView()
-        private let titleTextField: NSTextField = NSTextField(labelWithString: "")
-
-        override init(frame frameRect: NSRect) {
-            super.init(frame: frameRect)
-            setup()
-        }
-
-        required init?(coder: NSCoder) {
-            super.init(coder: coder)
-            setup()
-        }
-
-        func configure(item: DiskItem) {
-            iconImageView.image = NSWorkspace.shared.icon(forFile: item.path)
-            titleTextField.stringValue = item.displayName
-        }
-
-        private func setup() {
-            imageView = iconImageView
-            textField = titleTextField
-            iconImageView.translatesAutoresizingMaskIntoConstraints = false
-            titleTextField.translatesAutoresizingMaskIntoConstraints = false
-            titleTextField.lineBreakMode = .byClipping
-            titleTextField.font = NSFont.systemFont(ofSize: ScanWindowMetrics.tableFontSize)
-            addSubview(iconImageView)
-            addSubview(titleTextField)
-            NSLayoutConstraint.activate([
-                iconImageView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: ScanWindowMetrics.outlineCellHorizontalPadding),
-                iconImageView.centerYAnchor.constraint(equalTo: centerYAnchor),
-                iconImageView.widthAnchor.constraint(equalToConstant: ScanWindowMetrics.outlineIconWidth),
-                iconImageView.heightAnchor.constraint(equalToConstant: ScanWindowMetrics.outlineIconWidth),
-                titleTextField.leadingAnchor.constraint(equalTo: iconImageView.trailingAnchor, constant: ScanWindowMetrics.outlineIconTextSpacing),
-                titleTextField.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -ScanWindowMetrics.outlineCellHorizontalPadding),
-                titleTextField.centerYAnchor.constraint(equalTo: centerYAnchor)
-            ])
-        }
-    }
-
-    private final class DiskItemSizeCellView: NSTableCellView {
-        private let sizeTextField: NSTextField = NSTextField(labelWithString: "")
-
-        override init(frame frameRect: NSRect) {
-            super.init(frame: frameRect)
-            setup()
-        }
-
-        required init?(coder: NSCoder) {
-            super.init(coder: coder)
-            setup()
-        }
-
-        func configure(item: DiskItem, usePhysicalSize: Bool) {
-            sizeTextField.stringValue = ByteCountFormatter.string(fromByteCount: Int64(item.sizeValue(usePhysicalSize: usePhysicalSize)), countStyle: .file)
-        }
-
-        private func setup() {
-            textField = sizeTextField
-            sizeTextField.alignment = .right
-            sizeTextField.font = NSFont.monospacedDigitSystemFont(ofSize: ScanWindowMetrics.tableFontSize, weight: .regular)
-            sizeTextField.translatesAutoresizingMaskIntoConstraints = false
-            addSubview(sizeTextField)
-            NSLayoutConstraint.activate([
-                sizeTextField.leadingAnchor.constraint(equalTo: leadingAnchor, constant: ScanWindowMetrics.outlineCellHorizontalPadding),
-                sizeTextField.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -ScanWindowMetrics.outlineCellHorizontalPadding),
-                sizeTextField.centerYAnchor.constraint(equalTo: centerYAnchor)
-            ])
-        }
-    }
-
-    fileprivate enum ColumnID {
-        static let name: NSUserInterfaceItemIdentifier = NSUserInterfaceItemIdentifier("name")
-        static let size: NSUserInterfaceItemIdentifier = NSUserInterfaceItemIdentifier("size")
-    }
-
-    private enum CellID {
-        static let name: NSUserInterfaceItemIdentifier = NSUserInterfaceItemIdentifier("nameCell")
-        static let size: NSUserInterfaceItemIdentifier = NSUserInterfaceItemIdentifier("sizeCell")
     }
 }
