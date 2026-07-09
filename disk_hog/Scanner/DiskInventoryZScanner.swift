@@ -87,7 +87,12 @@ nonisolated final class DiskInventoryZScanner {
                 continue
             }
 
-            let values: URLResourceValues = try childURL.resourceValues(forKeys: Set(Self.topLevelResourceKeys))
+            let values: URLResourceValues
+            do {
+                values = try recursiveResourceValuesProvider(childURL, Set(Self.topLevelResourceKeys))
+            } catch {
+                continue
+            }
             topLevelWorkItems.append(
                 TopLevelScanWorkItem(
                     sourceOrder: sourceOrder,

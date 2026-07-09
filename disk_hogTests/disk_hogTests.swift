@@ -380,6 +380,26 @@ struct DiskInventoryZScannerTests {
         #expect(folder?.children.map(\.name) == ["readable.txt"])
     }
 
+    @Test func topLevelScanSkipsItemsWhoseResourceValuesCannotBeRead() async throws {
+        let rootURL: URL = try Self.makeUnreadableTopLevelResourceValueFixture()
+        defer {
+            try? FileManager.default.removeItem(at: rootURL)
+        }
+
+        let scanner: DiskInventoryZScanner = DiskInventoryZScanner { url, keys in
+            if url.lastPathComponent == "vanished.dat" {
+                throw CocoaError(.fileNoSuchFile)
+            }
+
+            return try url.resourceValues(forKeys: keys)
+        }
+        let root: DiskItem = try await scanner.scan(
+            source: ScanSource(path: rootURL.path, displayName: rootURL.lastPathComponent)
+        )
+
+        #expect(root.children.map(\.name) == ["readable.txt"])
+    }
+
     @Test func opaquePackageKeepsSeparateAllocatedAndLogicalSizes() async throws {
         let rootURL: URL = try Self.makeOpaquePackageFixture()
         defer {
@@ -455,6 +475,19 @@ struct DiskInventoryZScannerTests {
         let vanishedURL: URL = folderURL.appendingPathComponent("vanished.dat")
 
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        try "readable".write(to: readableURL, atomically: true, encoding: .utf8)
+        try Data(repeating: 0x7A, count: 128).write(to: vanishedURL)
+
+        return rootURL
+    }
+
+    private static func makeUnreadableTopLevelResourceValueFixture() throws -> URL {
+        let rootURL: URL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("disk-hog-unreadable-top-level-values-\(UUID().uuidString)", isDirectory: true)
+        let readableURL: URL = rootURL.appendingPathComponent("readable.txt")
+        let vanishedURL: URL = rootURL.appendingPathComponent("vanished.dat")
+
+        try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
         try "readable".write(to: readableURL, atomically: true, encoding: .utf8)
         try Data(repeating: 0x7A, count: 128).write(to: vanishedURL)
 
