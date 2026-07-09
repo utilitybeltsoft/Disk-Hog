@@ -479,6 +479,10 @@ private nonisolated struct TopLevelScanResult: Sendable {
     let item: DiskItem
 }
 
+// Hardlink byte ownership is intentionally first-claimer-wins across parallel
+// subtree scans. Grand totals remain deterministic, but per-folder attribution
+// for multiply-linked files can vary with task scheduling. If deterministic
+// attribution becomes important, resolve ownership after scanning by path order.
 private nonisolated final class HardlinkDeduplicator: @unchecked Sendable {
     private let lock: NSLock = NSLock()
     private let seenFileIdentifiers: NSMutableSet = NSMutableSet()
