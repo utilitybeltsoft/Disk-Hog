@@ -56,5 +56,10 @@ enum ScanWindowMetrics {
     static let statusFieldHeight: CGFloat = 88
     static let statusFieldHorizontalPadding: CGFloat = 17
     static let statusFieldBottomPadding: CGFloat = 12
+    static let statusProgressColumnSpacing: CGFloat = 10
+    static let statusProgressItemColumnWidth: CGFloat = 88
+    static let statusProgressFolderColumnWidth: CGFloat = 96
+    static let statusProgressFileColumnWidth: CGFloat = 80
+    static let statusProgressSizeColumnWidth: CGFloat = 92
+    static let statusProgressElapsedColumnWidth: CGFloat = 104
 }
-

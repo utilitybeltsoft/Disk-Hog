@@ -23,10 +23,7 @@ struct ZStatusFieldsView: View {
                         .lineLimit(1)
                         .truncationMode(.middle)
                         .textSelection(.enabled)
-                    Text(scanTotalsSummary(referenceDate: context.date))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .textSelection(.enabled)
+                    scanTotalsView(referenceDate: context.date)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -89,10 +86,39 @@ struct ZStatusFieldsView: View {
         }
     }
 
-    private func scanTotalsSummary(referenceDate: Date) -> String {
+    private func scanTotalsView(referenceDate: Date) -> some View {
         let elapsedTime: String = DurationFormatter.scanDuration(session.elapsedTime(referenceDate: referenceDate))
         let scannedSize: String = ByteCountFormatter.string(fromByteCount: Int64(session.scannedByteCount), countStyle: .file)
-        return "\(session.scannedItemCount) items - \(session.scannedFolderCount) folders - \(session.scannedFileCount) files - \(scannedSize) - elapsed \(elapsedTime)"
+        return HStack(spacing: ScanWindowMetrics.statusProgressColumnSpacing) {
+            progressColumn(
+                "\(session.scannedItemCount) items",
+                width: ScanWindowMetrics.statusProgressItemColumnWidth
+            )
+            progressColumn(
+                "\(session.scannedFolderCount) folders",
+                width: ScanWindowMetrics.statusProgressFolderColumnWidth
+            )
+            progressColumn(
+                "\(session.scannedFileCount) files",
+                width: ScanWindowMetrics.statusProgressFileColumnWidth
+            )
+            progressColumn(
+                scannedSize,
+                width: ScanWindowMetrics.statusProgressSizeColumnWidth
+            )
+            progressColumn(
+                "elapsed \(elapsedTime)",
+                width: ScanWindowMetrics.statusProgressElapsedColumnWidth
+            )
+        }
+        .font(.system(size: ScanWindowMetrics.statusFieldFontSize, design: .monospaced))
+        .lineLimit(1)
+        .textSelection(.enabled)
+    }
+
+    private func progressColumn(_ text: String, width: CGFloat) -> some View {
+        Text(text)
+            .frame(width: width, alignment: .trailing)
     }
 
     private static let dateTimeFormatter: DateFormatter = {
