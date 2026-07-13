@@ -140,39 +140,48 @@ final class ZStyleTreemapNSView: NSView {
     }
 
     override func menu(for event: NSEvent) -> NSMenu? {
-        let item: DiskItem? = hitResult(for: event.locationInWindow)?.item ?? selectedItem
-        let menu: NSMenu = NSMenu()
+        let hitResult: TreemapHitResult? = hitResult(for: event.locationInWindow)
+        let item: DiskItem? = hitResult?.item ?? selectedItem
 
-        guard let item: DiskItem = item, item.isSpecialItem == false else {
-            let noItem: NSMenuItem = NSMenuItem(title: "No Item Selected", action: nil, keyEquivalent: "")
-            noItem.isEnabled = false
-            menu.addItem(noItem)
-            return menu
+        if let hitResult: TreemapHitResult = hitResult, hitResult.item.isSpecialItem == false {
+            renderer?.selectItem(by: hitResult.cellID)
+            selectedItem = hitResult.item
+            onSelectItem?(hitResult.item)
+            needsDisplay = true
         }
 
-        menu.addItem(NSMenuItem(title: "Open", action: #selector(openMenuItem(_:)), keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: "Reveal in Finder", action: #selector(revealMenuItem(_:)), keyEquivalent: ""))
-        menu.items.forEach { menuItem in
-            menuItem.target = self
-            menuItem.representedObject = item
-        }
-        return menu
+        return DiskItemContextMenuBuilder.menu(
+            for: item,
+            target: self,
+            openSelector: #selector(openMenuItem(_:)),
+            openWithSelector: #selector(openWithMenuItem(_:)),
+            revealSelector: #selector(revealMenuItem(_:))
+        )
     }
 
     @objc private func openMenuItem(_ sender: NSMenuItem) {
-        guard let item: DiskItem = sender.representedObject as? DiskItem else {
+        guard let payload: DiskItemContextMenuPayload = sender.representedObject as? DiskItemContextMenuPayload else {
             return
         }
 
-        DiskItemWorkspaceActions.open(item)
+        DiskItemWorkspaceActions.open(payload.item)
+    }
+
+    @objc private func openWithMenuItem(_ sender: NSMenuItem) {
+        guard let payload: DiskItemContextMenuPayload = sender.representedObject as? DiskItemContextMenuPayload,
+              let applicationURL: URL = payload.applicationURL else {
+            return
+        }
+
+        DiskItemWorkspaceActions.open(payload.item, withApplicationAt: applicationURL)
     }
 
     @objc private func revealMenuItem(_ sender: NSMenuItem) {
-        guard let item: DiskItem = sender.representedObject as? DiskItem else {
+        guard let payload: DiskItemContextMenuPayload = sender.representedObject as? DiskItemContextMenuPayload else {
             return
         }
 
-        DiskItemWorkspaceActions.revealInFinder(item)
+        DiskItemWorkspaceActions.revealInFinder(payload.item)
     }
 
     private func rebuildRenderer() {

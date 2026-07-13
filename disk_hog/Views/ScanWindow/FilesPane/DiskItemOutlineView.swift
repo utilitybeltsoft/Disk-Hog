@@ -47,6 +47,7 @@ struct DiskItemOutlineView: NSViewRepresentable {
         outlineView.dataSource = context.coordinator
         outlineView.target = context.coordinator
         outlineView.doubleAction = #selector(Coordinator.doubleClick(_:))
+        outlineView.menu = context.coordinator.contextMenu
 
         let scrollView: NSScrollView = NSScrollView()
         scrollView.hasVerticalScroller = true
@@ -73,6 +74,7 @@ struct DiskItemOutlineView: NSViewRepresentable {
         var selectionCoordinator: ScanWindowSelectionCoordinator
         var activePane: Binding<ScanWindowPane?>
         weak var outlineView: NSOutlineView?
+        let contextMenu: NSMenu = NSMenu()
         private var rootItem: DiskItem?
         private var isApplyingSelection: Bool = false
         private var selectionCancellable: AnyCancellable?
@@ -85,6 +87,8 @@ struct DiskItemOutlineView: NSViewRepresentable {
             self.usePhysicalSize = usePhysicalSize
             self.selectionCoordinator = selectionCoordinator
             self.activePane = activePane
+            super.init()
+            contextMenu.delegate = self
         }
 
         func observeSelection() {
@@ -217,6 +221,31 @@ struct DiskItemOutlineView: NSViewRepresentable {
             }
         }
 
+        @objc private func openMenuItem(_ sender: NSMenuItem) {
+            guard let payload: DiskItemContextMenuPayload = sender.representedObject as? DiskItemContextMenuPayload else {
+                return
+            }
+
+            DiskItemWorkspaceActions.open(payload.item)
+        }
+
+        @objc private func openWithMenuItem(_ sender: NSMenuItem) {
+            guard let payload: DiskItemContextMenuPayload = sender.representedObject as? DiskItemContextMenuPayload,
+                  let applicationURL: URL = payload.applicationURL else {
+                return
+            }
+
+            DiskItemWorkspaceActions.open(payload.item, withApplicationAt: applicationURL)
+        }
+
+        @objc private func revealMenuItem(_ sender: NSMenuItem) {
+            guard let payload: DiskItemContextMenuPayload = sender.representedObject as? DiskItemContextMenuPayload else {
+                return
+            }
+
+            DiskItemWorkspaceActions.revealInFinder(payload.item)
+        }
+
         private func expandAncestors(of item: DiskItem) {
             guard let rootItem: DiskItem = rootItem else {
                 return
@@ -243,5 +272,40 @@ struct DiskItemOutlineView: NSViewRepresentable {
             cell.configure(item: item, usePhysicalSize: usePhysicalSize)
             return cell
         }
+    }
+}
+
+extension DiskItemOutlineView.Coordinator: NSMenuDelegate {
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        let item: DiskItem? = rightClickedItem()
+        DiskItemContextMenuBuilder.populate(
+            menu,
+            with: item,
+            target: self,
+            openSelector: #selector(openMenuItem(_:)),
+            openWithSelector: #selector(openWithMenuItem(_:)),
+            revealSelector: #selector(revealMenuItem(_:))
+        )
+    }
+
+    private func rightClickedItem() -> DiskItem? {
+        guard let outlineView: NSOutlineView = outlineView else {
+            return selectionCoordinator.selectedItem
+        }
+
+        if let event: NSEvent = NSApp.currentEvent {
+            let point: NSPoint = outlineView.convert(event.locationInWindow, from: nil)
+            let row: Int = outlineView.row(at: point)
+            if row >= 0, let item: DiskItem = outlineView.item(atRow: row) as? DiskItem {
+                activePane.wrappedValue = .files
+                isApplyingSelection = true
+                outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+                isApplyingSelection = false
+                selectionCoordinator.setSelectedItem(item)
+                return item
+            }
+        }
+
+        return selectionCoordinator.selectedItem
     }
 }
