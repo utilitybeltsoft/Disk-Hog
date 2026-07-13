@@ -126,6 +126,126 @@ nonisolated final class DiskItem: Identifiable, Hashable, Sendable {
         return []
     }
 
+    func item(atPath candidatePath: String, allowAncestors: Bool = false) -> DiskItem? {
+        guard isSpecialItem == false else {
+            return nil
+        }
+
+        if path == candidatePath {
+            return self
+        }
+
+        for child: DiskItem in childrenStorage where child.containsPath(candidatePath) {
+            if let match: DiskItem = child.item(atPath: candidatePath, allowAncestors: allowAncestors) {
+                return match
+            }
+        }
+
+        return allowAncestors && containsPath(candidatePath) ? self : nil
+    }
+
+    func replacingSubtree(
+        atPath targetPath: String,
+        with replacement: DiskItem,
+        usePhysicalSize: Bool
+    ) -> DiskItem? {
+        if path == targetPath {
+            return replacement.copy(isRoot: isRoot)
+        }
+
+        guard containsPath(targetPath) else {
+            return nil
+        }
+
+        var updatedChildren: [DiskItem] = childrenStorage
+        guard let childIndex: Int = updatedChildren.firstIndex(where: { $0.containsPath(targetPath) }),
+              let updatedChild: DiskItem = updatedChildren[childIndex].replacingSubtree(
+                atPath: targetPath,
+                with: replacement,
+                usePhysicalSize: usePhysicalSize
+              ) else {
+            return nil
+        }
+
+        updatedChildren[childIndex] = updatedChild
+        return copyWithRecalculatedChildren(updatedChildren, usePhysicalSize: usePhysicalSize)
+    }
+
+    func removingSubtree(atPath targetPath: String, usePhysicalSize: Bool) -> DiskItem? {
+        guard path != targetPath, containsPath(targetPath) else {
+            return nil
+        }
+
+        var updatedChildren: [DiskItem] = childrenStorage
+        if let childIndex: Int = updatedChildren.firstIndex(where: { $0.path == targetPath }) {
+            updatedChildren.remove(at: childIndex)
+            return copyWithRecalculatedChildren(updatedChildren, usePhysicalSize: usePhysicalSize)
+        }
+
+        guard let childIndex: Int = updatedChildren.firstIndex(where: { $0.containsPath(targetPath) }),
+              let updatedChild: DiskItem = updatedChildren[childIndex].removingSubtree(
+                atPath: targetPath,
+                usePhysicalSize: usePhysicalSize
+              ) else {
+            return nil
+        }
+
+        updatedChildren[childIndex] = updatedChild
+        return copyWithRecalculatedChildren(updatedChildren, usePhysicalSize: usePhysicalSize)
+    }
+
+    func scanCounts(includeSelf: Bool = true) -> (files: Int, folders: Int) {
+        var files: Int = includeSelf && !isDirectory ? 1 : 0
+        var folders: Int = includeSelf && isDirectory ? 1 : 0
+        for child: DiskItem in childrenStorage where child.isSpecialItem == false {
+            let childCounts: (files: Int, folders: Int) = child.scanCounts()
+            files += childCounts.files
+            folders += childCounts.folders
+        }
+        return (files, folders)
+    }
+
+    private func copyWithRecalculatedChildren(_ children: [DiskItem], usePhysicalSize: Bool) -> DiskItem {
+        let sortedChildren: [DiskItem] = children.sorted {
+            let leftSize: UInt64 = $0.sizeValue(usePhysicalSize: usePhysicalSize)
+            let rightSize: UInt64 = $1.sizeValue(usePhysicalSize: usePhysicalSize)
+            if leftSize != rightSize {
+                return leftSize > rightSize
+            }
+            return $0.name.localizedStandardCompare($1.name) == .orderedDescending
+        }
+        let allocatedSize: UInt64 = sortedChildren.reduce(0) { $0 + $1.allocatedSizeValue }
+        let logicalSize: UInt64 = sortedChildren.reduce(0) { $0 + $1.logicalSizeValue }
+        return copy(
+            allocatedSizeValue: allocatedSize,
+            logicalSizeValue: logicalSize,
+            children: sortedChildren
+        )
+    }
+
+    private func copy(
+        allocatedSizeValue: UInt64? = nil,
+        logicalSizeValue: UInt64? = nil,
+        children: [DiskItem]? = nil,
+        isRoot: Bool? = nil
+    ) -> DiskItem {
+        DiskItem(
+            url: urlValue,
+            itemType: itemType,
+            displayName: displayName,
+            name: fileSystemName,
+            allocatedSizeValue: allocatedSizeValue ?? self.allocatedSizeValue,
+            logicalSizeValue: logicalSizeValue ?? self.logicalSizeValue,
+            kindName: kindName,
+            isDirectory: isDirectory,
+            isPackage: isPackage,
+            isAliasOrSymbolicLink: isAliasOrSymbolicLink,
+            isHardlinkDuplicate: isHardlinkDuplicate,
+            children: children ?? childrenStorage,
+            isRoot: isRoot ?? isRootValue
+        )
+    }
+
     private func containsPath(_ candidatePath: String) -> Bool {
         if isSpecialItem {
             return candidatePath.isEmpty

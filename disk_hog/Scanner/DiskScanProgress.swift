@@ -9,12 +9,15 @@ nonisolated struct DiskScanProgress: Sendable {
 
 nonisolated enum DiskScannerError: LocalizedError {
     case topLevelEnumerationFailed(path: String, underlyingDescription: String)
+    case itemOutsideScanRoot(path: String)
     case traversalInconsistency(String)
 
     var errorDescription: String? {
         switch self {
         case let .topLevelEnumerationFailed(path, underlyingDescription):
             return "Could not list the top level of \"\(path)\". \(underlyingDescription)"
+        case let .itemOutsideScanRoot(path):
+            return "Could not refresh \"\(path)\" because it is outside the scanned folder."
         case let .traversalInconsistency(detail):
             return "Scanner traversal failed because the directory structure changed unexpectedly. \(detail)"
         }

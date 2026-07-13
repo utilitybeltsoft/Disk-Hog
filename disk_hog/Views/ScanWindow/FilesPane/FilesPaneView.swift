@@ -7,6 +7,7 @@ struct FilesPaneView: View {
 
     var body: some View {
         DiskItemOutlineView(
+            session: session,
             rootItem: session.rootItem,
             usePhysicalSize: session.scanSettings.usePhysicalSize,
             selectionCoordinator: selectionCoordinator,
@@ -18,4 +19,3 @@ struct FilesPaneView: View {
         }
     }
 }
-

@@ -3,6 +3,7 @@ import Combine
 import SwiftUI
 
 struct AppKitTreemapView: NSViewRepresentable {
+    let session: ScanSession
     let source: ScanSource
     let rootItem: DiskItem?
     let presentationMetrics: TreemapPresentationMetrics?
@@ -29,7 +30,7 @@ struct AppKitTreemapView: NSViewRepresentable {
         }
         context.coordinator.view = view
         context.coordinator.observeSelection()
-        view.configure(source: source, rootItem: rootItem, presentationMetrics: presentationMetrics, selectedItem: selectionCoordinator.selectedItem)
+        view.configure(session: session, source: source, rootItem: rootItem, presentationMetrics: presentationMetrics, selectedItem: selectionCoordinator.selectedItem)
         return view
     }
 
@@ -37,7 +38,7 @@ struct AppKitTreemapView: NSViewRepresentable {
         context.coordinator.selectionCoordinator = selectionCoordinator
         context.coordinator.hoveredItem = hoveredItem
         context.coordinator.activePane = activePane
-        nsView.configure(source: source, rootItem: rootItem, presentationMetrics: presentationMetrics, selectedItem: selectionCoordinator.selectedItem)
+        nsView.configure(session: session, source: source, rootItem: rootItem, presentationMetrics: presentationMetrics, selectedItem: selectionCoordinator.selectedItem)
     }
 
     final class Coordinator {

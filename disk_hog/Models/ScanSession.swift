@@ -15,6 +15,8 @@ final class ScanSession: ObservableObject {
     @Published private(set) var currentPath: String
     @Published private(set) var rootItem: DiskItem?
     @Published private(set) var presentationMetrics: TreemapPresentationMetrics?
+    @Published private(set) var preferredSelection: DiskItem?
+    @Published private(set) var isUpdatingTree: Bool
     @Published private(set) var errorMessage: String?
     #if FILE_MATCHING_DIAGNOSTICS
     @Published private(set) var diagnosticsExportState: DiagnosticsExportState
@@ -24,6 +26,7 @@ final class ScanSession: ObservableObject {
 
     private let settings: DiskScanSettings
     private var scanTask: Task<Void, Never>?
+    private var treeUpdateTask: Task<Void, Never>?
 
     init(source: ScanSource) {
         self.source = source
@@ -37,6 +40,8 @@ final class ScanSession: ObservableObject {
         self.currentPath = source.path
         self.rootItem = nil
         self.presentationMetrics = nil
+        self.preferredSelection = nil
+        self.isUpdatingTree = false
         self.errorMessage = nil
         #if FILE_MATCHING_DIAGNOSTICS
         self.diagnosticsExportState = .idle
@@ -67,6 +72,8 @@ final class ScanSession: ObservableObject {
         currentPath = source.path
         rootItem = nil
         presentationMetrics = nil
+        preferredSelection = nil
+        isUpdatingTree = false
         errorMessage = nil
 
         let source: ScanSource = source
@@ -121,11 +128,121 @@ final class ScanSession: ObservableObject {
     }
 
     func cancel() {
-        guard state == .scanning else {
+        if state == .scanning {
+            scanTask?.cancel()
+        }
+        treeUpdateTask?.cancel()
+    }
+
+    func refresh(_ item: DiskItem) {
+        guard state == .complete,
+              !isUpdatingTree,
+              !item.isSpecialItem,
+              let currentRoot: DiskItem = rootItem,
+              currentRoot.item(atPath: item.path) != nil else {
             return
         }
 
-        scanTask?.cancel()
+        beginTreeUpdate()
+        let source: ScanSource = source
+        let settings: DiskScanSettings = settings
+        let requestedSelectionPath: String = item.path
+
+        treeUpdateTask = Task.detached(priority: .userInitiated) {
+            do {
+                let refreshPath: String = Self.nearestExistingPath(from: item.path, stoppingAt: currentRoot.path)
+                let scanner: DiskInventoryZScanner = DiskInventoryZScanner()
+                let updatedRoot: DiskItem
+                if refreshPath == currentRoot.path {
+                    updatedRoot = try await scanner.scan(source: source, settings: settings)
+                } else {
+                    let refreshedItem: DiskItem = try await scanner.scanItem(
+                        at: URL(fileURLWithPath: refreshPath),
+                        from: source,
+                        settings: settings
+                    )
+                    guard let replacementRoot: DiskItem = currentRoot.replacingSubtree(
+                        atPath: refreshPath,
+                        with: refreshedItem,
+                        usePhysicalSize: settings.usePhysicalSize
+                    ) else {
+                        throw DiskScannerError.traversalInconsistency("The refreshed item was no longer present in the scan tree.")
+                    }
+                    updatedRoot = replacementRoot
+                }
+
+                let metrics: TreemapPresentationMetrics = TreemapPresentationMetrics(
+                    rootItem: updatedRoot,
+                    usePhysicalSize: settings.usePhysicalSize
+                )
+                await MainActor.run {
+                    self.finishTreeUpdate(
+                        rootItem: updatedRoot,
+                        presentationMetrics: metrics,
+                        selectionPath: requestedSelectionPath
+                    )
+                }
+            } catch is CancellationError {
+                await MainActor.run { self.finishTreeUpdateCancellation() }
+            } catch {
+                await MainActor.run { self.finishTreeUpdateFailure(error) }
+            }
+        }
+    }
+
+    func moveToTrash(_ item: DiskItem) {
+        guard state == .complete,
+              !isUpdatingTree,
+              !item.isSpecialItem,
+              !item.isRoot,
+              let currentRoot: DiskItem = rootItem,
+              currentRoot.item(atPath: item.path) != nil else {
+            return
+        }
+
+        beginTreeUpdate()
+        let source: ScanSource = source
+        let settings: DiskScanSettings = settings
+        let parentPath: String = item.url.deletingLastPathComponent().path
+
+        treeUpdateTask = Task.detached(priority: .userInitiated) {
+            do {
+                let rootURL: URL = try source.resolvedURL()
+                let didStartSecurityScopedAccess: Bool = rootURL.startAccessingSecurityScopedResource()
+                defer { if didStartSecurityScopedAccess { rootURL.stopAccessingSecurityScopedResource() } }
+
+                let values: URLResourceValues = try item.url.resourceValues(forKeys: [.volumeIsLocalKey])
+                if values.volumeIsLocal == false {
+                    try FileManager.default.removeItem(at: item.url)
+                } else {
+                    var resultingURL: NSURL?
+                    try FileManager.default.trashItem(at: item.url, resultingItemURL: &resultingURL)
+                }
+                try Task.checkCancellation()
+
+                guard let updatedRoot: DiskItem = currentRoot.removingSubtree(
+                    atPath: item.path,
+                    usePhysicalSize: settings.usePhysicalSize
+                ) else {
+                    throw DiskScannerError.traversalInconsistency("The trashed item was no longer present in the scan tree.")
+                }
+                let metrics: TreemapPresentationMetrics = TreemapPresentationMetrics(
+                    rootItem: updatedRoot,
+                    usePhysicalSize: settings.usePhysicalSize
+                )
+                await MainActor.run {
+                    self.finishTreeUpdate(
+                        rootItem: updatedRoot,
+                        presentationMetrics: metrics,
+                        selectionPath: parentPath
+                    )
+                }
+            } catch is CancellationError {
+                await MainActor.run { self.finishTreeUpdateCancellation() }
+            } catch {
+                await MainActor.run { self.finishTreeUpdateFailure(error) }
+            }
+        }
     }
 
     func elapsedTime(referenceDate: Date) -> TimeInterval {
@@ -183,12 +300,62 @@ final class ScanSession: ObservableObject {
 
     private func finishScan(rootItem: DiskItem, presentationMetrics: TreemapPresentationMetrics) {
         self.presentationMetrics = presentationMetrics
+        preferredSelection = rootItem
         self.rootItem = rootItem
         state = .complete
         completedAt = Date()
         scanTask = nil
         currentPath = rootItem.path
         scannedByteCount = rootItem.sizeValue(usePhysicalSize: settings.usePhysicalSize)
+    }
+
+    private func beginTreeUpdate() {
+        isUpdatingTree = true
+        errorMessage = nil
+    }
+
+    private func finishTreeUpdate(
+        rootItem: DiskItem,
+        presentationMetrics: TreemapPresentationMetrics,
+        selectionPath: String
+    ) {
+        let counts: (files: Int, folders: Int) = rootItem.scanCounts(includeSelf: false)
+        preferredSelection = rootItem.item(atPath: selectionPath, allowAncestors: true) ?? rootItem
+        self.presentationMetrics = presentationMetrics
+        self.rootItem = rootItem
+        scannedFileCount = counts.files
+        scannedFolderCount = counts.folders
+        scannedByteCount = rootItem.sizeValue(usePhysicalSize: settings.usePhysicalSize)
+        currentPath = preferredSelection?.path ?? rootItem.path
+        isUpdatingTree = false
+        treeUpdateTask = nil
+    }
+
+    private func finishTreeUpdateCancellation() {
+        isUpdatingTree = false
+        treeUpdateTask = nil
+    }
+
+    private func finishTreeUpdateFailure(_ error: Error) {
+        isUpdatingTree = false
+        treeUpdateTask = nil
+        errorMessage = error.localizedDescription
+    }
+
+    nonisolated private static func nearestExistingPath(from path: String, stoppingAt rootPath: String) -> String {
+        var candidateURL: URL = URL(fileURLWithPath: path).standardizedFileURL
+        let standardizedRootPath: String = URL(fileURLWithPath: rootPath).standardizedFileURL.path
+        while !FileManager.default.fileExists(atPath: candidateURL.path) {
+            guard candidateURL.path != standardizedRootPath else {
+                return standardizedRootPath
+            }
+            let parentURL: URL = candidateURL.deletingLastPathComponent()
+            guard parentURL.path != candidateURL.path else {
+                return standardizedRootPath
+            }
+            candidateURL = parentURL
+        }
+        return candidateURL.path
     }
 
     private func finishCancellation() {

@@ -9,6 +9,7 @@ struct TreemapPanelView: View {
     var body: some View {
         ZStack {
             AppKitTreemapView(
+                session: session,
                 source: session.source,
                 rootItem: session.rootItem,
                 presentationMetrics: session.presentationMetrics,
@@ -23,4 +24,3 @@ struct TreemapPanelView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
-

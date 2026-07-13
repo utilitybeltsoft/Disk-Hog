@@ -3,6 +3,7 @@ import Combine
 import SwiftUI
 
 struct DiskItemOutlineView: NSViewRepresentable {
+    let session: ScanSession
     let rootItem: DiskItem?
     let usePhysicalSize: Bool
     let selectionCoordinator: ScanWindowSelectionCoordinator
@@ -10,6 +11,7 @@ struct DiskItemOutlineView: NSViewRepresentable {
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
+            session: session,
             usePhysicalSize: usePhysicalSize,
             selectionCoordinator: selectionCoordinator,
             activePane: activePane
@@ -62,6 +64,7 @@ struct DiskItemOutlineView: NSViewRepresentable {
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        context.coordinator.session = session
         context.coordinator.selectionCoordinator = selectionCoordinator
         context.coordinator.activePane = activePane
         context.coordinator.updateSizeMode(usePhysicalSize)
@@ -70,6 +73,7 @@ struct DiskItemOutlineView: NSViewRepresentable {
     }
 
     final class Coordinator: NSObject, NSOutlineViewDataSource, NSOutlineViewDelegate {
+        var session: ScanSession
         private var usePhysicalSize: Bool
         var selectionCoordinator: ScanWindowSelectionCoordinator
         var activePane: Binding<ScanWindowPane?>
@@ -80,10 +84,12 @@ struct DiskItemOutlineView: NSViewRepresentable {
         private var selectionCancellable: AnyCancellable?
 
         init(
+            session: ScanSession,
             usePhysicalSize: Bool,
             selectionCoordinator: ScanWindowSelectionCoordinator,
             activePane: Binding<ScanWindowPane?>
         ) {
+            self.session = session
             self.usePhysicalSize = usePhysicalSize
             self.selectionCoordinator = selectionCoordinator
             self.activePane = activePane
@@ -106,10 +112,30 @@ struct DiskItemOutlineView: NSViewRepresentable {
         }
 
         func reload(rootItem: DiskItem?) {
+            let expandedPaths: [String] = expandedItemPaths()
             self.rootItem = rootItem
             outlineView?.reloadData()
             if let rootItem: DiskItem = rootItem {
                 outlineView?.expandItem(rootItem)
+                for path: String in expandedPaths {
+                    if let expandedItem: DiskItem = rootItem.item(atPath: path) {
+                        outlineView?.expandItem(expandedItem)
+                    }
+                }
+            }
+        }
+
+        private func expandedItemPaths() -> [String] {
+            guard let outlineView: NSOutlineView = outlineView else {
+                return []
+            }
+
+            return (0..<outlineView.numberOfRows).compactMap { row in
+                guard let item: DiskItem = outlineView.item(atRow: row) as? DiskItem,
+                      outlineView.isItemExpanded(item) else {
+                    return nil
+                }
+                return item.path
             }
         }
 
@@ -246,6 +272,22 @@ struct DiskItemOutlineView: NSViewRepresentable {
             DiskItemWorkspaceActions.revealInFinder(payload.item)
         }
 
+        @objc private func refreshMenuItem(_ sender: NSMenuItem) {
+            guard let payload: DiskItemContextMenuPayload = sender.representedObject as? DiskItemContextMenuPayload else {
+                return
+            }
+
+            session.refresh(payload.item)
+        }
+
+        @objc private func trashMenuItem(_ sender: NSMenuItem) {
+            guard let payload: DiskItemContextMenuPayload = sender.representedObject as? DiskItemContextMenuPayload else {
+                return
+            }
+
+            session.moveToTrash(payload.item)
+        }
+
         private func expandAncestors(of item: DiskItem) {
             guard let rootItem: DiskItem = rootItem else {
                 return
@@ -284,7 +326,10 @@ extension DiskItemOutlineView.Coordinator: NSMenuDelegate {
             target: self,
             openSelector: #selector(openMenuItem(_:)),
             openWithSelector: #selector(openWithMenuItem(_:)),
-            revealSelector: #selector(revealMenuItem(_:))
+            revealSelector: #selector(revealMenuItem(_:)),
+            refreshSelector: #selector(refreshMenuItem(_:)),
+            trashSelector: #selector(trashMenuItem(_:)),
+            treeActionsEnabled: !session.isUpdatingTree
         )
     }
 

@@ -140,6 +140,52 @@ nonisolated final class DiskInventoryZScanner {
         return rootBuilder.freeze()
     }
 
+    func scanItem(
+        at itemURL: URL,
+        from source: ScanSource,
+        settings: DiskScanSettings = .diskInventoryZDefault
+    ) async throws -> DiskItem {
+        try Task.checkCancellation()
+
+        let rootURL: URL = try source.resolvedURL()
+        let didStartSecurityScopedAccess: Bool = rootURL.startAccessingSecurityScopedResource()
+        defer { if didStartSecurityScopedAccess { rootURL.stopAccessingSecurityScopedResource() } }
+
+        let standardizedRootPath: String = rootURL.standardizedFileURL.path
+        let standardizedItemURL: URL = itemURL.standardizedFileURL
+        let rootPrefix: String = standardizedRootPath.hasSuffix("/") ? standardizedRootPath : standardizedRootPath + "/"
+        guard standardizedItemURL.path == standardizedRootPath || standardizedItemURL.path.hasPrefix(rootPrefix) else {
+            throw DiskScannerError.itemOutsideScanRoot(path: standardizedItemURL.path)
+        }
+
+        let values: URLResourceValues = try recursiveResourceValuesProvider(
+            standardizedItemURL,
+            Set(Self.topLevelResourceKeys)
+        )
+        resetHardlinkDedup()
+        let item: DiskItemBuilder = makeItem(url: standardizedItemURL, values: values)
+
+        if item.isFolder && !(item.isPackage && !settings.lookInsidePackages) && values.isVolume != true {
+            var progressState: ScanProgressState = ScanProgressState(currentPath: item.path)
+            progressState.recordItem(item)
+            _ = try await loadChildren(
+                of: item,
+                settings: settings,
+                progressState: progressState,
+                progressHandler: nil
+            )
+        } else if item.isDirectory && item.isPackage && !settings.lookInsidePackages {
+            let packageSize: OpaquePackageSize = try Self.opaquePackageSize(url: item.url)
+            item.allocatedSizeValue = packageSize.allocated
+            item.logicalSizeValue = packageSize.logical
+        } else if !item.isDirectory {
+            markHardlinkDuplicateIfNeeded(item: item, values: values)
+        }
+
+        item.recalculateSize(usePhysicalSize: settings.usePhysicalSize)
+        return item.freeze(isRoot: false)
+    }
+
     private func scanTopLevelWorkItem(
         _ workItem: TopLevelScanWorkItem,
         settings: DiskScanSettings,

@@ -5,6 +5,7 @@ final class ZStyleTreemapNSView: NSView {
     var onHoverItem: ((DiskItem?) -> Void)?
 
     private var source: ScanSource?
+    private weak var session: ScanSession?
     private var rootItem: DiskItem?
     private var presentationMetrics: TreemapPresentationMetrics?
     private var selectedItem: DiskItem?
@@ -20,7 +21,8 @@ final class ZStyleTreemapNSView: NSView {
         true
     }
 
-    func configure(source: ScanSource, rootItem: DiskItem?, presentationMetrics: TreemapPresentationMetrics?, selectedItem: DiskItem?) {
+    func configure(session: ScanSession, source: ScanSource, rootItem: DiskItem?, presentationMetrics: TreemapPresentationMetrics?, selectedItem: DiskItem?) {
+        self.session = session
         self.source = source
 
         if self.rootItem !== rootItem || self.presentationMetrics !== presentationMetrics {
@@ -155,7 +157,10 @@ final class ZStyleTreemapNSView: NSView {
             target: self,
             openSelector: #selector(openMenuItem(_:)),
             openWithSelector: #selector(openWithMenuItem(_:)),
-            revealSelector: #selector(revealMenuItem(_:))
+            revealSelector: #selector(revealMenuItem(_:)),
+            refreshSelector: #selector(refreshMenuItem(_:)),
+            trashSelector: #selector(trashMenuItem(_:)),
+            treeActionsEnabled: session?.isUpdatingTree == false
         )
     }
 
@@ -182,6 +187,22 @@ final class ZStyleTreemapNSView: NSView {
         }
 
         DiskItemWorkspaceActions.revealInFinder(payload.item)
+    }
+
+    @objc private func refreshMenuItem(_ sender: NSMenuItem) {
+        guard let payload: DiskItemContextMenuPayload = sender.representedObject as? DiskItemContextMenuPayload else {
+            return
+        }
+
+        session?.refresh(payload.item)
+    }
+
+    @objc private func trashMenuItem(_ sender: NSMenuItem) {
+        guard let payload: DiskItemContextMenuPayload = sender.representedObject as? DiskItemContextMenuPayload else {
+            return
+        }
+
+        session?.moveToTrash(payload.item)
     }
 
     private func rebuildRenderer() {

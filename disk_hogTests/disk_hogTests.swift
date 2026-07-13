@@ -182,6 +182,56 @@ struct DiskItemTests {
         #expect(child.path == "/scan/folder")
         #expect(child.url.path == "/scan/folder")
     }
+
+    @Test func replacingSubtreeRebuildsAncestorsAndRestoresItemsByPath() {
+        let rootBuilder: DiskItemBuilder = DiskItemBuilder(url: URL(fileURLWithPath: "/scan"), isDirectory: true)
+        let folderBuilder: DiskItemBuilder = DiskItemBuilder(url: URL(fileURLWithPath: "/scan/folder"), isDirectory: true)
+        folderBuilder.appendChild(DiskItemBuilder(
+            url: URL(fileURLWithPath: "/scan/folder/old.txt"),
+            allocatedSizeValue: 10,
+            logicalSizeValue: 10
+        ))
+        rootBuilder.appendChild(folderBuilder)
+        let root: DiskItem = rootBuilder.freeze()
+
+        let replacementBuilder: DiskItemBuilder = DiskItemBuilder(url: URL(fileURLWithPath: "/scan/folder"), isDirectory: true)
+        replacementBuilder.appendChild(DiskItemBuilder(
+            url: URL(fileURLWithPath: "/scan/folder/new.txt"),
+            allocatedSizeValue: 25,
+            logicalSizeValue: 25
+        ))
+        let replacement: DiskItem = replacementBuilder.freeze(isRoot: false)
+        let updatedRoot: DiskItem? = root.replacingSubtree(
+            atPath: "/scan/folder",
+            with: replacement,
+            usePhysicalSize: true
+        )
+
+        #expect(updatedRoot?.isRoot == true)
+        #expect(updatedRoot?.allocatedSizeValue == 25)
+        #expect(updatedRoot?.item(atPath: "/scan/folder/new.txt")?.name == "new.txt")
+        #expect(updatedRoot?.item(atPath: "/scan/folder/old.txt") == nil)
+    }
+
+    @Test func removingSubtreeRecalculatesSizeAndAllowsAncestorFallback() {
+        let rootBuilder: DiskItemBuilder = DiskItemBuilder(url: URL(fileURLWithPath: "/scan"), isDirectory: true)
+        let folderBuilder: DiskItemBuilder = DiskItemBuilder(url: URL(fileURLWithPath: "/scan/folder"), isDirectory: true)
+        folderBuilder.appendChild(DiskItemBuilder(
+            url: URL(fileURLWithPath: "/scan/folder/file.txt"),
+            allocatedSizeValue: 40,
+            logicalSizeValue: 20
+        ))
+        rootBuilder.appendChild(folderBuilder)
+        let root: DiskItem = rootBuilder.freeze()
+        let updatedRoot: DiskItem? = root.removingSubtree(
+            atPath: "/scan/folder/file.txt",
+            usePhysicalSize: true
+        )
+
+        #expect(updatedRoot?.allocatedSizeValue == 0)
+        #expect(updatedRoot?.item(atPath: "/scan/folder/file.txt") == nil)
+        #expect(updatedRoot?.item(atPath: "/scan/folder/file.txt", allowAncestors: true)?.path == "/scan/folder")
+    }
 }
 
 struct TreemapDiskItemDataSourceTests {

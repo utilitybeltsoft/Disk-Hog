@@ -112,7 +112,10 @@ enum DiskItemContextMenuBuilder {
         target: AnyObject,
         openSelector: Selector,
         openWithSelector: Selector,
-        revealSelector: Selector
+        revealSelector: Selector,
+        refreshSelector: Selector,
+        trashSelector: Selector,
+        treeActionsEnabled: Bool
     ) -> NSMenu {
         let menu: NSMenu = NSMenu()
         populate(
@@ -121,7 +124,10 @@ enum DiskItemContextMenuBuilder {
             target: target,
             openSelector: openSelector,
             openWithSelector: openWithSelector,
-            revealSelector: revealSelector
+            revealSelector: revealSelector,
+            refreshSelector: refreshSelector,
+            trashSelector: trashSelector,
+            treeActionsEnabled: treeActionsEnabled
         )
         return menu
     }
@@ -132,7 +138,10 @@ enum DiskItemContextMenuBuilder {
         target: AnyObject,
         openSelector: Selector,
         openWithSelector: Selector,
-        revealSelector: Selector
+        revealSelector: Selector,
+        refreshSelector: Selector,
+        trashSelector: Selector,
+        treeActionsEnabled: Bool
     ) {
         menu.removeAllItems()
 
@@ -159,15 +168,19 @@ enum DiskItemContextMenuBuilder {
         revealItem.representedObject = DiskItemContextMenuPayload(item: item)
         menu.addItem(revealItem)
 
-        let refreshItem: NSMenuItem = NSMenuItem(title: "Refresh", action: nil, keyEquivalent: "")
+        let refreshItem: NSMenuItem = NSMenuItem(title: "Refresh", action: refreshSelector, keyEquivalent: "")
+        refreshItem.target = target
+        refreshItem.representedObject = DiskItemContextMenuPayload(item: item)
         refreshItem.toolTip = "Synchronizes folder or file with Finder."
-        refreshItem.isEnabled = false
+        refreshItem.isEnabled = treeActionsEnabled
         menu.addItem(refreshItem)
 
         menu.addItem(.separator())
 
-        let trashItem: NSMenuItem = NSMenuItem(title: "Move To Trash", action: nil, keyEquivalent: "")
-        trashItem.isEnabled = false
+        let trashItem: NSMenuItem = NSMenuItem(title: "Move To Trash", action: trashSelector, keyEquivalent: "")
+        trashItem.target = target
+        trashItem.representedObject = DiskItemContextMenuPayload(item: item)
+        trashItem.isEnabled = treeActionsEnabled && !item.isRoot
         menu.addItem(trashItem)
 
         menu.addItem(.separator())

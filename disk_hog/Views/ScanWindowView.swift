@@ -62,7 +62,7 @@ struct ScanWindowView: View {
             session.cancel()
         }
         .onChange(of: session.rootItem?.id) {
-            selectionCoordinator.setSelectedItem(session.rootItem)
+            selectionCoordinator.setSelectedItem(session.preferredSelection ?? session.rootItem)
             hoveredItem = nil
             updateScanWindowCommandState()
         }
