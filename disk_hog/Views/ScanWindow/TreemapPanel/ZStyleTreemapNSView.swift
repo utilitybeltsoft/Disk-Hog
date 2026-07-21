@@ -6,6 +6,7 @@ final class ZStyleTreemapNSView: NSView {
 
     private var source: ScanSource?
     private weak var session: ScanSession?
+    private let contextMenuActionTarget: DiskItemContextMenuActionTarget = DiskItemContextMenuActionTarget()
     private var rootItem: DiskItem?
     private var presentationMetrics: TreemapPresentationMetrics?
     private var selectedItem: DiskItem?
@@ -23,6 +24,7 @@ final class ZStyleTreemapNSView: NSView {
 
     func configure(session: ScanSession, source: ScanSource, rootItem: DiskItem?, presentationMetrics: TreemapPresentationMetrics?, selectedItem: DiskItem?) {
         self.session = session
+        contextMenuActionTarget.session = session
         self.source = source
 
         if self.rootItem !== rootItem || self.presentationMetrics !== presentationMetrics {
@@ -154,55 +156,9 @@ final class ZStyleTreemapNSView: NSView {
 
         return DiskItemContextMenuBuilder.menu(
             for: item,
-            target: self,
-            openSelector: #selector(openMenuItem(_:)),
-            openWithSelector: #selector(openWithMenuItem(_:)),
-            revealSelector: #selector(revealMenuItem(_:)),
-            refreshSelector: #selector(refreshMenuItem(_:)),
-            trashSelector: #selector(trashMenuItem(_:)),
+            actionTarget: contextMenuActionTarget,
             treeActionsEnabled: session?.isUpdatingTree == false
         )
-    }
-
-    @objc private func openMenuItem(_ sender: NSMenuItem) {
-        guard let payload: DiskItemContextMenuPayload = sender.representedObject as? DiskItemContextMenuPayload else {
-            return
-        }
-
-        DiskItemWorkspaceActions.open(payload.item)
-    }
-
-    @objc private func openWithMenuItem(_ sender: NSMenuItem) {
-        guard let payload: DiskItemContextMenuPayload = sender.representedObject as? DiskItemContextMenuPayload,
-              let applicationURL: URL = payload.applicationURL else {
-            return
-        }
-
-        DiskItemWorkspaceActions.open(payload.item, withApplicationAt: applicationURL)
-    }
-
-    @objc private func revealMenuItem(_ sender: NSMenuItem) {
-        guard let payload: DiskItemContextMenuPayload = sender.representedObject as? DiskItemContextMenuPayload else {
-            return
-        }
-
-        DiskItemWorkspaceActions.revealInFinder(payload.item)
-    }
-
-    @objc private func refreshMenuItem(_ sender: NSMenuItem) {
-        guard let payload: DiskItemContextMenuPayload = sender.representedObject as? DiskItemContextMenuPayload else {
-            return
-        }
-
-        session?.refresh(payload.item)
-    }
-
-    @objc private func trashMenuItem(_ sender: NSMenuItem) {
-        guard let payload: DiskItemContextMenuPayload = sender.representedObject as? DiskItemContextMenuPayload else {
-            return
-        }
-
-        session?.moveToTrash(payload.item)
     }
 
     private func rebuildRenderer() {

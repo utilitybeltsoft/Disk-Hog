@@ -106,27 +106,67 @@ final class DiskItemContextMenuPayload: NSObject {
 }
 
 @MainActor
+final class DiskItemContextMenuActionTarget: NSObject {
+    weak var session: ScanSession?
+
+    init(session: ScanSession? = nil) {
+        self.session = session
+    }
+
+    @objc func openMenuItem(_ sender: NSMenuItem) {
+        guard let payload: DiskItemContextMenuPayload = sender.representedObject as? DiskItemContextMenuPayload else {
+            return
+        }
+
+        DiskItemWorkspaceActions.open(payload.item)
+    }
+
+    @objc func openWithMenuItem(_ sender: NSMenuItem) {
+        guard let payload: DiskItemContextMenuPayload = sender.representedObject as? DiskItemContextMenuPayload,
+              let applicationURL: URL = payload.applicationURL else {
+            return
+        }
+
+        DiskItemWorkspaceActions.open(payload.item, withApplicationAt: applicationURL)
+    }
+
+    @objc func revealMenuItem(_ sender: NSMenuItem) {
+        guard let payload: DiskItemContextMenuPayload = sender.representedObject as? DiskItemContextMenuPayload else {
+            return
+        }
+
+        DiskItemWorkspaceActions.revealInFinder(payload.item)
+    }
+
+    @objc func refreshMenuItem(_ sender: NSMenuItem) {
+        guard let payload: DiskItemContextMenuPayload = sender.representedObject as? DiskItemContextMenuPayload else {
+            return
+        }
+
+        session?.refresh(payload.item)
+    }
+
+    @objc func trashMenuItem(_ sender: NSMenuItem) {
+        guard let payload: DiskItemContextMenuPayload = sender.representedObject as? DiskItemContextMenuPayload else {
+            return
+        }
+
+        session?.moveToTrash(payload.item)
+    }
+}
+
+@MainActor
 enum DiskItemContextMenuBuilder {
     static func menu(
         for item: DiskItem?,
-        target: AnyObject,
-        openSelector: Selector,
-        openWithSelector: Selector,
-        revealSelector: Selector,
-        refreshSelector: Selector,
-        trashSelector: Selector,
+        actionTarget: DiskItemContextMenuActionTarget,
         treeActionsEnabled: Bool
     ) -> NSMenu {
         let menu: NSMenu = NSMenu()
         populate(
             menu,
             with: item,
-            target: target,
-            openSelector: openSelector,
-            openWithSelector: openWithSelector,
-            revealSelector: revealSelector,
-            refreshSelector: refreshSelector,
-            trashSelector: trashSelector,
+            actionTarget: actionTarget,
             treeActionsEnabled: treeActionsEnabled
         )
         return menu
@@ -135,12 +175,7 @@ enum DiskItemContextMenuBuilder {
     static func populate(
         _ menu: NSMenu,
         with item: DiskItem?,
-        target: AnyObject,
-        openSelector: Selector,
-        openWithSelector: Selector,
-        revealSelector: Selector,
-        refreshSelector: Selector,
-        trashSelector: Selector,
+        actionTarget: DiskItemContextMenuActionTarget,
         treeActionsEnabled: Bool
     ) {
         menu.removeAllItems()
@@ -152,24 +187,36 @@ enum DiskItemContextMenuBuilder {
             return
         }
 
-        let openItem: NSMenuItem = NSMenuItem(title: "Open", action: openSelector, keyEquivalent: "")
-        openItem.target = target
+        let openItem: NSMenuItem = NSMenuItem(
+            title: "Open",
+            action: #selector(DiskItemContextMenuActionTarget.openMenuItem(_:)),
+            keyEquivalent: ""
+        )
+        openItem.target = actionTarget
         openItem.representedObject = DiskItemContextMenuPayload(item: item)
         menu.addItem(openItem)
 
         let openWithItem: NSMenuItem = NSMenuItem(title: "Open With", action: nil, keyEquivalent: "")
-        openWithItem.submenu = openWithSubmenu(for: item, target: target, openWithSelector: openWithSelector)
+        openWithItem.submenu = openWithSubmenu(for: item, actionTarget: actionTarget)
         menu.addItem(openWithItem)
 
         menu.addItem(.separator())
 
-        let revealItem: NSMenuItem = NSMenuItem(title: "Reveal in Finder", action: revealSelector, keyEquivalent: "")
-        revealItem.target = target
+        let revealItem: NSMenuItem = NSMenuItem(
+            title: "Reveal in Finder",
+            action: #selector(DiskItemContextMenuActionTarget.revealMenuItem(_:)),
+            keyEquivalent: ""
+        )
+        revealItem.target = actionTarget
         revealItem.representedObject = DiskItemContextMenuPayload(item: item)
         menu.addItem(revealItem)
 
-        let refreshItem: NSMenuItem = NSMenuItem(title: "Refresh", action: refreshSelector, keyEquivalent: "")
-        refreshItem.target = target
+        let refreshItem: NSMenuItem = NSMenuItem(
+            title: "Refresh",
+            action: #selector(DiskItemContextMenuActionTarget.refreshMenuItem(_:)),
+            keyEquivalent: ""
+        )
+        refreshItem.target = actionTarget
         refreshItem.representedObject = DiskItemContextMenuPayload(item: item)
         refreshItem.toolTip = "Synchronizes folder or file with Finder."
         refreshItem.isEnabled = treeActionsEnabled
@@ -177,8 +224,12 @@ enum DiskItemContextMenuBuilder {
 
         menu.addItem(.separator())
 
-        let trashItem: NSMenuItem = NSMenuItem(title: "Move To Trash", action: trashSelector, keyEquivalent: "")
-        trashItem.target = target
+        let trashItem: NSMenuItem = NSMenuItem(
+            title: "Move To Trash",
+            action: #selector(DiskItemContextMenuActionTarget.trashMenuItem(_:)),
+            keyEquivalent: ""
+        )
+        trashItem.target = actionTarget
         trashItem.representedObject = DiskItemContextMenuPayload(item: item)
         trashItem.isEnabled = treeActionsEnabled && !item.isRoot
         menu.addItem(trashItem)
@@ -192,8 +243,7 @@ enum DiskItemContextMenuBuilder {
 
     private static func openWithSubmenu(
         for item: DiskItem,
-        target: AnyObject,
-        openWithSelector: Selector
+        actionTarget: DiskItemContextMenuActionTarget
     ) -> NSMenu {
         let submenu: NSMenu = NSMenu(title: "Open With")
         var addedApplicationURLs: Set<URL> = []
@@ -204,8 +254,7 @@ enum DiskItemContextMenuBuilder {
                 title: displayName(forApplicationAt: defaultApplicationURL),
                 applicationURL: defaultApplicationURL,
                 item: item,
-                target: target,
-                openWithSelector: openWithSelector
+                actionTarget: actionTarget
             )
             addedApplicationURLs.insert(defaultApplicationURL)
             submenu.addItem(.separator())
@@ -221,8 +270,7 @@ enum DiskItemContextMenuBuilder {
                 title: displayName(forApplicationAt: applicationURL),
                 applicationURL: applicationURL,
                 item: item,
-                target: target,
-                openWithSelector: openWithSelector
+                actionTarget: actionTarget
             )
         }
 
@@ -240,11 +288,14 @@ enum DiskItemContextMenuBuilder {
         title: String,
         applicationURL: URL,
         item: DiskItem,
-        target: AnyObject,
-        openWithSelector: Selector
+        actionTarget: DiskItemContextMenuActionTarget
     ) {
-        let menuItem: NSMenuItem = NSMenuItem(title: title, action: openWithSelector, keyEquivalent: "")
-        menuItem.target = target
+        let menuItem: NSMenuItem = NSMenuItem(
+            title: title,
+            action: #selector(DiskItemContextMenuActionTarget.openWithMenuItem(_:)),
+            keyEquivalent: ""
+        )
+        menuItem.target = actionTarget
         menuItem.toolTip = applicationURL.path
         menuItem.representedObject = DiskItemContextMenuPayload(item: item, applicationURL: applicationURL)
 

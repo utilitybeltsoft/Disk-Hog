@@ -73,12 +73,17 @@ struct DiskItemOutlineView: NSViewRepresentable {
     }
 
     final class Coordinator: NSObject, NSOutlineViewDataSource, NSOutlineViewDelegate {
-        var session: ScanSession
+        var session: ScanSession {
+            didSet {
+                contextMenuActionTarget.session = session
+            }
+        }
         private var usePhysicalSize: Bool
         var selectionCoordinator: ScanWindowSelectionCoordinator
         var activePane: Binding<ScanWindowPane?>
         weak var outlineView: NSOutlineView?
         let contextMenu: NSMenu = NSMenu()
+        private let contextMenuActionTarget: DiskItemContextMenuActionTarget
         private var rootItem: DiskItem?
         private var isApplyingSelection: Bool = false
         private var selectionCancellable: AnyCancellable?
@@ -90,6 +95,7 @@ struct DiskItemOutlineView: NSViewRepresentable {
             activePane: Binding<ScanWindowPane?>
         ) {
             self.session = session
+            self.contextMenuActionTarget = DiskItemContextMenuActionTarget(session: session)
             self.usePhysicalSize = usePhysicalSize
             self.selectionCoordinator = selectionCoordinator
             self.activePane = activePane
@@ -247,47 +253,6 @@ struct DiskItemOutlineView: NSViewRepresentable {
             }
         }
 
-        @objc private func openMenuItem(_ sender: NSMenuItem) {
-            guard let payload: DiskItemContextMenuPayload = sender.representedObject as? DiskItemContextMenuPayload else {
-                return
-            }
-
-            DiskItemWorkspaceActions.open(payload.item)
-        }
-
-        @objc private func openWithMenuItem(_ sender: NSMenuItem) {
-            guard let payload: DiskItemContextMenuPayload = sender.representedObject as? DiskItemContextMenuPayload,
-                  let applicationURL: URL = payload.applicationURL else {
-                return
-            }
-
-            DiskItemWorkspaceActions.open(payload.item, withApplicationAt: applicationURL)
-        }
-
-        @objc private func revealMenuItem(_ sender: NSMenuItem) {
-            guard let payload: DiskItemContextMenuPayload = sender.representedObject as? DiskItemContextMenuPayload else {
-                return
-            }
-
-            DiskItemWorkspaceActions.revealInFinder(payload.item)
-        }
-
-        @objc private func refreshMenuItem(_ sender: NSMenuItem) {
-            guard let payload: DiskItemContextMenuPayload = sender.representedObject as? DiskItemContextMenuPayload else {
-                return
-            }
-
-            session.refresh(payload.item)
-        }
-
-        @objc private func trashMenuItem(_ sender: NSMenuItem) {
-            guard let payload: DiskItemContextMenuPayload = sender.representedObject as? DiskItemContextMenuPayload else {
-                return
-            }
-
-            session.moveToTrash(payload.item)
-        }
-
         private func expandAncestors(of item: DiskItem) {
             guard let rootItem: DiskItem = rootItem else {
                 return
@@ -323,12 +288,7 @@ extension DiskItemOutlineView.Coordinator: NSMenuDelegate {
         DiskItemContextMenuBuilder.populate(
             menu,
             with: item,
-            target: self,
-            openSelector: #selector(openMenuItem(_:)),
-            openWithSelector: #selector(openWithMenuItem(_:)),
-            revealSelector: #selector(revealMenuItem(_:)),
-            refreshSelector: #selector(refreshMenuItem(_:)),
-            trashSelector: #selector(trashMenuItem(_:)),
+            actionTarget: contextMenuActionTarget,
             treeActionsEnabled: !session.isUpdatingTree
         )
     }
