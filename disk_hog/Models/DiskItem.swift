@@ -265,10 +265,9 @@ nonisolated final class DiskItem: Identifiable, Hashable, Sendable, DiskItemTree
 
         var updatedItem: DiskItem = replacement.copy(isRoot: targetItem.isRoot)
         for frame: DiskItemPathFrame in pathToTarget.reversed() {
-            var updatedChildren: [DiskItem] = frame.parent.childrenStorage
-            updatedChildren[frame.childIndex] = updatedItem
-            updatedItem = frame.parent.copyWithRecalculatedChildren(
-                updatedChildren,
+            updatedItem = frame.parent.copyReplacingChild(
+                at: frame.childIndex,
+                with: updatedItem,
                 usePhysicalSize: usePhysicalSize
             )
         }
@@ -282,18 +281,12 @@ nonisolated final class DiskItem: Identifiable, Hashable, Sendable, DiskItemTree
             return nil
         }
 
-        var updatedChildren: [DiskItem] = removalFrame.parent.childrenStorage
-        updatedChildren.remove(at: removalFrame.childIndex)
-        var updatedItem: DiskItem = removalFrame.parent.copyWithRecalculatedChildren(
-            updatedChildren,
-            usePhysicalSize: usePhysicalSize
-        )
+        var updatedItem: DiskItem = removalFrame.parent.copyRemovingChild(at: removalFrame.childIndex)
 
         for frame: DiskItemPathFrame in pathToTarget.dropLast().reversed() {
-            var ancestorChildren: [DiskItem] = frame.parent.childrenStorage
-            ancestorChildren[frame.childIndex] = updatedItem
-            updatedItem = frame.parent.copyWithRecalculatedChildren(
-                ancestorChildren,
+            updatedItem = frame.parent.copyReplacingChild(
+                at: frame.childIndex,
+                with: updatedItem,
                 usePhysicalSize: usePhysicalSize
             )
         }
@@ -354,22 +347,93 @@ nonisolated final class DiskItem: Identifiable, Hashable, Sendable, DiskItemTree
         return Array(path.reversed())
     }
 
-    private func copyWithRecalculatedChildren(_ children: [DiskItem], usePhysicalSize: Bool) -> DiskItem {
-        let sortedChildren: [DiskItem] = children.sorted {
-            let leftSize: UInt64 = $0.sizeValue(usePhysicalSize: usePhysicalSize)
-            let rightSize: UInt64 = $1.sizeValue(usePhysicalSize: usePhysicalSize)
-            if leftSize != rightSize {
-                return leftSize > rightSize
-            }
-            return $0.name.localizedStandardCompare($1.name) == .orderedDescending
+    private func copyReplacingChild(
+        at childIndex: Int,
+        with replacement: DiskItem,
+        usePhysicalSize: Bool
+    ) -> DiskItem {
+        let replacedChild: DiskItem = childrenStorage[childIndex]
+        var updatedChildren: [DiskItem] = childrenStorage
+        updatedChildren[childIndex] = replacement
+
+        var updatedIndex: Int = childIndex
+        while updatedIndex > 0,
+              Self.isOrderedBefore(replacement, updatedChildren[updatedIndex - 1], usePhysicalSize: usePhysicalSize) {
+            updatedChildren.swapAt(updatedIndex, updatedIndex - 1)
+            updatedIndex -= 1
         }
-        let allocatedSize: UInt64 = sortedChildren.reduce(0) { $0 + $1.allocatedSizeValue }
-        let logicalSize: UInt64 = sortedChildren.reduce(0) { $0 + $1.logicalSizeValue }
+        while updatedIndex + 1 < updatedChildren.count,
+              Self.isOrderedBefore(updatedChildren[updatedIndex + 1], replacement, usePhysicalSize: usePhysicalSize) {
+            updatedChildren.swapAt(updatedIndex, updatedIndex + 1)
+            updatedIndex += 1
+        }
+
         return copy(
-            allocatedSizeValue: allocatedSize,
-            logicalSizeValue: logicalSize,
-            children: sortedChildren
+            allocatedSizeValue: updatedTotal(
+                current: allocatedSizeValue,
+                removing: replacedChild.allocatedSizeValue,
+                adding: replacement.allocatedSizeValue,
+                children: updatedChildren,
+                value: \.allocatedSizeValue
+            ),
+            logicalSizeValue: updatedTotal(
+                current: logicalSizeValue,
+                removing: replacedChild.logicalSizeValue,
+                adding: replacement.logicalSizeValue,
+                children: updatedChildren,
+                value: \.logicalSizeValue
+            ),
+            children: updatedChildren
         )
+    }
+
+    private func copyRemovingChild(at childIndex: Int) -> DiskItem {
+        let removedChild: DiskItem = childrenStorage[childIndex]
+        var updatedChildren: [DiskItem] = childrenStorage
+        updatedChildren.remove(at: childIndex)
+        return copy(
+            allocatedSizeValue: updatedTotal(
+                current: allocatedSizeValue,
+                removing: removedChild.allocatedSizeValue,
+                adding: 0,
+                children: updatedChildren,
+                value: \.allocatedSizeValue
+            ),
+            logicalSizeValue: updatedTotal(
+                current: logicalSizeValue,
+                removing: removedChild.logicalSizeValue,
+                adding: 0,
+                children: updatedChildren,
+                value: \.logicalSizeValue
+            ),
+            children: updatedChildren
+        )
+    }
+
+    private func updatedTotal(
+        current: UInt64,
+        removing removedValue: UInt64,
+        adding addedValue: UInt64,
+        children: [DiskItem],
+        value: KeyPath<DiskItem, UInt64>
+    ) -> UInt64 {
+        guard current >= removedValue else {
+            return children.reduce(0) { $0 + $1[keyPath: value] }
+        }
+        return current - removedValue + addedValue
+    }
+
+    private static func isOrderedBefore(
+        _ firstItem: DiskItem,
+        _ secondItem: DiskItem,
+        usePhysicalSize: Bool
+    ) -> Bool {
+        let firstSize: UInt64 = firstItem.sizeValue(usePhysicalSize: usePhysicalSize)
+        let secondSize: UInt64 = secondItem.sizeValue(usePhysicalSize: usePhysicalSize)
+        if firstSize != secondSize {
+            return firstSize > secondSize
+        }
+        return firstItem.name.localizedStandardCompare(secondItem.name) == .orderedDescending
     }
 
     private func copy(
