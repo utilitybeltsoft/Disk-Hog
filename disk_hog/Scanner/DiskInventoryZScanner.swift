@@ -556,7 +556,9 @@ private actor ScanProgressAggregator {
     private var completedFolderCount: Int = 0
     private var completedByteCount: UInt64 = 0
     private var currentPath: String
-    private var lastPublishTime: CFAbsoluteTime = 0
+    private var publicationRateLimiter: ScanProgressRateLimiter = ScanProgressRateLimiter(
+        refreshInterval: DiskInventoryZScanner.progressRefreshInterval
+    )
     private var lastPublishedByteCount: UInt64 = 0
 
     init(currentPath: String) {
@@ -574,7 +576,7 @@ private actor ScanProgressAggregator {
     func updateChild(id: Int, progress: DiskScanProgress) -> DiskScanProgress? {
         activeProgressByChild[id] = progress
         currentPath = progress.currentPath
-        guard shouldPublish() else {
+        guard publicationRateLimiter.shouldPublish() else {
             return nil
         }
 
@@ -588,15 +590,6 @@ private actor ScanProgressAggregator {
         completedByteCount += progress.scannedByteCount
         currentPath = progress.currentPath
         return snapshot()
-    }
-
-    private func shouldPublish() -> Bool {
-        let now: CFAbsoluteTime = CFAbsoluteTimeGetCurrent()
-        if lastPublishTime != 0 && now - lastPublishTime < DiskInventoryZScanner.progressRefreshInterval {
-            return false
-        }
-        lastPublishTime = now
-        return true
     }
 
     private func snapshot() -> DiskScanProgress {
@@ -619,7 +612,9 @@ nonisolated private struct ScanProgressState {
     private(set) var scannedFolderCount: Int = 0
     private(set) var scannedByteCount: UInt64 = 0
     private(set) var currentPath: String
-    private var lastPublishTime: CFAbsoluteTime = 0
+    private var publicationRateLimiter: ScanProgressRateLimiter = ScanProgressRateLimiter(
+        refreshInterval: DiskInventoryZScanner.progressRefreshInterval
+    )
 
     init(currentPath: String) {
         self.currentPath = currentPath
@@ -654,12 +649,7 @@ nonisolated private struct ScanProgressState {
     }
 
     mutating func shouldPublish() -> Bool {
-        let now: CFAbsoluteTime = CFAbsoluteTimeGetCurrent()
-        if lastPublishTime != 0 && now - lastPublishTime < DiskInventoryZScanner.progressRefreshInterval {
-            return false
-        }
-        lastPublishTime = now
-        return true
+        publicationRateLimiter.shouldPublish()
     }
 
     func snapshot() -> DiskScanProgress {
@@ -669,5 +659,23 @@ nonisolated private struct ScanProgressState {
             scannedByteCount: scannedByteCount,
             currentPath: currentPath
         )
+    }
+}
+
+nonisolated private struct ScanProgressRateLimiter {
+    private let refreshInterval: TimeInterval
+    private var lastPublishTime: CFAbsoluteTime = 0
+
+    init(refreshInterval: TimeInterval) {
+        self.refreshInterval = refreshInterval
+    }
+
+    mutating func shouldPublish() -> Bool {
+        let now: CFAbsoluteTime = CFAbsoluteTimeGetCurrent()
+        if lastPublishTime != 0 && now - lastPublishTime < refreshInterval {
+            return false
+        }
+        lastPublishTime = now
+        return true
     }
 }
