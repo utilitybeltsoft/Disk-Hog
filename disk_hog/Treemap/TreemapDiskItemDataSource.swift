@@ -96,13 +96,16 @@ nonisolated final class TreemapPresentationMetrics: @unchecked Sendable {
     let kindStatistics: [TreemapKindStatistic]
 
     init(rootItem: DiskItem, usePhysicalSize: Bool) {
-        var statisticsByKind: [String: TreemapKindStatisticAccumulator] = [:]
-        TreemapDiskItemColorTable.collectLeafKindStatistics(from: rootItem, usePhysicalSize: usePhysicalSize, into: &statisticsByKind)
-        let orderedKinds: [String] = Self.orderedKinds(from: statisticsByKind)
+        let statisticsByKind: [String: TreemapKindAggregate] = TreemapKindCatalog.aggregates(
+            from: rootItem,
+            usePhysicalSize: usePhysicalSize,
+            folderKindName: "Folder"
+        )
+        let orderedKinds: [String] = TreemapKindCatalog.orderedKinds(from: statisticsByKind)
         let colorTable: TreemapDiskItemColorTable = TreemapDiskItemColorTable(orderedKinds: orderedKinds)
         self.colorTable = colorTable
         self.kindStatistics = orderedKinds.map { kindName in
-            let accumulator: TreemapKindStatisticAccumulator = statisticsByKind[kindName] ?? TreemapKindStatisticAccumulator()
+            let accumulator: TreemapKindAggregate = statisticsByKind[kindName] ?? TreemapKindAggregate()
             return TreemapKindStatistic(
                 kindName: kindName,
                 size: accumulator.size,
@@ -112,31 +115,20 @@ nonisolated final class TreemapPresentationMetrics: @unchecked Sendable {
         }
     }
 
-    private static func orderedKinds(from statisticsByKind: [String: TreemapKindStatisticAccumulator]) -> [String] {
-        statisticsByKind.keys.sorted { leftKind, rightKind in
-            let leftSize: UInt64 = statisticsByKind[leftKind]?.size ?? 0
-            let rightSize: UInt64 = statisticsByKind[rightKind]?.size ?? 0
-            if leftSize != rightSize {
-                return leftSize > rightSize
-            }
-            return leftKind.localizedStandardCompare(rightKind) == .orderedAscending
-        }
-    }
 }
 
 nonisolated final class TreemapDiskItemColorTable: @unchecked Sendable {
     private let colorsByKind: [String: NSColor]
-    private let predefinedColors: [NSColor]
     private let fallbackFolderColor: NSColor
 
     init(orderedKinds: [String]) {
-        self.predefinedColors = Self.makePredefinedColors()
+        let plan: TreemapPalettePlan = TreemapPalettePlan(orderedKinds: orderedKinds)
         var colorsByKind: [String: NSColor] = [:]
-        for kindIndex: Int in 0..<orderedKinds.count {
-            colorsByKind[orderedKinds[kindIndex]] = Self.color(at: kindIndex, predefinedColors: predefinedColors)
+        for kindName: String in plan.orderedKinds {
+            colorsByKind[kindName] = Self.color(from: plan.rawColor(forKind: kindName))
         }
         self.colorsByKind = colorsByKind
-        self.fallbackFolderColor = Self.color(at: orderedKinds.count, predefinedColors: predefinedColors)
+        fallbackFolderColor = Self.color(from: plan.fallbackFolderColor)
     }
 
     func color(for item: DiskItem) -> NSColor {
@@ -151,85 +143,17 @@ nonisolated final class TreemapDiskItemColorTable: @unchecked Sendable {
     }
 
     func colorForKind(_ kind: String) -> NSColor {
-        if let color: NSColor = colorsByKind[kind] {
-            return color
-        }
-        return color(at: colorsByKind.count)
+        colorsByKind[kind] ?? fallbackFolderColor
     }
 
-    private func color(at index: Int) -> NSColor {
-        Self.color(at: index, predefinedColors: predefinedColors)
+    private static func color(from rawColor: TreemapRawColor) -> NSColor {
+        TreemapCushionRenderer.normalizeColor(
+            NSColor(
+                calibratedRed: CGFloat(rawColor.red),
+                green: CGFloat(rawColor.green),
+                blue: CGFloat(rawColor.blue),
+                alpha: CGFloat(rawColor.alpha)
+            )
+        )
     }
-
-    private static func color(at index: Int, predefinedColors: [NSColor]) -> NSColor {
-        if predefinedColors.count > index {
-            return predefinedColors[index]
-        }
-        var rgbComponent: CGFloat = CGFloat(index) * 0.05
-        if rgbComponent > 0.9 {
-            rgbComponent = 0.9
-        }
-        return TreemapCushionRenderer.normalizeColor(NSColor(calibratedRed: rgbComponent, green: rgbComponent, blue: rgbComponent, alpha: 1))
-    }
-
-    private static func makePredefinedColors() -> [NSColor] {
-        let rawColors: [NSColor] = [
-            NSColor(calibratedRed: 0, green: 0, blue: 1, alpha: 1),
-            NSColor(calibratedRed: 1, green: 0, blue: 0, alpha: 1),
-            NSColor(calibratedRed: 0, green: 1, blue: 0, alpha: 1),
-            NSColor(calibratedRed: 0, green: 1, blue: 1, alpha: 1),
-            NSColor(calibratedRed: 1, green: 0, blue: 1, alpha: 1),
-            NSColor(calibratedRed: 1, green: 1, blue: 0, alpha: 1),
-            NSColor(calibratedRed: 0.58, green: 0.58, blue: 1, alpha: 1),
-            NSColor(calibratedRed: 1, green: 0.58, blue: 0.58, alpha: 1),
-            NSColor(calibratedRed: 0.58, green: 1, blue: 0.58, alpha: 1),
-            NSColor(calibratedRed: 0.58, green: 1, blue: 1, alpha: 1),
-            NSColor(calibratedRed: 1, green: 0.58, blue: 1, alpha: 1),
-            NSColor(calibratedRed: 1, green: 1, blue: 0.58, alpha: 1),
-            NSColor(calibratedRed: 1, green: 0.5, blue: 0, alpha: 1),
-            NSColor(calibratedRed: 0.5, green: 0, blue: 1, alpha: 1),
-            NSColor(calibratedRed: 0, green: 0.5, blue: 0.5, alpha: 1),
-            NSColor(calibratedRed: 1, green: 0.4, blue: 0.7, alpha: 1),
-            NSColor(calibratedRed: 0.5, green: 1, blue: 0, alpha: 1),
-            NSColor(calibratedRed: 0.6, green: 0.3, blue: 0, alpha: 1),
-            NSColor(calibratedRed: 1, green: 0.78, blue: 0.55, alpha: 1),
-            NSColor(calibratedRed: 0.78, green: 0.55, blue: 1, alpha: 1),
-            NSColor(calibratedRed: 0.55, green: 0.85, blue: 0.85, alpha: 1),
-            NSColor(calibratedRed: 1, green: 0.75, blue: 0.85, alpha: 1),
-            NSColor(calibratedRed: 0.78, green: 1, blue: 0.55, alpha: 1),
-            NSColor(calibratedRed: 0.85, green: 0.7, blue: 0.55, alpha: 1),
-            NSColor(calibratedRed: 0, green: 0, blue: 0.65, alpha: 1),
-            NSColor(calibratedRed: 0.65, green: 0, blue: 0, alpha: 1),
-            NSColor(calibratedRed: 0, green: 0.65, blue: 0, alpha: 1),
-            NSColor(calibratedRed: 0, green: 0.65, blue: 0.65, alpha: 1),
-            NSColor(calibratedRed: 0.65, green: 0, blue: 0.65, alpha: 1),
-            NSColor(calibratedRed: 0.65, green: 0.65, blue: 0, alpha: 1)
-        ]
-        return rawColors.map { color in
-            TreemapCushionRenderer.normalizeColor(color)
-        }
-    }
-
-    fileprivate static func collectLeafKindStatistics(from item: DiskItem, usePhysicalSize: Bool, into statisticsByKind: inout [String: TreemapKindStatisticAccumulator]) {
-        if item.isFolder && !item.isPackage {
-            for child: DiskItem in item.children {
-                collectLeafKindStatistics(from: child, usePhysicalSize: usePhysicalSize, into: &statisticsByKind)
-            }
-            return
-        }
-        let kindName: String = item.resolvedKindName
-        guard !kindName.isEmpty else {
-            return
-        }
-        var accumulator: TreemapKindStatisticAccumulator = statisticsByKind[kindName] ?? TreemapKindStatisticAccumulator()
-        accumulator.size += item.sizeValue(usePhysicalSize: usePhysicalSize)
-        accumulator.fileCount += 1
-        statisticsByKind[kindName] = accumulator
-    }
-
-}
-
-fileprivate nonisolated struct TreemapKindStatisticAccumulator: Sendable {
-    var size: UInt64 = 0
-    var fileCount: Int = 0
 }

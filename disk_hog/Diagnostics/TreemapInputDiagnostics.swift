@@ -224,26 +224,20 @@ private nonisolated final class DiskInventoryZDiagnosticPalette: @unchecked Send
     private let folderColor: [Double]
 
     init(root: DiskItem) {
-        var sizeByKind: [String: UInt64] = [:]
-        Self.collectLeafKindSizes(from: root, into: &sizeByKind)
-
-        let orderedKinds: [String] = sizeByKind.keys.sorted { leftKind, rightKind in
-            let leftSize: UInt64 = sizeByKind[leftKind] ?? 0
-            let rightSize: UInt64 = sizeByKind[rightKind] ?? 0
-            if leftSize != rightSize {
-                return leftSize > rightSize
-            }
-
-            return leftKind.localizedStandardCompare(rightKind) == .orderedAscending
-        }
-
+        let aggregatesByKind: [String: TreemapKindAggregate] = TreemapKindCatalog.aggregates(
+            from: root,
+            usePhysicalSize: true,
+            folderKindName: Metrics.folderKindName
+        )
+        let orderedKinds: [String] = TreemapKindCatalog.orderedKinds(from: aggregatesByKind)
+        let plan: TreemapPalettePlan = TreemapPalettePlan(orderedKinds: orderedKinds)
         var table: [String: [Double]] = [:]
-        for (index, kind) in orderedKinds.enumerated() {
-            table[kind] = Self.color(at: index)
+        for kindName: String in plan.orderedKinds {
+            table[kindName] = Self.components(from: plan.rawColor(forKind: kindName))
         }
 
-        self.colorByKind = table
-        self.folderColor = Self.color(at: orderedKinds.count)
+        colorByKind = table
+        folderColor = Self.components(from: plan.fallbackFolderColor)
     }
 
     func colorComponents(for item: DiskItem) -> [Double] {
@@ -255,39 +249,10 @@ private nonisolated final class DiskInventoryZDiagnosticPalette: @unchecked Send
         return colorByKind[kindName] ?? folderColor
     }
 
-    private static func collectLeafKindSizes(from item: DiskItem, into sizeByKind: inout [String: UInt64]) {
-        if item.isFolder && !item.isPackage {
-            for index: Int in 0..<item.childCount {
-                collectLeafKindSizes(from: item.child(at: index), into: &sizeByKind)
-            }
-            return
-        }
-
-        let kindName: String = TreemapInputDiagnostics.diagnosticKindName(for: item)
-        guard !kindName.isEmpty else {
-            return
-        }
-
-        sizeByKind[kindName, default: 0] += item.allocatedSizeValue
-    }
-
-    private static func color(at index: Int) -> [Double] {
-        guard index < predefinedColors.count else {
-            let component: Double = min(
-                PaletteMetrics.maximumGeneratedGrayComponent,
-                Double(index) * PaletteMetrics.generatedGrayStep
-            )
-            return normalize([component, component, component, PaletteMetrics.alphaComponent])
-        }
-
-        return predefinedColors[index]
-    }
-
-    private static func normalize(_ color: [Double]) -> [Double] {
-        var red: Double = color[PaletteMetrics.redIndex]
-        var green: Double = color[PaletteMetrics.greenIndex]
-        var blue: Double = color[PaletteMetrics.blueIndex]
-        let alpha: Double = color[PaletteMetrics.alphaIndex]
+    private static func components(from rawColor: TreemapRawColor) -> [Double] {
+        var red: Double = rawColor.red
+        var green: Double = rawColor.green
+        var blue: Double = rawColor.blue
         TreemapColorNormalization.normalize(
             red: &red,
             green: &green,
@@ -300,7 +265,7 @@ private nonisolated final class DiskInventoryZDiagnosticPalette: @unchecked Send
                     calibratedRed: red,
                     green: green,
                     blue: blue,
-                    alpha: alpha
+                    alpha: rawColor.alpha
                 )
             )
         )
@@ -341,6 +306,7 @@ private nonisolated final class DiskInventoryZDiagnosticPalette: @unchecked Send
         return true
     }
 
+    // Preserve Disk Inventory Z's serialized components after AppKit color-space conversion.
     private static let zDiagnosticComponentPairs: [(swiftComponents: [Double], zComponents: [Double])] = [
         ([1, 0.4, 0.4, 1], [1, 0.3999999761581421, 0.3999999761581421, 1]),
         ([0, 0.9, 0.9, 1], [0, 0.8999999761581421, 0.8999999761581421, 1]),
@@ -356,38 +322,6 @@ private nonisolated final class DiskInventoryZDiagnosticPalette: @unchecked Send
         ([1, 0.7, 0.09999999999999998, 1], [1, 0.6999999682108562, 0.0999999841054281, 1])
     ]
 
-    private static let predefinedColors: [[Double]] = [
-        normalize([0, 0, 1, PaletteMetrics.alphaComponent]),
-        normalize([1, 0, 0, PaletteMetrics.alphaComponent]),
-        normalize([0, 1, 0, PaletteMetrics.alphaComponent]),
-        normalize([0, 1, 1, PaletteMetrics.alphaComponent]),
-        normalize([1, 0, 1, PaletteMetrics.alphaComponent]),
-        normalize([1, 1, 0, PaletteMetrics.alphaComponent]),
-        normalize([0.58, 0.58, 1, PaletteMetrics.alphaComponent]),
-        normalize([1, 0.58, 0.58, PaletteMetrics.alphaComponent]),
-        normalize([0.58, 1, 0.58, PaletteMetrics.alphaComponent]),
-        normalize([0.58, 1, 1, PaletteMetrics.alphaComponent]),
-        normalize([1, 0.58, 1, PaletteMetrics.alphaComponent]),
-        normalize([1, 1, 0.58, PaletteMetrics.alphaComponent]),
-        normalize([1, 0.5, 0, PaletteMetrics.alphaComponent]),
-        normalize([0.5, 0, 1, PaletteMetrics.alphaComponent]),
-        normalize([0, 0.5, 0.5, PaletteMetrics.alphaComponent]),
-        normalize([1, 0.4, 0.7, PaletteMetrics.alphaComponent]),
-        normalize([0.5, 1, 0, PaletteMetrics.alphaComponent]),
-        normalize([0.6, 0.3, 0, PaletteMetrics.alphaComponent]),
-        normalize([1, 0.78, 0.55, PaletteMetrics.alphaComponent]),
-        normalize([0.78, 0.55, 1, PaletteMetrics.alphaComponent]),
-        normalize([0.55, 0.85, 0.85, PaletteMetrics.alphaComponent]),
-        normalize([1, 0.75, 0.85, PaletteMetrics.alphaComponent]),
-        normalize([0.78, 1, 0.55, PaletteMetrics.alphaComponent]),
-        normalize([0.85, 0.7, 0.55, PaletteMetrics.alphaComponent]),
-        normalize([0, 0, 0.65, PaletteMetrics.alphaComponent]),
-        normalize([0.65, 0, 0, PaletteMetrics.alphaComponent]),
-        normalize([0, 0.65, 0, PaletteMetrics.alphaComponent]),
-        normalize([0, 0.65, 0.65, PaletteMetrics.alphaComponent]),
-        normalize([0.65, 0, 0.65, PaletteMetrics.alphaComponent]),
-        normalize([0.65, 0.65, 0, PaletteMetrics.alphaComponent])
-    ]
 }
 
 private nonisolated enum TreemapInputDiagnosticsMetrics {
@@ -400,14 +334,7 @@ private nonisolated enum TreemapInputDiagnosticsMetrics {
 }
 
 private nonisolated enum DiskInventoryZDiagnosticPaletteMetrics {
-    static let redIndex: Int = 0
-    static let greenIndex: Int = 1
-    static let blueIndex: Int = 2
-    static let alphaIndex: Int = 3
-    static let alphaComponent: Double = 1
     static let baseBrightness: Double = 1.8
-    static let maximumGeneratedGrayComponent: Double = 0.9
-    static let generatedGrayStep: Double = 0.05
     static let componentMatchTolerance: Double = 0.000000000001
 }
 
