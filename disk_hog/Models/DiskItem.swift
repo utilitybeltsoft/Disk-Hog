@@ -203,14 +203,19 @@ nonisolated final class DiskItem: Identifiable, Hashable, Sendable, DiskItemTree
             return []
         }
 
-        if self === item {
-            return [self]
-        }
+        var pendingItems: [DiskItem] = [self]
+        var parentByItemID: [ObjectIdentifier: DiskItem] = [:]
+        while let currentItem: DiskItem = pendingItems.popLast() {
+            if currentItem === item {
+                return Self.ancestorPath(
+                    endingAt: currentItem,
+                    parentByItemID: parentByItemID
+                )
+            }
 
-        for child: DiskItem in childrenStorage {
-            let childPath: [DiskItem] = child.descendantsMatchingAncestorPath(of: item)
-            if childPath.isEmpty == false {
-                return [self] + childPath
+            for child: DiskItem in currentItem.childrenStorage.reversed() where child.containsPath(item.path) {
+                parentByItemID[ObjectIdentifier(child)] = currentItem
+                pendingItems.append(child)
             }
         }
 
@@ -222,17 +227,26 @@ nonisolated final class DiskItem: Identifiable, Hashable, Sendable, DiskItemTree
             return nil
         }
 
-        if path == candidatePath {
-            return self
-        }
+        var pendingItems: [(item: DiskItem, depth: Int)] = [(self, 0)]
+        var deepestAncestor: (item: DiskItem, depth: Int)?
+        while let current: (item: DiskItem, depth: Int) = pendingItems.popLast() {
+            if current.item.path == candidatePath {
+                return current.item
+            }
+            guard current.item.containsPath(candidatePath) else {
+                continue
+            }
 
-        for child: DiskItem in childrenStorage where child.containsPath(candidatePath) {
-            if let match: DiskItem = child.item(atPath: candidatePath, allowAncestors: allowAncestors) {
-                return match
+            if deepestAncestor == nil || current.depth > deepestAncestor!.depth {
+                deepestAncestor = current
+            }
+            for child: DiskItem in current.item.childrenStorage.reversed()
+                where !child.isSpecialItem && child.containsPath(candidatePath) {
+                pendingItems.append((child, current.depth + 1))
             }
         }
 
-        return allowAncestors && containsPath(candidatePath) ? self : nil
+        return allowAncestors ? deepestAncestor?.item : nil
     }
 
     func replacingSubtree(
@@ -244,56 +258,100 @@ nonisolated final class DiskItem: Identifiable, Hashable, Sendable, DiskItemTree
             return replacement.copy(isRoot: isRoot)
         }
 
+        guard let pathToTarget: [DiskItemPathFrame] = pathFrames(to: targetPath),
+              let targetItem: DiskItem = pathToTarget.last?.child else {
+            return nil
+        }
+
+        var updatedItem: DiskItem = replacement.copy(isRoot: targetItem.isRoot)
+        for frame: DiskItemPathFrame in pathToTarget.reversed() {
+            var updatedChildren: [DiskItem] = frame.parent.childrenStorage
+            updatedChildren[frame.childIndex] = updatedItem
+            updatedItem = frame.parent.copyWithRecalculatedChildren(
+                updatedChildren,
+                usePhysicalSize: usePhysicalSize
+            )
+        }
+        return updatedItem
+    }
+
+    func removingSubtree(atPath targetPath: String, usePhysicalSize: Bool) -> DiskItem? {
+        guard path != targetPath,
+              let pathToTarget: [DiskItemPathFrame] = pathFrames(to: targetPath),
+              let removalFrame: DiskItemPathFrame = pathToTarget.last else {
+            return nil
+        }
+
+        var updatedChildren: [DiskItem] = removalFrame.parent.childrenStorage
+        updatedChildren.remove(at: removalFrame.childIndex)
+        var updatedItem: DiskItem = removalFrame.parent.copyWithRecalculatedChildren(
+            updatedChildren,
+            usePhysicalSize: usePhysicalSize
+        )
+
+        for frame: DiskItemPathFrame in pathToTarget.dropLast().reversed() {
+            var ancestorChildren: [DiskItem] = frame.parent.childrenStorage
+            ancestorChildren[frame.childIndex] = updatedItem
+            updatedItem = frame.parent.copyWithRecalculatedChildren(
+                ancestorChildren,
+                usePhysicalSize: usePhysicalSize
+            )
+        }
+        return updatedItem
+    }
+
+    func scanCounts(includeSelf: Bool = true) -> (files: Int, folders: Int) {
+        var files: Int = 0
+        var folders: Int = 0
+        var pendingItems: [DiskItem] = includeSelf
+            ? [self]
+            : childrenStorage.reversed().filter { !$0.isSpecialItem }
+
+        while let currentItem: DiskItem = pendingItems.popLast() {
+            if currentItem.isDirectory {
+                folders += 1
+            } else {
+                files += 1
+            }
+            for child: DiskItem in currentItem.childrenStorage.reversed() where !child.isSpecialItem {
+                pendingItems.append(child)
+            }
+        }
+        return (files, folders)
+    }
+
+    private func pathFrames(to targetPath: String) -> [DiskItemPathFrame]? {
         guard containsPath(targetPath) else {
             return nil
         }
 
-        var updatedChildren: [DiskItem] = childrenStorage
-        guard let childIndex: Int = updatedChildren.firstIndex(where: { $0.containsPath(targetPath) }),
-              let updatedChild: DiskItem = updatedChildren[childIndex].replacingSubtree(
-                atPath: targetPath,
-                with: replacement,
-                usePhysicalSize: usePhysicalSize
-              ) else {
-            return nil
-        }
+        var frames: [DiskItemPathFrame] = []
+        var currentItem: DiskItem = self
+        while currentItem.path != targetPath {
+            guard let childIndex: Int = currentItem.childrenStorage.firstIndex(where: {
+                $0.containsPath(targetPath)
+            }) else {
+                return nil
+            }
 
-        updatedChildren[childIndex] = updatedChild
-        return copyWithRecalculatedChildren(updatedChildren, usePhysicalSize: usePhysicalSize)
+            let child: DiskItem = currentItem.childrenStorage[childIndex]
+            frames.append(DiskItemPathFrame(parent: currentItem, childIndex: childIndex, child: child))
+            currentItem = child
+        }
+        return frames
     }
 
-    func removingSubtree(atPath targetPath: String, usePhysicalSize: Bool) -> DiskItem? {
-        guard path != targetPath, containsPath(targetPath) else {
-            return nil
+    private static func ancestorPath(
+        endingAt item: DiskItem,
+        parentByItemID: [ObjectIdentifier: DiskItem]
+    ) -> [DiskItem] {
+        var path: [DiskItem] = []
+        var currentItem: DiskItem? = item
+        while let item: DiskItem = currentItem {
+            path.append(item)
+            currentItem = parentByItemID[ObjectIdentifier(item)]
         }
-
-        var updatedChildren: [DiskItem] = childrenStorage
-        if let childIndex: Int = updatedChildren.firstIndex(where: { $0.path == targetPath }) {
-            updatedChildren.remove(at: childIndex)
-            return copyWithRecalculatedChildren(updatedChildren, usePhysicalSize: usePhysicalSize)
-        }
-
-        guard let childIndex: Int = updatedChildren.firstIndex(where: { $0.containsPath(targetPath) }),
-              let updatedChild: DiskItem = updatedChildren[childIndex].removingSubtree(
-                atPath: targetPath,
-                usePhysicalSize: usePhysicalSize
-              ) else {
-            return nil
-        }
-
-        updatedChildren[childIndex] = updatedChild
-        return copyWithRecalculatedChildren(updatedChildren, usePhysicalSize: usePhysicalSize)
-    }
-
-    func scanCounts(includeSelf: Bool = true) -> (files: Int, folders: Int) {
-        var files: Int = includeSelf && !isDirectory ? 1 : 0
-        var folders: Int = includeSelf && isDirectory ? 1 : 0
-        for child: DiskItem in childrenStorage where child.isSpecialItem == false {
-            let childCounts: (files: Int, folders: Int) = child.scanCounts()
-            files += childCounts.files
-            folders += childCounts.folders
-        }
-        return (files, folders)
+        return Array(path.reversed())
     }
 
     private func copyWithRecalculatedChildren(_ children: [DiskItem], usePhysicalSize: Bool) -> DiskItem {
@@ -357,6 +415,12 @@ nonisolated final class DiskItem: Identifiable, Hashable, Sendable, DiskItemTree
     func hash(into hasher: inout Hasher) {
         hasher.combine(ObjectIdentifier(self))
     }
+}
+
+nonisolated private struct DiskItemPathFrame {
+    let parent: DiskItem
+    let childIndex: Int
+    let child: DiskItem
 }
 
 nonisolated enum DiskItemType: Hashable, Sendable {
