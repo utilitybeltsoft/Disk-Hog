@@ -2,6 +2,7 @@ import Foundation
 
 extension DiskItemBuilder {
     nonisolated func appendChild(_ child: DiskItemBuilder, updateSize: Bool = true) {
+        useChildDerivedSize()
         childStorage.append(child)
 
         if updateSize {
@@ -11,6 +12,7 @@ extension DiskItemBuilder {
     }
 
     nonisolated func removeAllChildren() {
+        useChildDerivedSize()
         childStorage.removeAll()
         allocatedSizeValue = 0
         logicalSizeValue = 0
@@ -37,7 +39,8 @@ extension DiskItemBuilder {
             return
         }
 
-        if childStorage.isEmpty && isPackage && allocatedSizeValue > 0 {
+        if folderSizeSource == .opaquePackage {
+            precondition(childStorage.isEmpty, "An opaque package cannot also contain scanned children.")
             return
         }
 

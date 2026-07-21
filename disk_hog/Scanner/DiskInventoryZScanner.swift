@@ -166,8 +166,7 @@ nonisolated final class DiskInventoryZScanner {
             )
         } else if item.isDirectory && item.isPackage && !settings.lookInsidePackages {
             let packageSize: OpaquePackageSize = try OpaquePackageSizer.size(of: item.url)
-            item.allocatedSizeValue = packageSize.allocated
-            item.logicalSizeValue = packageSize.logical
+            item.setOpaquePackageSize(allocated: packageSize.allocated, logical: packageSize.logical)
         } else if !item.isDirectory {
             hardlinkDeduplicator.markDuplicateIfNeeded(item: item, values: values)
         }
@@ -202,8 +201,10 @@ nonisolated final class DiskInventoryZScanner {
             }
         } else if workItem.isDirectory && workItem.isPackage && !settings.lookInsidePackages {
             let packageSize: OpaquePackageSize = try OpaquePackageSizer.size(of: workItem.item.url)
-            workItem.item.allocatedSizeValue = packageSize.allocated
-            workItem.item.logicalSizeValue = packageSize.logical
+            workItem.item.setOpaquePackageSize(
+                allocated: packageSize.allocated,
+                logical: packageSize.logical
+            )
             progressState.setScannedBytes(workItem.item.sizeValue(usePhysicalSize: settings.usePhysicalSize))
         } else if !workItem.isDirectory {
             hardlinkDeduplicator.markDuplicateIfNeeded(item: workItem.item, values: workItem.values)

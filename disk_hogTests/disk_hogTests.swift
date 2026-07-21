@@ -153,17 +153,38 @@ struct DiskItemTests {
     @Test func opaquePackageKeepsPrestampedSize() {
         let package: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan/App.app"),
-            allocatedSizeValue: 12345,
-            logicalSizeValue: 6789,
             isDirectory: true,
             isPackage: true
         )
+        package.setOpaquePackageSize(allocated: 12345, logical: 6789)
 
         package.recalculateSize(usePhysicalSize: true)
         let frozenPackage: DiskItem = package.freeze()
 
         #expect(frozenPackage.allocatedSizeValue == 12345)
         #expect(frozenPackage.logicalSizeValue == 6789)
+    }
+
+    @Test func addingChildToOpaquePackageUsesChildDerivedSize() {
+        let package: DiskItemBuilder = DiskItemBuilder(
+            url: URL(fileURLWithPath: "/scan/App.app"),
+            isDirectory: true,
+            isPackage: true
+        )
+        package.setOpaquePackageSize(allocated: 12345, logical: 6789)
+        package.appendChild(
+            DiskItemBuilder(
+                url: URL(fileURLWithPath: "/scan/App.app/Contents/file"),
+                allocatedSizeValue: 4096,
+                logicalSizeValue: 128
+            ),
+            updateSize: false
+        )
+
+        package.recalculateSize(usePhysicalSize: true)
+
+        #expect(package.allocatedSizeValue == 4096)
+        #expect(package.logicalSizeValue == 128)
     }
 
     @Test func childURLIsStoredAfterFreeze() {

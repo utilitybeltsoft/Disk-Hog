@@ -8,6 +8,7 @@ nonisolated final class DiskItemBuilder: @unchecked Sendable, DiskItemTreeNode {
 
     var itemMetadata: DiskItemMetadata
     let childStorage: DiskItemBuilderChildStorage = DiskItemBuilderChildStorage()
+    private(set) var folderSizeSource: DiskItemBuilderFolderSizeSource = .children
 
     init(
         url: URL,
@@ -80,6 +81,28 @@ nonisolated final class DiskItemBuilder: @unchecked Sendable, DiskItemTreeNode {
         get { itemMetadata.isHardlinkDuplicate }
         set { itemMetadata.isHardlinkDuplicate = newValue }
     }
+
+    func setOpaquePackageSize(allocated: UInt64, logical: UInt64) {
+        precondition(isDirectory && isPackage, "Only package directories can have an opaque package size.")
+        precondition(childStorage.isEmpty, "An opaque package cannot also contain scanned children.")
+        folderSizeSource = .opaquePackage
+        allocatedSizeValue = allocated
+        logicalSizeValue = logical
+    }
+
+    func useChildDerivedSize() {
+        guard folderSizeSource == .opaquePackage else {
+            return
+        }
+        folderSizeSource = .children
+        allocatedSizeValue = 0
+        logicalSizeValue = 0
+    }
+}
+
+nonisolated enum DiskItemBuilderFolderSizeSource: Sendable {
+    case children
+    case opaquePackage
 }
 
 nonisolated final class DiskItemBuilderChildStorage: @unchecked Sendable {

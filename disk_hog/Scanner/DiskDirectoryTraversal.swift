@@ -114,8 +114,10 @@ nonisolated final class DiskDirectoryTraversal {
             } else if (currentValues.isPackage ?? false) && !settings.lookInsidePackages {
                 directoryEnumerator.skipDescendants()
                 let packageSize: OpaquePackageSize = try OpaquePackageSizer.size(of: currentURL)
-                currentItem.allocatedSizeValue = packageSize.allocated
-                currentItem.logicalSizeValue = packageSize.logical
+                currentItem.setOpaquePackageSize(
+                    allocated: packageSize.allocated,
+                    logical: packageSize.logical
+                )
             } else if !isCurrentDirectory {
                 let byteCount: UInt64 = currentItem.isHardlinkDuplicate
                     ? 0
