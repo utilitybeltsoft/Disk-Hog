@@ -414,48 +414,26 @@ private struct SourcePaletteCloseRegistrationView: NSViewRepresentable {
 }
 
 private final class SourcePaletteCloseRegistrationNSView: NSView {
-    private weak var registeredWindow: NSWindow?
-    private weak var previousWindowDelegate: (any NSWindowDelegate)?
-    private var closeDelegateProxy: WindowCloseDelegateProxy?
+    private lazy var closeDelegateProxy: WindowCloseDelegateProxy = WindowCloseDelegateProxy { _ in
+        Self.shouldCloseSourcePalette()
+    }
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
 
-        guard let window: NSWindow = window, registeredWindow !== window else {
+        guard let window: NSWindow = window else {
             return
         }
 
-        restoreWindowDelegate()
-
-        previousWindowDelegate = window.delegate
-        let proxy: WindowCloseDelegateProxy = WindowCloseDelegateProxy(forwardingDelegate: previousWindowDelegate) { _ in
-            Self.shouldCloseSourcePalette()
-        }
-        closeDelegateProxy = proxy
-        registeredWindow = window
-        window.delegate = proxy
+        closeDelegateProxy.install(on: window)
     }
 
     override func viewWillMove(toWindow newWindow: NSWindow?) {
         if newWindow == nil {
-            restoreWindowDelegate()
+            closeDelegateProxy.restore()
         }
 
         super.viewWillMove(toWindow: newWindow)
-    }
-
-    private func restoreWindowDelegate() {
-        guard let registeredWindow: NSWindow = registeredWindow else {
-            return
-        }
-
-        if registeredWindow.delegate === closeDelegateProxy {
-            registeredWindow.delegate = previousWindowDelegate
-        }
-
-        closeDelegateProxy = nil
-        previousWindowDelegate = nil
-        self.registeredWindow = nil
     }
 
     private static func shouldCloseSourcePalette() -> Bool {
