@@ -43,33 +43,33 @@ extension DiskItemBuilder {
 
         var allocatedSize: UInt64 = 0
         var logicalSize: UInt64 = 0
-        let childRecalculationStartTime: CFAbsoluteTime = ScanPerformanceRecorder.isEnabled
-            ? CFAbsoluteTimeGetCurrent()
-            : 0
+        #if SCAN_PERFORMANCE_PROFILING
+        let childRecalculationStartTime: CFAbsoluteTime = CFAbsoluteTimeGetCurrent()
+        #endif
 
         for child: DiskItemBuilder in itemChildren {
             child.recalculateSize(usePhysicalSize: usePhysicalSize)
             allocatedSize += child.allocatedSizeValue
             logicalSize += child.logicalSizeValue
         }
-        if ScanPerformanceRecorder.isEnabled {
-            ScanPerformanceRecorder.shared.addTime(
-                "recalculate.children.total",
-                seconds: CFAbsoluteTimeGetCurrent() - childRecalculationStartTime
-            )
-        }
+        #if SCAN_PERFORMANCE_PROFILING
+        ScanPerformanceRecorder.shared.addTime(
+            "recalculate.children.total",
+            seconds: CFAbsoluteTimeGetCurrent() - childRecalculationStartTime
+        )
+        #endif
 
         allocatedSizeValue = allocatedSize
         logicalSizeValue = logicalSize
-        let sortStartTime: CFAbsoluteTime = ScanPerformanceRecorder.isEnabled
-            ? CFAbsoluteTimeGetCurrent()
-            : 0
+        #if SCAN_PERFORMANCE_PROFILING
+        let sortStartTime: CFAbsoluteTime = CFAbsoluteTimeGetCurrent()
+        #endif
         sortChildrenInDiskInventoryZOrder(recursive: false, usePhysicalSize: usePhysicalSize)
-        if ScanPerformanceRecorder.isEnabled {
-            ScanPerformanceRecorder.shared.addTime(
-                "recalculate.sort.total",
-                seconds: CFAbsoluteTimeGetCurrent() - sortStartTime
-            )
-        }
+        #if SCAN_PERFORMANCE_PROFILING
+        ScanPerformanceRecorder.shared.addTime(
+            "recalculate.sort.total",
+            seconds: CFAbsoluteTimeGetCurrent() - sortStartTime
+        )
+        #endif
     }
 }
