@@ -32,7 +32,7 @@ final class KindColorCellView: NSTableCellView {
 
     private static func swatchImage(color: NSColor) -> NSImage {
         let cacheKey: KindColorSwatchCacheKey = KindColorSwatchCacheKey(color: color)
-        if let cachedImage: NSImage = swatchImageCache[cacheKey] {
+        if let cachedImage: NSImage = swatchImageCache.object(forKey: cacheKey) {
             return cachedImage
         }
 
@@ -52,14 +52,18 @@ final class KindColorCellView: NSTableCellView {
         renderer.renderCushion(in: bitmap)
         bitmap.size = imageSize
         let image: NSImage = bitmap.treemapSuitableImage()
-        swatchImageCache[cacheKey] = image
+        swatchImageCache.setObject(image, forKey: cacheKey)
         return image
     }
 
-    private static var swatchImageCache: [KindColorSwatchCacheKey: NSImage] = [:]
+    private static let swatchImageCache: NSCache<KindColorSwatchCacheKey, NSImage> = {
+        let cache: NSCache<KindColorSwatchCacheKey, NSImage> = NSCache()
+        cache.countLimit = 64
+        return cache
+    }()
 }
 
-private struct KindColorSwatchCacheKey: Hashable {
+private final class KindColorSwatchCacheKey: NSObject {
     let red: Int
     let green: Int
     let blue: Int
@@ -79,6 +83,29 @@ private struct KindColorSwatchCacheKey: Hashable {
 
     private static func quantizedComponent(_ component: CGFloat) -> Int {
         Int((component * 255).rounded())
+    }
+
+    override var hash: Int {
+        var hasher: Hasher = Hasher()
+        hasher.combine(red)
+        hasher.combine(green)
+        hasher.combine(blue)
+        hasher.combine(alpha)
+        hasher.combine(width)
+        hasher.combine(height)
+        return hasher.finalize()
+    }
+
+    override func isEqual(_ object: Any?) -> Bool {
+        guard let otherKey: KindColorSwatchCacheKey = object as? KindColorSwatchCacheKey else {
+            return false
+        }
+        return red == otherKey.red
+            && green == otherKey.green
+            && blue == otherKey.blue
+            && alpha == otherKey.alpha
+            && width == otherKey.width
+            && height == otherKey.height
     }
 }
 
