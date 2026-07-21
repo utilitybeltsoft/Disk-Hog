@@ -3,7 +3,6 @@ import AppKit
 @MainActor
 final class TreemapCushionRenderer {
     private nonisolated static let baseBrightness: CGFloat = 1.8
-    private nonisolated static let maxRGBValue: CGFloat = 1.0
     private static let defaultCushionColor: NSColor = TreemapCushionRenderer.normalizeColor(NSColor(calibratedRed: 0, green: 0, blue: 0.9, alpha: 1))
 
     private(set) var rect: NSRect
@@ -105,13 +104,7 @@ final class TreemapCushionRenderer {
     }
 
     nonisolated static func normalizeColorRed(_ red: inout CGFloat, green: inout CGFloat, blue: inout CGFloat) {
-        if red > maxRGBValue {
-            distributeRGB1(&red, toRGB2: &green, toRGB3: &blue)
-        } else if green > maxRGBValue {
-            distributeRGB1(&green, toRGB2: &red, toRGB3: &blue)
-        } else if blue > maxRGBValue {
-            distributeRGB1(&blue, toRGB2: &red, toRGB3: &green)
-        }
+        TreemapColorNormalization.distributeOverflow(red: &red, green: &green, blue: &blue)
     }
 
     nonisolated static func normalizeColor(_ color: NSColor) -> NSColor {
@@ -123,30 +116,12 @@ final class TreemapCushionRenderer {
         var green: CGFloat = colorInRGBSpace.greenComponent
         var blue: CGFloat = colorInRGBSpace.blueComponent
         let alpha: CGFloat = colorInRGBSpace.alphaComponent
-        let componentSum: CGFloat = red + green + blue
-        let factor: CGFloat = componentSum != 0.0 ? (baseBrightness / componentSum) : 1
-        red *= factor
-        green *= factor
-        blue *= factor
-        normalizeColorRed(&red, green: &green, blue: &blue)
+        TreemapColorNormalization.normalize(
+            red: &red,
+            green: &green,
+            blue: &blue,
+            baseBrightness: baseBrightness
+        )
         return NSColor(calibratedRed: red, green: green, blue: blue, alpha: alpha)
-    }
-
-    private nonisolated static func distributeRGB1(_ first: inout CGFloat, toRGB2 second: inout CGFloat, toRGB3 third: inout CGFloat) {
-        var h: CGFloat = (first - maxRGBValue) / 2.0
-        first = maxRGBValue
-        second += h
-        third += h
-        if second > maxRGBValue {
-            h = second - maxRGBValue
-            second = maxRGBValue
-            third += h
-            assert(third <= maxRGBValue)
-        } else if third > maxRGBValue {
-            h = third - maxRGBValue
-            third = maxRGBValue
-            second += h
-            assert(second <= maxRGBValue)
-        }
     }
 }

@@ -75,6 +75,17 @@ extension DiskItemTreeNode {
         itemMetadata.kindName
     }
 
+    nonisolated var resolvedKindName: String {
+        resolvedKindName(folderName: "Folder")
+    }
+
+    nonisolated func resolvedKindName(folderName: String) -> String {
+        if let kindName: String = itemMetadata.kindName {
+            return kindName
+        }
+        return isFolder && !isPackage ? folderName : ""
+    }
+
     nonisolated var isDirectory: Bool {
         itemMetadata.isDirectory
     }

@@ -190,15 +190,7 @@ nonisolated enum TreemapInputDiagnostics {
     }
 
     fileprivate static func diagnosticKindName(for item: DiskItem) -> String {
-        if let kindName: String = item.kindName {
-            return kindName
-        }
-
-        if item.isFolder && !item.isPackage {
-            return Metrics.folderKindName
-        }
-
-        return Metrics.emptyKindName
+        item.resolvedKindName(folderName: Metrics.folderKindName)
     }
 
     private static func diagnosticTypeName(for item: DiskItem) -> String {
@@ -296,12 +288,12 @@ private nonisolated final class DiskInventoryZDiagnosticPalette: @unchecked Send
         var green: Double = color[PaletteMetrics.greenIndex]
         var blue: Double = color[PaletteMetrics.blueIndex]
         let alpha: Double = color[PaletteMetrics.alphaIndex]
-        let componentSum: Double = red + green + blue
-        let factor: Double = componentSum != 0 ? PaletteMetrics.baseBrightness / componentSum : PaletteMetrics.unitValue
-        red *= factor
-        green *= factor
-        blue *= factor
-        distributeOverflow(red: &red, green: &green, blue: &blue)
+        TreemapColorNormalization.normalize(
+            red: &red,
+            green: &green,
+            blue: &blue,
+            baseBrightness: PaletteMetrics.baseBrightness
+        )
         return zDiagnosticComponents(
             for: components(
                 for: NSColor(
@@ -347,33 +339,6 @@ private nonisolated final class DiskInventoryZDiagnosticPalette: @unchecked Send
         }
 
         return true
-    }
-
-    private static func distributeOverflow(red: inout Double, green: inout Double, blue: inout Double) {
-        if red > PaletteMetrics.maximumRGBValue {
-            distribute(first: &red, second: &green, third: &blue)
-        } else if green > PaletteMetrics.maximumRGBValue {
-            distribute(first: &green, second: &red, third: &blue)
-        } else if blue > PaletteMetrics.maximumRGBValue {
-            distribute(first: &blue, second: &red, third: &green)
-        }
-    }
-
-    private static func distribute(first: inout Double, second: inout Double, third: inout Double) {
-        var overflow: Double = (first - PaletteMetrics.maximumRGBValue) / PaletteMetrics.overflowShareDivisor
-        first = PaletteMetrics.maximumRGBValue
-        second += overflow
-        third += overflow
-
-        if second > PaletteMetrics.maximumRGBValue {
-            overflow = second - PaletteMetrics.maximumRGBValue
-            second = PaletteMetrics.maximumRGBValue
-            third += overflow
-        } else if third > PaletteMetrics.maximumRGBValue {
-            overflow = third - PaletteMetrics.maximumRGBValue
-            third = PaletteMetrics.maximumRGBValue
-            second += overflow
-        }
     }
 
     private static let zDiagnosticComponentPairs: [(swiftComponents: [Double], zComponents: [Double])] = [
@@ -441,9 +406,6 @@ private nonisolated enum DiskInventoryZDiagnosticPaletteMetrics {
     static let alphaIndex: Int = 3
     static let alphaComponent: Double = 1
     static let baseBrightness: Double = 1.8
-    static let unitValue: Double = 1
-    static let maximumRGBValue: Double = 1
-    static let overflowShareDivisor: Double = 2
     static let maximumGeneratedGrayComponent: Double = 0.9
     static let generatedGrayStep: Double = 0.05
     static let componentMatchTolerance: Double = 0.000000000001

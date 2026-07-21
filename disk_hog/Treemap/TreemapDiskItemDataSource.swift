@@ -142,7 +142,7 @@ nonisolated final class TreemapDiskItemColorTable: @unchecked Sendable {
     func color(for item: DiskItem) -> NSColor {
         switch item.itemType {
         case .fileOrFolder:
-            return colorForKind(Self.kindName(for: item))
+            return colorForKind(item.resolvedKindName)
         case .freeSpace:
             return TreemapCushionRenderer.normalizeColor(NSColor(calibratedRed: 0.66, green: 0.66, blue: 0.66, alpha: 1))
         case .otherSpace:
@@ -217,7 +217,7 @@ nonisolated final class TreemapDiskItemColorTable: @unchecked Sendable {
             }
             return
         }
-        let kindName: String = kindName(for: item)
+        let kindName: String = item.resolvedKindName
         guard !kindName.isEmpty else {
             return
         }
@@ -227,15 +227,6 @@ nonisolated final class TreemapDiskItemColorTable: @unchecked Sendable {
         statisticsByKind[kindName] = accumulator
     }
 
-    private static func kindName(for item: DiskItem) -> String {
-        if let kindName: String = item.kindName {
-            return kindName
-        }
-        if item.isFolder && !item.isPackage {
-            return "Folder"
-        }
-        return ""
-    }
 }
 
 fileprivate nonisolated struct TreemapKindStatisticAccumulator: Sendable {
