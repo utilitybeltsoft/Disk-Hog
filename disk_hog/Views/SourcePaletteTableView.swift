@@ -1,0 +1,219 @@
+import AppKit
+import SwiftUI
+
+struct SourceTableView: View {
+    let sources: [ScanSource]
+    let selectedSourceID: ScanSource.ID?
+    let onSelect: (ScanSource.ID?) -> Void
+    let onOpen: (ScanSource) -> Void
+
+    var body: some View {
+        VStack(spacing: Metrics.tableSpacing) {
+            SourceTableHeaderView()
+
+            ScrollView {
+                ZStack(alignment: .top) {
+                    SourceBlankClickCatcherView {
+                        onSelect(nil)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: Metrics.volumeListHeight)
+
+                    LazyVStack(spacing: 0) {
+                        ForEach(Array(sources.enumerated()), id: \.element.id) { index, source in
+                            SourceTableRowView(
+                                source: source,
+                                isAlternateRow: index.isMultiple(of: 2) == false,
+                                isSelected: selectedSourceID == source.id
+                            )
+                            .contentShape(Rectangle())
+                            .overlay {
+                                SourceRowClickCatcherView(
+                                    onSingleClick: { onSelect(source.id) },
+                                    onDoubleClick: { onOpen(source) }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            .background(Color(nsColor: .textBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: Metrics.listCornerRadius))
+            .frame(height: Metrics.volumeListHeight)
+        }
+    }
+}
+
+private struct SourceTableHeaderView: View {
+    var body: some View {
+        SourceTableColumns {
+            Text("Volume")
+                .frame(minWidth: Metrics.volumeColumnMinimumWidth, maxWidth: .infinity, alignment: .leading)
+            Text("Capacity")
+                .frame(width: Metrics.sizeColumnWidth, alignment: .trailing)
+            Text("Used")
+                .frame(width: Metrics.sizeColumnWidth, alignment: .trailing)
+            Text("Free")
+                .frame(width: Metrics.sizeColumnWidth, alignment: .trailing)
+            Text("Free %")
+                .frame(width: Metrics.percentColumnWidth, alignment: .trailing)
+            Text("Usage")
+                .frame(width: Metrics.usageColumnWidth, alignment: .leading)
+        }
+        .font(.system(size: Metrics.standardFontSize))
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, Metrics.tableHorizontalPadding)
+    }
+}
+
+private struct SourceTableRowView: View {
+    let source: ScanSource
+    let isAlternateRow: Bool
+    let isSelected: Bool
+
+    var body: some View {
+        SourceTableColumns {
+            HStack(spacing: Metrics.sourceRowSpacing) {
+                Image(nsImage: metadata.icon)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: Metrics.sourceIconWidth)
+                VStack(alignment: .leading, spacing: Metrics.sourceTextSpacing) {
+                    Text(source.displayName)
+                        .font(.system(size: Metrics.standardFontSize))
+                        .lineLimit(1)
+                    Text(metadata.subtitle)
+                        .font(.system(size: Metrics.standardFontSize))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+            }
+            .frame(minWidth: Metrics.volumeColumnMinimumWidth, maxWidth: .infinity, alignment: .leading)
+
+            CapacityText(value: source.totalCapacity)
+            CapacityText(value: metadata.usedCapacity)
+            CapacityText(value: source.availableCapacity)
+
+            Text(metadata.formattedFreePercent)
+                .font(.system(size: Metrics.standardFontSize, design: .monospaced))
+                .monospacedDigit()
+                .frame(width: Metrics.percentColumnWidth, alignment: .trailing)
+
+            VolumeUsageBarView(usedFraction: metadata.usedFraction)
+                .frame(width: Metrics.usageColumnWidth)
+        }
+        .frame(height: Metrics.sourceRowHeight)
+        .padding(.horizontal, Metrics.tableHorizontalPadding)
+        .background(rowBackground)
+    }
+
+    private var metadata: SourceVolumeMetadata {
+        SourceVolumeMetadata(source: source)
+    }
+
+    private var rowBackground: Color {
+        if isSelected {
+            return Color.accentColor.opacity(Metrics.selectionOpacity)
+        }
+
+        return isAlternateRow ? Color(nsColor: .alternatingContentBackgroundColors[1]) : Color(nsColor: .textBackgroundColor)
+    }
+}
+
+private struct CapacityText: View {
+    let value: UInt64?
+
+    var body: some View {
+        Text(SourceVolumeMetadata.formattedBytes(value))
+            .font(.system(size: Metrics.standardFontSize, design: .monospaced))
+            .monospacedDigit()
+            .frame(width: Metrics.sizeColumnWidth, alignment: .trailing)
+    }
+}
+
+private struct VolumeUsageBarView: View {
+    let usedFraction: CGFloat
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(Color(nsColor: .quaternaryLabelColor))
+                Capsule()
+                    .fill(Color.accentColor)
+                    .frame(width: proxy.size.width * usedFraction)
+            }
+        }
+        .frame(height: Metrics.usageBarHeight)
+        .accessibilityLabel("\(Int((usedFraction * 100).rounded())) percent used")
+    }
+}
+
+private struct SourceTableColumns<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        HStack(spacing: Metrics.sourceColumnSpacing) {
+            content()
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+private struct SourceVolumeMetadata {
+    let source: ScanSource
+
+    var subtitle: String {
+        guard let volumeFormat: String = source.volumeFormat, !volumeFormat.isEmpty else {
+            return source.path
+        }
+
+        return "\(volumeFormat) - \(source.path)"
+    }
+
+    var icon: NSImage {
+        let icon: NSImage = NSWorkspace.shared.icon(forFile: source.path)
+        icon.size = NSSize(width: Metrics.sourceIconWidth, height: Metrics.sourceIconWidth)
+        return icon
+    }
+
+    var usedCapacity: UInt64? {
+        guard let totalCapacity: UInt64 = source.totalCapacity,
+              let availableCapacity: UInt64 = source.availableCapacity else {
+            return nil
+        }
+
+        return totalCapacity > availableCapacity ? totalCapacity - availableCapacity : 0
+    }
+
+    var usedFraction: CGFloat {
+        guard let totalCapacity: UInt64 = source.totalCapacity,
+              let usedCapacity,
+              totalCapacity > 0 else {
+            return 0
+        }
+
+        return CGFloat(usedCapacity) / CGFloat(totalCapacity)
+    }
+
+    var formattedFreePercent: String {
+        guard let totalCapacity: UInt64 = source.totalCapacity,
+              let availableCapacity: UInt64 = source.availableCapacity,
+              totalCapacity > 0 else {
+            return "--"
+        }
+
+        let freeFraction: Double = Double(availableCapacity) / Double(totalCapacity)
+        return "\(Int((freeFraction * 100).rounded()))%"
+    }
+
+    static func formattedBytes(_ bytes: UInt64?) -> String {
+        guard let bytes else {
+            return "--"
+        }
+
+        return ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)
+    }
+}
+
+private typealias Metrics = SourcePaletteMetrics
