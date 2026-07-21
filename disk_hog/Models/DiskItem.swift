@@ -153,6 +153,7 @@ nonisolated final class DiskItem: Identifiable, Hashable, Sendable, DiskItemTree
     let itemMetadata: DiskItemMetadata
     private let childrenStorage: [DiskItem]
     private let isRootValue: Bool
+    private let cachedScanCounts: DiskItemScanCounts
 
     var id: ObjectIdentifier {
         ObjectIdentifier(self)
@@ -188,6 +189,22 @@ nonisolated final class DiskItem: Identifiable, Hashable, Sendable, DiskItemTree
         )
         self.childrenStorage = children
         self.isRootValue = isRoot
+        self.cachedScanCounts = Self.calculateScanCounts(
+            isDirectory: isDirectory,
+            children: children
+        )
+    }
+
+    private init(
+        itemMetadata: DiskItemMetadata,
+        children: [DiskItem],
+        isRoot: Bool,
+        cachedScanCounts: DiskItemScanCounts
+    ) {
+        self.itemMetadata = itemMetadata
+        self.childrenStorage = children
+        self.isRootValue = isRoot
+        self.cachedScanCounts = cachedScanCounts
     }
 
     var itemChildren: [DiskItem] {
@@ -294,23 +311,11 @@ nonisolated final class DiskItem: Identifiable, Hashable, Sendable, DiskItemTree
     }
 
     func scanCounts(includeSelf: Bool = true) -> (files: Int, folders: Int) {
-        var files: Int = 0
-        var folders: Int = 0
-        var pendingItems: [DiskItem] = includeSelf
-            ? [self]
-            : childrenStorage.reversed().filter { !$0.isSpecialItem }
-
-        while let currentItem: DiskItem = pendingItems.popLast() {
-            if currentItem.isDirectory {
-                folders += 1
-            } else {
-                files += 1
-            }
-            for child: DiskItem in currentItem.childrenStorage.reversed() where !child.isSpecialItem {
-                pendingItems.append(child)
-            }
+        var counts: DiskItemScanCounts = cachedScanCounts
+        if !includeSelf {
+            counts.removeItem(isDirectory: isDirectory)
         }
-        return (files, folders)
+        return (counts.files, counts.folders)
     }
 
     private func pathFrames(to targetPath: String) -> [DiskItemPathFrame]? {
@@ -383,7 +388,8 @@ nonisolated final class DiskItem: Identifiable, Hashable, Sendable, DiskItemTree
                 children: updatedChildren,
                 value: \.logicalSizeValue
             ),
-            children: updatedChildren
+            children: updatedChildren,
+            cachedScanCounts: scanCounts(replacing: replacedChild, with: replacement)
         )
     }
 
@@ -406,8 +412,20 @@ nonisolated final class DiskItem: Identifiable, Hashable, Sendable, DiskItemTree
                 children: updatedChildren,
                 value: \.logicalSizeValue
             ),
-            children: updatedChildren
+            children: updatedChildren,
+            cachedScanCounts: scanCounts(replacing: removedChild, with: nil)
         )
+    }
+
+    private func scanCounts(replacing oldChild: DiskItem, with newChild: DiskItem?) -> DiskItemScanCounts {
+        var counts: DiskItemScanCounts = cachedScanCounts
+        if !oldChild.isSpecialItem {
+            counts.subtract(oldChild.cachedScanCounts)
+        }
+        if let newChild: DiskItem = newChild, !newChild.isSpecialItem {
+            counts.add(newChild.cachedScanCounts)
+        }
+        return counts
     }
 
     private func updatedTotal(
@@ -440,23 +458,38 @@ nonisolated final class DiskItem: Identifiable, Hashable, Sendable, DiskItemTree
         allocatedSizeValue: UInt64? = nil,
         logicalSizeValue: UInt64? = nil,
         children: [DiskItem]? = nil,
-        isRoot: Bool? = nil
+        isRoot: Bool? = nil,
+        cachedScanCounts: DiskItemScanCounts? = nil
     ) -> DiskItem {
         DiskItem(
-            url: url,
-            itemType: itemType,
-            displayName: displayName,
-            name: itemMetadata.fileSystemName,
-            allocatedSizeValue: allocatedSizeValue ?? self.allocatedSizeValue,
-            logicalSizeValue: logicalSizeValue ?? self.logicalSizeValue,
-            kindName: kindName,
-            isDirectory: isDirectory,
-            isPackage: isPackage,
-            isAliasOrSymbolicLink: isAliasOrSymbolicLink,
-            isHardlinkDuplicate: isHardlinkDuplicate,
+            itemMetadata: DiskItemMetadata(
+                url: url,
+                itemType: itemType,
+                displayName: displayName,
+                name: itemMetadata.fileSystemName,
+                allocatedSizeValue: allocatedSizeValue ?? self.allocatedSizeValue,
+                logicalSizeValue: logicalSizeValue ?? self.logicalSizeValue,
+                kindName: kindName,
+                isDirectory: isDirectory,
+                isPackage: isPackage,
+                isAliasOrSymbolicLink: isAliasOrSymbolicLink,
+                isHardlinkDuplicate: isHardlinkDuplicate
+            ),
             children: children ?? childrenStorage,
-            isRoot: isRoot ?? isRootValue
+            isRoot: isRoot ?? isRootValue,
+            cachedScanCounts: cachedScanCounts ?? self.cachedScanCounts
         )
+    }
+
+    private static func calculateScanCounts(
+        isDirectory: Bool,
+        children: [DiskItem]
+    ) -> DiskItemScanCounts {
+        var counts: DiskItemScanCounts = DiskItemScanCounts.item(isDirectory: isDirectory)
+        for child: DiskItem in children where !child.isSpecialItem {
+            counts.add(child.cachedScanCounts)
+        }
+        return counts
     }
 
     private func containsPath(_ candidatePath: String) -> Bool {
@@ -485,6 +518,33 @@ nonisolated private struct DiskItemPathFrame {
     let parent: DiskItem
     let childIndex: Int
     let child: DiskItem
+}
+
+nonisolated private struct DiskItemScanCounts: Sendable {
+    private(set) var files: Int
+    private(set) var folders: Int
+
+    static func item(isDirectory: Bool) -> DiskItemScanCounts {
+        DiskItemScanCounts(files: isDirectory ? 0 : 1, folders: isDirectory ? 1 : 0)
+    }
+
+    mutating func add(_ counts: DiskItemScanCounts) {
+        files += counts.files
+        folders += counts.folders
+    }
+
+    mutating func subtract(_ counts: DiskItemScanCounts) {
+        files -= counts.files
+        folders -= counts.folders
+    }
+
+    mutating func removeItem(isDirectory: Bool) {
+        if isDirectory {
+            folders -= 1
+        } else {
+            files -= 1
+        }
+    }
 }
 
 nonisolated enum DiskItemType: Hashable, Sendable {
