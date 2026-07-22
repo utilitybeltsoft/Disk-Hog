@@ -88,20 +88,23 @@ struct ZStatusFieldsView: View {
 
     private func scanTotalsView(referenceDate: Date) -> some View {
         let elapsedTime: String = DurationFormatter.scanDuration(session.elapsedTime(referenceDate: referenceDate))
-        let byteCount: String = Self.integerFormatter.string(from: NSNumber(value: session.scannedByteCount))
-            ?? String(session.scannedByteCount)
-        let scannedSize: String = "\(byteCount) bytes"
+        let scannedSize: String = Self.byteCountFormatter.string(
+            fromByteCount: Int64(clamping: session.scannedByteCount)
+        )
         return HStack(spacing: ScanWindowMetrics.statusProgressColumnSpacing) {
-            progressColumn(
-                "\(session.scannedItemCount) items",
+            countColumn(
+                session.scannedItemCount,
+                label: "items",
                 width: ScanWindowMetrics.statusProgressItemColumnWidth
             )
-            progressColumn(
-                "\(session.scannedFolderCount) folders",
+            countColumn(
+                session.scannedFolderCount,
+                label: "folders",
                 width: ScanWindowMetrics.statusProgressFolderColumnWidth
             )
-            progressColumn(
-                "\(session.scannedFileCount) files",
+            countColumn(
+                session.scannedFileCount,
+                label: "files",
                 width: ScanWindowMetrics.statusProgressFileColumnWidth
             )
             progressColumn(
@@ -116,6 +119,15 @@ struct ZStatusFieldsView: View {
         .lineLimit(1)
         .fixedSize(horizontal: true, vertical: false)
         .textSelection(.enabled)
+    }
+
+    private func countColumn(_ count: Int, label: String, width: CGFloat) -> some View {
+        HStack(spacing: ScanWindowMetrics.statusProgressLabelSpacing) {
+            Text(Self.integerFormatter.string(from: NSNumber(value: count)) ?? String(count))
+                .frame(width: ScanWindowMetrics.statusProgressNumberWidth, alignment: .trailing)
+            Text(label)
+        }
+        .frame(width: width, alignment: .leading)
     }
 
     private func progressColumn(_ text: String, width: CGFloat) -> some View {
@@ -134,6 +146,16 @@ struct ZStatusFieldsView: View {
         let formatter: NumberFormatter = NumberFormatter()
         formatter.numberStyle = .decimal
         formatter.maximumFractionDigits = 0
+        return formatter
+    }()
+
+    private static let byteCountFormatter: ByteCountFormatter = {
+        let formatter: ByteCountFormatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        formatter.includesCount = true
+        formatter.includesUnit = true
+        formatter.isAdaptive = true
+        formatter.zeroPadsFractionDigits = false
         return formatter
     }()
 }
