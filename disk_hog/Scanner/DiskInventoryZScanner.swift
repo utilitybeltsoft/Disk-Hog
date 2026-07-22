@@ -95,6 +95,7 @@ nonisolated final class DiskInventoryZScanner {
             )
         }
 
+        var topLevelResults: [TopLevelScanResult] = []
         try await withThrowingTaskGroup(of: TopLevelScanResult.self) { taskGroup in
             for workItem: TopLevelScanWorkItem in topLevelWorkItems {
                 let settings: DiskScanSettings = settings
@@ -118,16 +119,29 @@ nonisolated final class DiskInventoryZScanner {
             }
 
             for try await result: TopLevelScanResult in taskGroup {
-                rootBuilder.appendChild(result.item, updateSize: true)
+                topLevelResults.append(result)
             }
         }
 
-        rootBuilder.sortChildrenInDiskInventoryZOrder(recursive: false, usePhysicalSize: settings.usePhysicalSize)
+        topLevelResults.sort { first, second in
+            if first.isSpecialItem != second.isSpecialItem {
+                return !first.isSpecialItem
+            }
+            let firstSize: UInt64 = settings.usePhysicalSize ? first.allocatedSizeValue : first.logicalSizeValue
+            let secondSize: UInt64 = settings.usePhysicalSize ? second.allocatedSizeValue : second.logicalSizeValue
+            if firstSize != secondSize { return firstSize > secondSize }
+            return (first.name as NSString).compare(second.name, options: [.numeric, .caseInsensitive]) == .orderedDescending
+        }
+        rootBuilder.allocatedSizeValue = topLevelResults.reduce(0) { $0 + $1.allocatedSizeValue }
+        rootBuilder.logicalSizeValue = topLevelResults.reduce(0) { $0 + $1.logicalSizeValue }
         progressState.setScannedBytes(rootBuilder.sizeValue(usePhysicalSize: settings.usePhysicalSize))
         progressState.setScannedFileCount(await progressAggregator.scannedFileCount)
         progressState.setScannedFolderCount(await progressAggregator.scannedFolderCount)
         await progressHandler?(progressState.snapshot())
-        return rootBuilder.freeze()
+        return DiskItem.chunkedRoot(
+            rootChunk: rootBuilder.packedChunk(isRoot: true),
+            childChunks: topLevelResults.map(\.chunk)
+        )
     }
 
     func scanItem(
@@ -208,6 +222,10 @@ nonisolated final class DiskInventoryZScanner {
             progressState.setScannedBytes(workItem.item.sizeValue(usePhysicalSize: settings.usePhysicalSize))
         } else if !workItem.isDirectory {
             hardlinkDeduplicator.markDuplicateIfNeeded(item: workItem.item, values: workItem.values)
+            if workItem.item.isHardlinkDuplicate {
+                workItem.item.allocatedSizeValue = 0
+                workItem.item.logicalSizeValue = 0
+            }
             progressState.setScannedBytes(workItem.item.isHardlinkDuplicate ? 0 : workItem.item.sizeValue(usePhysicalSize: settings.usePhysicalSize))
         }
 
@@ -218,7 +236,13 @@ nonisolated final class DiskInventoryZScanner {
         )
         await progressHandler?(aggregateProgress)
 
-        return TopLevelScanResult(item: workItem.item)
+        return TopLevelScanResult(
+            chunk: workItem.item.packedChunk(isRoot: false),
+            name: workItem.item.name,
+            allocatedSizeValue: workItem.item.allocatedSizeValue,
+            logicalSizeValue: workItem.item.logicalSizeValue,
+            isSpecialItem: workItem.item.isSpecialItem
+        )
     }
 }
 
@@ -232,5 +256,9 @@ private nonisolated struct TopLevelScanWorkItem: @unchecked Sendable {
 }
 
 private nonisolated struct TopLevelScanResult: Sendable {
-    let item: DiskItemBuilder
+    let chunk: PackedDiskItemChunk
+    let name: String
+    let allocatedSizeValue: UInt64
+    let logicalSizeValue: UInt64
+    let isSpecialItem: Bool
 }

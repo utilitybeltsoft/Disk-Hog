@@ -28,7 +28,7 @@ struct DiskItemTests {
         let child: DiskItem = root.child(at: 0)
 
         #expect(root.childCount == 1)
-        #expect(root.child(at: 0) === child)
+        #expect(root.child(at: 0) == child)
         #expect(root.descendantsMatchingAncestorPath(of: child) == [root, child])
         #expect(root.allocatedSizeValue == 4096)
         #expect(root.logicalSizeValue == 12)
@@ -329,7 +329,7 @@ struct TreemapViewRendererTests {
         renderer.reloadData()
 
         #expect(renderer.selectItem(byRenderedItem: child) == true)
-        #expect(renderer.selectedItem === child)
+        #expect(renderer.selectedItem == child)
     }
 
     @Test func rendererReloadDoesNotMaterializeFullTree() {
@@ -369,7 +369,7 @@ struct TreemapViewRendererTests {
 
         #expect(renderer.materializedRendererCount == 1)
         #expect(renderer.selectItem(byRenderedItem: frozenSelectedFile) == true)
-        #expect(renderer.selectedItem === frozenSelectedFile)
+        #expect(renderer.selectedItem == frozenSelectedFile)
         #expect(renderer.materializedRendererCount == 4)
     }
 
@@ -492,7 +492,7 @@ struct TreemapViewRendererTests {
 
         #expect(renderer.selectItem(byRenderedItem: emptyFolder) == true)
         #expect(renderer.itemRect(by: renderer.selectedCellID) == bounds)
-        #expect(renderer.item(by: renderer.cellID(by: NSPoint(x: 100, y: 50), inViewCoordinates: false)!) === emptyFolder)
+        #expect(renderer.item(by: renderer.cellID(by: NSPoint(x: 100, y: 50), inViewCoordinates: false)!) == emptyFolder)
     }
 
     @Test func wholeTreemapSelectionRectLeavesRoomForStroke() {

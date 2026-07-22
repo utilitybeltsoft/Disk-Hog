@@ -28,7 +28,6 @@ nonisolated struct DiskItemMetadata: Sendable {
     ) {
         let lastPathComponent: String = name ?? url.lastPathComponent
         let fileSystemName: String = lastPathComponent.isEmpty ? url.path : lastPathComponent
-
         self.url = url
         self.fileSystemName = fileSystemName
         self.displayNameOverride = displayName == fileSystemName ? nil : displayName
@@ -45,118 +44,67 @@ nonisolated struct DiskItemMetadata: Sendable {
 
 nonisolated protocol DiskItemTreeNode {
     associatedtype ChildItem
-
     var itemMetadata: DiskItemMetadata { get }
     var itemChildren: [ChildItem] { get }
 }
 
 extension DiskItemTreeNode {
-    nonisolated var children: [ChildItem] {
-        itemChildren
-    }
-
-    nonisolated var childCount: Int {
-        itemChildren.count
-    }
-
-    nonisolated var itemType: DiskItemType {
-        itemMetadata.itemType
-    }
-
-    nonisolated var allocatedSizeValue: UInt64 {
-        itemMetadata.allocatedSizeValue
-    }
-
-    nonisolated var logicalSizeValue: UInt64 {
-        itemMetadata.logicalSizeValue
-    }
-
-    nonisolated var kindName: String? {
-        itemMetadata.kindName
-    }
-
-    nonisolated var resolvedKindName: String {
-        resolvedKindName(folderName: "Folder")
-    }
-
+    nonisolated var children: [ChildItem] { itemChildren }
+    nonisolated var childCount: Int { itemChildren.count }
+    nonisolated var itemType: DiskItemType { itemMetadata.itemType }
+    nonisolated var allocatedSizeValue: UInt64 { itemMetadata.allocatedSizeValue }
+    nonisolated var logicalSizeValue: UInt64 { itemMetadata.logicalSizeValue }
+    nonisolated var kindName: String? { itemMetadata.kindName }
+    nonisolated var resolvedKindName: String { resolvedKindName(folderName: "Folder") }
     nonisolated func resolvedKindName(folderName: String) -> String {
-        if let kindName: String = itemMetadata.kindName {
-            return kindName
-        }
+        if let kindName: String = itemMetadata.kindName { return kindName }
         return isFolder && !isPackage ? folderName : ""
     }
-
-    nonisolated var isDirectory: Bool {
-        itemMetadata.isDirectory
-    }
-
-    nonisolated var isPackage: Bool {
-        itemMetadata.isPackage
-    }
-
-    nonisolated var isAliasOrSymbolicLink: Bool {
-        itemMetadata.isAliasOrSymbolicLink
-    }
-
-    nonisolated var isHardlinkDuplicate: Bool {
-        itemMetadata.isHardlinkDuplicate
-    }
-
-    nonisolated var isSpecialItem: Bool {
-        itemMetadata.itemType != .fileOrFolder
-    }
-
-    nonisolated var isFolder: Bool {
-        itemMetadata.isDirectory && !itemMetadata.isAliasOrSymbolicLink
-    }
-
+    nonisolated var isDirectory: Bool { itemMetadata.isDirectory }
+    nonisolated var isPackage: Bool { itemMetadata.isPackage }
+    nonisolated var isAliasOrSymbolicLink: Bool { itemMetadata.isAliasOrSymbolicLink }
+    nonisolated var isHardlinkDuplicate: Bool { itemMetadata.isHardlinkDuplicate }
+    nonisolated var isSpecialItem: Bool { itemMetadata.itemType != .fileOrFolder }
+    nonisolated var isFolder: Bool { itemMetadata.isDirectory && !itemMetadata.isAliasOrSymbolicLink }
     nonisolated var displayName: String {
         switch itemMetadata.itemType {
-        case .fileOrFolder:
-            return itemMetadata.displayNameOverride ?? itemMetadata.fileSystemName
-        case .otherSpace:
-            return "space occupied by other files and folders"
-        case .freeSpace:
-            return "free space on drive"
+        case .fileOrFolder: itemMetadata.displayNameOverride ?? itemMetadata.fileSystemName
+        case .otherSpace: "space occupied by other files and folders"
+        case .freeSpace: "free space on drive"
         }
     }
-
     nonisolated var name: String {
         switch itemMetadata.itemType {
-        case .fileOrFolder:
-            return itemMetadata.fileSystemName
-        case .otherSpace, .freeSpace:
-            return displayName
+        case .fileOrFolder: itemMetadata.fileSystemName
+        case .otherSpace, .freeSpace: displayName
         }
     }
-
-    nonisolated var path: String {
-        isSpecialItem ? "" : itemMetadata.url.path
-    }
-
-    nonisolated var url: URL {
-        itemMetadata.url
-    }
-
+    nonisolated var path: String { isSpecialItem ? "" : itemMetadata.url.path }
+    nonisolated var url: URL { itemMetadata.url }
     nonisolated func sizeValue(usePhysicalSize: Bool) -> UInt64 {
         usePhysicalSize ? itemMetadata.allocatedSizeValue : itemMetadata.logicalSizeValue
     }
+    nonisolated func child(at index: Int) -> ChildItem { itemChildren[index] }
+}
 
-    nonisolated func child(at index: Int) -> ChildItem {
-        itemChildren[index]
-    }
+nonisolated struct DiskItemID: Hashable, Sendable {
+    fileprivate let snapshotID: ObjectIdentifier
+    fileprivate let address: PackedDiskItemAddress
 }
 
 nonisolated final class DiskItem: Identifiable, Hashable, Sendable, DiskItemTreeNode {
     typealias ChildItem = DiskItem
 
-    let itemMetadata: DiskItemMetadata
-    private let childrenStorage: [DiskItem]
-    private let isRootValue: Bool
-    private let cachedScanCounts: DiskItemScanCounts
+    let snapshot: PackedDiskItemSnapshot
+    let address: PackedDiskItemAddress
 
-    var id: ObjectIdentifier {
-        ObjectIdentifier(self)
+    var id: DiskItemID {
+        DiskItemID(snapshotID: ObjectIdentifier(snapshot), address: address)
+    }
+
+    init(snapshot: PackedDiskItemSnapshot, address: PackedDiskItemAddress) {
+        self.snapshot = snapshot
+        self.address = address
     }
 
     init(
@@ -174,7 +122,7 @@ nonisolated final class DiskItem: Identifiable, Hashable, Sendable, DiskItemTree
         children: [DiskItem] = [],
         isRoot: Bool = true
     ) {
-        self.itemMetadata = DiskItemMetadata(
+        let builder: DiskItemBuilder = DiskItemBuilder(
             url: url,
             itemType: itemType,
             displayName: displayName,
@@ -187,364 +135,258 @@ nonisolated final class DiskItem: Identifiable, Hashable, Sendable, DiskItemTree
             isAliasOrSymbolicLink: isAliasOrSymbolicLink,
             isHardlinkDuplicate: isHardlinkDuplicate
         )
-        self.childrenStorage = children
-        self.isRootValue = isRoot
-        self.cachedScanCounts = Self.calculateScanCounts(
-            isDirectory: isDirectory,
-            children: children
+        for child: DiskItem in children {
+            builder.appendChild(child.builderCopy(), updateSize: false)
+        }
+        let chunk: PackedDiskItemChunk = builder.packedChunk(isRoot: isRoot)
+        let snapshot: PackedDiskItemSnapshot = PackedDiskItemSnapshot(
+            chunks: [chunk],
+            rootAddress: PackedDiskItemAddress(chunkIndex: 0, recordIndex: 0)
+        )
+        self.snapshot = snapshot
+        self.address = snapshot.rootAddress
+    }
+
+    var itemMetadata: DiskItemMetadata {
+        let record: PackedDiskItemRecord = snapshot.record(at: address)
+        let path: String = snapshot.string(record.path, at: address) ?? ""
+        return DiskItemMetadata(
+            url: URL(fileURLWithPath: path),
+            itemType: record.itemType,
+            displayName: snapshot.string(record.displayName, at: address),
+            name: snapshot.string(record.fileSystemName, at: address),
+            allocatedSizeValue: record.allocatedSizeValue,
+            logicalSizeValue: record.logicalSizeValue,
+            kindName: snapshot.string(record.kindName, at: address),
+            isDirectory: record.isDirectory,
+            isPackage: record.isPackage,
+            isAliasOrSymbolicLink: record.isAliasOrSymbolicLink,
+            isHardlinkDuplicate: record.isHardlinkDuplicate
         )
     }
 
-    private init(
-        itemMetadata: DiskItemMetadata,
-        children: [DiskItem],
-        isRoot: Bool,
-        cachedScanCounts: DiskItemScanCounts
-    ) {
-        self.itemMetadata = itemMetadata
-        self.childrenStorage = children
-        self.isRootValue = isRoot
-        self.cachedScanCounts = cachedScanCounts
-    }
-
     var itemChildren: [DiskItem] {
-        childrenStorage
+        snapshot.children(of: address).map { DiskItem(snapshot: snapshot, address: $0) }
     }
 
-    var isRoot: Bool {
-        isRootValue
+    private var record: PackedDiskItemRecord { snapshot.record(at: address) }
+
+    var children: [DiskItem] { itemChildren }
+    var childCount: Int { snapshot.childCount(of: address) }
+    var itemType: DiskItemType { record.itemType }
+    var allocatedSizeValue: UInt64 { record.allocatedSizeValue }
+    var logicalSizeValue: UInt64 { record.logicalSizeValue }
+    var kindName: String? { snapshot.string(record.kindName, at: address) }
+    var isDirectory: Bool { record.isDirectory }
+    var isPackage: Bool { record.isPackage }
+    var isAliasOrSymbolicLink: Bool { record.isAliasOrSymbolicLink }
+    var isHardlinkDuplicate: Bool { record.isHardlinkDuplicate }
+    var isSpecialItem: Bool { record.itemType != .fileOrFolder }
+    var isFolder: Bool { record.isDirectory && !record.isAliasOrSymbolicLink }
+    var displayName: String {
+        switch record.itemType {
+        case .fileOrFolder:
+            return snapshot.string(record.displayName, at: address)
+                ?? snapshot.string(record.fileSystemName, at: address)
+                ?? ""
+        case .otherSpace: return "space occupied by other files and folders"
+        case .freeSpace: return "free space on drive"
+        }
+    }
+    var name: String {
+        switch record.itemType {
+        case .fileOrFolder: return snapshot.string(record.fileSystemName, at: address) ?? ""
+        case .otherSpace, .freeSpace: return displayName
+        }
+    }
+    var path: String { isSpecialItem ? "" : snapshot.string(record.path, at: address) ?? "" }
+    var url: URL { URL(fileURLWithPath: snapshot.string(record.path, at: address) ?? "") }
+    var isRoot: Bool { record.isRoot }
+
+    func sizeValue(usePhysicalSize: Bool) -> UInt64 {
+        usePhysicalSize ? record.allocatedSizeValue : record.logicalSizeValue
+    }
+
+    func child(at index: Int) -> DiskItem {
+        DiskItem(snapshot: snapshot, address: snapshot.child(of: address, at: index))
+    }
+
+    func sameNode(as other: DiskItem) -> Bool { self == other }
+
+    static func chunkedRoot(rootChunk: PackedDiskItemChunk, childChunks: [PackedDiskItemChunk]) -> DiskItem {
+        let chunks: [PackedDiskItemChunk] = [rootChunk] + childChunks
+        let rootAddress: PackedDiskItemAddress = PackedDiskItemAddress(chunkIndex: 0, recordIndex: 0)
+        let childAddresses: [PackedDiskItemAddress] = childChunks.indices.map {
+            PackedDiskItemAddress(chunkIndex: $0 + 1, recordIndex: 0)
+        }
+        let snapshot: PackedDiskItemSnapshot = PackedDiskItemSnapshot(
+            chunks: chunks,
+            rootAddress: rootAddress,
+            rootChildren: childAddresses
+        )
+        return DiskItem(snapshot: snapshot, address: rootAddress)
     }
 
     func descendantsMatchingAncestorPath(of item: DiskItem) -> [DiskItem] {
-        guard containsPath(item.path) else {
-            return []
-        }
-
+        guard containsPath(item.path) else { return [] }
         var pendingItems: [DiskItem] = [self]
-        var parentByItemID: [ObjectIdentifier: DiskItem] = [:]
+        var parentByID: [DiskItemID: DiskItem] = [:]
         while let currentItem: DiskItem = pendingItems.popLast() {
-            if currentItem === item {
-                return Self.ancestorPath(
-                    endingAt: currentItem,
-                    parentByItemID: parentByItemID
-                )
+            if currentItem == item {
+                var result: [DiskItem] = []
+                var cursor: DiskItem? = currentItem
+                while let current: DiskItem = cursor {
+                    result.append(current)
+                    cursor = parentByID[current.id]
+                }
+                return result.reversed()
             }
-
-            for child: DiskItem in currentItem.childrenStorage.reversed() where child.containsPath(item.path) {
-                parentByItemID[ObjectIdentifier(child)] = currentItem
+            for child: DiskItem in currentItem.children.reversed() where child.containsPath(item.path) {
+                parentByID[child.id] = currentItem
                 pendingItems.append(child)
             }
         }
-
         return []
     }
 
     func item(atPath candidatePath: String, allowAncestors: Bool = false) -> DiskItem? {
-        guard isSpecialItem == false else {
-            return nil
-        }
-
-        var pendingItems: [(item: DiskItem, depth: Int)] = [(self, 0)]
-        var deepestAncestor: (item: DiskItem, depth: Int)?
-        while let current: (item: DiskItem, depth: Int) = pendingItems.popLast() {
-            if current.item.path == candidatePath {
-                return current.item
-            }
-            guard current.item.containsPath(candidatePath) else {
-                continue
-            }
-
-            if deepestAncestor == nil || current.depth > deepestAncestor!.depth {
-                deepestAncestor = current
-            }
-            for child: DiskItem in current.item.childrenStorage.reversed()
-                where !child.isSpecialItem && child.containsPath(candidatePath) {
-                pendingItems.append((child, current.depth + 1))
+        guard !isSpecialItem else { return nil }
+        var pendingItems: [(DiskItem, Int)] = [(self, 0)]
+        var deepest: (DiskItem, Int)?
+        while let (item, depth) = pendingItems.popLast() {
+            if item.path == candidatePath { return item }
+            guard item.containsPath(candidatePath) else { continue }
+            if deepest == nil || depth > deepest!.1 { deepest = (item, depth) }
+            for child: DiskItem in item.children.reversed() where !child.isSpecialItem && child.containsPath(candidatePath) {
+                pendingItems.append((child, depth + 1))
             }
         }
-
-        return allowAncestors ? deepestAncestor?.item : nil
+        return allowAncestors ? deepest?.0 : nil
     }
 
-    func replacingSubtree(
-        atPath targetPath: String,
-        with replacement: DiskItem,
-        usePhysicalSize: Bool
-    ) -> DiskItem? {
+    func replacingSubtree(atPath targetPath: String, with replacement: DiskItem, usePhysicalSize: Bool) -> DiskItem? {
+        guard item(atPath: targetPath) != nil else { return nil }
         if path == targetPath {
             return replacement.copy(isRoot: isRoot)
         }
-
-        guard let pathToTarget: [DiskItemPathFrame] = pathFrames(to: targetPath),
-              let targetItem: DiskItem = pathToTarget.last?.child else {
-            return nil
-        }
-
-        var updatedItem: DiskItem = replacement.copy(isRoot: targetItem.isRoot)
-        for frame: DiskItemPathFrame in pathToTarget.reversed() {
-            updatedItem = frame.parent.copyReplacingChild(
-                at: frame.childIndex,
-                with: updatedItem,
-                usePhysicalSize: usePhysicalSize
-            )
-        }
-        return updatedItem
+        return rebuilt(replacingPath: targetPath, replacement: replacement, remove: false, usePhysicalSize: usePhysicalSize)
     }
 
     func removingSubtree(atPath targetPath: String, usePhysicalSize: Bool) -> DiskItem? {
-        guard path != targetPath,
-              let pathToTarget: [DiskItemPathFrame] = pathFrames(to: targetPath),
-              let removalFrame: DiskItemPathFrame = pathToTarget.last else {
-            return nil
-        }
-
-        var updatedItem: DiskItem = removalFrame.parent.copyRemovingChild(at: removalFrame.childIndex)
-
-        for frame: DiskItemPathFrame in pathToTarget.dropLast().reversed() {
-            updatedItem = frame.parent.copyReplacingChild(
-                at: frame.childIndex,
-                with: updatedItem,
-                usePhysicalSize: usePhysicalSize
-            )
-        }
-        return updatedItem
+        guard path != targetPath, item(atPath: targetPath) != nil else { return nil }
+        return rebuilt(replacingPath: targetPath, replacement: nil, remove: true, usePhysicalSize: usePhysicalSize)
     }
 
     func scanCounts(includeSelf: Bool = true) -> (files: Int, folders: Int) {
-        var counts: DiskItemScanCounts = cachedScanCounts
-        if !includeSelf {
-            counts.removeItem(isDirectory: isDirectory)
-        }
-        return (counts.files, counts.folders)
+        let record: PackedDiskItemRecord = snapshot.record(at: address)
+        let counts: (files: Int, folders: Int) = snapshot.scanCounts(at: address)
+        return (
+            counts.files - (!includeSelf && !record.isDirectory ? 1 : 0),
+            counts.folders - (!includeSelf && record.isDirectory ? 1 : 0)
+        )
     }
 
-    private func pathFrames(to targetPath: String) -> [DiskItemPathFrame]? {
-        guard containsPath(targetPath) else {
-            return nil
+    private func rebuilt(
+        replacingPath targetPath: String,
+        replacement: DiskItem?,
+        remove: Bool,
+        usePhysicalSize: Bool
+    ) -> DiskItem? {
+        if path == targetPath { return remove ? nil : replacement }
+        let rebuiltChildren: [DiskItem] = children.compactMap { child in
+            child.containsPath(targetPath)
+                ? child.rebuilt(replacingPath: targetPath, replacement: replacement, remove: remove, usePhysicalSize: usePhysicalSize)
+                : child
+        }.sorted {
+            let firstSize: UInt64 = $0.sizeValue(usePhysicalSize: usePhysicalSize)
+            let secondSize: UInt64 = $1.sizeValue(usePhysicalSize: usePhysicalSize)
+            return firstSize == secondSize
+                ? $0.name.localizedStandardCompare($1.name) == .orderedDescending
+                : firstSize > secondSize
         }
+        let allocated: UInt64 = isFolder ? rebuiltChildren.reduce(0) { $0 + $1.allocatedSizeValue } : allocatedSizeValue
+        let logical: UInt64 = isFolder ? rebuiltChildren.reduce(0) { $0 + $1.logicalSizeValue } : logicalSizeValue
+        return DiskItem(
+            url: url,
+            itemType: itemType,
+            displayName: displayName,
+            name: itemMetadata.fileSystemName,
+            allocatedSizeValue: allocated,
+            logicalSizeValue: logical,
+            kindName: kindName,
+            isDirectory: isDirectory,
+            isPackage: isPackage,
+            isAliasOrSymbolicLink: isAliasOrSymbolicLink,
+            isHardlinkDuplicate: isHardlinkDuplicate,
+            children: rebuiltChildren,
+            isRoot: isRoot
+        )
+    }
 
-        var frames: [DiskItemPathFrame] = []
-        var currentItem: DiskItem = self
-        while currentItem.path != targetPath {
-            guard let childIndex: Int = currentItem.childrenStorage.firstIndex(where: {
-                $0.containsPath(targetPath)
-            }) else {
-                return nil
+    private func builderCopy() -> DiskItemBuilder {
+        let root: DiskItemBuilder = DiskItemBuilder(
+            url: url,
+            itemType: itemType,
+            displayName: displayName,
+            name: itemMetadata.fileSystemName,
+            allocatedSizeValue: allocatedSizeValue,
+            logicalSizeValue: logicalSizeValue,
+            kindName: kindName,
+            isDirectory: isDirectory,
+            isPackage: isPackage,
+            isAliasOrSymbolicLink: isAliasOrSymbolicLink,
+            isHardlinkDuplicate: isHardlinkDuplicate
+        )
+        var pending: [(DiskItem, DiskItemBuilder)] = [(self, root)]
+        while let (source, destination) = pending.popLast() {
+            for child: DiskItem in source.children {
+                let childBuilder: DiskItemBuilder = destination.makeChild(
+                    url: child.url,
+                    itemType: child.itemType,
+                    displayName: child.displayName,
+                    name: child.itemMetadata.fileSystemName,
+                    allocatedSizeValue: child.allocatedSizeValue,
+                    logicalSizeValue: child.logicalSizeValue,
+                    kindName: child.kindName,
+                    isDirectory: child.isDirectory,
+                    isPackage: child.isPackage,
+                    isAliasOrSymbolicLink: child.isAliasOrSymbolicLink,
+                    isHardlinkDuplicate: child.isHardlinkDuplicate
+                )
+                destination.appendChild(childBuilder, updateSize: false)
+                pending.append((child, childBuilder))
             }
-
-            let child: DiskItem = currentItem.childrenStorage[childIndex]
-            frames.append(DiskItemPathFrame(parent: currentItem, childIndex: childIndex, child: child))
-            currentItem = child
         }
-        return frames
+        return root
     }
 
-    private static func ancestorPath(
-        endingAt item: DiskItem,
-        parentByItemID: [ObjectIdentifier: DiskItem]
-    ) -> [DiskItem] {
-        var path: [DiskItem] = []
-        var currentItem: DiskItem? = item
-        while let item: DiskItem = currentItem {
-            path.append(item)
-            currentItem = parentByItemID[ObjectIdentifier(item)]
-        }
-        return Array(path.reversed())
-    }
-
-    private func copyReplacingChild(
-        at childIndex: Int,
-        with replacement: DiskItem,
-        usePhysicalSize: Bool
-    ) -> DiskItem {
-        let replacedChild: DiskItem = childrenStorage[childIndex]
-        var updatedChildren: [DiskItem] = childrenStorage
-        updatedChildren[childIndex] = replacement
-
-        var updatedIndex: Int = childIndex
-        while updatedIndex > 0,
-              Self.isOrderedBefore(replacement, updatedChildren[updatedIndex - 1], usePhysicalSize: usePhysicalSize) {
-            updatedChildren.swapAt(updatedIndex, updatedIndex - 1)
-            updatedIndex -= 1
-        }
-        while updatedIndex + 1 < updatedChildren.count,
-              Self.isOrderedBefore(updatedChildren[updatedIndex + 1], replacement, usePhysicalSize: usePhysicalSize) {
-            updatedChildren.swapAt(updatedIndex, updatedIndex + 1)
-            updatedIndex += 1
-        }
-
-        return copy(
-            allocatedSizeValue: updatedTotal(
-                current: allocatedSizeValue,
-                removing: replacedChild.allocatedSizeValue,
-                adding: replacement.allocatedSizeValue,
-                children: updatedChildren,
-                value: \.allocatedSizeValue
-            ),
-            logicalSizeValue: updatedTotal(
-                current: logicalSizeValue,
-                removing: replacedChild.logicalSizeValue,
-                adding: replacement.logicalSizeValue,
-                children: updatedChildren,
-                value: \.logicalSizeValue
-            ),
-            children: updatedChildren,
-            cachedScanCounts: scanCounts(replacing: replacedChild, with: replacement)
-        )
-    }
-
-    private func copyRemovingChild(at childIndex: Int) -> DiskItem {
-        let removedChild: DiskItem = childrenStorage[childIndex]
-        var updatedChildren: [DiskItem] = childrenStorage
-        updatedChildren.remove(at: childIndex)
-        return copy(
-            allocatedSizeValue: updatedTotal(
-                current: allocatedSizeValue,
-                removing: removedChild.allocatedSizeValue,
-                adding: 0,
-                children: updatedChildren,
-                value: \.allocatedSizeValue
-            ),
-            logicalSizeValue: updatedTotal(
-                current: logicalSizeValue,
-                removing: removedChild.logicalSizeValue,
-                adding: 0,
-                children: updatedChildren,
-                value: \.logicalSizeValue
-            ),
-            children: updatedChildren,
-            cachedScanCounts: scanCounts(replacing: removedChild, with: nil)
-        )
-    }
-
-    private func scanCounts(replacing oldChild: DiskItem, with newChild: DiskItem?) -> DiskItemScanCounts {
-        var counts: DiskItemScanCounts = cachedScanCounts
-        if !oldChild.isSpecialItem {
-            counts.subtract(oldChild.cachedScanCounts)
-        }
-        if let newChild: DiskItem = newChild, !newChild.isSpecialItem {
-            counts.add(newChild.cachedScanCounts)
-        }
-        return counts
-    }
-
-    private func updatedTotal(
-        current: UInt64,
-        removing removedValue: UInt64,
-        adding addedValue: UInt64,
-        children: [DiskItem],
-        value: KeyPath<DiskItem, UInt64>
-    ) -> UInt64 {
-        guard current >= removedValue else {
-            return children.reduce(0) { $0 + $1[keyPath: value] }
-        }
-        return current - removedValue + addedValue
-    }
-
-    private static func isOrderedBefore(
-        _ firstItem: DiskItem,
-        _ secondItem: DiskItem,
-        usePhysicalSize: Bool
-    ) -> Bool {
-        let firstSize: UInt64 = firstItem.sizeValue(usePhysicalSize: usePhysicalSize)
-        let secondSize: UInt64 = secondItem.sizeValue(usePhysicalSize: usePhysicalSize)
-        if firstSize != secondSize {
-            return firstSize > secondSize
-        }
-        return firstItem.name.localizedStandardCompare(secondItem.name) == .orderedDescending
-    }
-
-    private func copy(
-        allocatedSizeValue: UInt64? = nil,
-        logicalSizeValue: UInt64? = nil,
-        children: [DiskItem]? = nil,
-        isRoot: Bool? = nil,
-        cachedScanCounts: DiskItemScanCounts? = nil
-    ) -> DiskItem {
+    private func copy(isRoot: Bool) -> DiskItem {
         DiskItem(
-            itemMetadata: DiskItemMetadata(
-                url: url,
-                itemType: itemType,
-                displayName: displayName,
-                name: itemMetadata.fileSystemName,
-                allocatedSizeValue: allocatedSizeValue ?? self.allocatedSizeValue,
-                logicalSizeValue: logicalSizeValue ?? self.logicalSizeValue,
-                kindName: kindName,
-                isDirectory: isDirectory,
-                isPackage: isPackage,
-                isAliasOrSymbolicLink: isAliasOrSymbolicLink,
-                isHardlinkDuplicate: isHardlinkDuplicate
-            ),
-            children: children ?? childrenStorage,
-            isRoot: isRoot ?? isRootValue,
-            cachedScanCounts: cachedScanCounts ?? self.cachedScanCounts
+            url: url,
+            itemType: itemType,
+            displayName: displayName,
+            name: itemMetadata.fileSystemName,
+            allocatedSizeValue: allocatedSizeValue,
+            logicalSizeValue: logicalSizeValue,
+            kindName: kindName,
+            isDirectory: isDirectory,
+            isPackage: isPackage,
+            isAliasOrSymbolicLink: isAliasOrSymbolicLink,
+            isHardlinkDuplicate: isHardlinkDuplicate,
+            children: children,
+            isRoot: isRoot
         )
-    }
-
-    private static func calculateScanCounts(
-        isDirectory: Bool,
-        children: [DiskItem]
-    ) -> DiskItemScanCounts {
-        var counts: DiskItemScanCounts = DiskItemScanCounts.item(isDirectory: isDirectory)
-        for child: DiskItem in children where !child.isSpecialItem {
-            counts.add(child.cachedScanCounts)
-        }
-        return counts
     }
 
     private func containsPath(_ candidatePath: String) -> Bool {
-        if isSpecialItem {
-            return candidatePath.isEmpty
-        }
-
-        if candidatePath == path {
-            return true
-        }
-
+        if isSpecialItem { return candidatePath.isEmpty }
+        if candidatePath == path { return true }
         let prefix: String = path.hasSuffix("/") ? path : path + "/"
         return candidatePath.hasPrefix(prefix)
     }
 
-    static func == (leftItem: DiskItem, rightItem: DiskItem) -> Bool {
-        leftItem === rightItem
-    }
-
-    func hash(into hasher: inout Hasher) {
-        hasher.combine(ObjectIdentifier(self))
-    }
-}
-
-nonisolated private struct DiskItemPathFrame {
-    let parent: DiskItem
-    let childIndex: Int
-    let child: DiskItem
-}
-
-nonisolated private struct DiskItemScanCounts: Sendable {
-    private(set) var files: Int
-    private(set) var folders: Int
-
-    static func item(isDirectory: Bool) -> DiskItemScanCounts {
-        DiskItemScanCounts(files: isDirectory ? 0 : 1, folders: isDirectory ? 1 : 0)
-    }
-
-    mutating func add(_ counts: DiskItemScanCounts) {
-        files += counts.files
-        folders += counts.folders
-    }
-
-    mutating func subtract(_ counts: DiskItemScanCounts) {
-        files -= counts.files
-        folders -= counts.folders
-    }
-
-    mutating func removeItem(isDirectory: Bool) {
-        if isDirectory {
-            folders -= 1
-        } else {
-            files -= 1
-        }
-    }
+    static func == (lhs: DiskItem, rhs: DiskItem) -> Bool { lhs.id == rhs.id }
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 
 nonisolated enum DiskItemType: Hashable, Sendable {

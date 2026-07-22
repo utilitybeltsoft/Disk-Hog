@@ -8,13 +8,14 @@ extension DiskItemBuilder {
             }
         }
 
-        childStorage.sort { firstChild, secondChild in
+        let sortedChildren: [DiskItemBuilder] = itemChildren.sorted { firstChild, secondChild in
             DiskItemBuilderOrdering.areInOrder(
                 firstChild,
                 secondChild,
                 usePhysicalSize: usePhysicalSize
             )
         }
+        arena.replaceChildren(of: index, with: sortedChildren.map(\.index))
     }
 }
 

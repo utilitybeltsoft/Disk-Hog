@@ -28,7 +28,7 @@ nonisolated final class TreemapDiskItemDataSource: @unchecked Sendable {
     }
 
     func child(_ index: Int, of item: DiskItem) -> DiskItem {
-        if item === rootItem && index >= item.childCount {
+        if item == rootItem && index >= item.childCount {
             if (index - item.childCount) == 0 {
                 return (showOtherSpace ? otherSpaceItem : freeSpaceItem) ?? item
             } else {
@@ -45,7 +45,7 @@ nonisolated final class TreemapDiskItemDataSource: @unchecked Sendable {
 
     func numberOfChildren(of item: DiskItem) -> Int {
         var childCount: Int = item.childCount
-        if item === rootItem {
+        if item == rootItem {
             if showFreeSpace {
                 childCount += 1
             }
@@ -58,7 +58,7 @@ nonisolated final class TreemapDiskItemDataSource: @unchecked Sendable {
 
     func weight(of item: DiskItem) -> UInt64 {
         var size: UInt64 = item.sizeValue(usePhysicalSize: usePhysicalSize)
-        if item === rootItem {
+        if item == rootItem {
             if showFreeSpace, let freeSpaceItem: DiskItem = freeSpaceItem {
                 size += freeSpaceItem.sizeValue(usePhysicalSize: usePhysicalSize)
             }

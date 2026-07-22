@@ -5,6 +5,14 @@ nonisolated final class DiskItemBuilderFactory {
     private var kindNameByTypeIdentifier: [String: String] = [:]
 
     func makeItem(url: URL, values: URLResourceValues?) -> DiskItemBuilder {
+        DiskItemBuilder(metadata: makeMetadata(url: url, values: values))
+    }
+
+    func makeItem(url: URL, values: URLResourceValues?, in arenaOwner: DiskItemBuilder) -> DiskItemBuilder {
+        arenaOwner.makeChild(metadata: makeMetadata(url: url, values: values))
+    }
+
+    private func makeMetadata(url: URL, values: URLResourceValues?) -> DiskItemMetadata {
         let isDirectory: Bool = values?.isDirectory ?? url.hasDirectoryPath
         let isPackage: Bool = values?.isPackage ?? false
         let isSymbolicLink: Bool = values?.isSymbolicLink ?? false
@@ -17,7 +25,7 @@ nonisolated final class DiskItemBuilderFactory {
             isDirectory: isDirectory,
             isSymbolicLink: isSymbolicLink
         )
-        return DiskItemBuilder(
+        return DiskItemMetadata(
             url: url,
             name: name,
             allocatedSizeValue: isDirectory ? 0 : allocatedSize,

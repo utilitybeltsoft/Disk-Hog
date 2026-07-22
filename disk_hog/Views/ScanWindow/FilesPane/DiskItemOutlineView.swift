@@ -166,7 +166,7 @@ struct DiskItemOutlineView: NSViewRepresentable {
                 return
             }
 
-            if outlineView.item(atRow: outlineView.selectedRow) as? DiskItem === item {
+            if outlineView.item(atRow: outlineView.selectedRow) as? DiskItem == item {
                 return
             }
 

@@ -160,7 +160,7 @@ final class TreemapViewRenderer {
         var child: TreemapItemRenderer? = rootItemRenderer
         for dataItem: DiskItem in path.dropFirst() {
             child = parent.childEnumerator.first { renderer in
-                renderer.item === dataItem
+                renderer.item == dataItem
             }
             if child == nil {
                 return nil

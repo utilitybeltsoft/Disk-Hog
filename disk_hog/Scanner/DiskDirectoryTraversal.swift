@@ -92,7 +92,11 @@ nonisolated final class DiskDirectoryTraversal {
                 )
             }
 
-            let currentItem: DiskItemBuilder = itemFactory.makeItem(url: currentURL, values: currentValues)
+            let currentItem: DiskItemBuilder = itemFactory.makeItem(
+                url: currentURL,
+                values: currentValues,
+                in: item
+            )
             parentItem.appendChild(currentItem, updateSize: false)
             progressState.recordItem(currentItem)
             let isCurrentDirectory: Bool = currentValues.isDirectory ?? false
