@@ -17,6 +17,15 @@ struct KindsPaneView: View {
         .overlay {
             PaneBorderView(isActive: activePane.wrappedValue == .kinds)
         }
+        .overlay {
+            if session.rootItem == nil {
+                ScanPanePlaceholderView(
+                    title: "Color Map of File Distribution",
+                    message: "Pending scan completion"
+                )
+                .padding(ScanWindowMetrics.inactivePaneBorderWidth)
+            }
+        }
         .onAppear {
             updateKindStatistics()
         }
@@ -53,4 +62,3 @@ struct KindsPaneView: View {
         selectedKindName = kindName
     }
 }
-

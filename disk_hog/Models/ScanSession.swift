@@ -17,6 +17,7 @@ final class ScanSession: ObservableObject {
     @Published private(set) var presentationMetrics: TreemapPresentationMetrics?
     @Published private(set) var preferredSelection: DiskItem?
     @Published private(set) var isUpdatingTree: Bool
+    @Published private(set) var isBuildingTreemap: Bool
     @Published private(set) var errorMessage: String?
     #if FILE_MATCHING_DIAGNOSTICS
     @Published private(set) var diagnosticsExportState: DiagnosticsExportState
@@ -42,6 +43,7 @@ final class ScanSession: ObservableObject {
         self.presentationMetrics = nil
         self.preferredSelection = nil
         self.isUpdatingTree = false
+        self.isBuildingTreemap = false
         self.errorMessage = nil
         #if FILE_MATCHING_DIAGNOSTICS
         self.diagnosticsExportState = .idle
@@ -74,6 +76,7 @@ final class ScanSession: ObservableObject {
         presentationMetrics = nil
         preferredSelection = nil
         isUpdatingTree = false
+        isBuildingTreemap = false
         errorMessage = nil
 
         let source: ScanSource = source
@@ -102,6 +105,9 @@ final class ScanSession: ObservableObject {
                 progressContinuation.finish()
                 await progressTask.value
                 try Task.checkCancellation()
+                await MainActor.run {
+                    self.isBuildingTreemap = true
+                }
                 let presentationMetrics: TreemapPresentationMetrics = TreemapPresentationMetrics(
                     rootItem: rootItem,
                     usePhysicalSize: settings.usePhysicalSize
@@ -299,6 +305,7 @@ final class ScanSession: ObservableObject {
     }
 
     private func finishScan(rootItem: DiskItem, presentationMetrics: TreemapPresentationMetrics) {
+        isBuildingTreemap = false
         self.presentationMetrics = presentationMetrics
         preferredSelection = rootItem
         self.rootItem = rootItem
@@ -359,12 +366,14 @@ final class ScanSession: ObservableObject {
     }
 
     private func finishCancellation() {
+        isBuildingTreemap = false
         state = .cancelled
         completedAt = Date()
         scanTask = nil
     }
 
     private func finishFailure(_ error: Error) {
+        isBuildingTreemap = false
         state = .failed
         completedAt = Date()
         scanTask = nil

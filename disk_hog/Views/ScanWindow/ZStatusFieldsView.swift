@@ -82,13 +82,15 @@ struct ZStatusFieldsView: View {
 
             return "Scan complete"
         case .ready, .scanning, .cancelled, .failed:
-            return session.state.title
+            return session.isBuildingTreemap ? "Building treemap" : session.state.title
         }
     }
 
     private func scanTotalsView(referenceDate: Date) -> some View {
         let elapsedTime: String = DurationFormatter.scanDuration(session.elapsedTime(referenceDate: referenceDate))
-        let scannedSize: String = ByteCountFormatter.string(fromByteCount: Int64(session.scannedByteCount), countStyle: .file)
+        let byteCount: String = Self.integerFormatter.string(from: NSNumber(value: session.scannedByteCount))
+            ?? String(session.scannedByteCount)
+        let scannedSize: String = "\(byteCount) bytes"
         return HStack(spacing: ScanWindowMetrics.statusProgressColumnSpacing) {
             progressColumn(
                 "\(session.scannedItemCount) items",
@@ -107,24 +109,31 @@ struct ZStatusFieldsView: View {
                 width: ScanWindowMetrics.statusProgressSizeColumnWidth
             )
             progressColumn(
-                "elapsed \(elapsedTime)",
+                "elapsed time \(elapsedTime)",
                 width: ScanWindowMetrics.statusProgressElapsedColumnWidth
             )
         }
-        .font(.system(size: ScanWindowMetrics.statusFieldFontSize, design: .monospaced))
         .lineLimit(1)
+        .fixedSize(horizontal: true, vertical: false)
         .textSelection(.enabled)
     }
 
     private func progressColumn(_ text: String, width: CGFloat) -> some View {
         Text(text)
-            .frame(width: width, alignment: .trailing)
+            .frame(minWidth: width, alignment: .leading)
     }
 
     private static let dateTimeFormatter: DateFormatter = {
         let formatter: DateFormatter = DateFormatter()
         formatter.dateStyle = .short
         formatter.timeStyle = .short
+        return formatter
+    }()
+
+    private static let integerFormatter: NumberFormatter = {
+        let formatter: NumberFormatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.maximumFractionDigits = 0
         return formatter
     }()
 }

@@ -44,7 +44,7 @@ final class ZStyleTreemapNSView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         guard state.rootItem != nil else {
-            TreemapViewPainter.drawPlaceholder(source: state.source, in: bounds, dirtyRect: dirtyRect)
+            TreemapViewPainter.drawPlaceholder(in: dirtyRect)
             return
         }
         guard bounds.width >= ScanWindowMetrics.minimumRenderableTreemapSide,

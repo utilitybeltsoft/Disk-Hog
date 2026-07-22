@@ -20,6 +20,14 @@ struct TreemapPanelView: View {
             .overlay {
                 PaneBorderView(isActive: activePane.wrappedValue == .treemap)
             }
+            if session.rootItem == nil {
+                ScanPanePlaceholderView(
+                    title: session.isBuildingTreemap ? "Building treemap" : "Treemap",
+                    message: session.isBuildingTreemap ? "Preparing file distribution" : "Pending scan completion",
+                    showsProgress: session.isBuildingTreemap
+                )
+                .padding(ScanWindowMetrics.inactivePaneBorderWidth)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

@@ -55,41 +55,9 @@ enum TreemapViewPainter {
         stroke(rect: rect, lineWidth: ScanWindowMetrics.treemapSelectionInnerLineWidth)
     }
 
-    static func drawPlaceholder(source: ScanSource?, in bounds: NSRect, dirtyRect: NSRect) {
+    static func drawPlaceholder(in dirtyRect: NSRect) {
         NSColor.textBackgroundColor.setFill()
         dirtyRect.fill()
-
-        guard let source: ScanSource = source else {
-            return
-        }
-
-        let paragraphStyle: NSMutableParagraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.alignment = .center
-        paragraphStyle.lineBreakMode = .byTruncatingMiddle
-        let titleAttributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: ScanWindowMetrics.placeholderTitleFontSize, weight: .semibold),
-            .foregroundColor: NSColor.labelColor,
-            .paragraphStyle: paragraphStyle
-        ]
-        let pathAttributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: ScanWindowMetrics.placeholderPathFontSize),
-            .foregroundColor: NSColor.secondaryLabelColor,
-            .paragraphStyle: paragraphStyle
-        ]
-        let titleRect: NSRect = NSRect(
-            x: bounds.minX + ScanWindowMetrics.placeholderPadding,
-            y: bounds.midY - ScanWindowMetrics.placeholderTitleYOffset,
-            width: bounds.width - ScanWindowMetrics.placeholderPadding * 2,
-            height: ScanWindowMetrics.placeholderLineHeight
-        )
-        let pathRect: NSRect = NSRect(
-            x: bounds.minX + ScanWindowMetrics.placeholderPadding,
-            y: titleRect.maxY + ScanWindowMetrics.placeholderSpacing,
-            width: bounds.width - ScanWindowMetrics.placeholderPadding * 2,
-            height: ScanWindowMetrics.placeholderLineHeight
-        )
-        NSString(string: "Treemap").draw(in: titleRect, withAttributes: titleAttributes)
-        NSString(string: source.path).draw(in: pathRect, withAttributes: pathAttributes)
     }
 
     private static func stroke(rect: NSRect, lineWidth: CGFloat) {

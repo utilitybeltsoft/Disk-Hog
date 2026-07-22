@@ -17,5 +17,14 @@ struct FilesPaneView: View {
         .overlay {
             PaneBorderView(isActive: activePane.wrappedValue == .files)
         }
+        .overlay {
+            if session.rootItem == nil {
+                ScanPanePlaceholderView(
+                    title: "Navigable List View",
+                    message: "Pending scan completion"
+                )
+                .padding(ScanWindowMetrics.inactivePaneBorderWidth)
+            }
+        }
     }
 }
