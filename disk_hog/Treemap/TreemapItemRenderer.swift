@@ -311,7 +311,7 @@ final class TreemapItemRenderer {
         for index: Int in 0..<childCount {
             let childItem: DiskItem = dataSource.child(index, of: renderedItem)
             if index < existingRendererCount {
-                if childRenderers![index].item !== childItem {
+                if childRenderers![index].item != childItem {
                     childRenderers![index].refresh(with: childItem)
                 }
             } else {
