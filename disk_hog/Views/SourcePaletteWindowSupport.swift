@@ -56,15 +56,19 @@ final class SourcePaletteCloseRegistrationNSView: NSView {
     }
 }
 
+@MainActor
 enum SourceFolderChooser {
-    static func chooseSource() -> ScanSource? {
+    private static let panel: NSOpenPanel = {
         let panel: NSOpenPanel = NSOpenPanel()
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
         panel.canCreateDirectories = false
         panel.prompt = "Scan"
+        return panel
+    }()
 
+    static func chooseSource() -> ScanSource? {
         guard panel.runModal() == .OK, let url: URL = panel.url else {
             return nil
         }
