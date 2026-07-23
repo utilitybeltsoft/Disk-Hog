@@ -22,7 +22,7 @@ struct TreemapPanelView: View {
             }
             if session.rootItem == nil {
                 ScanPanePlaceholderView(
-                    title: session.isBuildingTreemap ? "Building treemap" : "Treemap",
+                    title: session.isBuildingTreemap ? "Preparing treemap" : "Treemap",
                     message: session.isBuildingTreemap ? "Preparing file distribution" : "Pending scan completion",
                     showsProgress: session.isBuildingTreemap
                 )

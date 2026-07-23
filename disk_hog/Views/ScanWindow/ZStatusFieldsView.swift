@@ -82,8 +82,15 @@ struct ZStatusFieldsView: View {
 
             return "Scan complete"
         case .ready, .scanning, .cancelled, .failed:
-            return session.isBuildingTreemap ? "Building treemap" : session.state.title
+            return session.isBuildingTreemap
+                ? preparingTreemapStatus(referenceDate: referenceDate)
+                : session.state.title
         }
+    }
+
+    private func preparingTreemapStatus(referenceDate: Date) -> String {
+        let showsEllipsis: Bool = Int(referenceDate.timeIntervalSinceReferenceDate).isMultiple(of: 2)
+        return showsEllipsis ? "Preparing treemap..." : "Preparing treemap"
     }
 
     private func scanTotalsView(referenceDate: Date) -> some View {
@@ -92,21 +99,9 @@ struct ZStatusFieldsView: View {
             fromByteCount: Int64(clamping: session.scannedByteCount)
         )
         return HStack(spacing: ScanWindowMetrics.statusProgressColumnSpacing) {
-            countColumn(
-                session.scannedItemCount,
-                label: "items",
-                width: ScanWindowMetrics.statusProgressItemColumnWidth
-            )
-            countColumn(
-                session.scannedFolderCount,
-                label: "folders",
-                width: ScanWindowMetrics.statusProgressFolderColumnWidth
-            )
-            countColumn(
-                session.scannedFileCount,
-                label: "files",
-                width: ScanWindowMetrics.statusProgressFileColumnWidth
-            )
+            countField("items", count: session.scannedItemCount)
+            countField("folders", count: session.scannedFolderCount)
+            countField("files", count: session.scannedFileCount)
             progressColumn(
                 scannedSize,
                 width: ScanWindowMetrics.statusProgressSizeColumnWidth
@@ -121,13 +116,9 @@ struct ZStatusFieldsView: View {
         .textSelection(.enabled)
     }
 
-    private func countColumn(_ count: Int, label: String, width: CGFloat) -> some View {
-        HStack(spacing: ScanWindowMetrics.statusProgressLabelSpacing) {
-            Text(Self.integerFormatter.string(from: NSNumber(value: count)) ?? String(count))
-                .frame(width: ScanWindowMetrics.statusProgressNumberWidth, alignment: .trailing)
-            Text(label)
-        }
-        .frame(width: width, alignment: .leading)
+    private func countField(_ label: String, count: Int) -> some View {
+        let formattedCount: String = Self.integerFormatter.string(from: NSNumber(value: count)) ?? String(count)
+        return Text("\(label): \(formattedCount)")
     }
 
     private func progressColumn(_ text: String, width: CGFloat) -> some View {
