@@ -13,12 +13,12 @@ struct ZStatusFieldsView: View {
                         .lineLimit(1)
                         .truncationMode(.middle)
                         .textSelection(.enabled)
-                    if let hoverStatusLine: String = hoverStatusLine {
-                        Text(hoverStatusLine)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                            .textSelection(.enabled)
-                    }
+                    Text(hoverStatusLine ?? "Hovering on:")
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .opacity(hoverStatusLine == nil ? 0 : 1)
+                        .accessibilityHidden(hoverStatusLine == nil)
+                        .textSelection(.enabled)
                     Text(progressSummary(referenceDate: context.date))
                         .lineLimit(1)
                         .truncationMode(.middle)
@@ -99,9 +99,21 @@ struct ZStatusFieldsView: View {
             fromByteCount: Int64(clamping: session.scannedByteCount)
         )
         return HStack(spacing: ScanWindowMetrics.statusProgressColumnSpacing) {
-            countField("items", count: session.scannedItemCount)
-            countField("folders", count: session.scannedFolderCount)
-            countField("files", count: session.scannedFileCount)
+            countField(
+                "items",
+                count: session.scannedItemCount,
+                width: ScanWindowMetrics.statusProgressItemColumnWidth
+            )
+            countField(
+                "folders",
+                count: session.scannedFolderCount,
+                width: ScanWindowMetrics.statusProgressFolderColumnWidth
+            )
+            countField(
+                "files",
+                count: session.scannedFileCount,
+                width: ScanWindowMetrics.statusProgressFileColumnWidth
+            )
             progressColumn(
                 scannedSize,
                 width: ScanWindowMetrics.statusProgressSizeColumnWidth
@@ -116,13 +128,16 @@ struct ZStatusFieldsView: View {
         .textSelection(.enabled)
     }
 
-    private func countField(_ label: String, count: Int) -> some View {
+    private func countField(_ label: String, count: Int, width: CGFloat) -> some View {
         let formattedCount: String = Self.integerFormatter.string(from: NSNumber(value: count)) ?? String(count)
         return Text("\(label): \(formattedCount)")
+            .monospacedDigit()
+            .frame(minWidth: width, alignment: .leading)
     }
 
     private func progressColumn(_ text: String, width: CGFloat) -> some View {
         Text(text)
+            .monospacedDigit()
             .frame(minWidth: width, alignment: .leading)
     }
 
