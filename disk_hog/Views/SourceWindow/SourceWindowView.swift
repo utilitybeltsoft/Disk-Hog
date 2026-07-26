@@ -1,12 +1,12 @@
 import AppKit
 import SwiftUI
 
-struct SourcePaletteView: View {
+struct SourceWindowView: View {
     @Environment(\.openWindow) private var openWindow
-    @StateObject private var viewModel: SourcePaletteViewModel = SourcePaletteViewModel()
-    @AppStorage(SourcePaletteDefaults.showExternalVolumesKey) private var showExternalVolumes: Bool = false
-    @AppStorage(SourcePaletteDefaults.showNetworkVolumesKey) private var showNetworkVolumes: Bool = false
-    @AppStorage(SourcePaletteDefaults.showDiskImagesKey) private var showDiskImages: Bool = false
+    @StateObject private var viewModel: SourceWindowViewModel = SourceWindowViewModel()
+    @AppStorage(SourceWindowPreferences.showExternalVolumesKey) private var showExternalVolumes: Bool = false
+    @AppStorage(SourceWindowPreferences.showNetworkVolumesKey) private var showNetworkVolumes: Bool = false
+    @AppStorage(SourceWindowPreferences.showDiskImagesKey) private var showDiskImages: Bool = false
     @AppStorage(DiskScanSettingsDefaultsKeys.showPackageContents) private var showPackageContents: Bool = false
     @AppStorage(DiskScanSettingsDefaultsKeys.ignoreCreatorCode) private var ignoreCreatorCode: Bool = false
     @AppStorage(DiskScanSettingsDefaultsKeys.showPhysicalFileSize) private var showPhysicalFileSize: Bool = true
@@ -29,7 +29,7 @@ struct SourcePaletteView: View {
             )
             .padding(.horizontal, Metrics.windowPadding)
 
-            SourcePaletteActionBar(
+            SourceWindowActionBar(
                 showPackageContents: $showPackageContents,
                 ignoreCreatorCode: $ignoreCreatorCode,
                 showPhysicalFileSize: $showPhysicalFileSize,
@@ -42,7 +42,10 @@ struct SourcePaletteView: View {
             .padding(.bottom, Metrics.windowPadding)
         }
         .frame(minWidth: Metrics.windowMinimumWidth, minHeight: Metrics.windowMinimumHeight)
-        .background(SourcePaletteCloseRegistrationView())
+        .background(SourceWindowCloseRegistrationView())
+        .background(ScanWindowKeyObservationView {
+            InspectorPaletteController.shared.deactivate()
+        })
         .onAppear {
             applyVolumeFilter()
         }
@@ -64,10 +67,10 @@ struct SourcePaletteView: View {
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didRenameVolumeNotification)) { _ in
             viewModel.refresh()
         }
-        .onReceive(NotificationCenter.default.publisher(for: .sourcePaletteChooseFolderToScan)) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: .sourceWindowChooseFolderToScan)) { _ in
             chooseFolder()
         }
-        .onReceive(NotificationCenter.default.publisher(for: .sourcePaletteScanSelectedVolume)) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: .sourceWindowScanSelectedVolume)) { _ in
             scanSelectedVolume()
         }
     }
@@ -114,4 +117,4 @@ struct SourcePaletteView: View {
     }
 }
 
-private typealias Metrics = SourcePaletteMetrics
+private typealias Metrics = SourceWindowMetrics

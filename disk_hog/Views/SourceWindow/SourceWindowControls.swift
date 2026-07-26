@@ -24,7 +24,7 @@ struct VolumeFilterView: View {
     }
 }
 
-struct SourcePaletteActionBar: View {
+struct SourceWindowActionBar: View {
     @Binding var showPackageContents: Bool
     @Binding var ignoreCreatorCode: Bool
     @Binding var showPhysicalFileSize: Bool
@@ -39,7 +39,7 @@ struct SourcePaletteActionBar: View {
             Button {
                 showsScanSettings.toggle()
             } label: {
-                SourcePaletteButtonLabel(title: "Settings", systemImage: "gearshape")
+                SourceWindowButtonLabel(title: "Settings", systemImage: "gearshape")
             }
             .frame(height: Metrics.buttonHeight)
             .popover(isPresented: $showsScanSettings) {
@@ -60,7 +60,7 @@ struct SourcePaletteActionBar: View {
             Spacer()
 
             Button(action: onChooseFolder) {
-                SourcePaletteButtonLabel(title: "Choose Folder to Scan", systemImage: "folder")
+                SourceWindowButtonLabel(title: "Choose Folder to Scan", systemImage: "folder")
             }
             .frame(height: Metrics.buttonHeight)
             .keyboardShortcut("o", modifiers: .command)
@@ -76,7 +76,7 @@ struct SourcePaletteActionBar: View {
     }
 }
 
-private struct SourcePaletteButtonLabel: View {
+private struct SourceWindowButtonLabel: View {
     let title: String
     let systemImage: String
 
@@ -137,4 +137,4 @@ private struct ScanSettingsRowView: View {
     }
 }
 
-private typealias Metrics = SourcePaletteMetrics
+private typealias Metrics = SourceWindowMetrics

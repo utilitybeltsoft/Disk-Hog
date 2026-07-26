@@ -1,17 +1,17 @@
 import AppKit
 import SwiftUI
 
-struct SourcePaletteCloseRegistrationView: NSViewRepresentable {
-    func makeNSView(context: Context) -> SourcePaletteCloseRegistrationNSView {
-        SourcePaletteCloseRegistrationNSView()
+struct SourceWindowCloseRegistrationView: NSViewRepresentable {
+    func makeNSView(context: Context) -> SourceWindowCloseRegistrationNSView {
+        SourceWindowCloseRegistrationNSView()
     }
 
-    func updateNSView(_ nsView: SourcePaletteCloseRegistrationNSView, context: Context) {}
+    func updateNSView(_ nsView: SourceWindowCloseRegistrationNSView, context: Context) {}
 }
 
-final class SourcePaletteCloseRegistrationNSView: NSView {
+final class SourceWindowCloseRegistrationNSView: NSView {
     private lazy var closeDelegateProxy: WindowCloseDelegateProxy = WindowCloseDelegateProxy { _ in
-        Self.shouldCloseSourcePalette()
+        Self.shouldCloseSourceWindow()
     }
 
     override func viewDidMoveToWindow() {
@@ -32,7 +32,7 @@ final class SourcePaletteCloseRegistrationNSView: NSView {
         super.viewWillMove(toWindow: newWindow)
     }
 
-    private static func shouldCloseSourcePalette() -> Bool {
+    private static func shouldCloseSourceWindow() -> Bool {
         let activeScanningSessions: [ScanSession] = ScanWindowRegistry.shared.activeScanningSessions
         guard activeScanningSessions.isEmpty == false else {
             NSApp.terminate(nil)

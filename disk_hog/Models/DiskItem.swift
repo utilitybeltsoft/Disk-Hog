@@ -286,6 +286,22 @@ nonisolated final class DiskItem: Identifiable, Hashable, Sendable, DiskItemTree
         )
     }
 
+    func files(ofKind kindName: String) -> [DiskItem] {
+        allFiles().filter { $0.kindName == kindName }
+    }
+
+    func allFiles() -> [DiskItem] {
+        var matches: [DiskItem] = []
+        var pendingItems: [DiskItem] = [self]
+        while let item: DiskItem = pendingItems.popLast() {
+            if !item.isFolder {
+                matches.append(item)
+            }
+            pendingItems.append(contentsOf: item.children)
+        }
+        return matches
+    }
+
     private func rebuilt(
         replacingPath targetPath: String,
         replacement: DiskItem?,

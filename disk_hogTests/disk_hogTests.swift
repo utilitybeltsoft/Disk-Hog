@@ -45,6 +45,72 @@ struct DiskItemTests {
         #expect(item.sizeValue(usePhysicalSize: false) == 12)
     }
 
+    @Test func filesOfKindFindsNestedFilesAndExcludesFoldersAndOtherKinds() {
+        let root: DiskItemBuilder = DiskItemBuilder(
+            url: URL(fileURLWithPath: "/scan"),
+            isDirectory: true
+        )
+        let folder: DiskItemBuilder = DiskItemBuilder(
+            url: URL(fileURLWithPath: "/scan/folder"),
+            kindName: "Plain Text",
+            isDirectory: true
+        )
+        folder.appendChild(
+            DiskItemBuilder(
+                url: URL(fileURLWithPath: "/scan/folder/nested.txt"),
+                kindName: "Plain Text"
+            )
+        )
+        root.appendChild(folder)
+        root.appendChild(
+            DiskItemBuilder(
+                url: URL(fileURLWithPath: "/scan/top.txt"),
+                kindName: "Plain Text"
+            )
+        )
+        root.appendChild(
+            DiskItemBuilder(
+                url: URL(fileURLWithPath: "/scan/image.png"),
+                kindName: "PNG image"
+            )
+        )
+
+        let frozenRoot: DiskItem = root.freeze()
+        let matches: [DiskItem] = frozenRoot.files(ofKind: "Plain Text")
+        let allFiles: [DiskItem] = frozenRoot.allFiles()
+
+        #expect(Set(matches.map(\.path)) == ["/scan/folder/nested.txt", "/scan/top.txt"])
+        #expect(Set(allFiles.map(\.path)) == [
+            "/scan/folder/nested.txt",
+            "/scan/top.txt",
+            "/scan/image.png"
+        ])
+    }
+
+    @Test func fileInformationIncludesSecurityAndFileSystemSections() throws {
+        let temporaryURL: URL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+        try Data("metadata".utf8).write(to: temporaryURL)
+        defer { try? FileManager.default.removeItem(at: temporaryURL) }
+
+        let item: DiskItem = DiskItemBuilder(
+            url: temporaryURL,
+            allocatedSizeValue: 8,
+            logicalSizeValue: 8
+        ).freeze()
+        let snapshot: FileInformationSnapshot = FileInformationSnapshot.load(
+            item: item,
+            usePhysicalSize: true
+        )
+        let sectionTitles: Set<String> = Set(snapshot.sections.map(\.title))
+
+        #expect(sectionTitles.contains("Identity"))
+        #expect(sectionTitles.contains("Ownership and Access"))
+        #expect(sectionTitles.contains("File System"))
+        #expect(sectionTitles.contains("Extended Attributes"))
+        #expect(!sectionTitles.contains("Volume"))
+    }
+
     @Test func descendantsMatchingAncestorPathRejectsSiblingPathPrefixes() {
         let rootBuilder: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan"),

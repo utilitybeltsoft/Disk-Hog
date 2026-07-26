@@ -21,7 +21,7 @@ struct SourceVolumeFilter: Equatable {
 }
 
 @MainActor
-final class SourcePaletteViewModel: ObservableObject {
+final class SourceWindowViewModel: ObservableObject {
     @Published private(set) var sources: [ScanSource]
     @Published var selectedSourceID: ScanSource.ID? {
         didSet {
@@ -90,7 +90,7 @@ final class SourcePaletteViewModel: ObservableObject {
     }
 
     private func updateCommandState() {
-        SourcePaletteCommandState.shared.canScanSelectedVolume = selectedSource != nil
+        SourceWindowCommandState.shared.canScanSelectedVolume = selectedSource != nil
     }
 }
 

@@ -2,12 +2,22 @@ import SwiftUI
 
 struct ScanWindowView: View {
     @StateObject private var session: ScanSession
-    @StateObject private var selectionCoordinator: ScanWindowSelectionCoordinator = ScanWindowSelectionCoordinator()
+    @StateObject private var selectionCoordinator: ScanWindowSelectionCoordinator
+    @StateObject private var inspectorContext: InspectorPaletteContext
     @State private var hoveredItem: DiskItem?
     @State private var activePane: ScanWindowPane?
 
     init(source: ScanSource) {
-        _session = StateObject(wrappedValue: ScanSession(source: source))
+        let session: ScanSession = ScanSession(source: source)
+        let selectionCoordinator: ScanWindowSelectionCoordinator = ScanWindowSelectionCoordinator()
+        _session = StateObject(wrappedValue: session)
+        _selectionCoordinator = StateObject(wrappedValue: selectionCoordinator)
+        _inspectorContext = StateObject(
+            wrappedValue: InspectorPaletteContext(
+                session: session,
+                selectionCoordinator: selectionCoordinator
+            )
+        )
     }
 
     var body: some View {
@@ -30,7 +40,10 @@ struct ScanWindowView: View {
                     )
                         .environment(\.activeScanWindowPane, $activePane)
                 } second: {
-                    KindsPaneView(session: session)
+                    KindsPaneView(
+                        session: session,
+                        onShowSelectionList: showSelectionList
+                    )
                         .environment(\.selectedScanItem, selectedItemBinding)
                         .environment(\.activeScanWindowPane, $activePane)
                 }
@@ -57,9 +70,12 @@ struct ScanWindowView: View {
         })
         .onAppear {
             session.startScan()
+            activateScanWindowContext()
+            InspectorPaletteController.shared.automaticallyShowDiskUsageIfNeeded(for: inspectorContext)
         }
         .onDisappear {
             session.cancel()
+            InspectorPaletteController.shared.deactivate(if: inspectorContext)
         }
         .onChange(of: session.rootItem?.id) {
             selectionCoordinator.setSelectedItem(session.preferredSelection ?? session.rootItem)
@@ -78,6 +94,7 @@ struct ScanWindowView: View {
 
     private func activateScanWindowCommandState() {
         ScanWindowCommandState.shared.activate(session: session, selectedItem: selectionCoordinator.selectedItem)
+        InspectorPaletteController.shared.activate(inspectorContext)
     }
 
     private func updateScanWindowCommandState() {
@@ -91,5 +108,14 @@ struct ScanWindowView: View {
         } set: { newSelectedItem in
             selectionCoordinator.setSelectedItem(newSelectedItem)
         }
+    }
+
+    private func activateScanWindowContext() {
+        ScanWindowCommandState.shared.activate(session: session, selectedItem: selectionCoordinator.selectedItem)
+        InspectorPaletteController.shared.activate(inspectorContext)
+    }
+
+    private func showSelectionList(_ filter: SelectionListFilter) {
+        InspectorPaletteController.shared.showSelectionList(filter: filter, from: session)
     }
 }

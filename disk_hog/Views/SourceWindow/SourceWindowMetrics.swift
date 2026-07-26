@@ -1,6 +1,6 @@
 import Foundation
 
-enum SourcePaletteMetrics {
+enum SourceWindowMetrics {
     static let outerSpacing: CGFloat = 12
     static let tableSpacing: CGFloat = 4
     static let standardFontSize: CGFloat = 11
@@ -33,7 +33,7 @@ enum SourcePaletteMetrics {
     static let scanSettingsWidth: CGFloat = 380
 }
 
-enum SourcePaletteDefaults {
+enum SourceWindowPreferences {
     static let showExternalVolumesKey: String = "DIXShowExternalDevices"
     static let showNetworkVolumesKey: String = "DIXShowNetworkDrives"
     static let showDiskImagesKey: String = "DIXShowMountedImages"

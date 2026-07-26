@@ -2,16 +2,18 @@ import SwiftUI
 
 struct KindsPaneView: View {
     @ObservedObject var session: ScanSession
+    let onShowSelectionList: (SelectionListFilter) -> Void
     @Environment(\.selectedScanItem) private var selectedItem
     @Environment(\.activeScanWindowPane) private var activePane
     @State private var kindStatistics: [TreemapKindStatistic] = []
-    @State private var selectedKindName: String?
+    @State private var selectedFilter: SelectionListFilter?
 
     var body: some View {
         KindStatisticTableView(
             statistics: kindStatistics,
-            selectedKindName: $selectedKindName,
-            activePane: activePane
+            selectedFilter: $selectedFilter,
+            activePane: activePane,
+            onShowSelectionList: onShowSelectionList
         )
         .background(Color(nsColor: .controlBackgroundColor))
         .overlay {
@@ -55,10 +57,10 @@ struct KindsPaneView: View {
               !item.isFolder,
               let kindName: String = item.kindName,
               kindStatistics.contains(where: { $0.kindName == kindName }) else {
-            selectedKindName = nil
+            selectedFilter = nil
             return
         }
 
-        selectedKindName = kindName
+        selectedFilter = .kind(kindName)
     }
 }

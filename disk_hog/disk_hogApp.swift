@@ -12,16 +12,16 @@ struct DiskHogApp: App {
     @NSApplicationDelegateAdaptor(DiskHogApplicationDelegate.self) private var appDelegate
 
     var body: some Scene {
-        WindowGroup("Choose Source to Scan", id: WindowIDs.sourcePalette) {
+        WindowGroup("Choose Source to Scan", id: WindowIDs.sourceWindow) {
             ContentView()
         }
-        .defaultSize(width: SourcePaletteWindowDefaults.width, height: SourcePaletteWindowDefaults.height)
+        .defaultSize(width: SourceWindowDefaultSize.width, height: SourceWindowDefaultSize.height)
 
         WindowGroup("Disk Hog", for: ScanSource.self) { source in
             if let source: ScanSource = source.wrappedValue {
                 ScanWindowView(source: source)
             } else {
-                SourcePaletteView()
+                SourceWindowView()
             }
         }
         .defaultSize(width: ScanWindowDefaults.width, height: ScanWindowDefaults.height)
@@ -65,18 +65,18 @@ private final class DiskHogApplicationDelegate: NSObject, NSApplicationDelegate 
 }
 
 private struct DiskHogCommands: Commands {
-    @ObservedObject private var commandState: SourcePaletteCommandState = .shared
+    @ObservedObject private var commandState: SourceWindowCommandState = .shared
     @ObservedObject private var scanWindowCommandState: ScanWindowCommandState = .shared
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
             Button("Choose Folder to Scan") {
-                NotificationCenter.default.post(name: .sourcePaletteChooseFolderToScan, object: nil)
+                NotificationCenter.default.post(name: .sourceWindowChooseFolderToScan, object: nil)
             }
             .keyboardShortcut("o", modifiers: .command)
 
             Button("Scan Selected Volume") {
-                NotificationCenter.default.post(name: .sourcePaletteScanSelectedVolume, object: nil)
+                NotificationCenter.default.post(name: .sourceWindowScanSelectedVolume, object: nil)
             }
             .keyboardShortcut(.defaultAction)
             .disabled(commandState.canScanSelectedVolume == false)
@@ -102,16 +102,23 @@ private struct DiskHogCommands: Commands {
             .disabled(scanWindowCommandState.canCopyMatchingFile == false)
         }
         #endif
+
+        CommandGroup(after: .sidebar) {
+            Button("Show Inspector") {
+                InspectorPaletteController.shared.toggle()
+            }
+            .keyboardShortcut("i", modifiers: [.command, .option])
+        }
     }
 }
 
 private enum WindowIDs {
-    static let sourcePalette: String = "sourcePalette"
+    static let sourceWindow: String = "sourceWindow"
 }
 
-private enum SourcePaletteWindowDefaults {
-    static let width: CGFloat = SourcePaletteMetrics.windowMinimumWidth
-    static let height: CGFloat = SourcePaletteMetrics.windowMinimumHeight
+private enum SourceWindowDefaultSize {
+    static let width: CGFloat = SourceWindowMetrics.windowMinimumWidth
+    static let height: CGFloat = SourceWindowMetrics.windowMinimumHeight
 }
 
 private enum ScanWindowDefaults {

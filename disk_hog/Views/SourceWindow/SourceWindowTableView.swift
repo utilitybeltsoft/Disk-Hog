@@ -216,4 +216,4 @@ private struct SourceVolumeMetadata {
     }
 }
 
-private typealias Metrics = SourcePaletteMetrics
+private typealias Metrics = SourceWindowMetrics

@@ -153,6 +153,14 @@ final class DiskItemContextMenuActionTarget: NSObject {
 
         session?.moveToTrash(payload.item)
     }
+
+    @objc func showInSelectionListMenuItem(_ sender: NSMenuItem) {
+        guard let payload: DiskItemContextMenuPayload = sender.representedObject as? DiskItemContextMenuPayload else {
+            return
+        }
+
+        InspectorPaletteController.shared.showSelectionList(for: payload.item, from: session)
+    }
 }
 
 @MainActor
@@ -236,8 +244,14 @@ enum DiskItemContextMenuBuilder {
 
         menu.addItem(.separator())
 
-        let selectionListItem: NSMenuItem = NSMenuItem(title: "Show Files in Selection List", action: nil, keyEquivalent: "")
-        selectionListItem.isEnabled = false
+        let selectionListItem: NSMenuItem = NSMenuItem(
+            title: "Show Files in Selection List",
+            action: #selector(DiskItemContextMenuActionTarget.showInSelectionListMenuItem(_:)),
+            keyEquivalent: ""
+        )
+        selectionListItem.target = actionTarget
+        selectionListItem.representedObject = DiskItemContextMenuPayload(item: item)
+        selectionListItem.isEnabled = !item.isFolder && !(item.kindName ?? "").isEmpty
         menu.addItem(selectionListItem)
     }
 
