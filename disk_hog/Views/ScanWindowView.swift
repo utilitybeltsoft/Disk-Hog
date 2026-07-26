@@ -3,7 +3,7 @@ import SwiftUI
 struct ScanWindowView: View {
     @StateObject private var session: ScanSession
     @StateObject private var selectionCoordinator: ScanWindowSelectionCoordinator
-    @StateObject private var inspectorContext: InspectorPaletteContext
+    @StateObject private var inspectorContext: InspectorWindowContext
     @State private var hoveredItem: DiskItem?
     @State private var activePane: ScanWindowPane?
 
@@ -13,7 +13,7 @@ struct ScanWindowView: View {
         _session = StateObject(wrappedValue: session)
         _selectionCoordinator = StateObject(wrappedValue: selectionCoordinator)
         _inspectorContext = StateObject(
-            wrappedValue: InspectorPaletteContext(
+            wrappedValue: InspectorWindowContext(
                 session: session,
                 selectionCoordinator: selectionCoordinator
             )
@@ -71,12 +71,12 @@ struct ScanWindowView: View {
         .onAppear {
             session.startScan()
             activateScanWindowContext()
-            InspectorPaletteController.shared.automaticallyShowDiskUsageIfNeeded(for: inspectorContext)
+            InspectorWindowController.shared.automaticallyShowDiskUsageIfNeeded(for: inspectorContext)
         }
         .onDisappear {
             session.cancel()
             ScanWindowCommandState.shared.deactivate(if: session)
-            InspectorPaletteController.shared.deactivate(if: inspectorContext)
+            InspectorWindowController.shared.deactivate(if: inspectorContext)
         }
         .onChange(of: session.rootItem?.id) {
             selectionCoordinator.setSelectedItem(session.preferredSelection ?? session.rootItem)
@@ -99,7 +99,7 @@ struct ScanWindowView: View {
             selectionCoordinator: selectionCoordinator,
             selectedItem: selectionCoordinator.selectedItem
         )
-        InspectorPaletteController.shared.activate(inspectorContext)
+        InspectorWindowController.shared.activate(inspectorContext)
     }
 
     private func updateScanWindowCommandState() {
@@ -121,10 +121,10 @@ struct ScanWindowView: View {
             selectionCoordinator: selectionCoordinator,
             selectedItem: selectionCoordinator.selectedItem
         )
-        InspectorPaletteController.shared.activate(inspectorContext)
+        InspectorWindowController.shared.activate(inspectorContext)
     }
 
     private func showSelectionList(_ filter: SelectionListFilter) {
-        InspectorPaletteController.shared.showSelectionList(filter: filter, from: session)
+        InspectorWindowController.shared.showSelectionList(filter: filter, from: session)
     }
 }

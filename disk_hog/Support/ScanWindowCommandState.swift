@@ -230,7 +230,7 @@ final class DiskItemContextMenuActionTarget: NSObject {
             return
         }
 
-        InspectorPaletteController.shared.showSelectionList(for: payload.item, from: session)
+        InspectorWindowController.shared.showSelectionList(for: payload.item, from: session)
     }
 }
 

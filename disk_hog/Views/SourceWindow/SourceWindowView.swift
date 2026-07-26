@@ -45,7 +45,7 @@ struct SourceWindowView: View {
         .background(SourceWindowCloseRegistrationView())
         .background(ScanWindowKeyObservationView {
             ScanWindowCommandState.shared.deactivate()
-            InspectorPaletteController.shared.deactivate()
+            InspectorWindowController.shared.deactivate()
         })
         .onAppear {
             applyVolumeFilter()

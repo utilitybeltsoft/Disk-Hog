@@ -71,7 +71,7 @@ private final class DiskHogApplicationDelegate: NSObject, NSApplicationDelegate 
 private struct DiskHogCommands: Commands {
     @ObservedObject private var commandState: SourceWindowCommandState = .shared
     @ObservedObject private var scanWindowCommandState: ScanWindowCommandState = .shared
-    @ObservedObject private var inspectorPaletteController: InspectorPaletteController = .shared
+    @ObservedObject private var inspectorWindowController: InspectorWindowController = .shared
     @AppStorage(DiskScanSettingsDefaultsKeys.showPackageContents) private var showPackageContents: Bool = false
     @AppStorage(DiskScanSettingsDefaultsKeys.ignoreCreatorCode) private var ignoreCreatorCode: Bool = false
     @AppStorage(DiskScanSettingsDefaultsKeys.showPhysicalFileSize) private var showPhysicalFileSize: Bool = true
@@ -162,10 +162,12 @@ private struct DiskHogCommands: Commands {
         }
 
         CommandGroup(before: .windowList) {
-            Button(inspectorPaletteController.isVisible ? "Hide Inspector" : "Show Inspector") {
-                inspectorPaletteController.toggle()
+            Button(inspectorWindowController.isVisible ? "Hide Inspector" : "Show Inspector") {
+                inspectorWindowController.toggle()
             }
             .keyboardShortcut("i", modifiers: .command)
+
+            Divider()
         }
     }
 }
