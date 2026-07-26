@@ -44,6 +44,7 @@ struct SourceWindowView: View {
         .frame(minWidth: Metrics.windowMinimumWidth, minHeight: Metrics.windowMinimumHeight)
         .background(SourceWindowCloseRegistrationView())
         .background(ScanWindowKeyObservationView {
+            ScanWindowCommandState.shared.deactivate()
             InspectorPaletteController.shared.deactivate()
         })
         .onAppear {

@@ -35,6 +35,10 @@ struct DiskHogApp: App {
 private final class DiskHogApplicationDelegate: NSObject, NSApplicationDelegate {
     private var allowsTerminationAfterConfirmation: Bool = false
 
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        NSWindow.allowsAutomaticWindowTabbing = false
+    }
+
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         if allowsTerminationAfterConfirmation {
             return .terminateNow
@@ -67,6 +71,9 @@ private final class DiskHogApplicationDelegate: NSObject, NSApplicationDelegate 
 private struct DiskHogCommands: Commands {
     @ObservedObject private var commandState: SourceWindowCommandState = .shared
     @ObservedObject private var scanWindowCommandState: ScanWindowCommandState = .shared
+    @AppStorage(DiskScanSettingsDefaultsKeys.showPackageContents) private var showPackageContents: Bool = false
+    @AppStorage(DiskScanSettingsDefaultsKeys.ignoreCreatorCode) private var ignoreCreatorCode: Bool = false
+    @AppStorage(DiskScanSettingsDefaultsKeys.showPhysicalFileSize) private var showPhysicalFileSize: Bool = true
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
@@ -102,6 +109,56 @@ private struct DiskHogCommands: Commands {
             .disabled(scanWindowCommandState.canCopyMatchingFile == false)
         }
         #endif
+
+        CommandGroup(before: .sidebar) {
+            Button("Zoom In") {}
+                .keyboardShortcut("+", modifiers: .command)
+                .disabled(true)
+
+            Button("Zoom Out") {}
+                .keyboardShortcut("-", modifiers: .command)
+                .disabled(true)
+
+            Menu("Zoom Out To") {
+                Button("No Zoom History") {}
+                    .disabled(true)
+            }
+            .disabled(true)
+
+            Divider()
+
+            Button("Select Parent Folder") {
+                ScanWindowCommandState.shared.selectParentFolder()
+            }
+            .keyboardShortcut("u", modifiers: .command)
+            .disabled(scanWindowCommandState.canSelectParentFolder == false)
+
+            Divider()
+
+            Button(scanWindowCommandState.showsFreeSpace ? "Hide Free Space" : "Show Free Space") {
+                ScanWindowCommandState.shared.toggleFreeSpace()
+            }
+            .disabled(scanWindowCommandState.canToggleFreeSpace == false)
+
+            Button(scanWindowCommandState.showsOtherSpace ? "Hide Other Space" : "Show Other Space") {
+                ScanWindowCommandState.shared.toggleOtherSpace()
+            }
+            .disabled(scanWindowCommandState.canToggleOtherSpace == false)
+
+            Divider()
+
+            Button(showPackageContents ? "Hide Package Contents" : "Show Package Contents") {
+                showPackageContents.toggle()
+            }
+
+            Button(showPhysicalFileSize ? "Show Logical File Size" : "Show Physical File Size") {
+                showPhysicalFileSize.toggle()
+            }
+
+            Button(ignoreCreatorCode ? "Respect Creator Code" : "Ignore Creator Code") {
+                ignoreCreatorCode.toggle()
+            }
+        }
 
         CommandGroup(after: .sidebar) {
             Button("Show Inspector") {

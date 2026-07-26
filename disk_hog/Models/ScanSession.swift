@@ -16,6 +16,10 @@ final class ScanSession: ObservableObject {
     @Published private(set) var rootItem: DiskItem?
     @Published private(set) var presentationMetrics: TreemapPresentationMetrics?
     @Published private(set) var preferredSelection: DiskItem?
+    @Published private(set) var showsFreeSpace: Bool
+    @Published private(set) var showsOtherSpace: Bool
+    @Published private(set) var freeSpaceItem: DiskItem?
+    @Published private(set) var otherSpaceItem: DiskItem?
     @Published private(set) var isUpdatingTree: Bool
     @Published private(set) var isBuildingTreemap: Bool
     @Published private(set) var errorMessage: String?
@@ -42,6 +46,10 @@ final class ScanSession: ObservableObject {
         self.rootItem = nil
         self.presentationMetrics = nil
         self.preferredSelection = nil
+        self.showsFreeSpace = false
+        self.showsOtherSpace = false
+        self.freeSpaceItem = nil
+        self.otherSpaceItem = nil
         self.isUpdatingTree = false
         self.isBuildingTreemap = false
         self.errorMessage = nil
@@ -56,6 +64,28 @@ final class ScanSession: ObservableObject {
 
     var scanSettings: DiskScanSettings {
         settings
+    }
+
+    var canToggleFreeSpace: Bool {
+        rootItem != nil && freeSpaceItem != nil
+    }
+
+    var canToggleOtherSpace: Bool {
+        rootItem != nil && otherSpaceItem != nil
+    }
+
+    func toggleFreeSpace() {
+        guard canToggleFreeSpace else {
+            return
+        }
+        showsFreeSpace.toggle()
+    }
+
+    func toggleOtherSpace() {
+        guard canToggleOtherSpace else {
+            return
+        }
+        showsOtherSpace.toggle()
     }
 
     func startScan() {
@@ -75,6 +105,10 @@ final class ScanSession: ObservableObject {
         rootItem = nil
         presentationMetrics = nil
         preferredSelection = nil
+        showsFreeSpace = false
+        showsOtherSpace = false
+        freeSpaceItem = nil
+        otherSpaceItem = nil
         isUpdatingTree = false
         isBuildingTreemap = false
         errorMessage = nil
@@ -307,6 +341,7 @@ final class ScanSession: ObservableObject {
     private func finishScan(rootItem: DiskItem, presentationMetrics: TreemapPresentationMetrics) {
         isBuildingTreemap = false
         self.presentationMetrics = presentationMetrics
+        updateSpaceItems(for: rootItem)
         preferredSelection = rootItem
         self.rootItem = rootItem
         state = .complete
@@ -329,6 +364,7 @@ final class ScanSession: ObservableObject {
         let counts: (files: Int, folders: Int) = rootItem.scanCounts(includeSelf: false)
         preferredSelection = rootItem.item(atPath: selectionPath, allowAncestors: true) ?? rootItem
         self.presentationMetrics = presentationMetrics
+        updateSpaceItems(for: rootItem)
         self.rootItem = rootItem
         scannedFileCount = counts.files
         scannedFolderCount = counts.folders
@@ -336,6 +372,36 @@ final class ScanSession: ObservableObject {
         currentPath = preferredSelection?.path ?? rootItem.path
         isUpdatingTree = false
         treeUpdateTask = nil
+    }
+
+    private func updateSpaceItems(for rootItem: DiskItem) {
+        guard source.bookmarkData == nil,
+              let totalCapacity: UInt64 = source.totalCapacity,
+              let availableCapacity: UInt64 = source.availableCapacity,
+              totalCapacity >= availableCapacity else {
+            freeSpaceItem = nil
+            otherSpaceItem = nil
+            showsFreeSpace = false
+            showsOtherSpace = false
+            return
+        }
+
+        let scannedSize: UInt64 = rootItem.sizeValue(usePhysicalSize: settings.usePhysicalSize)
+        let usedCapacity: UInt64 = totalCapacity - availableCapacity
+        let otherSpaceSize: UInt64 = usedCapacity > scannedSize ? usedCapacity - scannedSize : 0
+
+        freeSpaceItem = DiskItem(
+            url: source.url,
+            itemType: .freeSpace,
+            allocatedSizeValue: availableCapacity,
+            logicalSizeValue: availableCapacity
+        )
+        otherSpaceItem = DiskItem(
+            url: source.url,
+            itemType: .otherSpace,
+            allocatedSizeValue: otherSpaceSize,
+            logicalSizeValue: otherSpaceSize
+        )
     }
 
     private func finishTreeUpdateCancellation() {

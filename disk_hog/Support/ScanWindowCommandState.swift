@@ -8,19 +8,50 @@ final class ScanWindowCommandState: ObservableObject {
 
     @Published var canOpenSelectedItem: Bool = false
     @Published var canRevealSelectedItem: Bool = false
+    @Published var canSelectParentFolder: Bool = false
+    @Published var canToggleFreeSpace: Bool = false
+    @Published var canToggleOtherSpace: Bool = false
+    @Published var showsFreeSpace: Bool = false
+    @Published var showsOtherSpace: Bool = false
     #if FILE_MATCHING_DIAGNOSTICS
     @Published var canCopyMatchingFile: Bool = false
     #endif
 
     private weak var activeSession: ScanSession?
     private weak var selectedItem: DiskItem?
+    private weak var selectionCoordinator: ScanWindowSelectionCoordinator?
 
     private init() {}
 
-    func activate(session: ScanSession, selectedItem: DiskItem?) {
+    func activate(
+        session: ScanSession,
+        selectionCoordinator: ScanWindowSelectionCoordinator,
+        selectedItem: DiskItem?
+    ) {
         activeSession = session
+        self.selectionCoordinator = selectionCoordinator
         updateSelectedItemAvailability(selectedItem)
         updateScanState(from: session)
+    }
+
+    func deactivate(if session: ScanSession? = nil) {
+        if let session, activeSession !== session {
+            return
+        }
+
+        activeSession = nil
+        selectedItem = nil
+        selectionCoordinator = nil
+        canOpenSelectedItem = false
+        canRevealSelectedItem = false
+        canSelectParentFolder = false
+        canToggleFreeSpace = false
+        canToggleOtherSpace = false
+        showsFreeSpace = false
+        showsOtherSpace = false
+        #if FILE_MATCHING_DIAGNOSTICS
+        canCopyMatchingFile = false
+        #endif
     }
 
     func updateSelectedItem(_ item: DiskItem?, from session: ScanSession) {
@@ -36,6 +67,10 @@ final class ScanWindowCommandState: ObservableObject {
             return
         }
 
+        canToggleFreeSpace = session.canToggleFreeSpace
+        canToggleOtherSpace = session.canToggleOtherSpace
+        showsFreeSpace = session.showsFreeSpace
+        showsOtherSpace = session.showsOtherSpace
         #if FILE_MATCHING_DIAGNOSTICS
         canCopyMatchingFile = session.rootItem != nil && session.diagnosticsExportState.isWriting == false
         #endif
@@ -57,11 +92,47 @@ final class ScanWindowCommandState: ObservableObject {
         DiskItemWorkspaceActions.revealInFinder(selectedItem)
     }
 
+    func selectParentFolder() {
+        guard canSelectParentFolder,
+              let activeSession: ScanSession,
+              let rootItem: DiskItem = activeSession.rootItem,
+              let selectedItem: DiskItem,
+              let parent: DiskItem = rootItem.descendantsMatchingAncestorPath(of: selectedItem).dropLast().last else {
+            return
+        }
+
+        selectionCoordinator?.setSelectedItem(parent)
+        updateSelectedItemAvailability(parent)
+    }
+
+    func toggleFreeSpace() {
+        guard let activeSession: ScanSession else {
+            return
+        }
+        activeSession.toggleFreeSpace()
+        updateScanState(from: activeSession)
+    }
+
+    func toggleOtherSpace() {
+        guard let activeSession: ScanSession else {
+            return
+        }
+        activeSession.toggleOtherSpace()
+        updateScanState(from: activeSession)
+    }
+
     private func updateSelectedItemAvailability(_ item: DiskItem?) {
         selectedItem = item
         let canActOnItem: Bool = item?.isSpecialItem == false
         canOpenSelectedItem = canActOnItem
         canRevealSelectedItem = canActOnItem
+        if let activeSession: ScanSession,
+           let rootItem: DiskItem = activeSession.rootItem,
+           let item: DiskItem {
+            canSelectParentFolder = rootItem.descendantsMatchingAncestorPath(of: item).count > 1
+        } else {
+            canSelectParentFolder = false
+        }
     }
 
     #if FILE_MATCHING_DIAGNOSTICS

@@ -9,19 +9,36 @@ final class TreemapViewState {
 
     private var presentationMetrics: TreemapPresentationMetrics?
     private var rendererDataSource: TreemapDiskItemDataSource?
+    private var showsFreeSpace: Bool = false
+    private var showsOtherSpace: Bool = false
+    private var freeSpaceItem: DiskItem?
+    private var otherSpaceItem: DiskItem?
 
     func configure(
         source: ScanSource,
         rootItem: DiskItem?,
         presentationMetrics: TreemapPresentationMetrics?,
+        showsFreeSpace: Bool,
+        showsOtherSpace: Bool,
+        freeSpaceItem: DiskItem?,
+        otherSpaceItem: DiskItem?,
         selectedItem: DiskItem?
     ) -> Bool {
         self.source = source
         var needsDisplay: Bool = false
 
-        if self.rootItem !== rootItem || self.presentationMetrics !== presentationMetrics {
+        if self.rootItem !== rootItem
+            || self.presentationMetrics !== presentationMetrics
+            || self.showsFreeSpace != showsFreeSpace
+            || self.showsOtherSpace != showsOtherSpace
+            || self.freeSpaceItem !== freeSpaceItem
+            || self.otherSpaceItem !== otherSpaceItem {
             self.rootItem = rootItem
             self.presentationMetrics = presentationMetrics
+            self.showsFreeSpace = showsFreeSpace
+            self.showsOtherSpace = showsOtherSpace
+            self.freeSpaceItem = freeSpaceItem
+            self.otherSpaceItem = otherSpaceItem
             rebuildRenderer()
             needsDisplay = true
         }
@@ -92,6 +109,10 @@ final class TreemapViewState {
             rootItem: rootItem,
             usePhysicalSize: source?.scanSettings?.usePhysicalSize
                 ?? DiskScanSettings.diskInventoryZDefault.usePhysicalSize,
+            showFreeSpace: showsFreeSpace,
+            showOtherSpace: showsOtherSpace,
+            freeSpaceItem: freeSpaceItem,
+            otherSpaceItem: otherSpaceItem,
             presentationMetrics: presentationMetrics
         )
         let renderer: TreemapViewRenderer = TreemapViewRenderer(dataSource: dataSource)

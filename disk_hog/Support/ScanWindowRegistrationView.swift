@@ -44,6 +44,7 @@ final class ScanWindowRegistrationNSView: NSView {
             return
         }
 
+        window.tabbingMode = .disallowed
         initialGeometryApplier.applyIfNeeded(to: window)
         if let session: ScanSession = session {
             ScanWindowRegistry.shared.register(window, session: session, for: source)

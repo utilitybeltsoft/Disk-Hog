@@ -75,6 +75,7 @@ struct ScanWindowView: View {
         }
         .onDisappear {
             session.cancel()
+            ScanWindowCommandState.shared.deactivate(if: session)
             InspectorPaletteController.shared.deactivate(if: inspectorContext)
         }
         .onChange(of: session.rootItem?.id) {
@@ -93,7 +94,11 @@ struct ScanWindowView: View {
     }
 
     private func activateScanWindowCommandState() {
-        ScanWindowCommandState.shared.activate(session: session, selectedItem: selectionCoordinator.selectedItem)
+        ScanWindowCommandState.shared.activate(
+            session: session,
+            selectionCoordinator: selectionCoordinator,
+            selectedItem: selectionCoordinator.selectedItem
+        )
         InspectorPaletteController.shared.activate(inspectorContext)
     }
 
@@ -111,7 +116,11 @@ struct ScanWindowView: View {
     }
 
     private func activateScanWindowContext() {
-        ScanWindowCommandState.shared.activate(session: session, selectedItem: selectionCoordinator.selectedItem)
+        ScanWindowCommandState.shared.activate(
+            session: session,
+            selectionCoordinator: selectionCoordinator,
+            selectedItem: selectionCoordinator.selectedItem
+        )
         InspectorPaletteController.shared.activate(inspectorContext)
     }
 

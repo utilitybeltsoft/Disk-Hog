@@ -7,6 +7,10 @@ struct AppKitTreemapView: NSViewRepresentable {
     let source: ScanSource
     let rootItem: DiskItem?
     let presentationMetrics: TreemapPresentationMetrics?
+    let showsFreeSpace: Bool
+    let showsOtherSpace: Bool
+    let freeSpaceItem: DiskItem?
+    let otherSpaceItem: DiskItem?
     let selectionCoordinator: ScanWindowSelectionCoordinator
     let hoveredItem: Binding<DiskItem?>
     let activePane: Binding<ScanWindowPane?>
@@ -30,7 +34,17 @@ struct AppKitTreemapView: NSViewRepresentable {
         }
         context.coordinator.view = view
         context.coordinator.observeSelection()
-        view.configure(session: session, source: source, rootItem: rootItem, presentationMetrics: presentationMetrics, selectedItem: selectionCoordinator.selectedItem)
+        view.configure(
+            session: session,
+            source: source,
+            rootItem: rootItem,
+            presentationMetrics: presentationMetrics,
+            showsFreeSpace: showsFreeSpace,
+            showsOtherSpace: showsOtherSpace,
+            freeSpaceItem: freeSpaceItem,
+            otherSpaceItem: otherSpaceItem,
+            selectedItem: selectionCoordinator.selectedItem
+        )
         return view
     }
 
@@ -38,7 +52,17 @@ struct AppKitTreemapView: NSViewRepresentable {
         context.coordinator.selectionCoordinator = selectionCoordinator
         context.coordinator.hoveredItem = hoveredItem
         context.coordinator.activePane = activePane
-        nsView.configure(session: session, source: source, rootItem: rootItem, presentationMetrics: presentationMetrics, selectedItem: selectionCoordinator.selectedItem)
+        nsView.configure(
+            session: session,
+            source: source,
+            rootItem: rootItem,
+            presentationMetrics: presentationMetrics,
+            showsFreeSpace: showsFreeSpace,
+            showsOtherSpace: showsOtherSpace,
+            freeSpaceItem: freeSpaceItem,
+            otherSpaceItem: otherSpaceItem,
+            selectedItem: selectionCoordinator.selectedItem
+        )
     }
 
     final class Coordinator {

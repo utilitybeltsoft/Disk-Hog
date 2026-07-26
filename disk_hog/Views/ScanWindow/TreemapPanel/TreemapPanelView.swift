@@ -13,6 +13,10 @@ struct TreemapPanelView: View {
                 source: session.source,
                 rootItem: session.rootItem,
                 presentationMetrics: session.presentationMetrics,
+                showsFreeSpace: session.showsFreeSpace,
+                showsOtherSpace: session.showsOtherSpace,
+                freeSpaceItem: session.freeSpaceItem,
+                otherSpaceItem: session.otherSpaceItem,
                 selectionCoordinator: selectionCoordinator,
                 hoveredItem: hoveredItem,
                 activePane: activePane

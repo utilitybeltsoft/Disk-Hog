@@ -9,6 +9,37 @@ import Foundation
 import Testing
 @testable import disk_hog
 
+@MainActor
+struct WindowCloseDelegateProxyTests {
+    @Test func retainsDisplacedDelegateUntilRestored() {
+        let window: NSWindow = NSWindow()
+        var delegate: WindowDelegateTestDouble? = WindowDelegateTestDouble()
+        weak let weakDelegate: WindowDelegateTestDouble? = delegate
+        window.delegate = delegate
+
+        let proxy: WindowCloseDelegateProxy = WindowCloseDelegateProxy { _ in true }
+        proxy.install(on: window)
+        delegate = nil
+
+        #expect(weakDelegate != nil)
+        #expect(window.delegate === proxy)
+        var forwardingTarget: AnyObject? = proxy.forwardingTarget(
+            for: #selector(WindowDelegateTestDouble.sentinel)
+        ) as AnyObject?
+        #expect(
+            forwardingTarget === weakDelegate
+        )
+
+        forwardingTarget = nil
+        proxy.restore()
+        #expect(
+            proxy.forwardingTarget(
+                for: #selector(WindowDelegateTestDouble.sentinel)
+            ) == nil
+        )
+    }
+}
+
 struct DiskItemTests {
 
     @Test func builderFreezePreservesChildAncestryAndUpdatesSizes() {
@@ -368,6 +399,46 @@ struct TreemapDiskItemDataSourceTests {
 
         #expect(physicalStatistics.map(\.size) == [4096])
         #expect(logicalStatistics.map(\.size) == [12])
+    }
+
+    @Test func visibleVolumeSpaceItemsAreAppendedAndIncludedInRootWeight() {
+        let file: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/file.dat"),
+            allocatedSizeValue: 40,
+            logicalSizeValue: 40,
+            isRoot: false
+        )
+        let root: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan"),
+            allocatedSizeValue: 40,
+            logicalSizeValue: 40,
+            isDirectory: true,
+            children: [file]
+        )
+        let freeSpace: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan"),
+            itemType: .freeSpace,
+            allocatedSizeValue: 50,
+            logicalSizeValue: 50
+        )
+        let otherSpace: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan"),
+            itemType: .otherSpace,
+            allocatedSizeValue: 10,
+            logicalSizeValue: 10
+        )
+        let dataSource: TreemapDiskItemDataSource = TreemapDiskItemDataSource(
+            rootItem: root,
+            showFreeSpace: true,
+            showOtherSpace: true,
+            freeSpaceItem: freeSpace,
+            otherSpaceItem: otherSpace
+        )
+
+        #expect(dataSource.numberOfChildren(of: root) == 3)
+        #expect(dataSource.child(1, of: root).itemType == .otherSpace)
+        #expect(dataSource.child(2, of: root).itemType == .freeSpace)
+        #expect(dataSource.weight(of: root) == 100)
     }
 }
 
@@ -893,6 +964,10 @@ struct DiskInventoryZScannerTests {
             count + hardlinkDuplicateCount(in: child)
         }
     }
+}
+
+private final class WindowDelegateTestDouble: NSObject, NSWindowDelegate {
+    @objc func sentinel() {}
 }
 
 private actor ProgressRecorder {

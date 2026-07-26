@@ -17,6 +17,10 @@ final class ZStyleTreemapNSView: NSView {
         source: ScanSource,
         rootItem: DiskItem?,
         presentationMetrics: TreemapPresentationMetrics?,
+        showsFreeSpace: Bool,
+        showsOtherSpace: Bool,
+        freeSpaceItem: DiskItem?,
+        otherSpaceItem: DiskItem?,
         selectedItem: DiskItem?
     ) {
         self.session = session
@@ -25,6 +29,10 @@ final class ZStyleTreemapNSView: NSView {
             source: source,
             rootItem: rootItem,
             presentationMetrics: presentationMetrics,
+            showsFreeSpace: showsFreeSpace,
+            showsOtherSpace: showsOtherSpace,
+            freeSpaceItem: freeSpaceItem,
+            otherSpaceItem: otherSpaceItem,
             selectedItem: selectedItem
         ) {
             needsDisplay = true
