@@ -38,23 +38,36 @@ final class ScanWindowRegistry {
     }
 
     var activeScanningSessions: [ScanSession] {
-        windowsBySourceKey = windowsBySourceKey.filter { _, weakWindow in
-            weakWindow.window != nil
-        }
-        return windowsBySourceKey.values.compactMap { weakWindow in
-            guard let session: ScanSession = weakWindow.session,
-                  session.state == .scanning else {
-                return nil
-            }
-
-            return session
-        }
+        openSessions.filter { $0.state == .scanning }
     }
 
     func cancelActiveScans() {
         for session: ScanSession in activeScanningSessions {
             session.cancel()
         }
+    }
+
+    func sessionsAffectedByPackageContentsPreference(_ showPackageContents: Bool) -> [ScanSession] {
+        openSessions.filter { $0.scanSettings.lookInsidePackages != showPackageContents }
+    }
+
+    func rescanAllForPackageContentsPreference(_ showPackageContents: Bool) {
+        for session: ScanSession in openSessions {
+            session.rescanForPackageContentsPreference(showPackageContents)
+        }
+    }
+
+    func markPackageContentsSynchronization(with showPackageContents: Bool) {
+        for session: ScanSession in openSessions {
+            session.updatePackageContentsSynchronization(with: showPackageContents)
+        }
+    }
+
+    private var openSessions: [ScanSession] {
+        windowsBySourceKey = windowsBySourceKey.filter { _, weakWindow in
+            weakWindow.window != nil
+        }
+        return windowsBySourceKey.values.compactMap(\.session)
     }
 }
 

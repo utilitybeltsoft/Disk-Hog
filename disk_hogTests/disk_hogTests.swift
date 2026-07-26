@@ -40,6 +40,28 @@ struct WindowCloseDelegateProxyTests {
     }
 }
 
+@MainActor
+struct ScanSessionPackageContentsSynchronizationTests {
+    @Test func reportsWhetherExistingResultsMatchCurrentPreference() {
+        let source: ScanSource = ScanSource(
+            path: "/scan",
+            displayName: "scan",
+            scanSettings: DiskScanSettings(
+                usePhysicalSize: true,
+                lookInsidePackages: false,
+                ignoreCreatorCode: false
+            )
+        )
+        let session: ScanSession = ScanSession(source: source)
+
+        session.updatePackageContentsSynchronization(with: true)
+        #expect(session.isPackageContentsSettingOutOfSync)
+
+        session.updatePackageContentsSynchronization(with: false)
+        #expect(session.isPackageContentsSettingOutOfSync == false)
+    }
+}
+
 struct DiskItemTests {
 
     @Test func builderFreezePreservesChildAncestryAndUpdatesSizes() {

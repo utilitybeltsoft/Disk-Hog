@@ -29,7 +29,7 @@ enum InspectorWindowTab: String, CaseIterable, Identifiable {
         switch self {
         case .information:
             InspectorWindowLayout(
-                preferredContentSize: NSSize(width: 620, height: 520),
+                preferredContentSize: NSSize(width: 720, height: 760),
                 minimumContentSize: NSSize(width: 480, height: 360)
             )
         case .diskUsage:
@@ -54,8 +54,8 @@ struct InspectorWindowLayout {
 @MainActor
 final class InspectorWindowController: NSObject, ObservableObject {
     static let shared: InspectorWindowController = InspectorWindowController()
-    private static let frameAutosaveName: String = "DiskHogInspectorWindow"
-    private static let legacyFrameAutosaveName: String = "DiskHogInspectorPalette"
+    private static let frameAutosaveName: String = "DiskHogInspectorWindowV2"
+    private static let visibleScreenInset: CGFloat = 80
 
     @Published private(set) var activeContext: InspectorWindowContext?
     @Published private(set) var isVisible: Bool = false
@@ -149,7 +149,8 @@ final class InspectorWindowController: NSObject, ObservableObject {
 
     private func makeWindowController() -> NSWindowController {
         let layout: InspectorWindowLayout = selectedTab.layout
-        let contentSize: NSSize = contentSizesByTab[selectedTab] ?? layout.preferredContentSize
+        let contentSize: NSSize = contentSizesByTab[selectedTab]
+            ?? preferredContentSize(for: layout, on: NSScreen.main)
         let contentRect: NSRect = NSRect(origin: .zero, size: contentSize)
         let window: NSWindow = NSWindow(
             contentRect: contentRect,
@@ -160,7 +161,6 @@ final class InspectorWindowController: NSObject, ObservableObject {
         window.isReleasedWhenClosed = false
         window.tabbingMode = .disallowed
         window.delegate = self
-        migrateLegacyFrameAutosaveIfNeeded()
         let restoredSavedFrame: Bool = window.setFrameUsingName(Self.frameAutosaveName)
         window.setFrameAutosaveName(Self.frameAutosaveName)
         window.contentMinSize = layout.minimumContentSize
@@ -181,7 +181,8 @@ final class InspectorWindowController: NSObject, ObservableObject {
         contentSizesByTab[oldTab] = window.contentLayoutRect.size
 
         let layout: InspectorWindowLayout = newTab.layout
-        let targetContentSize: NSSize = contentSizesByTab[newTab] ?? layout.preferredContentSize
+        let targetContentSize: NSSize = contentSizesByTab[newTab]
+            ?? preferredContentSize(for: layout, on: window.screen)
         window.contentMinSize = layout.minimumContentSize
 
         let targetFrameSize: NSSize = window.frameRect(
@@ -208,15 +209,26 @@ final class InspectorWindowController: NSObject, ObservableObject {
         }
     }
 
-    private func migrateLegacyFrameAutosaveIfNeeded() {
-        let defaults: UserDefaults = .standard
-        let currentKey: String = "NSWindow Frame \(Self.frameAutosaveName)"
-        let legacyKey: String = "NSWindow Frame \(Self.legacyFrameAutosaveName)"
-        guard defaults.object(forKey: currentKey) == nil,
-              let legacyFrame: Any = defaults.object(forKey: legacyKey) else {
-            return
+    private func preferredContentSize(
+        for layout: InspectorWindowLayout,
+        on screen: NSScreen?
+    ) -> NSSize {
+        guard let visibleFrame: NSRect = screen?.visibleFrame else {
+            return layout.preferredContentSize
         }
-        defaults.set(legacyFrame, forKey: currentKey)
+
+        let availableWidth: CGFloat = max(
+            layout.minimumContentSize.width,
+            visibleFrame.width - Self.visibleScreenInset
+        )
+        let availableHeight: CGFloat = max(
+            layout.minimumContentSize.height,
+            visibleFrame.height - Self.visibleScreenInset
+        )
+        return NSSize(
+            width: min(layout.preferredContentSize.width, availableWidth),
+            height: min(layout.preferredContentSize.height, availableHeight)
+        )
     }
 }
 

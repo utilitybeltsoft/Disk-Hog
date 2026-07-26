@@ -22,6 +22,7 @@ final class ScanSession: ObservableObject {
     @Published private(set) var otherSpaceItem: DiskItem?
     @Published private(set) var isUpdatingTree: Bool
     @Published private(set) var isBuildingTreemap: Bool
+    @Published private(set) var isPackageContentsSettingOutOfSync: Bool
     @Published private(set) var errorMessage: String?
     #if FILE_MATCHING_DIAGNOSTICS
     @Published private(set) var diagnosticsExportState: DiagnosticsExportState
@@ -29,9 +30,10 @@ final class ScanSession: ObservableObject {
 
     let source: ScanSource
 
-    private let settings: DiskScanSettings
+    private var settings: DiskScanSettings
     private var scanTask: Task<Void, Never>?
     private var treeUpdateTask: Task<Void, Never>?
+    private var restartsAfterCancellation: Bool = false
 
     init(source: ScanSource) {
         self.source = source
@@ -52,6 +54,7 @@ final class ScanSession: ObservableObject {
         self.otherSpaceItem = nil
         self.isUpdatingTree = false
         self.isBuildingTreemap = false
+        self.isPackageContentsSettingOutOfSync = false
         self.errorMessage = nil
         #if FILE_MATCHING_DIAGNOSTICS
         self.diagnosticsExportState = .idle
@@ -172,6 +175,31 @@ final class ScanSession: ObservableObject {
             scanTask?.cancel()
         }
         treeUpdateTask?.cancel()
+    }
+
+    func updatePackageContentsSynchronization(with showPackageContents: Bool) {
+        isPackageContentsSettingOutOfSync = settings.lookInsidePackages != showPackageContents
+    }
+
+    func rescanForPackageContentsPreference(_ showPackageContents: Bool) {
+        let needsRescan: Bool = settings.lookInsidePackages != showPackageContents
+            || isPackageContentsSettingOutOfSync
+        settings.lookInsidePackages = showPackageContents
+        isPackageContentsSettingOutOfSync = false
+
+        guard needsRescan else {
+            return
+        }
+
+        if state == .scanning {
+            restartsAfterCancellation = true
+            scanTask?.cancel()
+        } else if isUpdatingTree {
+            restartsAfterCancellation = true
+            treeUpdateTask?.cancel()
+        } else {
+            startScan()
+        }
     }
 
     func refresh(_ item: DiskItem) {
@@ -407,11 +435,16 @@ final class ScanSession: ObservableObject {
     private func finishTreeUpdateCancellation() {
         isUpdatingTree = false
         treeUpdateTask = nil
+        restartIfRequested()
     }
 
     private func finishTreeUpdateFailure(_ error: Error) {
         isUpdatingTree = false
         treeUpdateTask = nil
+        if restartsAfterCancellation {
+            restartIfRequested()
+            return
+        }
         errorMessage = error.localizedDescription
     }
 
@@ -436,6 +469,7 @@ final class ScanSession: ObservableObject {
         state = .cancelled
         completedAt = Date()
         scanTask = nil
+        restartIfRequested()
     }
 
     private func finishFailure(_ error: Error) {
@@ -443,7 +477,20 @@ final class ScanSession: ObservableObject {
         state = .failed
         completedAt = Date()
         scanTask = nil
+        if restartsAfterCancellation {
+            restartIfRequested()
+            return
+        }
         errorMessage = error.localizedDescription
+    }
+
+    private func restartIfRequested() {
+        guard restartsAfterCancellation else {
+            return
+        }
+
+        restartsAfterCancellation = false
+        startScan()
     }
 }
 

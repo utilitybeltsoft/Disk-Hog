@@ -16,19 +16,20 @@ final class ScanWindowInitialGeometryApplier {
     private func apply(to window: NSWindow) {
         let screen: NSScreen? = window.screen ?? NSScreen.main
         let visibleFrame: NSRect = screen?.visibleFrame ?? window.frame
+        let usableFrame: NSRect = ScanWindowInitialGeometry.usableFrame(within: visibleFrame)
         let minimumContentSize: NSSize = ScanWindowInitialGeometry.contentSize(
-            fitting: visibleFrame,
+            fitting: usableFrame,
             desiredContentSize: ScanWindowGeometry.minimumContentSize,
             window: window
         )
         let initialContentSize: NSSize = ScanWindowInitialGeometry.contentSize(
-            fitting: visibleFrame,
+            fitting: usableFrame,
             desiredContentSize: ScanWindowGeometry.defaultContentSize,
             window: window
         )
 
         window.minSize = window.frameRect(forContentRect: NSRect(origin: .zero, size: minimumContentSize)).size
         window.setContentSize(initialContentSize)
-        window.setFrame(ScanWindowInitialGeometry.frame(window.frame, fittingIn: visibleFrame), display: false)
+        window.setFrame(ScanWindowInitialGeometry.frame(window.frame, fittingIn: usableFrame), display: false)
     }
 }

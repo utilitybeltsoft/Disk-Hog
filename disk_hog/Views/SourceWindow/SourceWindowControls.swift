@@ -109,7 +109,7 @@ private struct ScanSettingsPopoverView: View {
                 description: "The physical size is the space that a file occupies on a drive. Many applications show the logical size, which is the size of a file's content.",
                 isOn: $showPhysicalFileSize
             )
-            Text("These settings apply to the next volume or folder you open.")
+            Text("Package-content changes can rescan open windows. Other settings apply to the next volume or folder you open.")
                 .font(.system(size: Metrics.standardFontSize))
                 .foregroundStyle(.tertiary)
                 .fixedSize(horizontal: false, vertical: true)

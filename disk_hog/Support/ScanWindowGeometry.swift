@@ -1,6 +1,18 @@
 import AppKit
 
 enum ScanWindowInitialGeometry {
+    static func usableFrame(within visibleFrame: NSRect) -> NSRect {
+        let horizontalInset: CGFloat = min(
+            ScanWindowGeometry.visibleFrameInset,
+            max((visibleFrame.width - ScanWindowGeometry.minimumUsableContentSize.width) / 2, 0)
+        )
+        let verticalInset: CGFloat = min(
+            ScanWindowGeometry.visibleFrameInset,
+            max((visibleFrame.height - ScanWindowGeometry.minimumUsableContentSize.height) / 2, 0)
+        )
+        return visibleFrame.insetBy(dx: horizontalInset, dy: verticalInset)
+    }
+
     static func contentSize(fitting visibleFrame: NSRect, desiredContentSize: NSSize, window: NSWindow) -> NSSize {
         let desiredFrameSize: NSSize = window.frameRect(forContentRect: NSRect(origin: .zero, size: desiredContentSize)).size
         let frameWidthOverflow: CGFloat = max(desiredFrameSize.width - visibleFrame.width, 0)
@@ -36,9 +48,10 @@ enum ScanWindowInitialGeometry {
 }
 
 nonisolated enum ScanWindowGeometry {
-    static let defaultContentSize: NSSize = NSSize(width: 837, height: 1080)
+    static let defaultContentSize: NSSize = NSSize(width: 837, height: 900)
     static let minimumContentSize: NSSize = NSSize(width: 837, height: 720)
     static let minimumUsableContentSize: NSSize = NSSize(width: 640, height: 540)
+    static let visibleFrameInset: CGFloat = 16
     static let defaultWidth: CGFloat = defaultContentSize.width
     static let defaultHeight: CGFloat = defaultContentSize.height
     static let minimumWidth: CGFloat = minimumContentSize.width

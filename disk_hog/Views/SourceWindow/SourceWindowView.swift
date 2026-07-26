@@ -7,7 +7,7 @@ struct SourceWindowView: View {
     @AppStorage(SourceWindowPreferences.showExternalVolumesKey) private var showExternalVolumes: Bool = false
     @AppStorage(SourceWindowPreferences.showNetworkVolumesKey) private var showNetworkVolumes: Bool = false
     @AppStorage(SourceWindowPreferences.showDiskImagesKey) private var showDiskImages: Bool = false
-    @AppStorage(DiskScanSettingsDefaultsKeys.showPackageContents) private var showPackageContents: Bool = false
+    @ObservedObject private var packageContentsPreference: PackageContentsPreferenceCoordinator = .shared
     @AppStorage(DiskScanSettingsDefaultsKeys.ignoreCreatorCode) private var ignoreCreatorCode: Bool = false
     @AppStorage(DiskScanSettingsDefaultsKeys.showPhysicalFileSize) private var showPhysicalFileSize: Bool = true
 
@@ -30,7 +30,10 @@ struct SourceWindowView: View {
             .padding(.horizontal, Metrics.windowPadding)
 
             SourceWindowActionBar(
-                showPackageContents: $showPackageContents,
+                showPackageContents: Binding(
+                    get: { packageContentsPreference.showPackageContents },
+                    set: { packageContentsPreference.requestChange(to: $0) }
+                ),
                 ignoreCreatorCode: $ignoreCreatorCode,
                 showPhysicalFileSize: $showPhysicalFileSize,
                 canScanSelectedVolume: viewModel.selectedSource != nil,
@@ -79,7 +82,7 @@ struct SourceWindowView: View {
     private var currentScanSettings: DiskScanSettings {
         DiskScanSettings(
             usePhysicalSize: showPhysicalFileSize,
-            lookInsidePackages: showPackageContents,
+            lookInsidePackages: packageContentsPreference.showPackageContents,
             ignoreCreatorCode: ignoreCreatorCode
         )
     }

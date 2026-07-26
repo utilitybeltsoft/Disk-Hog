@@ -72,7 +72,7 @@ private struct DiskHogCommands: Commands {
     @ObservedObject private var commandState: SourceWindowCommandState = .shared
     @ObservedObject private var scanWindowCommandState: ScanWindowCommandState = .shared
     @ObservedObject private var inspectorWindowController: InspectorWindowController = .shared
-    @AppStorage(DiskScanSettingsDefaultsKeys.showPackageContents) private var showPackageContents: Bool = false
+    @ObservedObject private var packageContentsPreference: PackageContentsPreferenceCoordinator = .shared
     @AppStorage(DiskScanSettingsDefaultsKeys.ignoreCreatorCode) private var ignoreCreatorCode: Bool = false
     @AppStorage(DiskScanSettingsDefaultsKeys.showPhysicalFileSize) private var showPhysicalFileSize: Bool = true
 
@@ -148,9 +148,13 @@ private struct DiskHogCommands: Commands {
 
             Divider()
 
-            Button(showPackageContents ? "Hide Package Contents" : "Show Package Contents") {
-                showPackageContents.toggle()
-            }
+            Toggle(
+                "Show Package Contents",
+                isOn: Binding(
+                    get: { packageContentsPreference.showPackageContents },
+                    set: { packageContentsPreference.requestChange(to: $0) }
+                )
+            )
 
             Button(showPhysicalFileSize ? "Show Logical File Size" : "Show Physical File Size") {
                 showPhysicalFileSize.toggle()

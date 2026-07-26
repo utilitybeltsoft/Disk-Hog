@@ -4,6 +4,7 @@ struct ScanWindowView: View {
     @StateObject private var session: ScanSession
     @StateObject private var selectionCoordinator: ScanWindowSelectionCoordinator
     @StateObject private var inspectorContext: InspectorWindowContext
+    @ObservedObject private var packageContentsPreference: PackageContentsPreferenceCoordinator = .shared
     @State private var hoveredItem: DiskItem?
     @State private var activePane: ScanWindowPane?
 
@@ -22,6 +23,10 @@ struct ScanWindowView: View {
 
     var body: some View {
         VStack(spacing: ScanWindowMetrics.windowContentSpacing) {
+            if session.isPackageContentsSettingOutOfSync {
+                packageContentsWarning
+            }
+
             AppKitSplitView(
                 isVertical: false,
                 firstMinimumSize: ScanWindowMetrics.topPaneMinimumHeight,
@@ -126,5 +131,28 @@ struct ScanWindowView: View {
 
     private func showSelectionList(_ filter: SelectionListFilter) {
         InspectorWindowController.shared.showSelectionList(filter: filter, from: session)
+    }
+
+    private var packageContentsWarning: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.yellow)
+            Text(
+                session.scanSettings.lookInsidePackages
+                    ? "Out of sync: this scan shows package contents; the current setting hides them."
+                    : "Out of sync: this scan hides package contents; the current setting shows them."
+            )
+            Spacer()
+            Button {
+                packageContentsPreference.rescan(session)
+            } label: {
+                Label("Rescan This Window", systemImage: "arrow.clockwise")
+            }
+            .controlSize(.small)
+        }
+        .font(.system(size: ScanWindowMetrics.statusFieldFontSize))
+        .padding(.horizontal, ScanWindowMetrics.mainSplitHorizontalPadding)
+        .padding(.vertical, 5)
+        .background(Color(nsColor: .controlBackgroundColor))
     }
 }
