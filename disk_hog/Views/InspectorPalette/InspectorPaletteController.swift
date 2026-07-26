@@ -52,10 +52,11 @@ struct InspectorPaletteLayout {
 }
 
 @MainActor
-final class InspectorPaletteController: ObservableObject {
+final class InspectorPaletteController: NSObject, ObservableObject {
     static let shared: InspectorPaletteController = InspectorPaletteController()
 
     @Published private(set) var activeContext: InspectorPaletteContext?
+    @Published private(set) var isVisible: Bool = false
     @Published var selectedTab: InspectorPaletteTab = .information {
         didSet {
             guard selectedTab != oldValue else {
@@ -68,10 +69,8 @@ final class InspectorPaletteController: ObservableObject {
     private var panelController: NSWindowController?
     private var contentSizesByTab: [InspectorPaletteTab: NSSize] = [:]
 
-    private init() {}
-
-    var isVisible: Bool {
-        panelController?.window?.isVisible == true
+    private override init() {
+        super.init()
     }
 
     func activate(_ context: InspectorPaletteContext) {
@@ -96,11 +95,13 @@ final class InspectorPaletteController: ObservableObject {
         self.panelController = panelController
         updateWindowTitle()
         panelController.window?.orderFront(nil)
+        isVisible = true
     }
 
     func toggle() {
         if let window: NSWindow = panelController?.window, window.isVisible {
             window.orderOut(nil)
+            isVisible = false
         } else {
             show()
         }
@@ -157,6 +158,7 @@ final class InspectorPaletteController: ObservableObject {
         panel.isFloatingPanel = true
         panel.hidesOnDeactivate = true
         panel.isReleasedWhenClosed = false
+        panel.delegate = self
         panel.setFrameAutosaveName("DiskHogInspectorPalette")
         panel.contentMinSize = layout.minimumContentSize
         panel.contentViewController = NSHostingController(
@@ -199,5 +201,11 @@ final class InspectorPaletteController: ObservableObject {
         } else {
             window.title = "Inspector"
         }
+    }
+}
+
+extension InspectorPaletteController: NSWindowDelegate {
+    func windowWillClose(_ notification: Notification) {
+        isVisible = false
     }
 }
