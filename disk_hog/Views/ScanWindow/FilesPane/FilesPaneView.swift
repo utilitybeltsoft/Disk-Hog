@@ -21,7 +21,9 @@ struct FilesPaneView: View {
             if session.rootItem == nil {
                 ScanPanePlaceholderView(
                     title: "Navigable List View",
-                    message: "Pending scan completion"
+                    message: session.isBuildingTreemap
+                        ? "Pending treemap completion"
+                        : "Pending scan completion"
                 )
                 .padding(ScanWindowMetrics.inactivePaneBorderWidth)
             }

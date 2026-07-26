@@ -23,7 +23,9 @@ struct KindsPaneView: View {
             if session.rootItem == nil {
                 ScanPanePlaceholderView(
                     title: "Color Map of File Distribution",
-                    message: "Pending scan completion"
+                    message: session.isBuildingTreemap
+                        ? "Pending treemap completion"
+                        : "Pending scan completion"
                 )
                 .padding(ScanWindowMetrics.inactivePaneBorderWidth)
             }
