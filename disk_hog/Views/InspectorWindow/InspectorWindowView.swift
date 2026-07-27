@@ -13,9 +13,9 @@ struct InspectorWindowView: View {
                     } label: {
                         Label(tab.title, systemImage: tab.systemImage)
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .tint(controller.selectedTab == tab ? .accentColor : nil)
+                    .buttonStyle(
+                        InspectorTabButtonStyle(isSelected: controller.selectedTab == tab)
+                    )
                 }
                 Spacer()
             }
@@ -37,20 +37,50 @@ struct InspectorWindowView: View {
                 .id(source.id)
             } else {
                 ContentUnavailableView(
-                    "No Scan Window Active",
-                    systemImage: "macwindow",
-                    description: Text("Select a scan window to inspect its contents.")
+                    controller.selectedTab.inactiveTitle,
+                    systemImage: controller.selectedTab.inactiveSystemImage,
+                    description: Text(controller.selectedTab.inactiveDescription)
                 )
             }
         }
         .frame(
-            minWidth: controller.selectedTab.layout.minimumContentSize.width,
+            minWidth: controller.currentLayout.minimumContentSize.width,
             maxWidth: .infinity,
-            minHeight: controller.selectedTab.layout.minimumContentSize.height,
+            minHeight: controller.currentLayout.minimumContentSize.height,
             maxHeight: .infinity,
             alignment: .topLeading
         )
         .background(Color(nsColor: .windowBackgroundColor))
+    }
+}
+
+private struct InspectorTabButtonStyle: ButtonStyle {
+    let isSelected: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(
+                size: NSFont.smallSystemFontSize,
+                weight: .regular
+            ))
+            .foregroundStyle(
+                Color(nsColor: isSelected ? .selectedControlTextColor : .controlTextColor)
+            )
+            .padding(.horizontal, 10)
+            .frame(height: 26)
+            .background {
+                RoundedRectangle(cornerRadius: 5)
+                    .fill(Color(nsColor: isSelected ? .selectedControlColor : .controlBackgroundColor))
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 5)
+                    .stroke(
+                        isSelected ? Color.clear : Color(nsColor: .separatorColor),
+                        lineWidth: 1
+                    )
+            }
+            .contentShape(Rectangle())
+            .opacity(configuration.isPressed ? 0.72 : 1)
     }
 }
 
@@ -145,6 +175,11 @@ private struct SourceDiskUsageView: View {
     }
 }
 
+enum DiskUsageLayoutMetrics {
+    static let pieDiameter: CGFloat = 200
+    static let bottomPadding: CGFloat = 20
+}
+
 private struct DiskUsageContent: View {
     let usage: DiskUsage
     let primaryLabel: String
@@ -153,7 +188,10 @@ private struct DiskUsageContent: View {
     var body: some View {
         VStack(spacing: 18) {
             DiskUsagePie(usage: usage)
-                .frame(minWidth: 220, minHeight: 220)
+                .frame(
+                    width: DiskUsageLayoutMetrics.pieDiameter,
+                    height: DiskUsageLayoutMetrics.pieDiameter
+                )
                 .padding(.top, 12)
 
             VStack(spacing: 10) {
@@ -186,9 +224,10 @@ private struct DiskUsageContent: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 20)
-                    .padding(.bottom, 16)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .padding(.bottom, DiskUsageLayoutMetrics.bottomPadding)
     }
 }
 

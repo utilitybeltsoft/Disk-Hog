@@ -25,6 +25,31 @@ enum InspectorWindowTab: String, CaseIterable, Identifiable {
         }
     }
 
+    var inactiveTitle: String {
+        switch self {
+        case .diskUsage: "No Volume Selected"
+        case .information, .selectionList: "No Scan Window Active"
+        }
+    }
+
+    var inactiveSystemImage: String {
+        switch self {
+        case .diskUsage: "externaldrive"
+        case .information, .selectionList: "macwindow"
+        }
+    }
+
+    var inactiveDescription: String {
+        switch self {
+        case .diskUsage:
+            "Select a volume in the source window or activate a volume scan window."
+        case .information:
+            "Select a scan window to inspect its contents."
+        case .selectionList:
+            "Select a scan window to view its file selection list."
+        }
+    }
+
     var layout: InspectorWindowLayout {
         switch self {
         case .information:
@@ -34,7 +59,7 @@ enum InspectorWindowTab: String, CaseIterable, Identifiable {
             )
         case .diskUsage:
             InspectorWindowLayout(
-                preferredContentSize: NSSize(width: 460, height: 540),
+                preferredContentSize: NSSize(width: 460, height: 500),
                 minimumContentSize: NSSize(width: 400, height: 440)
             )
         case .selectionList:
@@ -49,6 +74,18 @@ enum InspectorWindowTab: String, CaseIterable, Identifiable {
 struct InspectorWindowLayout {
     let preferredContentSize: NSSize
     let minimumContentSize: NSSize
+
+    static let compactDiskUsage: InspectorWindowLayout = InspectorWindowLayout(
+        preferredContentSize: NSSize(width: 460, height: 350),
+        minimumContentSize: NSSize(width: 400, height: 340)
+    )
+}
+
+private enum InspectorContentSizeSlot: Hashable {
+    case information
+    case compactDiskUsage
+    case fullDiskUsage
+    case selectionList
 }
 
 @MainActor
@@ -62,7 +99,9 @@ final class InspectorWindowController: NSObject, ObservableObject {
             NSSize(width: 720, height: 680)
         ],
         .diskUsage: [
-            NSSize(width: 460, height: 520)
+            NSSize(width: 460, height: 520),
+            NSSize(width: 460, height: 540),
+            NSSize(width: 460, height: 500)
         ]
     ]
 
@@ -74,12 +113,19 @@ final class InspectorWindowController: NSObject, ObservableObject {
             guard selectedTab != oldValue else {
                 return
             }
-            resizeWindow(from: oldValue, to: selectedTab)
+            resizeWindow(
+                from: contentSizeSlot(for: oldValue),
+                to: currentContentSizeSlot
+            )
         }
     }
 
     private var windowController: NSWindowController?
-    private var contentSizesByTab: [InspectorWindowTab: NSSize] = [:]
+    private var contentSizesBySlot: [InspectorContentSizeSlot: NSSize] = [:]
+
+    var currentLayout: InspectorWindowLayout {
+        layout(for: currentContentSizeSlot)
+    }
 
     private override init() {
         #if DEBUG
@@ -93,6 +139,7 @@ final class InspectorWindowController: NSObject, ObservableObject {
     }
 
     func activate(_ context: InspectorWindowContext) {
+        let previousContentSizeSlot: InspectorContentSizeSlot = currentContentSizeSlot
         var didChangeContext: Bool = false
         if activeSource != nil {
             activeSource = nil
@@ -105,10 +152,12 @@ final class InspectorWindowController: NSObject, ObservableObject {
         guard didChangeContext else {
             return
         }
+        resizeWindowIfNeeded(from: previousContentSizeSlot)
         updateWindowTitle()
     }
 
     func activate(source: ScanSource?) {
+        let previousContentSizeSlot: InspectorContentSizeSlot = currentContentSizeSlot
         var didChangeContext: Bool = false
         if activeContext != nil {
             activeContext = nil
@@ -121,6 +170,7 @@ final class InspectorWindowController: NSObject, ObservableObject {
         guard didChangeContext else {
             return
         }
+        resizeWindowIfNeeded(from: previousContentSizeSlot)
         updateWindowTitle()
     }
 
@@ -131,12 +181,14 @@ final class InspectorWindowController: NSObject, ObservableObject {
         guard activeContext != nil || activeSource != nil else {
             return
         }
+        let previousContentSizeSlot: InspectorContentSizeSlot = currentContentSizeSlot
         if activeContext != nil {
             activeContext = nil
         }
         if activeSource != nil {
             activeSource = nil
         }
+        resizeWindowIfNeeded(from: previousContentSizeSlot)
         updateWindowTitle()
     }
 
@@ -212,8 +264,8 @@ final class InspectorWindowController: NSObject, ObservableObject {
     }
 
     private func makeWindowController() -> NSWindowController {
-        let layout: InspectorWindowLayout = selectedTab.layout
-        let contentSize: NSSize = contentSizesByTab[selectedTab]
+        let layout: InspectorWindowLayout = currentLayout
+        let contentSize: NSSize = contentSizesBySlot[currentContentSizeSlot]
             ?? preferredContentSize(for: layout, on: NSScreen.main)
         let contentRect: NSRect = NSRect(origin: .zero, size: contentSize)
         let window: NSWindow = NSWindow(
@@ -273,15 +325,54 @@ final class InspectorWindowController: NSObject, ObservableObject {
         return migratedFrame
     }
 
-    private func resizeWindow(from oldTab: InspectorWindowTab, to newTab: InspectorWindowTab) {
+    private var currentContentSizeSlot: InspectorContentSizeSlot {
+        contentSizeSlot(for: selectedTab)
+    }
+
+    private func contentSizeSlot(for tab: InspectorWindowTab) -> InspectorContentSizeSlot {
+        switch tab {
+        case .information:
+            .information
+        case .diskUsage:
+            activeContext?.isVolumeScan == true ? .fullDiskUsage : .compactDiskUsage
+        case .selectionList:
+            .selectionList
+        }
+    }
+
+    private func layout(for slot: InspectorContentSizeSlot) -> InspectorWindowLayout {
+        switch slot {
+        case .information:
+            InspectorWindowTab.information.layout
+        case .compactDiskUsage:
+            .compactDiskUsage
+        case .fullDiskUsage:
+            InspectorWindowTab.diskUsage.layout
+        case .selectionList:
+            InspectorWindowTab.selectionList.layout
+        }
+    }
+
+    private func resizeWindowIfNeeded(from previousSlot: InspectorContentSizeSlot) {
+        let newSlot: InspectorContentSizeSlot = currentContentSizeSlot
+        guard previousSlot != newSlot else {
+            return
+        }
+        resizeWindow(from: previousSlot, to: newSlot)
+    }
+
+    private func resizeWindow(
+        from oldSlot: InspectorContentSizeSlot,
+        to newSlot: InspectorContentSizeSlot
+    ) {
         guard let window: NSWindow = windowController?.window else {
             return
         }
 
-        contentSizesByTab[oldTab] = window.contentLayoutRect.size
+        contentSizesBySlot[oldSlot] = window.contentLayoutRect.size
 
-        let layout: InspectorWindowLayout = newTab.layout
-        let targetContentSize: NSSize = contentSizesByTab[newTab]
+        let layout: InspectorWindowLayout = layout(for: newSlot)
+        let targetContentSize: NSSize = contentSizesBySlot[newSlot]
             ?? preferredContentSize(for: layout, on: window.screen)
         window.contentMinSize = layout.minimumContentSize
 

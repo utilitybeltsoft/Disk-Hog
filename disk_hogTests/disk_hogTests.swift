@@ -174,7 +174,15 @@ struct InspectorWindowLayoutTests {
     }
 
     @Test func diskUsageTabUsesPreferredHeight() {
-        #expect(InspectorWindowTab.diskUsage.layout.preferredContentSize.height == 540)
+        #expect(InspectorWindowTab.diskUsage.layout.preferredContentSize.height == 500)
+        #expect(InspectorWindowLayout.compactDiskUsage.preferredContentSize.height == 350)
+        #expect(DiskUsageLayoutMetrics.pieDiameter == 200)
+        #expect(DiskUsageLayoutMetrics.bottomPadding == 20)
+    }
+
+    @Test func inactiveDiskUsagePaneRequestsVolumeSelection() {
+        #expect(InspectorWindowTab.diskUsage.inactiveTitle == "No Volume Selected")
+        #expect(InspectorWindowTab.diskUsage.inactiveDescription.contains("volume scan window"))
     }
 
     @Test func scanItemContextMenuIncludesInspectorCommand() {
