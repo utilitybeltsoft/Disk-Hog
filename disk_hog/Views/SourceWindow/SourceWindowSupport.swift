@@ -58,7 +58,20 @@ final class SourceWindowCloseRegistrationNSView: NSView {
 
 @MainActor
 enum SourceFolderChooser {
+    private static let preparedPanel: NSOpenPanel = {
+        let panel: NSOpenPanel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = false
+        panel.prompt = "Scan"
+        return panel
+    }()
     private static var activePanel: NSOpenPanel?
+
+    static func prepare() {
+        _ = preparedPanel
+    }
 
     static func chooseSource(completion: @escaping @MainActor (ScanSource?) -> Void) {
         guard activePanel == nil else {
@@ -66,12 +79,7 @@ enum SourceFolderChooser {
             return
         }
 
-        let panel: NSOpenPanel = NSOpenPanel()
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.canCreateDirectories = false
-        panel.prompt = "Scan"
+        let panel: NSOpenPanel = preparedPanel
         activePanel = panel
         panel.begin { response in
             MainActor.assumeIsolated {

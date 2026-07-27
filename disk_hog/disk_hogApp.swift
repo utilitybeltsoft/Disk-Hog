@@ -39,6 +39,13 @@ final class DiskHogApplicationDelegate: NSObject, NSApplicationDelegate {
         NSWindow.allowsAutomaticWindowTabbing = false
     }
 
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        // Cold NSOpenPanel creation can block its ViewBridge service inside a click.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+            SourceFolderChooser.prepare()
+        }
+    }
+
     func applicationShouldSaveApplicationState(_ app: NSApplication) -> Bool {
         false
     }
