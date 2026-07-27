@@ -129,9 +129,9 @@ struct SourceWindowViewModelTests {
 
 @MainActor
 struct InspectorWindowLayoutTests {
-    @Test func informationTabUsesReducedPreferredHeight() {
+    @Test func informationTabUsesPreferredSize() {
         #expect(InspectorWindowTab.information.layout.preferredContentSize.width == 720)
-        #expect(InspectorWindowTab.information.layout.preferredContentSize.height == 680)
+        #expect(InspectorWindowTab.information.layout.preferredContentSize.height == 700)
     }
 
     @Test func scanItemContextMenuIncludesInspectorCommand() {
@@ -165,6 +165,61 @@ struct InspectorWindowLayoutTests {
         controller.showInformation(for: item, from: nil)
 
         #expect(controller.selectedTab == .information)
+    }
+
+    @Test func selectedSourceBecomesInspectorVolumeContext() {
+        let source: ScanSource = ScanSource(
+            path: "/Volumes/Test",
+            displayName: "Test",
+            totalCapacity: 1_000,
+            availableCapacity: 250,
+            isLocalVolume: true,
+            isInternalVolume: false
+        )
+        let controller: InspectorWindowController = .shared
+        controller.deactivate()
+        var changeCount: Int = 0
+        let cancellable: AnyCancellable = controller.objectWillChange.sink {
+            changeCount += 1
+        }
+
+        controller.activate(source: nil)
+        controller.activate(source: source)
+        controller.activate(source: source)
+
+        #expect(controller.activeContext == nil)
+        #expect(controller.activeSource == source)
+        #expect(changeCount == 1)
+        controller.deactivate()
+        _ = cancellable
+    }
+
+    @Test func sourceDiskUsageUsesVolumeCapacityWithoutScanResults() throws {
+        let source: ScanSource = ScanSource(
+            path: "/Volumes/Nonexistent-Disk-Hog-Test",
+            displayName: "Test",
+            totalCapacity: 1_000,
+            availableCapacity: 250,
+            isLocalVolume: true,
+            isInternalVolume: false
+        )
+
+        let usage: DiskUsage = try #require(DiskUsage.make(for: source))
+
+        #expect(usage.totalBytes == 1_000)
+        #expect(usage.primaryUsedBytes == 750)
+        #expect(usage.otherUsedBytes == 0)
+        #expect(usage.freeBytes == 250)
+    }
+
+    @Test func informationContextMenuIncludesTextAndInspectorCommands() {
+        let coordinator: InformationContextMenuCoordinator = InformationContextMenuCoordinator()
+        let menu: NSMenu = coordinator.makeContextMenu()
+
+        #expect(menu.items.first?.title == "Copy")
+        #expect(menu.item(withTitle: "Select All") != nil)
+        #expect(menu.item(withTitle: "Copy Information") != nil)
+        #expect(menu.item(withTitle: "Reveal in Finder") != nil)
     }
 }
 

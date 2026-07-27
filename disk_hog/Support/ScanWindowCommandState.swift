@@ -42,15 +42,15 @@ final class ScanWindowCommandState: ObservableObject {
         activeSession = nil
         selectedItem = nil
         selectionCoordinator = nil
-        canOpenSelectedItem = false
-        canRevealSelectedItem = false
-        canSelectParentFolder = false
-        canToggleFreeSpace = false
-        canToggleOtherSpace = false
-        showsFreeSpace = false
-        showsOtherSpace = false
+        setIfChanged(\.canOpenSelectedItem, to: false)
+        setIfChanged(\.canRevealSelectedItem, to: false)
+        setIfChanged(\.canSelectParentFolder, to: false)
+        setIfChanged(\.canToggleFreeSpace, to: false)
+        setIfChanged(\.canToggleOtherSpace, to: false)
+        setIfChanged(\.showsFreeSpace, to: false)
+        setIfChanged(\.showsOtherSpace, to: false)
         #if FILE_MATCHING_DIAGNOSTICS
-        canCopyMatchingFile = false
+        setIfChanged(\.canCopyMatchingFile, to: false)
         #endif
     }
 
@@ -133,6 +133,13 @@ final class ScanWindowCommandState: ObservableObject {
         } else {
             canSelectParentFolder = false
         }
+    }
+
+    private func setIfChanged(_ keyPath: ReferenceWritableKeyPath<ScanWindowCommandState, Bool>, to value: Bool) {
+        guard self[keyPath: keyPath] != value else {
+            return
+        }
+        self[keyPath: keyPath] = value
     }
 
     #if FILE_MATCHING_DIAGNOSTICS

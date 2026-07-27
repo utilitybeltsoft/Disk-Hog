@@ -1,4 +1,4 @@
-import AppKit
+@preconcurrency import AppKit
 import SwiftUI
 
 struct ScanWindowKeyObservationView: NSViewRepresentable {
@@ -18,6 +18,7 @@ final class ScanWindowKeyObservationNSView: NSView {
     var onDidBecomeKey: @MainActor () -> Void
     private weak var observedWindow: NSWindow?
     private var didBecomeKeyObserver: NSObjectProtocol?
+    private var pendingDidBecomeKey: DispatchWorkItem?
 
     init(onDidBecomeKey: @escaping @MainActor () -> Void) {
         self.onDidBecomeKey = onDidBecomeKey
@@ -30,6 +31,7 @@ final class ScanWindowKeyObservationNSView: NSView {
     }
 
     deinit {
+        pendingDidBecomeKey?.cancel()
         if let didBecomeKeyObserver: NSObjectProtocol {
             NotificationCenter.default.removeObserver(didBecomeKeyObserver)
         }
@@ -61,17 +63,29 @@ final class ScanWindowKeyObservationNSView: NSView {
             object: window,
             queue: .main
         ) { [weak self] _ in
-            self?.onDidBecomeKey()
+            MainActor.assumeIsolated {
+                self?.scheduleDidBecomeKey(for: window)
+            }
         }
 
         if window.isKeyWindow {
-            DispatchQueue.main.async { [weak self, weak window] in
-                guard window?.isKeyWindow == true else {
-                    return
-                }
-
-                self?.onDidBecomeKey()
-            }
+            scheduleDidBecomeKey(for: window)
         }
+    }
+
+    private func scheduleDidBecomeKey(for window: NSWindow) {
+        pendingDidBecomeKey?.cancel()
+
+        let workItem: DispatchWorkItem = DispatchWorkItem { [weak self, weak window] in
+            guard let self,
+                  window?.isKeyWindow == true else {
+                return
+            }
+
+            self.pendingDidBecomeKey = nil
+            self.onDidBecomeKey()
+        }
+        pendingDidBecomeKey = workItem
+        DispatchQueue.main.async(execute: workItem)
     }
 }

@@ -63,7 +63,6 @@ struct SourceWindowActionBar: View {
                 SourceWindowButtonLabel(title: "Choose Folder to Scan", systemImage: "folder")
             }
             .frame(height: Metrics.buttonHeight)
-            .keyboardShortcut("o", modifiers: .command)
             .help("Select a folder to scan")
 
             Button("Scan Selected Volume", action: onScanSelectedVolume)

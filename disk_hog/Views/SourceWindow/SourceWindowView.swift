@@ -16,7 +16,7 @@ struct SourceWindowView: View {
             SourceTableView(
                 sources: viewModel.filteredSources,
                 selectedSourceID: viewModel.selectedSourceID,
-                onSelect: viewModel.select,
+                onSelect: selectSource,
                 onOpen: openSource
             )
             .padding(.horizontal, Metrics.windowPadding)
@@ -37,7 +37,7 @@ struct SourceWindowView: View {
                 ignoreCreatorCode: $ignoreCreatorCode,
                 showPhysicalFileSize: $showPhysicalFileSize,
                 canScanSelectedVolume: viewModel.selectedSource != nil,
-                onRefresh: viewModel.refresh,
+                onRefresh: refreshSources,
                 onChooseFolder: chooseFolder,
                 onScanSelectedVolume: scanSelectedVolume
             )
@@ -48,7 +48,7 @@ struct SourceWindowView: View {
         .background(SourceWindowCloseRegistrationView())
         .background(ScanWindowKeyObservationView {
             ScanWindowCommandState.shared.deactivate()
-            InspectorWindowController.shared.deactivate()
+            InspectorWindowController.shared.activate(source: viewModel.selectedSource)
         })
         .onChange(of: showExternalVolumes) {
             applyVolumeFilter()
@@ -60,13 +60,13 @@ struct SourceWindowView: View {
             applyVolumeFilter()
         }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didMountNotification)) { _ in
-            viewModel.refresh()
+            refreshSources()
         }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didUnmountNotification)) { _ in
-            viewModel.refresh()
+            refreshSources()
         }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didRenameVolumeNotification)) { _ in
-            viewModel.refresh()
+            refreshSources()
         }
         .onReceive(NotificationCenter.default.publisher(for: .sourceWindowChooseFolderToScan)) { _ in
             chooseFolder()
@@ -92,15 +92,28 @@ struct SourceWindowView: View {
         )
         DispatchQueue.main.async {
             viewModel.setFilter(filter)
+            InspectorWindowController.shared.activate(source: viewModel.selectedSource)
         }
     }
 
-    private func chooseFolder() {
-        guard let source: ScanSource = SourceFolderChooser.chooseSource() else {
-            return
-        }
+    private func selectSource(_ sourceID: ScanSource.ID?) {
+        viewModel.select(sourceID)
+        InspectorWindowController.shared.activate(source: viewModel.selectedSource)
+    }
 
-        openSource(source)
+    private func refreshSources() {
+        viewModel.refresh()
+        InspectorWindowController.shared.activate(source: viewModel.selectedSource)
+    }
+
+    private func chooseFolder() {
+        SourceFolderChooser.chooseSource { source in
+            guard let source else {
+                return
+            }
+
+            openSource(source)
+        }
     }
 
     private func scanSelectedVolume() {

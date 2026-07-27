@@ -1,4 +1,4 @@
-import AppKit
+@preconcurrency import AppKit
 import SwiftUI
 
 struct InformationContextMenuAugmenter: NSViewRepresentable {
@@ -34,32 +34,25 @@ final class InformationContextMenuTrackingView: NSView {
     }
 }
 
+nonisolated private struct InformationContextMenuEvent: @unchecked Sendable {
+    let value: NSEvent
+}
+
 @MainActor
 final class InformationContextMenuCoordinator: NSObject {
     private weak var trackingView: InformationContextMenuTrackingView?
     private var item: DiskItem?
     private var snapshot: FileInformationSnapshot?
     private var eventMonitor: Any?
-    private var menuObserver: NSObjectProtocol?
-    private var shouldAugmentNextMenu: Bool = false
-    private var menuRequestID: UUID?
 
     func attach(to view: InformationContextMenuTrackingView) {
         trackingView = view
         eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .rightMouseDown) { [weak self] event in
-            MainActor.assumeIsolated {
-                self?.prepareForContextMenu(event)
+            let eventBox: InformationContextMenuEvent = InformationContextMenuEvent(value: event)
+            let didConsumeEvent: Bool = MainActor.assumeIsolated { [weak self] in
+                self?.handleContextMenuEvent(eventBox.value) == nil
             }
-            return event
-        }
-        menuObserver = NotificationCenter.default.addObserver(
-            forName: NSMenu.didBeginTrackingNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] notification in
-            MainActor.assumeIsolated {
-                self?.menuDidBeginTracking(notification)
-            }
+            return didConsumeEvent ? nil : event
         }
     }
 
@@ -73,49 +66,48 @@ final class InformationContextMenuCoordinator: NSObject {
             NSEvent.removeMonitor(eventMonitor)
             self.eventMonitor = nil
         }
-        if let menuObserver {
-            NotificationCenter.default.removeObserver(menuObserver)
-            self.menuObserver = nil
-        }
         trackingView = nil
-        shouldAugmentNextMenu = false
-        menuRequestID = nil
     }
 
-    private func prepareForContextMenu(_ event: NSEvent) {
+    private func handleContextMenuEvent(_ event: NSEvent) -> NSEvent? {
         guard let trackingView,
               event.window === trackingView.window else {
-            shouldAugmentNextMenu = false
-            return
+            return event
         }
 
         let location: NSPoint = trackingView.convert(event.locationInWindow, from: nil)
-        shouldAugmentNextMenu = trackingView.bounds.contains(location)
-        guard shouldAugmentNextMenu else {
-            menuRequestID = nil
-            return
+        guard trackingView.bounds.contains(location),
+              let window: NSWindow = event.window else {
+            return event
         }
 
-        let requestID: UUID = UUID()
-        menuRequestID = requestID
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-            guard self?.menuRequestID == requestID else {
-                return
-            }
-            self?.shouldAugmentNextMenu = false
-            self?.menuRequestID = nil
-        }
+        let hitView: NSView = window.contentView?.hitTest(event.locationInWindow) ?? trackingView
+        let menu: NSMenu = makeContextMenu()
+        NSMenu.popUpContextMenu(menu, with: event, for: hitView)
+        return nil
     }
 
-    private func menuDidBeginTracking(_ notification: Notification) {
-        guard shouldAugmentNextMenu,
-              let menu: NSMenu = notification.object as? NSMenu else {
-            return
-        }
+    func makeContextMenu() -> NSMenu {
+        let menu: NSMenu = NSMenu()
 
-        shouldAugmentNextMenu = false
-        menuRequestID = nil
+        let copyItem: NSMenuItem = NSMenuItem(
+            title: "Copy",
+            action: #selector(NSText.copy(_:)),
+            keyEquivalent: "c"
+        )
+        copyItem.keyEquivalentModifierMask = .command
+        menu.addItem(copyItem)
+
+        let selectAllItem: NSMenuItem = NSMenuItem(
+            title: "Select All",
+            action: #selector(NSText.selectAll(_:)),
+            keyEquivalent: "a"
+        )
+        selectAllItem.keyEquivalentModifierMask = .command
+        menu.addItem(selectAllItem)
+
         addInformationCommands(to: menu)
+        return menu
     }
 
     private func addInformationCommands(to menu: NSMenu) {

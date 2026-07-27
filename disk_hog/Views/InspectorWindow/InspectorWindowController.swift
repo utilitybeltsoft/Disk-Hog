@@ -29,7 +29,7 @@ enum InspectorWindowTab: String, CaseIterable, Identifiable {
         switch self {
         case .information:
             InspectorWindowLayout(
-                preferredContentSize: NSSize(width: 720, height: 680),
+                preferredContentSize: NSSize(width: 720, height: 700),
                 minimumContentSize: NSSize(width: 480, height: 360)
             )
         case .diskUsage:
@@ -58,10 +58,11 @@ final class InspectorWindowController: NSObject, ObservableObject {
     private static let visibleScreenInset: CGFloat = 80
     private static let previousInformationContentSizes: [NSSize] = [
         NSSize(width: 720, height: 760),
-        NSSize(width: 720, height: 700)
+        NSSize(width: 720, height: 680)
     ]
 
     @Published private(set) var activeContext: InspectorWindowContext?
+    @Published private(set) var activeSource: ScanSource?
     @Published private(set) var isVisible: Bool = false
     @Published var selectedTab: InspectorWindowTab = .information {
         didSet {
@@ -87,7 +88,34 @@ final class InspectorWindowController: NSObject, ObservableObject {
     }
 
     func activate(_ context: InspectorWindowContext) {
-        activeContext = context
+        var didChangeContext: Bool = false
+        if activeSource != nil {
+            activeSource = nil
+            didChangeContext = true
+        }
+        if activeContext !== context {
+            activeContext = context
+            didChangeContext = true
+        }
+        guard didChangeContext else {
+            return
+        }
+        updateWindowTitle()
+    }
+
+    func activate(source: ScanSource?) {
+        var didChangeContext: Bool = false
+        if activeContext != nil {
+            activeContext = nil
+            didChangeContext = true
+        }
+        if activeSource != source {
+            activeSource = source
+            didChangeContext = true
+        }
+        guard didChangeContext else {
+            return
+        }
         updateWindowTitle()
     }
 
@@ -95,7 +123,15 @@ final class InspectorWindowController: NSObject, ObservableObject {
         if let context, activeContext !== context {
             return
         }
-        activeContext = nil
+        guard activeContext != nil || activeSource != nil else {
+            return
+        }
+        if activeContext != nil {
+            activeContext = nil
+        }
+        if activeSource != nil {
+            activeSource = nil
+        }
         updateWindowTitle()
     }
 
@@ -263,6 +299,8 @@ final class InspectorWindowController: NSObject, ObservableObject {
 
         if let context: InspectorWindowContext = activeContext {
             window.title = "Inspector - \(context.session.source.displayName)"
+        } else if let activeSource {
+            window.title = "Inspector - \(activeSource.displayName)"
         } else {
             window.title = "Inspector"
         }

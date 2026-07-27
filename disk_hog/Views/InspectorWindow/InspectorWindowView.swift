@@ -29,6 +29,12 @@ struct InspectorWindowView: View {
                     selectedTab: controller.selectedTab
                 )
                 .id(ObjectIdentifier(context))
+            } else if let source: ScanSource = controller.activeSource {
+                SourceInspectorWindowContentView(
+                    source: source,
+                    selectedTab: controller.selectedTab
+                )
+                .id(source.id)
             } else {
                 ContentUnavailableView(
                     "No Scan Window Active",
@@ -45,6 +51,33 @@ struct InspectorWindowView: View {
             alignment: .topLeading
         )
         .background(Color(nsColor: .windowBackgroundColor))
+    }
+}
+
+private struct SourceInspectorWindowContentView: View {
+    let source: ScanSource
+    let selectedTab: InspectorWindowTab
+
+    var body: some View {
+        Group {
+            switch selectedTab {
+            case .diskUsage:
+                SourceDiskUsageView(source: source)
+            case .information:
+                ContentUnavailableView(
+                    "Scan Window Required",
+                    systemImage: "info.circle",
+                    description: Text("Select an item in a scan window to view file information.")
+                )
+            case .selectionList:
+                ContentUnavailableView(
+                    "Scan Window Required",
+                    systemImage: "list.bullet.rectangle",
+                    description: Text("Complete a scan before viewing a file selection list.")
+                )
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -85,40 +118,7 @@ private struct DiskUsageView: View {
                 description: Text("Disk-wide usage is shown when an entire mounted volume is scanned.")
             )
         } else if let usage: DiskUsage = DiskUsage.make(for: session) {
-            VStack(spacing: 18) {
-                DiskUsagePie(usage: usage)
-                    .frame(minWidth: 220, minHeight: 220)
-                    .padding(.top, 12)
-
-                VStack(spacing: 10) {
-                    DiskUsageLegendRow(
-                        color: .accentColor,
-                        label: "Scanned",
-                        bytes: usage.scannedBytes,
-                        totalBytes: usage.totalBytes
-                    )
-                    DiskUsageLegendRow(
-                        color: Color(nsColor: .systemGray),
-                        label: "Other used",
-                        bytes: usage.otherUsedBytes,
-                        totalBytes: usage.totalBytes
-                    )
-                    DiskUsageLegendRow(
-                        color: Color(nsColor: .tertiaryLabelColor),
-                        label: "Free",
-                        bytes: usage.freeBytes,
-                        totalBytes: usage.totalBytes
-                    )
-                }
-                .padding(.horizontal, 20)
-
-                Text("Other used includes space outside the scan tree, such as protected files, snapshots, and sibling system volumes.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 16)
-            }
+            DiskUsageContent(usage: usage, primaryLabel: "Scanned", showsOtherUsed: true)
         } else {
             ContentUnavailableView(
                 "Disk Usage Unavailable",
@@ -129,9 +129,72 @@ private struct DiskUsageView: View {
     }
 }
 
-private struct DiskUsage {
+private struct SourceDiskUsageView: View {
+    let source: ScanSource
+
+    var body: some View {
+        if let usage: DiskUsage = DiskUsage.make(for: source) {
+            DiskUsageContent(usage: usage, primaryLabel: "Used", showsOtherUsed: false)
+        } else {
+            ContentUnavailableView(
+                "Disk Usage Unavailable",
+                systemImage: "chart.pie",
+                description: Text("Capacity information is not available for this volume.")
+            )
+        }
+    }
+}
+
+private struct DiskUsageContent: View {
+    let usage: DiskUsage
+    let primaryLabel: String
+    let showsOtherUsed: Bool
+
+    var body: some View {
+        VStack(spacing: 18) {
+            DiskUsagePie(usage: usage)
+                .frame(minWidth: 220, minHeight: 220)
+                .padding(.top, 12)
+
+            VStack(spacing: 10) {
+                DiskUsageLegendRow(
+                    color: .accentColor,
+                    label: primaryLabel,
+                    bytes: usage.primaryUsedBytes,
+                    totalBytes: usage.totalBytes
+                )
+                if showsOtherUsed {
+                    DiskUsageLegendRow(
+                        color: Color(nsColor: .systemGray),
+                        label: "Other used",
+                        bytes: usage.otherUsedBytes,
+                        totalBytes: usage.totalBytes
+                    )
+                }
+                DiskUsageLegendRow(
+                    color: Color(nsColor: .tertiaryLabelColor),
+                    label: "Free",
+                    bytes: usage.freeBytes,
+                    totalBytes: usage.totalBytes
+                )
+            }
+            .padding(.horizontal, 20)
+
+            if showsOtherUsed {
+                Text("Other used includes space outside the scan tree, such as protected files, snapshots, and sibling system volumes.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 16)
+            }
+        }
+    }
+}
+
+struct DiskUsage {
     let totalBytes: UInt64
-    let scannedBytes: UInt64
+    let primaryUsedBytes: UInt64
     let otherUsedBytes: UInt64
     let freeBytes: UInt64
 
@@ -157,9 +220,33 @@ private struct DiskUsage {
         )
         return DiskUsage(
             totalBytes: totalBytes,
-            scannedBytes: scannedBytes,
+            primaryUsedBytes: scannedBytes,
             otherUsedBytes: usedBytes - scannedBytes,
             freeBytes: min(freeBytes, totalBytes)
+        )
+    }
+
+    static func make(for source: ScanSource) -> DiskUsage? {
+        let fileSystemAttributes: [FileAttributeKey: Any]? = try? FileManager.default.attributesOfFileSystem(
+            forPath: source.path
+        )
+        let totalBytes: UInt64? = (fileSystemAttributes?[.systemSize] as? NSNumber)?.uint64Value
+            ?? source.totalCapacity
+        let freeBytes: UInt64? = (fileSystemAttributes?[.systemFreeSize] as? NSNumber)?.uint64Value
+            ?? source.availableCapacity
+
+        guard let totalBytes,
+              let freeBytes,
+              totalBytes > 0 else {
+            return nil
+        }
+
+        let boundedFreeBytes: UInt64 = min(freeBytes, totalBytes)
+        return DiskUsage(
+            totalBytes: totalBytes,
+            primaryUsedBytes: totalBytes - boundedFreeBytes,
+            otherUsedBytes: 0,
+            freeBytes: boundedFreeBytes
         )
     }
 }
@@ -173,7 +260,7 @@ private struct DiskUsagePie: View {
             ZStack {
                 Circle()
                     .trim(
-                        from: fraction(usage.scannedBytes + usage.otherUsedBytes),
+                        from: fraction(usage.primaryUsedBytes + usage.otherUsedBytes),
                         to: 1
                     )
                     .stroke(
@@ -182,7 +269,7 @@ private struct DiskUsagePie: View {
                     )
                     .rotationEffect(.degrees(-90))
                 Circle()
-                    .trim(from: 0, to: fraction(usage.scannedBytes))
+                    .trim(from: 0, to: fraction(usage.primaryUsedBytes))
                     .stroke(
                         Color.accentColor,
                         style: StrokeStyle(lineWidth: diameter / 2, lineCap: .butt)
@@ -190,8 +277,8 @@ private struct DiskUsagePie: View {
                     .rotationEffect(.degrees(-90))
                 Circle()
                     .trim(
-                        from: fraction(usage.scannedBytes),
-                        to: fraction(usage.scannedBytes + usage.otherUsedBytes)
+                        from: fraction(usage.primaryUsedBytes),
+                        to: fraction(usage.primaryUsedBytes + usage.otherUsedBytes)
                     )
                     .stroke(
                         Color(nsColor: .systemGray),
