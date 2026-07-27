@@ -34,7 +34,7 @@ enum InspectorWindowTab: String, CaseIterable, Identifiable {
             )
         case .diskUsage:
             InspectorWindowLayout(
-                preferredContentSize: NSSize(width: 460, height: 520),
+                preferredContentSize: NSSize(width: 460, height: 540),
                 minimumContentSize: NSSize(width: 400, height: 440)
             )
         case .selectionList:
@@ -56,9 +56,14 @@ final class InspectorWindowController: NSObject, ObservableObject {
     static let shared: InspectorWindowController = InspectorWindowController()
     private static let frameAutosaveName: String = "DiskHogInspectorWindowV3"
     private static let visibleScreenInset: CGFloat = 80
-    private static let previousInformationContentSizes: [NSSize] = [
-        NSSize(width: 720, height: 760),
-        NSSize(width: 720, height: 680)
+    private static let previousDefaultContentSizes: [InspectorWindowTab: [NSSize]] = [
+        .information: [
+            NSSize(width: 720, height: 760),
+            NSSize(width: 720, height: 680)
+        ],
+        .diskUsage: [
+            NSSize(width: 460, height: 520)
+        ]
     ]
 
     @Published private(set) var activeContext: InspectorWindowContext?
@@ -246,12 +251,12 @@ final class InspectorWindowController: NSObject, ObservableObject {
         for window: NSWindow,
         targetContentSize: NSSize
     ) -> NSRect {
-        guard selectedTab == .information else {
+        guard let previousSizes: [NSSize] = Self.previousDefaultContentSizes[selectedTab] else {
             return frame
         }
 
         let restoredContentSize: NSSize = window.contentRect(forFrameRect: frame).size
-        let usesPreviousDefaultSize: Bool = Self.previousInformationContentSizes.contains { previousSize in
+        let usesPreviousDefaultSize: Bool = previousSizes.contains { previousSize in
             abs(restoredContentSize.width - previousSize.width) < 1
                 && abs(restoredContentSize.height - previousSize.height) < 1
         }

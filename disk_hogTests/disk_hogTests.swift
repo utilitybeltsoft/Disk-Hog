@@ -173,6 +173,10 @@ struct InspectorWindowLayoutTests {
         #expect(InspectorWindowTab.information.layout.preferredContentSize.height == 700)
     }
 
+    @Test func diskUsageTabUsesPreferredHeight() {
+        #expect(InspectorWindowTab.diskUsage.layout.preferredContentSize.height == 540)
+    }
+
     @Test func scanItemContextMenuIncludesInspectorCommand() {
         let item: DiskItem = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan/file.txt"),
