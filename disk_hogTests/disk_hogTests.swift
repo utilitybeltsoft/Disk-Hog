@@ -127,6 +127,47 @@ struct SourceWindowViewModelTests {
     }
 }
 
+@MainActor
+struct InspectorWindowLayoutTests {
+    @Test func informationTabUsesReducedPreferredHeight() {
+        #expect(InspectorWindowTab.information.layout.preferredContentSize.width == 720)
+        #expect(InspectorWindowTab.information.layout.preferredContentSize.height == 680)
+    }
+
+    @Test func scanItemContextMenuIncludesInspectorCommand() {
+        let item: DiskItem = DiskItemBuilder(
+            url: URL(fileURLWithPath: "/scan/file.txt"),
+            allocatedSizeValue: 8,
+            logicalSizeValue: 8,
+            kindName: "Plain Text"
+        ).freeze()
+        let actionTarget: DiskItemContextMenuActionTarget = DiskItemContextMenuActionTarget()
+        let menu: NSMenu = DiskItemContextMenuBuilder.menu(
+            for: item,
+            actionTarget: actionTarget,
+            treeActionsEnabled: true
+        )
+
+        let inspectorItem: NSMenuItem? = menu.item(withTitle: "Show Inspector")
+        #expect(inspectorItem?.action == #selector(DiskItemContextMenuActionTarget.showInspectorMenuItem(_:)))
+        #expect(inspectorItem?.target === actionTarget)
+    }
+
+    @Test func showingItemInformationSelectsInformationTab() {
+        let controller: InspectorWindowController = .shared
+        controller.selectedTab = .selectionList
+        let item: DiskItem = DiskItemBuilder(
+            url: URL(fileURLWithPath: "/scan/file.txt"),
+            allocatedSizeValue: 8,
+            logicalSizeValue: 8
+        ).freeze()
+
+        controller.showInformation(for: item, from: nil)
+
+        #expect(controller.selectedTab == .information)
+    }
+}
+
 struct DiskItemTests {
 
     @Test func builderFreezePreservesChildAncestryAndUpdatesSizes() {
@@ -227,6 +268,15 @@ struct DiskItemTests {
         #expect(sectionTitles.contains("File System"))
         #expect(sectionTitles.contains("Extended Attributes"))
         #expect(!sectionTitles.contains("Volume"))
+
+        let copiedText: String = snapshot.plainText(
+            itemName: item.displayName,
+            kindDescription: "File"
+        )
+        #expect(copiedText.hasPrefix("\(item.displayName)\nFile\n\nIdentity\n"))
+        #expect(copiedText.contains("Path: \(temporaryURL.path)"))
+        #expect(copiedText.contains("\n\nOwnership and Access\n"))
+        #expect(copiedText.contains("\n\nFile System\n"))
     }
 
     @Test func descendantsMatchingAncestorPathRejectsSiblingPathPrefixes() {

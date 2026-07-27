@@ -40,7 +40,7 @@ final class disk_hogUITests: XCTestCase {
         let inspectorWindow = app.windows["Inspector"]
         XCTAssertTrue(inspectorWindow.waitForExistence(timeout: 5))
         XCTAssertEqual(inspectorWindow.frame.width, 720, accuracy: 2)
-        XCTAssertEqual(inspectorWindow.frame.height, 728, accuracy: 2)
+        XCTAssertEqual(inspectorWindow.frame.height, 708, accuracy: 2)
     }
 
     @MainActor

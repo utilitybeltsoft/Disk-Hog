@@ -29,7 +29,7 @@ enum InspectorWindowTab: String, CaseIterable, Identifiable {
         switch self {
         case .information:
             InspectorWindowLayout(
-                preferredContentSize: NSSize(width: 720, height: 700),
+                preferredContentSize: NSSize(width: 720, height: 680),
                 minimumContentSize: NSSize(width: 480, height: 360)
             )
         case .diskUsage:
@@ -56,7 +56,10 @@ final class InspectorWindowController: NSObject, ObservableObject {
     static let shared: InspectorWindowController = InspectorWindowController()
     private static let frameAutosaveName: String = "DiskHogInspectorWindowV3"
     private static let visibleScreenInset: CGFloat = 80
-    private static let previousInformationContentSize: NSSize = NSSize(width: 720, height: 760)
+    private static let previousInformationContentSizes: [NSSize] = [
+        NSSize(width: 720, height: 760),
+        NSSize(width: 720, height: 700)
+    ]
 
     @Published private(set) var activeContext: InspectorWindowContext?
     @Published private(set) var isVisible: Bool = false
@@ -130,6 +133,18 @@ final class InspectorWindowController: NSObject, ObservableObject {
         show(tab: .selectionList)
     }
 
+    func showInformation(for item: DiskItem, from session: ScanSession?) {
+        selectedTab = .information
+
+        guard let context: InspectorWindowContext = activeContext,
+              session == nil || context.session === session else {
+            return
+        }
+
+        context.selectionCoordinator.setSelectedItem(item)
+        show()
+    }
+
     func showSelectionList(filter: SelectionListFilter, from session: ScanSession) {
         guard let context: InspectorWindowContext = activeContext,
               context.session === session else {
@@ -200,9 +215,11 @@ final class InspectorWindowController: NSObject, ObservableObject {
         }
 
         let restoredContentSize: NSSize = window.contentRect(forFrameRect: frame).size
-        let previousSize: NSSize = Self.previousInformationContentSize
-        guard abs(restoredContentSize.width - previousSize.width) < 1,
-              abs(restoredContentSize.height - previousSize.height) < 1 else {
+        let usesPreviousDefaultSize: Bool = Self.previousInformationContentSizes.contains { previousSize in
+            abs(restoredContentSize.width - previousSize.width) < 1
+                && abs(restoredContentSize.height - previousSize.height) < 1
+        }
+        guard usesPreviousDefaultSize else {
             return frame
         }
 

@@ -45,6 +45,12 @@ struct FileInformationView: View {
                 .padding(10)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .background {
+                InformationContextMenuAugmenter(
+                    item: item,
+                    snapshot: snapshot
+                )
+            }
             .task(id: selectedItem.id) {
                 isLoading = snapshot == nil
                 let usePhysicalSize: Bool = session.scanSettings.usePhysicalSize
@@ -142,6 +148,17 @@ private struct FileInformationLine: Identifiable {
 
 nonisolated struct FileInformationSnapshot: Sendable {
     let sections: [FileInformationSection]
+
+    func plainText(itemName: String, kindDescription: String) -> String {
+        let sectionText: String = sections.map { section in
+            let rows: String = section.rows.map { row in
+                "\(row.label): \(row.value)"
+            }.joined(separator: "\n")
+            return "\(section.title)\n\(rows)"
+        }.joined(separator: "\n\n")
+
+        return "\(itemName)\n\(kindDescription)\n\n\(sectionText)"
+    }
 
     static func load(
         item: DiskItem,
