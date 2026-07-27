@@ -301,6 +301,8 @@ private struct SelectionListView: View {
                     systemImage: "list.bullet.rectangle",
                     description: Text("Select a row in the file-kind pane.")
                 )
+                .padding(.top, 18)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             } else if isLoading {
                 ProgressView("Building selection list")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)

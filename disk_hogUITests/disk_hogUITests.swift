@@ -31,6 +31,19 @@ final class disk_hogUITests: XCTestCase {
     }
 
     @MainActor
+    func testInspectorOpensAtPreferredInformationSize() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["DISK_HOG_RESET_INSPECTOR_FRAME"] = "1"
+        app.launch()
+        app.typeKey("i", modifierFlags: .command)
+
+        let inspectorWindow = app.windows["Inspector"]
+        XCTAssertTrue(inspectorWindow.waitForExistence(timeout: 5))
+        XCTAssertEqual(inspectorWindow.frame.width, 720, accuracy: 2)
+        XCTAssertEqual(inspectorWindow.frame.height, 728, accuracy: 2)
+    }
+
+    @MainActor
     func testLaunchPerformance() throws {
         // This measures how long it takes to launch your application.
         measure(metrics: [XCTApplicationLaunchMetric()]) {

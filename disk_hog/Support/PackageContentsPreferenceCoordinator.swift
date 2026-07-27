@@ -8,6 +8,8 @@ final class PackageContentsPreferenceCoordinator: ObservableObject {
 
     @Published private(set) var showPackageContents: Bool
 
+    private var pendingShowPackageContents: Bool?
+
     private init() {
         showPackageContents = UserDefaults.standard.bool(
             forKey: DiskScanSettingsDefaultsKeys.showPackageContents
@@ -15,6 +17,24 @@ final class PackageContentsPreferenceCoordinator: ObservableObject {
     }
 
     func requestChange(to newValue: Bool) {
+        let effectiveValue: Bool = pendingShowPackageContents ?? showPackageContents
+        guard newValue != effectiveValue else {
+            return
+        }
+
+        pendingShowPackageContents = newValue
+        DispatchQueue.main.async { [weak self] in
+            guard let self,
+                  self.pendingShowPackageContents == newValue else {
+                return
+            }
+
+            self.pendingShowPackageContents = nil
+            self.applyChange(to: newValue)
+        }
+    }
+
+    private func applyChange(to newValue: Bool) {
         guard newValue != showPackageContents else {
             return
         }

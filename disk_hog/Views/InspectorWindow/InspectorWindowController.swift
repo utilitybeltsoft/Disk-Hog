@@ -29,7 +29,7 @@ enum InspectorWindowTab: String, CaseIterable, Identifiable {
         switch self {
         case .information:
             InspectorWindowLayout(
-                preferredContentSize: NSSize(width: 720, height: 760),
+                preferredContentSize: NSSize(width: 720, height: 700),
                 minimumContentSize: NSSize(width: 480, height: 360)
             )
         case .diskUsage:
@@ -54,8 +54,9 @@ struct InspectorWindowLayout {
 @MainActor
 final class InspectorWindowController: NSObject, ObservableObject {
     static let shared: InspectorWindowController = InspectorWindowController()
-    private static let frameAutosaveName: String = "DiskHogInspectorWindowV2"
+    private static let frameAutosaveName: String = "DiskHogInspectorWindowV3"
     private static let visibleScreenInset: CGFloat = 80
+    private static let previousInformationContentSize: NSSize = NSSize(width: 720, height: 760)
 
     @Published private(set) var activeContext: InspectorWindowContext?
     @Published private(set) var isVisible: Bool = false
@@ -72,6 +73,13 @@ final class InspectorWindowController: NSObject, ObservableObject {
     private var contentSizesByTab: [InspectorWindowTab: NSSize] = [:]
 
     private override init() {
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["DISK_HOG_RESET_INSPECTOR_FRAME"] == "1" {
+            UserDefaults.standard.removeObject(
+                forKey: "NSWindow Frame \(Self.frameAutosaveName)"
+            )
+        }
+        #endif
         super.init()
     }
 
@@ -162,15 +170,49 @@ final class InspectorWindowController: NSObject, ObservableObject {
         window.tabbingMode = .disallowed
         window.delegate = self
         let restoredSavedFrame: Bool = window.setFrameUsingName(Self.frameAutosaveName)
-        window.setFrameAutosaveName(Self.frameAutosaveName)
+        let restoredFrame: NSRect? = restoredSavedFrame
+            ? migratedRestoredFrameIfNeeded(window.frame, for: window, targetContentSize: contentSize)
+            : nil
         window.contentMinSize = layout.minimumContentSize
-        window.contentViewController = NSHostingController(
+        let hostingController: NSHostingController<InspectorWindowView> = NSHostingController(
             rootView: InspectorWindowView(controller: self)
         )
-        if !restoredSavedFrame {
+        hostingController.sizingOptions = []
+        window.contentViewController = hostingController
+
+        if let restoredFrame {
+            window.setFrame(restoredFrame, display: false)
+        } else {
+            window.setContentSize(contentSize)
             window.center()
         }
+        window.setFrameAutosaveName(Self.frameAutosaveName)
         return NSWindowController(window: window)
+    }
+
+    private func migratedRestoredFrameIfNeeded(
+        _ frame: NSRect,
+        for window: NSWindow,
+        targetContentSize: NSSize
+    ) -> NSRect {
+        guard selectedTab == .information else {
+            return frame
+        }
+
+        let restoredContentSize: NSSize = window.contentRect(forFrameRect: frame).size
+        let previousSize: NSSize = Self.previousInformationContentSize
+        guard abs(restoredContentSize.width - previousSize.width) < 1,
+              abs(restoredContentSize.height - previousSize.height) < 1 else {
+            return frame
+        }
+
+        let targetFrameSize: NSSize = window.frameRect(
+            forContentRect: NSRect(origin: .zero, size: targetContentSize)
+        ).size
+        var migratedFrame: NSRect = frame
+        migratedFrame.origin.y = frame.maxY - targetFrameSize.height
+        migratedFrame.size = targetFrameSize
+        return migratedFrame
     }
 
     private func resizeWindow(from oldTab: InspectorWindowTab, to newTab: InspectorWindowTab) {
@@ -230,6 +272,7 @@ final class InspectorWindowController: NSObject, ObservableObject {
             height: min(layout.preferredContentSize.height, availableHeight)
         )
     }
+
 }
 
 extension InspectorWindowController: NSWindowDelegate {
