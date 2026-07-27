@@ -89,23 +89,6 @@ final class InformationContextMenuCoordinator: NSObject {
 
     func makeContextMenu() -> NSMenu {
         let menu: NSMenu = NSMenu()
-
-        let copyItem: NSMenuItem = NSMenuItem(
-            title: "Copy",
-            action: #selector(NSText.copy(_:)),
-            keyEquivalent: "c"
-        )
-        copyItem.keyEquivalentModifierMask = .command
-        menu.addItem(copyItem)
-
-        let selectAllItem: NSMenuItem = NSMenuItem(
-            title: "Select All",
-            action: #selector(NSText.selectAll(_:)),
-            keyEquivalent: "a"
-        )
-        selectAllItem.keyEquivalentModifierMask = .command
-        menu.addItem(selectAllItem)
-
         addInformationCommands(to: menu)
         return menu
     }

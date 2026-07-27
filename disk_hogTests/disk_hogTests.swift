@@ -251,14 +251,11 @@ struct InspectorWindowLayoutTests {
         #expect(usage.freeBytes == 250)
     }
 
-    @Test func informationContextMenuIncludesTextAndInspectorCommands() {
+    @Test func informationContextMenuIncludesOnlyInformationCommands() {
         let coordinator: InformationContextMenuCoordinator = InformationContextMenuCoordinator()
         let menu: NSMenu = coordinator.makeContextMenu()
 
-        #expect(menu.items.first?.title == "Copy")
-        #expect(menu.item(withTitle: "Select All") != nil)
-        #expect(menu.item(withTitle: "Copy Information") != nil)
-        #expect(menu.item(withTitle: "Reveal in Finder") != nil)
+        #expect(menu.items.map(\.title) == ["Copy Information", "Reveal in Finder"])
     }
 
     @Test func multilineInformationRowsAreNotCollapsed() {
