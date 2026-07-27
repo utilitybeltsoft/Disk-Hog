@@ -32,11 +32,19 @@ struct DiskHogApp: App {
 }
 
 @MainActor
-private final class DiskHogApplicationDelegate: NSObject, NSApplicationDelegate {
+final class DiskHogApplicationDelegate: NSObject, NSApplicationDelegate {
     private var allowsTerminationAfterConfirmation: Bool = false
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         NSWindow.allowsAutomaticWindowTabbing = false
+    }
+
+    func applicationShouldSaveApplicationState(_ app: NSApplication) -> Bool {
+        false
+    }
+
+    func applicationShouldRestoreApplicationState(_ app: NSApplication) -> Bool {
+        false
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {

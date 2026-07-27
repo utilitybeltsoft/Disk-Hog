@@ -21,7 +21,7 @@ final class ScanWindowCommandState: ObservableObject {
     private weak var selectedItem: DiskItem?
     private weak var selectionCoordinator: ScanWindowSelectionCoordinator?
 
-    private init() {}
+    init() {}
 
     func activate(
         session: ScanSession,

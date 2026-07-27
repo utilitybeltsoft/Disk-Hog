@@ -11,6 +11,32 @@ import Testing
 @testable import disk_hog
 
 @MainActor
+struct ApplicationStateRestorationTests {
+    @Test func applicationDoesNotSaveOrRestoreWindowState() {
+        let delegate: DiskHogApplicationDelegate = DiskHogApplicationDelegate()
+
+        #expect(delegate.applicationShouldSaveApplicationState(NSApp) == false)
+        #expect(delegate.applicationShouldRestoreApplicationState(NSApp) == false)
+    }
+
+    @Test func scanWindowIsMarkedNonRestorableWhenRegistered() {
+        let source: ScanSource = ScanSource(path: "/scan", displayName: "scan")
+        let session: ScanSession = ScanSession(source: source)
+        let registrationView: ScanWindowRegistrationNSView = ScanWindowRegistrationNSView(
+            session: session,
+            source: source
+        )
+        let window: NSWindow = NSWindow()
+        window.isRestorable = true
+
+        window.contentView?.addSubview(registrationView)
+
+        #expect(window.isRestorable == false)
+        registrationView.removeFromSuperview()
+    }
+}
+
+@MainActor
 struct WindowCloseDelegateProxyTests {
     @Test func retainsDisplacedDelegateUntilRestored() {
         let window: NSWindow = NSWindow()
@@ -65,6 +91,19 @@ struct ScanSessionPackageContentsSynchronizationTests {
 
 @MainActor
 struct SourceWindowViewModelTests {
+    @Test func deactivatingUnchangedCommandStateDoesNotPublish() {
+        let commandState: ScanWindowCommandState = ScanWindowCommandState()
+        var changeCount: Int = 0
+        let cancellable: AnyCancellable = commandState.objectWillChange.sink {
+            changeCount += 1
+        }
+
+        commandState.deactivate()
+
+        #expect(changeCount == 0)
+        _ = cancellable
+    }
+
     @Test func changingFilterPublishesOnceWithoutChangingSelectionOrCommandState() {
         let internalSource: ScanSource = ScanSource(
             path: "/",
@@ -220,6 +259,11 @@ struct InspectorWindowLayoutTests {
         #expect(menu.item(withTitle: "Select All") != nil)
         #expect(menu.item(withTitle: "Copy Information") != nil)
         #expect(menu.item(withTitle: "Reveal in Finder") != nil)
+    }
+
+    @Test func multilineInformationRowsAreNotCollapsed() {
+        #expect(FileInformationRow("Attribute", "11 bytes\nactual value").isMultiline)
+        #expect(!FileInformationRow("Attribute", "11 bytes").isMultiline)
     }
 }
 

@@ -2,7 +2,7 @@
 import SwiftUI
 
 struct ScanWindowKeyObservationView: NSViewRepresentable {
-    let onDidBecomeKey: @MainActor () -> Void
+    let onDidBecomeKey: @Sendable @MainActor () -> Void
 
     func makeNSView(context: Context) -> ScanWindowKeyObservationNSView {
         ScanWindowKeyObservationNSView(onDidBecomeKey: onDidBecomeKey)
@@ -15,12 +15,12 @@ struct ScanWindowKeyObservationView: NSViewRepresentable {
 
 @MainActor
 final class ScanWindowKeyObservationNSView: NSView {
-    var onDidBecomeKey: @MainActor () -> Void
+    var onDidBecomeKey: @Sendable @MainActor () -> Void
     private weak var observedWindow: NSWindow?
     private var didBecomeKeyObserver: NSObjectProtocol?
     private var pendingDidBecomeKey: DispatchWorkItem?
 
-    init(onDidBecomeKey: @escaping @MainActor () -> Void) {
+    init(onDidBecomeKey: @escaping @Sendable @MainActor () -> Void) {
         self.onDidBecomeKey = onDidBecomeKey
         super.init(frame: .zero)
     }

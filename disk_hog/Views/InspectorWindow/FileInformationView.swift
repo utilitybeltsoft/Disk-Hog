@@ -118,8 +118,9 @@ struct FileInformationView: View {
                         ? .system(size: NSFont.smallSystemFontSize, design: .monospaced)
                         : .system(size: NSFont.smallSystemFontSize)
                 )
-                .lineLimit(1)
+                .lineLimit(row.isMultiline ? nil : 1)
                 .truncationMode(.middle)
+                .fixedSize(horizontal: false, vertical: row.isMultiline)
                 .textSelection(.enabled)
                 .help(row.value)
         }
@@ -581,6 +582,7 @@ nonisolated struct FileInformationRow: Identifiable, Sendable {
     }
 
     var id: String { label }
+    var isMultiline: Bool { value.contains("\n") }
 }
 
 nonisolated private struct FileExtendedAttribute {
