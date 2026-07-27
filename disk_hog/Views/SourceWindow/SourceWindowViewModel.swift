@@ -25,28 +25,42 @@ final class SourceWindowViewModel: ObservableObject {
     @Published private(set) var sources: [ScanSource]
     @Published var selectedSourceID: ScanSource.ID? {
         didSet {
-            updateCommandState()
-        }
-    }
-    var filter: SourceVolumeFilter = SourceVolumeFilter() {
-        didSet {
-            guard filter != oldValue else {
+            guard selectedSourceID != oldValue else {
                 return
             }
-
-            reconcileSelection()
             updateCommandState()
         }
     }
+    @Published private(set) var filter: SourceVolumeFilter
 
     convenience init() {
-        self.init(sources: ScanSourceProvider.mountedVolumes())
+        let defaults: UserDefaults = .standard
+        self.init(
+            sources: ScanSourceProvider.mountedVolumes(),
+            filter: SourceVolumeFilter(
+                includesExternalVolumes: defaults.bool(
+                    forKey: SourceWindowPreferences.showExternalVolumesKey
+                ),
+                includesNetworkVolumes: defaults.bool(
+                    forKey: SourceWindowPreferences.showNetworkVolumesKey
+                ),
+                includesDiskImages: defaults.bool(
+                    forKey: SourceWindowPreferences.showDiskImagesKey
+                )
+            )
+        )
     }
 
     init(sources: [ScanSource]) {
         self.sources = sources
+        filter = SourceVolumeFilter()
         selectedSourceID = nil
-        updateCommandState()
+    }
+
+    init(sources: [ScanSource], filter: SourceVolumeFilter) {
+        self.sources = sources
+        self.filter = filter
+        selectedSourceID = nil
     }
 
     var filteredSources: [ScanSource] {
@@ -72,25 +86,42 @@ final class SourceWindowViewModel: ObservableObject {
     }
 
     func select(_ sourceID: ScanSource.ID?) {
+        guard selectedSourceID != sourceID else {
+            return
+        }
         selectedSourceID = sourceID
+    }
+
+    func setFilter(_ filter: SourceVolumeFilter) {
+        guard self.filter != filter else {
+            return
+        }
+
+        self.filter = filter
+        reconcileSelection()
     }
 
     func refresh() {
         sources = ScanSourceProvider.mountedVolumes()
         reconcileSelection()
-        updateCommandState()
     }
 
     private func reconcileSelection() {
-        guard let selectedSourceID,
-              filteredSources.contains(where: { $0.id == selectedSourceID }) else {
-            self.selectedSourceID = nil
+        guard let selectedSourceID else {
             return
+        }
+
+        if filteredSources.contains(where: { $0.id == selectedSourceID }) == false {
+            self.selectedSourceID = nil
         }
     }
 
     private func updateCommandState() {
-        SourceWindowCommandState.shared.canScanSelectedVolume = selectedSource != nil
+        let canScanSelectedVolume: Bool = selectedSource != nil
+        guard SourceWindowCommandState.shared.canScanSelectedVolume != canScanSelectedVolume else {
+            return
+        }
+        SourceWindowCommandState.shared.canScanSelectedVolume = canScanSelectedVolume
     }
 }
 

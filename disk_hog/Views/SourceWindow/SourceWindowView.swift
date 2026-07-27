@@ -50,9 +50,6 @@ struct SourceWindowView: View {
             ScanWindowCommandState.shared.deactivate()
             InspectorWindowController.shared.deactivate()
         })
-        .onAppear {
-            applyVolumeFilter()
-        }
         .onChange(of: showExternalVolumes) {
             applyVolumeFilter()
         }
@@ -88,11 +85,14 @@ struct SourceWindowView: View {
     }
 
     private func applyVolumeFilter() {
-        viewModel.filter = SourceVolumeFilter(
+        let filter: SourceVolumeFilter = SourceVolumeFilter(
             includesExternalVolumes: showExternalVolumes,
             includesNetworkVolumes: showNetworkVolumes,
             includesDiskImages: showDiskImages
         )
+        DispatchQueue.main.async {
+            viewModel.setFilter(filter)
+        }
     }
 
     private func chooseFolder() {

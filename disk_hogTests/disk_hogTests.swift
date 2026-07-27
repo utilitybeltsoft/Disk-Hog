@@ -5,6 +5,7 @@
 //
 
 import AppKit
+import Combine
 import Foundation
 import Testing
 @testable import disk_hog
@@ -59,6 +60,70 @@ struct ScanSessionPackageContentsSynchronizationTests {
 
         session.updatePackageContentsSynchronization(with: false)
         #expect(session.isPackageContentsSettingOutOfSync == false)
+    }
+}
+
+@MainActor
+struct SourceWindowViewModelTests {
+    @Test func changingFilterPublishesOnceWithoutChangingSelectionOrCommandState() {
+        let internalSource: ScanSource = ScanSource(
+            path: "/",
+            displayName: "Internal",
+            isLocalVolume: true,
+            isInternalVolume: true
+        )
+        let externalSource: ScanSource = ScanSource(
+            path: "/Volumes/External",
+            displayName: "External",
+            isLocalVolume: true,
+            isRemovableVolume: true,
+            isInternalVolume: false
+        )
+        let viewModel: SourceWindowViewModel = SourceWindowViewModel(
+            sources: [internalSource, externalSource]
+        )
+        SourceWindowCommandState.shared.canScanSelectedVolume = false
+        var viewModelChangeCount: Int = 0
+        var commandStateChangeCount: Int = 0
+        let viewModelCancellable: AnyCancellable = viewModel.objectWillChange.sink {
+            viewModelChangeCount += 1
+        }
+        let commandStateCancellable: AnyCancellable = SourceWindowCommandState.shared.objectWillChange.sink {
+            commandStateChangeCount += 1
+        }
+
+        viewModel.setFilter(SourceVolumeFilter(
+            includesExternalVolumes: true,
+            includesNetworkVolumes: true,
+            includesDiskImages: true
+        ))
+        viewModel.select(nil)
+
+        #expect(viewModel.filteredSources.count == 2)
+        #expect(viewModelChangeCount == 1)
+        #expect(commandStateChangeCount == 0)
+        _ = (viewModelCancellable, commandStateCancellable)
+    }
+
+    @Test func settingAnUnchangedFilterDoesNotPublish() {
+        let filter: SourceVolumeFilter = SourceVolumeFilter(
+            includesExternalVolumes: true,
+            includesNetworkVolumes: true,
+            includesDiskImages: true
+        )
+        let viewModel: SourceWindowViewModel = SourceWindowViewModel(
+            sources: [],
+            filter: filter
+        )
+        var changeCount: Int = 0
+        let cancellable: AnyCancellable = viewModel.objectWillChange.sink {
+            changeCount += 1
+        }
+
+        viewModel.setFilter(filter)
+
+        #expect(changeCount == 0)
+        _ = cancellable
     }
 }
 
