@@ -414,7 +414,9 @@ private struct SelectionListView: View {
                     Text(
                         isBuildingInitialList
                             ? "Building..."
-                            : "\(dataStore.resultCount) files"
+                            : (isUpdatingVisibleList
+                                ? "Searching..."
+                                : "\(dataStore.resultCount) files")
                     )
                         .foregroundStyle(.secondary)
                         .monospacedDigit()
@@ -432,7 +434,7 @@ private struct SelectionListView: View {
                     .pickerStyle(.menu)
                     .fixedSize()
 
-                    TextField("Case-insensitive search", text: $searchText)
+                    TextField("Case-insensitive search", text: searchTextBinding)
                         .accessibilityLabel("Case-insensitive \(searchScope.accessibilityTitle) search")
                         .help(searchScope.helpText)
                         .textFieldStyle(.roundedBorder)
@@ -457,12 +459,21 @@ private struct SelectionListView: View {
                 ProgressView("Building list...")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                SelectionListTableView(
-                    dataStore: dataStore,
-                    selectedItemID: $selectedItemID,
-                    sortDescriptors: $sortDescriptors
-                ) { item in
-                    selectionCoordinator.setSelectedItem(item)
+                ZStack {
+                    SelectionListTableView(
+                        dataStore: dataStore,
+                        selectedItemID: $selectedItemID,
+                        sortDescriptors: $sortDescriptors
+                    ) { item in
+                        selectionCoordinator.setSelectedItem(item)
+                    }
+                    .opacity(isUpdatingVisibleList ? 0 : 1)
+                    .allowsHitTesting(!isUpdatingVisibleList)
+
+                    if isUpdatingVisibleList {
+                        ProgressView("Searching...")
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
                 }
                 .onChange(of: selectionCoordinator.selectedItem?.id) {
                     let selectedItem: DiskItem? = selectionCoordinator.selectedItem
@@ -561,6 +572,26 @@ private struct SelectionListView: View {
         selectionFilter != nil
             && !hasCompletedInitialQuery
             && (isLoading || isQuerying)
+    }
+
+    private var isUpdatingVisibleList: Bool {
+        selectionFilter != nil
+            && hasCompletedInitialQuery
+            && isQuerying
+    }
+
+    private var searchTextBinding: Binding<String> {
+        Binding {
+            searchText
+        } set: { newValue in
+            guard searchText != newValue else {
+                return
+            }
+            searchText = newValue
+            if hasCompletedInitialQuery {
+                isQuerying = true
+            }
+        }
     }
 }
 
