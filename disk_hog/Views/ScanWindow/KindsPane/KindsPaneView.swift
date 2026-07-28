@@ -2,11 +2,11 @@ import SwiftUI
 
 struct KindsPaneView: View {
     @ObservedObject var session: ScanSession
+    @Binding var selectedFilter: SelectionListFilter?
     let onShowSelectionList: (SelectionListFilter) -> Void
     @Environment(\.selectedScanItem) private var selectedItem
     @Environment(\.activeScanWindowPane) private var activePane
     @State private var kindStatistics: [TreemapKindStatistic] = []
-    @State private var selectedFilter: SelectionListFilter?
 
     var body: some View {
         KindStatisticTableView(

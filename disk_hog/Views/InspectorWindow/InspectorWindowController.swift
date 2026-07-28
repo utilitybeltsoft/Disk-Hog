@@ -214,6 +214,16 @@ final class InspectorWindowController: NSObject, ObservableObject {
         }
     }
 
+    func orderFrontIfVisible() {
+        guard isVisible,
+              let window: NSWindow = windowController?.window,
+              window.isVisible else {
+            return
+        }
+
+        window.orderFront(nil)
+    }
+
     func showSelectionList(for item: DiskItem, from session: ScanSession?) {
         guard !item.isFolder,
               let kindName: String = item.kindName,

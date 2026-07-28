@@ -47,6 +47,7 @@ struct ScanWindowView: View {
                 } second: {
                     KindsPaneView(
                         session: session,
+                        selectedFilter: $inspectorContext.selectionListFilter,
                         onShowSelectionList: showSelectionList
                     )
                         .environment(\.selectedScanItem, selectedItemBinding)

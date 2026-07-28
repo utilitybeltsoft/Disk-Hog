@@ -288,6 +288,43 @@ struct InspectorWindowLayoutTests {
         #expect(usage.freeBytes == 250)
     }
 
+    @Test func allKindsSelectionUpdatesInspectorContext() {
+        let session: ScanSession = ScanSession(
+            source: ScanSource(path: "/scan", displayName: "scan")
+        )
+        let context: InspectorWindowContext = InspectorWindowContext(
+            session: session,
+            selectionCoordinator: ScanWindowSelectionCoordinator()
+        )
+        var activePane: ScanWindowPane?
+        var shownFilter: SelectionListFilter?
+        let coordinator: KindStatisticTableView.Coordinator = KindStatisticTableView.Coordinator(
+            statistics: [],
+            selectedFilter: Binding(
+                get: { context.selectionListFilter },
+                set: { context.selectionListFilter = $0 }
+            ),
+            activePane: Binding(
+                get: { activePane },
+                set: { activePane = $0 }
+            ),
+            onShowSelectionList: { shownFilter = $0 }
+        )
+        let tableView: NSTableView = NSTableView()
+        tableView.dataSource = coordinator
+        coordinator.tableView = tableView
+        tableView.reloadData()
+        tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+
+        coordinator.tableViewSelectionDidChange(
+            Notification(name: NSTableView.selectionDidChangeNotification)
+        )
+
+        #expect(context.selectionListFilter == .all)
+        #expect(shownFilter == .all)
+        #expect(activePane == .kinds)
+    }
+
     @Test func informationContextMenuIncludesOnlyInformationCommands() {
         let coordinator: InformationContextMenuCoordinator = InformationContextMenuCoordinator()
         let menu: NSMenu = coordinator.makeContextMenu()

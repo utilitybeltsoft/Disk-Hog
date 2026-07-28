@@ -1,10 +1,38 @@
 import AppKit
+import Combine
 import SwiftUI
 
+@MainActor
+final class SelectionListDataStore: ObservableObject {
+    private(set) var rows: [SelectionListRow] = []
+    private(set) var rowsByID: [DiskItemID: SelectionListRow] = [:]
+    private(set) var queryResult: SelectionListQueryResult = .empty
+    @Published private(set) var resultGeneration: Int = 0
+
+    var resultCount: Int {
+        queryResult.rows.count
+    }
+
+    func reset() {
+        rows = []
+        rowsByID = [:]
+        queryResult = .empty
+        resultGeneration += 1
+    }
+
+    func install(_ snapshot: SelectionListSnapshot) {
+        rows = snapshot.rows
+        rowsByID = snapshot.rowsByID
+    }
+
+    func publish(_ result: SelectionListQueryResult) {
+        queryResult = result
+        resultGeneration += 1
+    }
+}
+
 struct SelectionListTableView: NSViewRepresentable {
-    let rows: [SelectionListRow]
-    let rowIndexByID: [DiskItemID: Int]
-    let resultGeneration: Int
+    @ObservedObject var dataStore: SelectionListDataStore
     @Binding var selectedItemID: DiskItemID?
     @Binding var sortDescriptors: [SelectionListSortDescriptor]
     let onSelect: (DiskItem) -> Void
@@ -74,9 +102,9 @@ struct SelectionListTableView: NSViewRepresentable {
 
         context.coordinator.tableView = tableView
         context.coordinator.updateRows(
-            rows,
-            rowIndexByID: rowIndexByID,
-            generation: resultGeneration
+            dataStore.queryResult.rows,
+            rowIndexByID: dataStore.queryResult.rowIndexByID,
+            generation: dataStore.resultGeneration
         )
         context.coordinator.syncSortDescriptors()
         context.coordinator.syncSelectionIfNeeded()
@@ -88,9 +116,9 @@ struct SelectionListTableView: NSViewRepresentable {
         context.coordinator.sortDescriptors = $sortDescriptors
         context.coordinator.onSelect = onSelect
         context.coordinator.updateRows(
-            rows,
-            rowIndexByID: rowIndexByID,
-            generation: resultGeneration
+            dataStore.queryResult.rows,
+            rowIndexByID: dataStore.queryResult.rowIndexByID,
+            generation: dataStore.resultGeneration
         )
         context.coordinator.syncSortDescriptors()
         context.coordinator.syncSelectionIfNeeded()

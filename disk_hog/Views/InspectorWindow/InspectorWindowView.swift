@@ -392,10 +392,7 @@ private struct SelectionListView: View {
     @ObservedObject var session: ScanSession
     @ObservedObject var selectionCoordinator: ScanWindowSelectionCoordinator
     @Binding var selectionFilter: SelectionListFilter?
-    @State private var rows: [SelectionListRow] = []
-    @State private var queryResult: SelectionListQueryResult = .empty
-    @State private var queryResultGeneration: Int = 0
-    @State private var rowsByID: [DiskItemID: SelectionListRow] = [:]
+    @StateObject private var dataStore: SelectionListDataStore = SelectionListDataStore()
     @State private var rowsGeneration: Int = 0
     @State private var selectedItemID: DiskItemID?
     @State private var isLoading: Bool = false
@@ -418,7 +415,7 @@ private struct SelectionListView: View {
                     Text(
                         isBuildingInitialList
                             ? "Building..."
-                            : "\(queryResult.rows.count) files"
+                            : "\(dataStore.resultCount) files"
                     )
                         .foregroundStyle(.secondary)
                         .monospacedDigit()
@@ -462,9 +459,7 @@ private struct SelectionListView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 SelectionListTableView(
-                    rows: queryResult.rows,
-                    rowIndexByID: queryResult.rowIndexByID,
-                    resultGeneration: queryResultGeneration,
+                    dataStore: dataStore,
                     selectedItemID: $selectedItemID,
                     sortDescriptors: $sortDescriptors
                 ) { item in
@@ -472,17 +467,14 @@ private struct SelectionListView: View {
                 }
                 .onChange(of: selectionCoordinator.selectedItem?.id) {
                     let selectedItem: DiskItem? = selectionCoordinator.selectedItem
-                    selectedItemID = selectedItem.flatMap { rowsByID[$0.id] }?.id
+                    selectedItemID = selectedItem.flatMap { dataStore.rowsByID[$0.id] }?.id
                 }
             }
         }
         .task(id: SelectionListTaskID(rootID: session.rootItem?.id, filter: selectionFilter)) {
             guard let rootItem: DiskItem = session.rootItem,
                   let selectionFilter else {
-                rows = []
-                queryResult = .empty
-                queryResultGeneration += 1
-                rowsByID = [:]
+                dataStore.reset()
                 rowsGeneration += 1
                 isLoading = false
                 isQuerying = false
@@ -492,13 +484,10 @@ private struct SelectionListView: View {
 
             isLoading = true
             hasCompletedInitialQuery = false
-            rows = []
-            queryResult = .empty
-            queryResultGeneration += 1
-            rowsByID = [:]
+            dataStore.reset()
             rowsGeneration += 1
             let usePhysicalSize: Bool = session.scanSettings.usePhysicalSize
-            let worker = Task.detached(priority: .userInitiated) {
+            let worker = Task.detached(priority: .utility) {
                 try SelectionListPipeline.makeSnapshot(
                     rootItem: rootItem,
                     filter: selectionFilter,
@@ -515,8 +504,7 @@ private struct SelectionListView: View {
                 return
             }
             guard !Task.isCancelled else { return }
-            rows = snapshot.rows
-            rowsByID = snapshot.rowsByID
+            dataStore.install(snapshot)
             rowsGeneration += 1
             isLoading = false
             let selectedItem: DiskItem? = selectionCoordinator.selectedItem
@@ -532,7 +520,7 @@ private struct SelectionListView: View {
         ) {
             guard selectionFilter != nil, !isLoading else { return }
             isQuerying = true
-            let sourceRows: [SelectionListRow] = rows
+            let sourceRows: [SelectionListRow] = dataStore.rows
             let sourceGeneration: Int = rowsGeneration
             let query: String = searchText
             let scope: SelectionListSearchScope = searchScope
@@ -546,7 +534,7 @@ private struct SelectionListView: View {
                 }
             }
 
-            let worker = Task.detached(priority: .userInitiated) {
+            let worker = Task.detached(priority: .utility) {
                 try SelectionListPipeline.visibleRows(
                     from: sourceRows,
                     searchText: query,
@@ -564,8 +552,7 @@ private struct SelectionListView: View {
                 return
             }
             guard !Task.isCancelled, rowsGeneration == sourceGeneration else { return }
-            queryResult = result
-            queryResultGeneration += 1
+            dataStore.publish(result)
             isQuerying = false
             hasCompletedInitialQuery = true
         }
