@@ -49,6 +49,10 @@ final class ScanWindowRegistrationNSView: NSView {
         initialGeometryApplier.applyIfNeeded(to: window)
         if let session: ScanSession = session {
             ScanWindowRegistry.shared.register(window, session: session, for: source)
+            InspectorWindowController.shared.arrangeBesideScanWindowIfNeeded(
+                window,
+                for: session
+            )
         }
         closeDelegateProxy.install(on: window)
         registeredWindow = window

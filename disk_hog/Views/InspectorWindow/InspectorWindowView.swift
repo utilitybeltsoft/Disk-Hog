@@ -254,7 +254,7 @@ struct DiskUsage {
 
         let usedBytes: UInt64 = totalBytes > freeBytes ? totalBytes - freeBytes : 0
         let scannedBytes: UInt64 = min(
-            session.rootItem?.sizeValue(usePhysicalSize: session.scanSettings.usePhysicalSize) ?? 0,
+            session.scannedByteCount,
             usedBytes
         )
         return DiskUsage(

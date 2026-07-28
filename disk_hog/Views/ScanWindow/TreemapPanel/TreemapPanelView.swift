@@ -27,12 +27,19 @@ struct TreemapPanelView: View {
             if session.rootItem == nil {
                 ScanPanePlaceholderView(
                     title: session.isBuildingTreemap ? "Preparing treemap" : "Treemap",
-                    message: session.isBuildingTreemap ? "Preparing file distribution" : "Pending scan completion",
-                    showsProgress: session.isBuildingTreemap
+                    message: session.isBuildingTreemap
+                        ? "Preparing file distribution: \(treemapPreparationPercentage)%"
+                        : "Pending scan completion",
+                    showsProgress: session.isBuildingTreemap,
+                    progress: session.treemapPreparationProgress
                 )
                 .padding(ScanWindowMetrics.inactivePaneBorderWidth)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var treemapPreparationPercentage: Int {
+        Int(((session.treemapPreparationProgress ?? 0) * 100).rounded(.down))
     }
 }

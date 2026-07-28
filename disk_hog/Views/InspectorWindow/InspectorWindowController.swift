@@ -54,13 +54,13 @@ enum InspectorWindowTab: String, CaseIterable, Identifiable {
         switch self {
         case .information:
             InspectorWindowLayout(
-                preferredContentSize: NSSize(width: 720, height: 700),
+                preferredContentSize: NSSize(width: 720, height: 720),
                 minimumContentSize: NSSize(width: 480, height: 360)
             )
         case .diskUsage:
             InspectorWindowLayout(
-                preferredContentSize: NSSize(width: 460, height: 500),
-                minimumContentSize: NSSize(width: 400, height: 440)
+                preferredContentSize: NSSize(width: 460, height: 420),
+                minimumContentSize: NSSize(width: 400, height: 400)
             )
         case .selectionList:
             InspectorWindowLayout(
@@ -96,7 +96,8 @@ final class InspectorWindowController: NSObject, ObservableObject {
     private static let previousDefaultContentSizes: [InspectorWindowTab: [NSSize]] = [
         .information: [
             NSSize(width: 720, height: 760),
-            NSSize(width: 720, height: 680)
+            NSSize(width: 720, height: 680),
+            NSSize(width: 720, height: 700)
         ],
         .diskUsage: [
             NSSize(width: 460, height: 520),
@@ -117,6 +118,7 @@ final class InspectorWindowController: NSObject, ObservableObject {
                 from: contentSizeSlot(for: oldValue),
                 to: currentContentSizeSlot
             )
+            scheduleArrangementBesideActiveScanWindow()
         }
     }
 
@@ -154,6 +156,7 @@ final class InspectorWindowController: NSObject, ObservableObject {
         }
         resizeWindowIfNeeded(from: previousContentSizeSlot)
         updateWindowTitle()
+        scheduleArrangementBesideActiveScanWindow()
     }
 
     func activate(source: ScanSource?) {
@@ -202,6 +205,7 @@ final class InspectorWindowController: NSObject, ObservableObject {
         updateWindowTitle()
         windowController.window?.makeKeyAndOrderFront(nil)
         isVisible = true
+        scheduleArrangementBesideActiveScanWindow()
     }
 
     func toggle() {
@@ -261,6 +265,17 @@ final class InspectorWindowController: NSObject, ObservableObject {
         context.markDiskUsageAutomaticallyShown()
         activate(context)
         show(tab: .diskUsage)
+    }
+
+    func arrangeBesideScanWindowIfNeeded(_ scanWindow: NSWindow, for session: ScanSession) {
+        guard selectedTab == .diskUsage,
+              activeContext?.session === session,
+              session.source.volumeKind != .folder,
+              let inspectorWindow: NSWindow = windowController?.window,
+              inspectorWindow.isVisible else {
+            return
+        }
+        ApplicationWindowOrganizer.shared.place(inspectorWindow, beside: scanWindow)
     }
 
     private func makeWindowController() -> NSWindowController {
@@ -385,7 +400,27 @@ final class InspectorWindowController: NSObject, ObservableObject {
         if let screen: NSScreen = window.screen {
             targetFrame = window.constrainFrameRect(targetFrame, to: screen)
         }
-        window.setFrame(targetFrame, display: true, animate: window.isVisible)
+        window.setFrame(targetFrame, display: true, animate: false)
+    }
+
+    private func scheduleArrangementBesideActiveScanWindow() {
+        guard selectedTab == .diskUsage,
+              let context: InspectorWindowContext = activeContext,
+              context.isVolumeScan else {
+            return
+        }
+
+        DispatchQueue.main.async { [weak self, weak context] in
+            guard let self,
+                  let context,
+                  self.activeContext === context,
+                  let scanWindow: NSWindow = ScanWindowRegistry.shared.window(
+                    for: context.session.source
+                  ) else {
+                return
+            }
+            self.arrangeBesideScanWindowIfNeeded(scanWindow, for: context.session)
+        }
     }
 
     private func updateWindowTitle() {

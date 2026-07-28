@@ -29,7 +29,11 @@ struct SourceTableView: View {
                             .overlay {
                                 SourceRowClickCatcherView(
                                     onSingleClick: { onSelect(source.id) },
-                                    onDoubleClick: { onOpen(source) }
+                                    onDoubleClick: {
+                                        if source.canScan {
+                                            onOpen(source)
+                                        }
+                                    }
                                 )
                             }
                         }
@@ -77,13 +81,21 @@ private struct SourceTableRowView: View {
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .frame(width: Metrics.sourceIconWidth)
+                    .opacity(source.canScan ? 1 : 0.55)
                 VStack(alignment: .leading, spacing: Metrics.sourceTextSpacing) {
-                    Text(source.displayName)
-                        .font(.system(size: Metrics.standardFontSize))
-                        .lineLimit(1)
+                    HStack(spacing: 4) {
+                        Text(source.displayName)
+                            .font(.system(size: Metrics.standardFontSize))
+                            .lineLimit(1)
+                        if source.canScan == false {
+                            Image(systemName: "lock.fill")
+                                .font(.system(size: Metrics.standardFontSize - 1))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                     Text(metadata.subtitle)
                         .font(.system(size: Metrics.standardFontSize))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(source.canScan ? .secondary : .tertiary)
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
@@ -105,6 +117,7 @@ private struct SourceTableRowView: View {
         .frame(height: Metrics.sourceRowHeight)
         .padding(.horizontal, Metrics.tableHorizontalPadding)
         .background(rowBackground)
+        .help(source.canScan ? "" : metadata.accessHelp)
     }
 
     private var metadata: SourceVolumeMetadata {
@@ -164,11 +177,19 @@ private struct SourceVolumeMetadata {
     let source: ScanSource
 
     var subtitle: String {
+        if let scanDisabledReason: String = source.scanDisabledReason {
+            return scanDisabledReason
+        }
+
         guard let volumeFormat: String = source.volumeFormat, !volumeFormat.isEmpty else {
             return source.path
         }
 
         return "\(volumeFormat) - \(source.path)"
+    }
+
+    var accessHelp: String {
+        "Enable Disk Hog in System Settings > Privacy & Security > Full Disk Access, then relaunch Disk Hog."
     }
 
     var icon: NSImage {

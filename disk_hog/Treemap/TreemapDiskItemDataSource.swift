@@ -95,11 +95,16 @@ nonisolated final class TreemapPresentationMetrics: @unchecked Sendable {
     let colorTable: TreemapDiskItemColorTable
     let kindStatistics: [TreemapKindStatistic]
 
-    init(rootItem: DiskItem, usePhysicalSize: Bool) {
+    init(
+        rootItem: DiskItem,
+        usePhysicalSize: Bool,
+        progress: (@Sendable (Double) -> Void)? = nil
+    ) {
         let statisticsByKind: [String: TreemapKindAggregate] = TreemapKindCatalog.aggregates(
             from: rootItem,
             usePhysicalSize: usePhysicalSize,
-            folderKindName: "Folder"
+            folderKindName: "Folder",
+            progress: progress
         )
         let orderedKinds: [String] = TreemapKindCatalog.orderedKinds(from: statisticsByKind)
         let colorTable: TreemapDiskItemColorTable = TreemapDiskItemColorTable(orderedKinds: orderedKinds)

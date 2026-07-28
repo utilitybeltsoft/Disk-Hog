@@ -36,7 +36,7 @@ struct SourceWindowView: View {
                 ),
                 ignoreCreatorCode: $ignoreCreatorCode,
                 showPhysicalFileSize: $showPhysicalFileSize,
-                canScanSelectedVolume: viewModel.selectedSource != nil,
+                canScanSelectedVolume: viewModel.selectedSource?.canScan == true,
                 onRefresh: refreshSources,
                 onChooseFolder: chooseFolder,
                 onScanSelectedVolume: scanSelectedVolume
@@ -125,6 +125,10 @@ struct SourceWindowView: View {
     }
 
     private func openSource(_ source: ScanSource) {
+        guard source.canScan else {
+            return
+        }
+
         let scanSource: ScanSource = source.applyingScanSettings(currentScanSettings)
         if ScanWindowRegistry.shared.activateWindow(for: scanSource) {
             return

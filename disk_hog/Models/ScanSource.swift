@@ -21,6 +21,7 @@ struct ScanSource: Codable, Hashable, Identifiable {
     let isEjectableVolume: Bool?
     let isInternalVolume: Bool?
     let isDiskImageVolume: Bool?
+    let scanDisabledReason: String?
     let scanSettings: DiskScanSettings?
 
     init(
@@ -35,6 +36,7 @@ struct ScanSource: Codable, Hashable, Identifiable {
         isEjectableVolume: Bool? = nil,
         isInternalVolume: Bool? = nil,
         isDiskImageVolume: Bool? = nil,
+        scanDisabledReason: String? = nil,
         scanSettings: DiskScanSettings? = nil
     ) {
         self.path = path
@@ -48,6 +50,7 @@ struct ScanSource: Codable, Hashable, Identifiable {
         self.isEjectableVolume = isEjectableVolume
         self.isInternalVolume = isInternalVolume
         self.isDiskImageVolume = isDiskImageVolume
+        self.scanDisabledReason = scanDisabledReason
         self.scanSettings = scanSettings
     }
 
@@ -57,6 +60,10 @@ struct ScanSource: Codable, Hashable, Identifiable {
 
     var scanWindowRegistryKey: String {
         url.standardizedFileURL.resolvingSymlinksInPath().path
+    }
+
+    var canScan: Bool {
+        scanDisabledReason == nil
     }
 
     nonisolated var url: URL {
@@ -114,6 +121,7 @@ struct ScanSource: Codable, Hashable, Identifiable {
             isEjectableVolume: isEjectableVolume,
             isInternalVolume: isInternalVolume,
             isDiskImageVolume: isDiskImageVolume,
+            scanDisabledReason: scanDisabledReason,
             scanSettings: settings
         )
     }
@@ -148,7 +156,11 @@ enum ScanSourceProvider {
                 isRemovableVolume: resourceValues?.volumeIsRemovable,
                 isEjectableVolume: resourceValues?.volumeIsEjectable,
                 isInternalVolume: resourceValues?.volumeIsInternal,
-                isDiskImageVolume: isDiskImage(url)
+                isDiskImageVolume: isDiskImage(url),
+                scanDisabledReason: scanDisabledReason(
+                    for: url,
+                    isLocalVolume: resourceValues?.volumeIsLocal
+                )
             )
         }
     }
@@ -190,6 +202,89 @@ enum ScanSourceProvider {
         }
 
         return protocolName == "Virtual Interface"
+    }
+
+    static func scanDisabledReason(
+        for url: URL,
+        isLocalVolume: Bool?,
+        protectedURLs: [URL] = fullDiskAccessProtectedURLs(),
+        fileExists: (URL) -> Bool = {
+            FileManager.default.fileExists(atPath: $0.path)
+        },
+        directoryContents: (URL) throws -> [URL] = {
+            try FileManager.default.contentsOfDirectory(
+                at: $0,
+                includingPropertiesForKeys: nil,
+                options: []
+            )
+        }
+    ) -> String? {
+        guard isLocalVolume != false else {
+            return nil
+        }
+
+        do {
+            _ = try directoryContents(url)
+        } catch {
+            guard isPermissionDenied(error) else {
+                return nil
+            }
+            return "Full Disk Access required"
+        }
+
+        for protectedURL: URL in protectedURLs
+        where contains(protectedURL, within: url) && fileExists(protectedURL) {
+            do {
+                _ = try directoryContents(protectedURL)
+            } catch {
+                if isPermissionDenied(error) {
+                    return "Full Disk Access required"
+                }
+            }
+        }
+
+        return nil
+    }
+
+    private static func fullDiskAccessProtectedURLs(
+        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
+    ) -> [URL] {
+        let libraryURL: URL = homeDirectory.appendingPathComponent("Library", isDirectory: true)
+        return [
+            libraryURL.appendingPathComponent("Mail", isDirectory: true),
+            libraryURL.appendingPathComponent("Messages", isDirectory: true),
+            libraryURL.appendingPathComponent("Safari", isDirectory: true),
+            libraryURL
+                .appendingPathComponent("Application Support", isDirectory: true)
+                .appendingPathComponent("AddressBook", isDirectory: true)
+        ]
+    }
+
+    private static func contains(_ candidateURL: URL, within rootURL: URL) -> Bool {
+        let rootPath: String = rootURL.standardizedFileURL.path
+        let candidatePath: String = candidateURL.standardizedFileURL.path
+
+        if rootPath == "/" {
+            return candidatePath.hasPrefix("/")
+        }
+
+        return candidatePath == rootPath || candidatePath.hasPrefix(rootPath + "/")
+    }
+
+    static func isPermissionDenied(_ error: Error) -> Bool {
+        let error: NSError = error as NSError
+        if error.domain == NSCocoaErrorDomain,
+           error.code == NSFileReadNoPermissionError {
+            return true
+        }
+        if error.domain == NSPOSIXErrorDomain,
+           error.code == Int(EPERM) || error.code == Int(EACCES) {
+            return true
+        }
+        if let underlyingError: Error = error.userInfo[NSUnderlyingErrorKey] as? Error {
+            return isPermissionDenied(underlyingError)
+        }
+        return false
     }
 
     private static func displayName(for url: URL) -> String {

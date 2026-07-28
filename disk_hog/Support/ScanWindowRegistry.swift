@@ -37,6 +37,15 @@ final class ScanWindowRegistry {
         return true
     }
 
+    func window(for source: ScanSource) -> NSWindow? {
+        let sourceKey: String = source.scanWindowRegistryKey
+        guard let window: NSWindow = windowsBySourceKey[sourceKey]?.window else {
+            windowsBySourceKey[sourceKey] = nil
+            return nil
+        }
+        return window
+    }
+
     var activeScanningSessions: [ScanSession] {
         openSessions.filter { $0.state == .scanning }
     }

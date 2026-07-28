@@ -22,6 +22,7 @@ final class ScanSession: ObservableObject {
     @Published private(set) var otherSpaceItem: DiskItem?
     @Published private(set) var isUpdatingTree: Bool
     @Published private(set) var isBuildingTreemap: Bool
+    @Published private(set) var treemapPreparationProgress: Double?
     @Published private(set) var isPackageContentsSettingOutOfSync: Bool
     @Published private(set) var errorMessage: String?
     #if FILE_MATCHING_DIAGNOSTICS
@@ -54,6 +55,7 @@ final class ScanSession: ObservableObject {
         self.otherSpaceItem = nil
         self.isUpdatingTree = false
         self.isBuildingTreemap = false
+        self.treemapPreparationProgress = nil
         self.isPackageContentsSettingOutOfSync = false
         self.errorMessage = nil
         #if FILE_MATCHING_DIAGNOSTICS
@@ -114,6 +116,7 @@ final class ScanSession: ObservableObject {
         otherSpaceItem = nil
         isUpdatingTree = false
         isBuildingTreemap = false
+        treemapPreparationProgress = nil
         errorMessage = nil
 
         let source: ScanSource = source
@@ -144,11 +147,16 @@ final class ScanSession: ObservableObject {
                 try Task.checkCancellation()
                 await MainActor.run {
                     self.isBuildingTreemap = true
+                    self.treemapPreparationProgress = 0
                 }
                 let presentationMetrics: TreemapPresentationMetrics = TreemapPresentationMetrics(
                     rootItem: rootItem,
                     usePhysicalSize: settings.usePhysicalSize
-                )
+                ) { progress in
+                    Task { @MainActor [weak self] in
+                        self?.applyTreemapPreparationProgress(progress)
+                    }
+                }
                 try Task.checkCancellation()
 
                 await MainActor.run {
@@ -368,6 +376,7 @@ final class ScanSession: ObservableObject {
 
     private func finishScan(rootItem: DiskItem, presentationMetrics: TreemapPresentationMetrics) {
         isBuildingTreemap = false
+        treemapPreparationProgress = nil
         self.presentationMetrics = presentationMetrics
         updateSpaceItems(for: rootItem)
         preferredSelection = rootItem
@@ -466,6 +475,7 @@ final class ScanSession: ObservableObject {
 
     private func finishCancellation() {
         isBuildingTreemap = false
+        treemapPreparationProgress = nil
         state = .cancelled
         completedAt = Date()
         scanTask = nil
@@ -474,6 +484,7 @@ final class ScanSession: ObservableObject {
 
     private func finishFailure(_ error: Error) {
         isBuildingTreemap = false
+        treemapPreparationProgress = nil
         state = .failed
         completedAt = Date()
         scanTask = nil
@@ -482,6 +493,13 @@ final class ScanSession: ObservableObject {
             return
         }
         errorMessage = error.localizedDescription
+    }
+
+    private func applyTreemapPreparationProgress(_ progress: Double) {
+        guard isBuildingTreemap else {
+            return
+        }
+        treemapPreparationProgress = min(max(progress, 0), 1)
     }
 
     private func restartIfRequested() {

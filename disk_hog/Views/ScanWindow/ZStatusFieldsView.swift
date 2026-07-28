@@ -89,6 +89,11 @@ struct ZStatusFieldsView: View {
     }
 
     private func preparingTreemapStatus(referenceDate: Date) -> String {
+        if let progress: Double = session.treemapPreparationProgress {
+            let percentage: Int = Int((progress * 100).rounded(.down))
+            return "Preparing treemap: \(percentage)%"
+        }
+
         let showsEllipsis: Bool = Int(referenceDate.timeIntervalSinceReferenceDate).isMultiple(of: 2)
         return showsEllipsis ? "Preparing treemap..." : "Preparing treemap"
     }

@@ -91,6 +91,29 @@ struct ScanSessionPackageContentsSynchronizationTests {
 
 @MainActor
 struct SourceWindowViewModelTests {
+    @Test func permissionDeniedVolumeCannotBeScanned() {
+        let source: ScanSource = ScanSource(
+            path: "/Volumes/Backup",
+            displayName: "Backup",
+            scanDisabledReason: "Full Disk Access required"
+        )
+        let viewModel: SourceWindowViewModel = SourceWindowViewModel(
+            sources: [source],
+            filter: SourceVolumeFilter(
+                includesExternalVolumes: true,
+                includesNetworkVolumes: true,
+                includesDiskImages: true
+            )
+        )
+        SourceWindowCommandState.shared.canScanSelectedVolume = true
+
+        viewModel.select(source.id)
+
+        #expect(viewModel.selectedSource == source)
+        #expect(source.canScan == false)
+        #expect(SourceWindowCommandState.shared.canScanSelectedVolume == false)
+    }
+
     @Test func deactivatingUnchangedCommandStateDoesNotPublish() {
         let commandState: ScanWindowCommandState = ScanWindowCommandState()
         var changeCount: Int = 0
@@ -170,11 +193,12 @@ struct SourceWindowViewModelTests {
 struct InspectorWindowLayoutTests {
     @Test func informationTabUsesPreferredSize() {
         #expect(InspectorWindowTab.information.layout.preferredContentSize.width == 720)
-        #expect(InspectorWindowTab.information.layout.preferredContentSize.height == 700)
+        #expect(InspectorWindowTab.information.layout.preferredContentSize.height == 720)
     }
 
     @Test func diskUsageTabUsesPreferredHeight() {
-        #expect(InspectorWindowTab.diskUsage.layout.preferredContentSize.height == 500)
+        #expect(InspectorWindowTab.diskUsage.layout.preferredContentSize.height == 420)
+        #expect(InspectorWindowTab.diskUsage.layout.minimumContentSize.height == 400)
         #expect(InspectorWindowLayout.compactDiskUsage.preferredContentSize.height == 350)
         #expect(DiskUsageLayoutMetrics.pieDiameter == 200)
         #expect(DiskUsageLayoutMetrics.bottomPadding == 20)
@@ -273,6 +297,103 @@ struct InspectorWindowLayoutTests {
     @Test func multilineInformationRowsAreNotCollapsed() {
         #expect(FileInformationRow("Attribute", "11 bytes\nactual value").isMultiline)
         #expect(!FileInformationRow("Attribute", "11 bytes").isMultiline)
+    }
+}
+
+struct ScanSourceAccessTests {
+    @Test func permissionFailureDisablesLocalVolumeScan() {
+        let reason: String? = ScanSourceProvider.scanDisabledReason(
+            for: URL(fileURLWithPath: "/Volumes/Backup"),
+            isLocalVolume: true,
+            directoryContents: { _ in
+                throw CocoaError(.fileReadNoPermission)
+            }
+        )
+
+        #expect(reason == "Full Disk Access required")
+    }
+
+    @Test func permissionFailureDoesNotPreflightNetworkVolume() {
+        let reason: String? = ScanSourceProvider.scanDisabledReason(
+            for: URL(fileURLWithPath: "/Volumes/Network"),
+            isLocalVolume: false,
+            directoryContents: { _ in
+                throw CocoaError(.fileReadNoPermission)
+            }
+        )
+
+        #expect(reason == nil)
+    }
+
+    @Test func protectedFolderFailureDisablesBootVolumeScan() {
+        let protectedURL: URL = URL(fileURLWithPath: "/Users/test/Library/Mail")
+        let reason: String? = ScanSourceProvider.scanDisabledReason(
+            for: URL(fileURLWithPath: "/"),
+            isLocalVolume: true,
+            protectedURLs: [protectedURL],
+            fileExists: { $0 == protectedURL }
+        ) { url in
+            if url == protectedURL {
+                throw CocoaError(.fileReadNoPermission)
+            }
+            return []
+        }
+
+        #expect(reason == "Full Disk Access required")
+    }
+
+    @Test func accessibleProtectedFoldersAllowBootVolumeScan() {
+        let protectedURL: URL = URL(fileURLWithPath: "/Users/test/Library/Mail")
+        let reason: String? = ScanSourceProvider.scanDisabledReason(
+            for: URL(fileURLWithPath: "/"),
+            isLocalVolume: true,
+            protectedURLs: [protectedURL],
+            fileExists: { $0 == protectedURL }
+        ) { _ in
+            []
+        }
+
+        #expect(reason == nil)
+    }
+
+    @Test func protectedFolderOnAnotherVolumeDoesNotDisableScan() {
+        let protectedURL: URL = URL(fileURLWithPath: "/Users/test/Library/Mail")
+        var inspectedProtectedFolder: Bool = false
+        let reason: String? = ScanSourceProvider.scanDisabledReason(
+            for: URL(fileURLWithPath: "/Volumes/Backup"),
+            isLocalVolume: true,
+            protectedURLs: [protectedURL],
+            fileExists: { _ in true }
+        ) { url in
+            if url == protectedURL {
+                inspectedProtectedFolder = true
+                throw CocoaError(.fileReadNoPermission)
+            }
+            return []
+        }
+
+        #expect(reason == nil)
+        #expect(inspectedProtectedFolder == false)
+    }
+}
+
+@MainActor
+struct ApplicationWindowOrganizerTests {
+    @Test func placesInspectorBesideScanWindowWithinVisibleFrame() {
+        let visibleFrame: NSRect = NSRect(x: 0, y: 40, width: 1440, height: 860)
+        let scanFrame: NSRect = NSRect(x: 301, y: 40, width: 837, height: 860)
+        let inspectorFrame: NSRect = NSRect(x: 490, y: 260, width: 460, height: 420)
+
+        let frames: OrganizedWindowFrames = ApplicationWindowOrganizer.frames(
+            primary: scanFrame,
+            accessory: inspectorFrame,
+            visibleFrame: visibleFrame
+        )
+
+        #expect(frames.primary.intersects(frames.accessory) == false)
+        #expect(frames.accessory.minX - frames.primary.maxX == ApplicationWindowOrganizer.windowGap)
+        #expect(visibleFrame.contains(frames.primary))
+        #expect(visibleFrame.contains(frames.accessory))
     }
 }
 
@@ -646,6 +767,33 @@ struct TreemapDiskItemDataSourceTests {
         #expect(logicalStatistics.map(\.size) == [12])
     }
 
+    @Test func presentationMetricsReportMeasuredTraversalProgress() {
+        let rootBuilder: DiskItemBuilder = DiskItemBuilder(
+            url: URL(fileURLWithPath: "/scan"),
+            isDirectory: true
+        )
+        rootBuilder.appendChild(DiskItemBuilder(
+            url: URL(fileURLWithPath: "/scan/file.txt"),
+            allocatedSizeValue: 4_096,
+            logicalSizeValue: 12,
+            kindName: "Plain Text"
+        ))
+        let recorder: TreemapProgressRecorder = TreemapProgressRecorder()
+
+        let metrics: TreemapPresentationMetrics = TreemapPresentationMetrics(
+            rootItem: rootBuilder.freeze(),
+            usePhysicalSize: true
+        ) {
+            recorder.record($0)
+        }
+        let progressValues: [Double] = recorder.values
+
+        #expect(progressValues.first == 0)
+        #expect(progressValues.last == 1)
+        #expect(zip(progressValues, progressValues.dropFirst()).allSatisfy { $0.0 <= $0.1 })
+        #expect(metrics.kindStatistics.first?.kindName == "Plain Text")
+    }
+
     @Test func visibleVolumeSpaceItemsAreAppendedAndIncludedInRootWeight() {
         let file: DiskItem = DiskItem(
             url: URL(fileURLWithPath: "/scan/file.dat"),
@@ -684,6 +832,21 @@ struct TreemapDiskItemDataSourceTests {
         #expect(dataSource.child(1, of: root).itemType == .otherSpace)
         #expect(dataSource.child(2, of: root).itemType == .freeSpace)
         #expect(dataSource.weight(of: root) == 100)
+    }
+}
+
+private final class TreemapProgressRecorder: @unchecked Sendable {
+    private let lock: NSLock = NSLock()
+    private var storedValues: [Double] = []
+
+    var values: [Double] {
+        lock.withLock { storedValues }
+    }
+
+    func record(_ progress: Double) {
+        lock.withLock {
+            storedValues.append(progress)
+        }
     }
 }
 

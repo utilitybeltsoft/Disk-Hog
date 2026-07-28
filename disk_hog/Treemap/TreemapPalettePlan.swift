@@ -6,17 +6,27 @@ nonisolated struct TreemapKindAggregate: Sendable {
 }
 
 nonisolated enum TreemapKindCatalog {
+    private static let progressUpdateStride: Int = 4_096
+
     static func aggregates(
         from rootItem: DiskItem,
         usePhysicalSize: Bool,
-        folderKindName: String
+        folderKindName: String,
+        progress: (@Sendable (Double) -> Void)? = nil
     ) -> [String: TreemapKindAggregate] {
         var aggregatesByKind: [String: TreemapKindAggregate] = [:]
+        let counts: (files: Int, folders: Int) = rootItem.scanCounts()
+        let totalItemCount: Int = max(counts.files + counts.folders, 1)
+        var visitedItemCount: Int = 0
+        progress?(0)
         collect(
             from: rootItem,
             usePhysicalSize: usePhysicalSize,
             folderKindName: folderKindName,
-            into: &aggregatesByKind
+            into: &aggregatesByKind,
+            visitedItemCount: &visitedItemCount,
+            totalItemCount: totalItemCount,
+            progress: progress
         )
         return aggregatesByKind
     }
@@ -36,15 +46,27 @@ nonisolated enum TreemapKindCatalog {
         from item: DiskItem,
         usePhysicalSize: Bool,
         folderKindName: String,
-        into aggregatesByKind: inout [String: TreemapKindAggregate]
+        into aggregatesByKind: inout [String: TreemapKindAggregate],
+        visitedItemCount: inout Int,
+        totalItemCount: Int,
+        progress: (@Sendable (Double) -> Void)?
     ) {
+        visitedItemCount += 1
+        if visitedItemCount.isMultiple(of: progressUpdateStride)
+            || visitedItemCount == totalItemCount {
+            progress?(min(Double(visitedItemCount) / Double(totalItemCount), 1))
+        }
+
         if item.isFolder && !item.isPackage {
             for child: DiskItem in item.children {
                 collect(
                     from: child,
                     usePhysicalSize: usePhysicalSize,
                     folderKindName: folderKindName,
-                    into: &aggregatesByKind
+                    into: &aggregatesByKind,
+                    visitedItemCount: &visitedItemCount,
+                    totalItemCount: totalItemCount,
+                    progress: progress
                 )
             }
             return

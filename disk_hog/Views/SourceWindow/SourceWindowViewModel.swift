@@ -117,7 +117,7 @@ final class SourceWindowViewModel: ObservableObject {
     }
 
     private func updateCommandState() {
-        let canScanSelectedVolume: Bool = selectedSource != nil
+        let canScanSelectedVolume: Bool = selectedSource?.canScan == true
         guard SourceWindowCommandState.shared.canScanSelectedVolume != canScanSelectedVolume else {
             return
         }

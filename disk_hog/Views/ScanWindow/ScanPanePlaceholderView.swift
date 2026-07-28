@@ -4,12 +4,18 @@ struct ScanPanePlaceholderView: View {
     let title: String
     let message: String
     var showsProgress: Bool = false
+    var progress: Double?
 
     var body: some View {
         VStack(spacing: ScanWindowMetrics.placeholderSpacing) {
             if showsProgress {
-                ProgressView()
-                    .controlSize(.small)
+                if let progress {
+                    ProgressView(value: progress, total: 1)
+                        .frame(width: 120)
+                } else {
+                    ProgressView()
+                        .controlSize(.small)
+                }
             }
             Text(title)
                 .font(.system(size: ScanWindowMetrics.placeholderTitleFontSize, weight: .semibold))
