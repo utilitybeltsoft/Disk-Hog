@@ -393,15 +393,18 @@ private struct SelectionListView: View {
     @ObservedObject var selectionCoordinator: ScanWindowSelectionCoordinator
     @Binding var selectionFilter: SelectionListFilter?
     @State private var rows: [SelectionListRow] = []
-    @State private var visibleRows: [SelectionListRow] = []
+    @State private var queryResult: SelectionListQueryResult = .empty
+    @State private var queryResultGeneration: Int = 0
     @State private var rowsByID: [DiskItemID: SelectionListRow] = [:]
     @State private var rowsGeneration: Int = 0
     @State private var selectedItemID: DiskItemID?
     @State private var isLoading: Bool = false
+    @State private var isQuerying: Bool = false
+    @State private var hasCompletedInitialQuery: Bool = false
     @State private var searchText: String = ""
     @State private var searchScope: SelectionListSearchScope = .all
-    @State private var sortOrder: [KeyPathComparator<SelectionListRow>] = [
-        KeyPathComparator(\.size, order: .reverse)
+    @State private var sortDescriptors: [SelectionListSortDescriptor] = [
+        SelectionListSortDescriptor(field: .size, isAscending: false)
     ]
 
     var body: some View {
@@ -412,7 +415,11 @@ private struct SelectionListView: View {
                         .font(.system(size: NSFont.smallSystemFontSize, weight: .semibold))
                         .lineLimit(1)
                     Spacer()
-                    Text("\(visibleRows.count) files")
+                    Text(
+                        isBuildingInitialList
+                            ? "Building..."
+                            : "\(queryResult.rows.count) files"
+                    )
                         .foregroundStyle(.secondary)
                         .monospacedDigit()
                 }
@@ -450,38 +457,17 @@ private struct SelectionListView: View {
                 )
                 .padding(.top, 18)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            } else if isLoading {
-                ProgressView("Building selection list")
+            } else if isBuildingInitialList {
+                ProgressView("Building list...")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                Table(visibleRows, selection: $selectedItemID, sortOrder: $sortOrder) {
-                    TableColumn("Name", value: \.name) { row in
-                        HStack(spacing: 5) {
-                            Image(nsImage: NSWorkspace.shared.icon(forFile: row.item.path))
-                                .resizable()
-                                .frame(width: 14, height: 14)
-                            Text(row.name)
-                                .lineLimit(1)
-                        }
-                    }
-                    TableColumn("Path", value: \.parentPath) { row in
-                        Text(row.parentPath)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                    }
-                    TableColumn("Size", value: \.size) { row in
-                        Text(byteString(row.size))
-                            .monospacedDigit()
-                            .frame(maxWidth: .infinity, alignment: .trailing)
-                    }
-                    .width(min: 72, ideal: 86)
-                }
-                .font(.system(size: NSFont.smallSystemFontSize))
-                .onChange(of: selectedItemID) {
-                    guard let selectedItemID,
-                          let item: DiskItem = rowsByID[selectedItemID]?.item else {
-                        return
-                    }
+                SelectionListTableView(
+                    rows: queryResult.rows,
+                    rowIndexByID: queryResult.rowIndexByID,
+                    resultGeneration: queryResultGeneration,
+                    selectedItemID: $selectedItemID,
+                    sortDescriptors: $sortDescriptors
+                ) { item in
                     selectionCoordinator.setSelectedItem(item)
                 }
                 .onChange(of: selectionCoordinator.selectedItem?.id) {
@@ -494,16 +480,21 @@ private struct SelectionListView: View {
             guard let rootItem: DiskItem = session.rootItem,
                   let selectionFilter else {
                 rows = []
-                visibleRows = []
+                queryResult = .empty
+                queryResultGeneration += 1
                 rowsByID = [:]
                 rowsGeneration += 1
                 isLoading = false
+                isQuerying = false
+                hasCompletedInitialQuery = false
                 return
             }
 
             isLoading = true
+            hasCompletedInitialQuery = false
             rows = []
-            visibleRows = []
+            queryResult = .empty
+            queryResultGeneration += 1
             rowsByID = [:]
             rowsGeneration += 1
             let usePhysicalSize: Bool = session.scanSettings.usePhysicalSize
@@ -536,15 +527,16 @@ private struct SelectionListView: View {
                 rowsGeneration: rowsGeneration,
                 searchText: searchText,
                 searchScope: searchScope,
-                sortDescriptors: selectionSortDescriptors
+                sortDescriptors: sortDescriptors
             )
         ) {
-            guard !isLoading else { return }
+            guard selectionFilter != nil, !isLoading else { return }
+            isQuerying = true
             let sourceRows: [SelectionListRow] = rows
             let sourceGeneration: Int = rowsGeneration
             let query: String = searchText
             let scope: SelectionListSearchScope = searchScope
-            let descriptors: [SelectionListSortDescriptor] = selectionSortDescriptors
+            let descriptors: [SelectionListSortDescriptor] = sortDescriptors
 
             if !query.isEmpty {
                 do {
@@ -562,7 +554,7 @@ private struct SelectionListView: View {
                     sortDescriptors: descriptors
                 )
             }
-            let result: [SelectionListRow]
+            let result: SelectionListQueryResult
             do {
                 result = try await withTaskCancellationHandler(
                     operation: { try await worker.value },
@@ -572,28 +564,17 @@ private struct SelectionListView: View {
                 return
             }
             guard !Task.isCancelled, rowsGeneration == sourceGeneration else { return }
-            visibleRows = result
+            queryResult = result
+            queryResultGeneration += 1
+            isQuerying = false
+            hasCompletedInitialQuery = true
         }
     }
 
-    private var selectionSortDescriptors: [SelectionListSortDescriptor] {
-        sortOrder.compactMap { comparator in
-            let field: SelectionListSortField
-            switch comparator.keyPath {
-            case \SelectionListRow.name:
-                field = .name
-            case \SelectionListRow.parentPath:
-                field = .path
-            case \SelectionListRow.size:
-                field = .size
-            default:
-                return nil
-            }
-            return SelectionListSortDescriptor(
-                field: field,
-                isAscending: comparator.order == .forward
-            )
-        }
+    private var isBuildingInitialList: Bool {
+        selectionFilter != nil
+            && !hasCompletedInitialQuery
+            && (isLoading || isQuerying)
     }
 }
 

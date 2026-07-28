@@ -62,6 +62,16 @@ nonisolated struct SelectionListSnapshot: Sendable {
     let rowsByID: [DiskItemID: SelectionListRow]
 }
 
+nonisolated struct SelectionListQueryResult: Sendable {
+    let rows: [SelectionListRow]
+    let rowIndexByID: [DiskItemID: Int]
+
+    static let empty: SelectionListQueryResult = SelectionListQueryResult(
+        rows: [],
+        rowIndexByID: [:]
+    )
+}
+
 nonisolated enum SelectionListSortField: Hashable, Sendable {
     case name
     case path
@@ -112,7 +122,7 @@ nonisolated enum SelectionListPipeline {
         searchText: String,
         scope: SelectionListSearchScope,
         sortDescriptors: [SelectionListSortDescriptor]
-    ) throws -> [SelectionListRow] {
+    ) throws -> SelectionListQueryResult {
         var filteredRows: [SelectionListRow]
         if searchText.isEmpty {
             filteredRows = rows
@@ -133,7 +143,18 @@ nonisolated enum SelectionListPipeline {
             ? [SelectionListSortDescriptor(field: .size, isAscending: false)]
             : sortDescriptors
         try cancellableStableSort(&filteredRows, descriptors: descriptors)
-        return filteredRows
+        var rowIndexByID: [DiskItemID: Int] = [:]
+        rowIndexByID.reserveCapacity(filteredRows.count)
+        for (index, row) in filteredRows.enumerated() {
+            if index.isMultiple(of: cancellationInterval) {
+                try Task.checkCancellation()
+            }
+            rowIndexByID[row.id] = index
+        }
+        return SelectionListQueryResult(
+            rows: filteredRows,
+            rowIndexByID: rowIndexByID
+        )
     }
 
     private static func cancellableStableSort(

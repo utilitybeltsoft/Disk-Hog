@@ -7,6 +7,7 @@
 import AppKit
 import Combine
 import Foundation
+import SwiftUI
 import Testing
 @testable import disk_hog
 
@@ -760,28 +761,31 @@ struct SelectionListPipelineTests {
             SelectionListSortDescriptor(field: .name, isAscending: true)
         ]
 
-        let nameMatches: [SelectionListRow] = try SelectionListPipeline.visibleRows(
+        let nameMatches: SelectionListQueryResult = try SelectionListPipeline.visibleRows(
             from: snapshot.rows,
             searchText: "read me",
             scope: .name,
             sortDescriptors: descriptors
         )
-        let pathMatches: [SelectionListRow] = try SelectionListPipeline.visibleRows(
+        let pathMatches: SelectionListQueryResult = try SelectionListPipeline.visibleRows(
             from: snapshot.rows,
             searchText: "NOTES",
             scope: .path,
             sortDescriptors: descriptors
         )
-        let kindMatches: [SelectionListRow] = try SelectionListPipeline.visibleRows(
+        let kindMatches: SelectionListQueryResult = try SelectionListPipeline.visibleRows(
             from: snapshot.rows,
             searchText: "markdown",
             scope: .all,
             sortDescriptors: descriptors
         )
 
-        #expect(nameMatches.map(\.name) == ["Read Me.TXT"])
-        #expect(pathMatches.map(\.name) == ["Read Me.TXT", "todo.md"])
-        #expect(kindMatches.map(\.name) == ["todo.md"])
+        #expect(nameMatches.rows.map(\.name) == ["Read Me.TXT"])
+        #expect(pathMatches.rows.map(\.name) == ["Read Me.TXT", "todo.md"])
+        #expect(kindMatches.rows.map(\.name) == ["todo.md"])
+        #expect(pathMatches.rows.enumerated().allSatisfy {
+            pathMatches.rowIndexByID[$0.element.id] == $0.offset
+        })
     }
 
     @Test func queryUsesRequestedSortOrder() throws {
@@ -791,21 +795,21 @@ struct SelectionListPipelineTests {
             usePhysicalSize: true
         )
 
-        let ascendingNames: [SelectionListRow] = try SelectionListPipeline.visibleRows(
+        let ascendingNames: SelectionListQueryResult = try SelectionListPipeline.visibleRows(
             from: snapshot.rows,
             searchText: "",
             scope: .all,
             sortDescriptors: [SelectionListSortDescriptor(field: .name, isAscending: true)]
         )
-        let descendingSizes: [SelectionListRow] = try SelectionListPipeline.visibleRows(
+        let descendingSizes: SelectionListQueryResult = try SelectionListPipeline.visibleRows(
             from: snapshot.rows,
             searchText: "",
             scope: .all,
             sortDescriptors: [SelectionListSortDescriptor(field: .size, isAscending: false)]
         )
 
-        #expect(ascendingNames.map(\.name) == ["photo.png", "Read Me.TXT", "todo.md"])
-        #expect(descendingSizes.map(\.size) == [12_288, 8_192, 4_096])
+        #expect(ascendingNames.rows.map(\.name) == ["photo.png", "Read Me.TXT", "todo.md"])
+        #expect(descendingSizes.rows.map(\.size) == [12_288, 8_192, 4_096])
     }
 
     @Test func canceledQueryStopsBeforePublishingResults() async {
@@ -871,6 +875,45 @@ struct SelectionListPipelineTests {
             )
         )
         return root.freeze()
+    }
+}
+
+@MainActor
+struct SelectionListTableViewTests {
+    @Test func unchangedResultGenerationDoesNotReloadRows() {
+        var selectedItemID: DiskItemID?
+        var sortDescriptors: [SelectionListSortDescriptor] = [
+            SelectionListSortDescriptor(field: .size, isAscending: false)
+        ]
+        let coordinator: SelectionListTableView.Coordinator = SelectionListTableView.Coordinator(
+            selectedItemID: Binding(
+                get: { selectedItemID },
+                set: { selectedItemID = $0 }
+            ),
+            sortDescriptors: Binding(
+                get: { sortDescriptors },
+                set: { sortDescriptors = $0 }
+            ),
+            onSelect: { _ in }
+        )
+        let row: SelectionListRow = SelectionListRow(
+            item: DiskItem(
+                url: URL(fileURLWithPath: "/scan/file.txt"),
+                displayName: "file.txt",
+                allocatedSizeValue: 4_096
+            ),
+            size: 4_096
+        )
+        let tableView: NSTableView = NSTableView()
+
+        coordinator.updateRows([row], rowIndexByID: [row.id: 0], generation: 1)
+        coordinator.updateRows([], rowIndexByID: [:], generation: 1)
+
+        #expect(coordinator.numberOfRows(in: tableView) == 1)
+
+        coordinator.updateRows([], rowIndexByID: [:], generation: 2)
+
+        #expect(coordinator.numberOfRows(in: tableView) == 0)
     }
 }
 
