@@ -144,6 +144,7 @@ final class InspectorWindowController: NSObject, ObservableObject {
     private var contentSizesBySlot: [InspectorContentSizeSlot: NSSize] = [:]
     private var pendingInformationContentHeight: CGFloat?
     private var isInformationHeightUpdateScheduled: Bool = false
+    private var wasInspectorKeyBeforeApplicationDeactivation: Bool = false
 
     var currentLayout: InspectorWindowLayout {
         layout(for: currentContentSizeSlot)
@@ -240,14 +241,37 @@ final class InspectorWindowController: NSObject, ObservableObject {
         }
     }
 
-    func orderFrontIfVisible() {
+    func applicationWillResignActive() {
+        wasInspectorKeyBeforeApplicationDeactivation = windowController?.window?.isKeyWindow == true
+    }
+
+    func restoreWindowOrderingWhenApplicationBecomesActive() {
         guard isVisible,
               let window: NSWindow = windowController?.window,
               window.isVisible else {
             return
         }
 
+        if wasInspectorKeyBeforeApplicationDeactivation {
+            window.orderFront(nil)
+            return
+        }
+
+        let scanWindows: [NSWindow] = ApplicationWindowPlacementService.shared
+            .visibleWindows(withRole: .scan)
         window.orderFront(nil)
+        let orderByWindowID: [ObjectIdentifier: Int] = Dictionary(
+            uniqueKeysWithValues: NSApp.orderedWindows.enumerated().map {
+                (ObjectIdentifier($0.element), $0.offset)
+            }
+        )
+        let orderedScanWindows: [NSWindow] = scanWindows.sorted {
+            (orderByWindowID[ObjectIdentifier($0)] ?? Int.max)
+                < (orderByWindowID[ObjectIdentifier($1)] ?? Int.max)
+        }
+        for scanWindow: NSWindow in orderedScanWindows.reversed() {
+            scanWindow.orderFront(nil)
+        }
     }
 
     func scheduleInformationContentHeight(_ measuredHeight: CGFloat) {

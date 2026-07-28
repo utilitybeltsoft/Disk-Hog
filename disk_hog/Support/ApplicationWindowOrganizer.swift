@@ -1,6 +1,6 @@
 import AppKit
 
-enum ManagedApplicationWindowRole {
+enum ManagedApplicationWindowRole: Equatable {
     case source
     case scan
     case inspector
@@ -32,6 +32,18 @@ final class ApplicationWindowPlacementService {
 
     func unregister(_ window: NSWindow) {
         registeredWindows[ObjectIdentifier(window)] = nil
+    }
+
+    func visibleWindows(withRole role: ManagedApplicationWindowRole) -> [NSWindow] {
+        removeReleasedWindows()
+        return registeredWindows.values.compactMap { registration in
+            guard registration.role == role,
+                  let window: NSWindow = registration.window,
+                  window.isVisible else {
+                return nil
+            }
+            return window
+        }
     }
 
     func placeNewWindow(_ targetWindow: NSWindow) {

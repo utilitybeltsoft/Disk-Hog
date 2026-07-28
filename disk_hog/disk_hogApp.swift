@@ -48,8 +48,12 @@ final class DiskHogApplicationDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidBecomeActive(_ notification: Notification) {
         DispatchQueue.main.async {
-            InspectorWindowController.shared.orderFrontIfVisible()
+            InspectorWindowController.shared.restoreWindowOrderingWhenApplicationBecomesActive()
         }
+    }
+
+    func applicationWillResignActive(_ notification: Notification) {
+        InspectorWindowController.shared.applicationWillResignActive()
     }
 
     func applicationShouldSaveApplicationState(_ app: NSApplication) -> Bool {
