@@ -81,6 +81,25 @@ struct InspectorWindowLayout {
     )
 }
 
+enum InspectorInformationSizing {
+    static let inspectorControlsHeight: CGFloat = 57
+    static let bottomAllowance: CGFloat = 0
+
+    static func contentHeight(
+        measuredInformationHeight: CGFloat,
+        minimumHeight: CGFloat,
+        visibleScreenHeight: CGFloat?
+    ) -> CGFloat {
+        let measuredHeight: CGFloat = ceil(measuredInformationHeight)
+            + inspectorControlsHeight
+            + bottomAllowance
+        let maximumHeight: CGFloat = visibleScreenHeight.map {
+            max(minimumHeight, $0 - InspectorWindowController.visibleScreenInset)
+        } ?? measuredHeight
+        return min(max(measuredHeight, minimumHeight), maximumHeight)
+    }
+}
+
 private enum InspectorContentSizeSlot: Hashable {
     case information
     case compactDiskUsage
@@ -92,7 +111,7 @@ private enum InspectorContentSizeSlot: Hashable {
 final class InspectorWindowController: NSObject, ObservableObject {
     static let shared: InspectorWindowController = InspectorWindowController()
     private static let frameAutosaveName: String = "DiskHogInspectorWindowV3"
-    private static let visibleScreenInset: CGFloat = 80
+    static let visibleScreenInset: CGFloat = 80
     private static let previousDefaultContentSizes: [InspectorWindowTab: [NSSize]] = [
         .information: [
             NSSize(width: 720, height: 760),
@@ -123,6 +142,8 @@ final class InspectorWindowController: NSObject, ObservableObject {
 
     private var windowController: NSWindowController?
     private var contentSizesBySlot: [InspectorContentSizeSlot: NSSize] = [:]
+    private var pendingInformationContentHeight: CGFloat?
+    private var isInformationHeightUpdateScheduled: Bool = false
 
     var currentLayout: InspectorWindowLayout {
         layout(for: currentContentSizeSlot)
@@ -198,9 +219,14 @@ final class InspectorWindowController: NSObject, ObservableObject {
             selectedTab = tab
         }
 
+        let needsInitialPlacement: Bool = windowController == nil
         let windowController: NSWindowController = windowController ?? makeWindowController()
         self.windowController = windowController
         updateWindowTitle()
+        if needsInitialPlacement, let window: NSWindow = windowController.window {
+            ApplicationWindowPlacementService.shared.register(window, role: .inspector)
+            ApplicationWindowPlacementService.shared.placeNewWindow(window)
+        }
         windowController.window?.makeKeyAndOrderFront(nil)
         isVisible = true
     }
@@ -222,6 +248,68 @@ final class InspectorWindowController: NSObject, ObservableObject {
         }
 
         window.orderFront(nil)
+    }
+
+    func scheduleInformationContentHeight(_ measuredHeight: CGFloat) {
+        guard measuredHeight > 0 else {
+            return
+        }
+
+        pendingInformationContentHeight = measuredHeight
+        guard !isInformationHeightUpdateScheduled else {
+            return
+        }
+
+        isInformationHeightUpdateScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            self?.applyPendingInformationContentHeight()
+        }
+    }
+
+    private func applyPendingInformationContentHeight() {
+        isInformationHeightUpdateScheduled = false
+        guard let measuredHeight: CGFloat = pendingInformationContentHeight else {
+            return
+        }
+        pendingInformationContentHeight = nil
+        updateInformationContentHeight(measuredHeight)
+    }
+
+    private func updateInformationContentHeight(_ measuredHeight: CGFloat) {
+        guard selectedTab == .information,
+              measuredHeight > 0,
+              let window: NSWindow = windowController?.window else {
+            return
+        }
+
+        let currentContentSize: NSSize = window.contentLayoutRect.size
+        let minimumHeight: CGFloat = InspectorWindowTab.information.layout.minimumContentSize.height
+        let targetContentHeight: CGFloat = InspectorInformationSizing.contentHeight(
+            measuredInformationHeight: measuredHeight,
+            minimumHeight: minimumHeight,
+            visibleScreenHeight: window.screen?.visibleFrame.height
+        )
+        guard abs(currentContentSize.height - targetContentHeight) >= 1 else {
+            return
+        }
+
+        let targetContentSize: NSSize = NSSize(
+            width: currentContentSize.width,
+            height: targetContentHeight
+        )
+        contentSizesBySlot[.information] = targetContentSize
+        let targetFrameSize: NSSize = window.frameRect(
+            forContentRect: NSRect(origin: .zero, size: targetContentSize)
+        ).size
+        var targetFrame: NSRect = window.frame
+        targetFrame.origin.y = targetFrame.maxY - targetFrameSize.height
+        targetFrame.size = targetFrameSize
+        if let screen: NSScreen = window.screen {
+            targetFrame = window.constrainFrameRect(targetFrame, to: screen)
+        }
+        window.setFrame(targetFrame, display: true, animate: false)
+        window.layoutIfNeeded()
+        window.displayIfNeeded()
     }
 
     func showSelectionList(for item: DiskItem, from session: ScanSession?) {
@@ -283,7 +371,7 @@ final class InspectorWindowController: NSObject, ObservableObject {
               inspectorWindow.isVisible else {
             return
         }
-        ApplicationWindowOrganizer.shared.place(inspectorWindow, beside: scanWindow)
+        ApplicationWindowPlacementService.shared.placeNewWindow(inspectorWindow)
     }
 
     private func makeWindowController() -> NSWindowController {

@@ -4,6 +4,7 @@ import SwiftUI
 struct InformationContextMenuAugmenter: NSViewRepresentable {
     let item: DiskItem
     let snapshot: FileInformationSnapshot?
+    let kindDescription: String?
 
     func makeCoordinator() -> InformationContextMenuCoordinator {
         InformationContextMenuCoordinator()
@@ -12,12 +13,20 @@ struct InformationContextMenuAugmenter: NSViewRepresentable {
     func makeNSView(context: Context) -> InformationContextMenuTrackingView {
         let view: InformationContextMenuTrackingView = InformationContextMenuTrackingView()
         context.coordinator.attach(to: view)
-        context.coordinator.update(item: item, snapshot: snapshot)
+        context.coordinator.update(
+            item: item,
+            snapshot: snapshot,
+            kindDescription: kindDescription
+        )
         return view
     }
 
     func updateNSView(_ nsView: InformationContextMenuTrackingView, context: Context) {
-        context.coordinator.update(item: item, snapshot: snapshot)
+        context.coordinator.update(
+            item: item,
+            snapshot: snapshot,
+            kindDescription: kindDescription
+        )
     }
 
     static func dismantleNSView(
@@ -43,6 +52,7 @@ final class InformationContextMenuCoordinator: NSObject {
     private weak var trackingView: InformationContextMenuTrackingView?
     private var item: DiskItem?
     private var snapshot: FileInformationSnapshot?
+    private var kindDescription: String?
     private var eventMonitor: Any?
 
     func attach(to view: InformationContextMenuTrackingView) {
@@ -56,9 +66,14 @@ final class InformationContextMenuCoordinator: NSObject {
         }
     }
 
-    func update(item: DiskItem, snapshot: FileInformationSnapshot?) {
+    func update(
+        item: DiskItem,
+        snapshot: FileInformationSnapshot?,
+        kindDescription: String? = nil
+    ) {
         self.item = item
         self.snapshot = snapshot
+        self.kindDescription = kindDescription
     }
 
     func detach() {
@@ -131,7 +146,9 @@ final class InformationContextMenuCoordinator: NSObject {
         pasteboard.setString(
             snapshot.plainText(
                 itemName: item.displayName,
-                kindDescription: item.kindName ?? (item.isFolder ? "Folder" : "File")
+                kindDescription: kindDescription
+                    ?? item.kindName
+                    ?? (item.isFolder ? "Folder" : "File")
             ),
             forType: .string
         )

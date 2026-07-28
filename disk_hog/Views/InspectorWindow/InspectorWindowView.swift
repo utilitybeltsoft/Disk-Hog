@@ -51,6 +51,9 @@ struct InspectorWindowView: View {
             alignment: .topLeading
         )
         .background(Color(nsColor: .windowBackgroundColor))
+        .onPreferenceChange(InformationContentHeightPreferenceKey.self) { height in
+            controller.scheduleInformationContentHeight(height)
+        }
     }
 }
 
@@ -94,11 +97,7 @@ private struct SourceInspectorWindowContentView: View {
             case .diskUsage:
                 SourceDiskUsageView(source: source)
             case .information:
-                ContentUnavailableView(
-                    "Scan Window Required",
-                    systemImage: "info.circle",
-                    description: Text("Select an item in a scan window to view file information.")
-                )
+                VolumeInformationView(source: source)
             case .selectionList:
                 ContentUnavailableView(
                     "Scan Window Required",

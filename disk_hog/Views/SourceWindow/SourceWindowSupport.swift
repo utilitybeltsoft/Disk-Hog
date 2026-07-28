@@ -10,6 +10,7 @@ struct SourceWindowCloseRegistrationView: NSViewRepresentable {
 }
 
 final class SourceWindowCloseRegistrationNSView: NSView {
+    private weak var registeredWindow: NSWindow?
     private lazy var closeDelegateProxy: WindowCloseDelegateProxy = WindowCloseDelegateProxy { _ in
         Self.shouldCloseSourceWindow()
     }
@@ -17,15 +18,24 @@ final class SourceWindowCloseRegistrationNSView: NSView {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
 
+        if let registeredWindow {
+            ApplicationWindowPlacementService.shared.unregister(registeredWindow)
+        }
         guard let window else {
             return
         }
 
+        ApplicationWindowPlacementService.shared.register(window, role: .source)
+        registeredWindow = window
         closeDelegateProxy.install(on: window)
     }
 
     override func viewWillMove(toWindow newWindow: NSWindow?) {
         if newWindow == nil {
+            if let registeredWindow {
+                ApplicationWindowPlacementService.shared.unregister(registeredWindow)
+                self.registeredWindow = nil
+            }
             closeDelegateProxy.restore()
         }
 

@@ -47,6 +47,8 @@ final class ScanWindowRegistrationNSView: NSView {
         window.tabbingMode = .disallowed
         window.isRestorable = false
         initialGeometryApplier.applyIfNeeded(to: window)
+        ApplicationWindowPlacementService.shared.register(window, role: .scan)
+        ApplicationWindowPlacementService.shared.placeNewWindow(window)
         if let session: ScanSession = session {
             ScanWindowRegistry.shared.register(window, session: session, for: source)
             InspectorWindowController.shared.arrangeBesideScanWindowIfNeeded(
@@ -72,6 +74,7 @@ final class ScanWindowRegistrationNSView: NSView {
         }
 
         ScanWindowRegistry.shared.unregister(registeredWindow, for: source)
+        ApplicationWindowPlacementService.shared.unregister(registeredWindow)
         closeDelegateProxy.restore()
         self.registeredWindow = nil
     }

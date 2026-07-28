@@ -197,6 +197,28 @@ struct InspectorWindowLayoutTests {
         #expect(InspectorWindowTab.information.layout.preferredContentSize.height == 720)
     }
 
+    @Test func informationHeightFollowsMeasuredContentAndScreenBounds() {
+        let fittedHeight: CGFloat = InspectorInformationSizing.contentHeight(
+            measuredInformationHeight: 600,
+            minimumHeight: 360,
+            visibleScreenHeight: 900
+        )
+        let minimumHeight: CGFloat = InspectorInformationSizing.contentHeight(
+            measuredInformationHeight: 100,
+            minimumHeight: 360,
+            visibleScreenHeight: 900
+        )
+        let maximumHeight: CGFloat = InspectorInformationSizing.contentHeight(
+            measuredInformationHeight: 1_000,
+            minimumHeight: 360,
+            visibleScreenHeight: 900
+        )
+
+        #expect(fittedHeight == 657)
+        #expect(minimumHeight == 360)
+        #expect(maximumHeight == 820)
+    }
+
     @Test func diskUsageTabUsesPreferredHeight() {
         #expect(InspectorWindowTab.diskUsage.layout.preferredContentSize.height == 420)
         #expect(InspectorWindowTab.diskUsage.layout.minimumContentSize.height == 400)
@@ -416,22 +438,39 @@ struct ScanSourceAccessTests {
 }
 
 @MainActor
-struct ApplicationWindowOrganizerTests {
-    @Test func placesInspectorBesideScanWindowWithinVisibleFrame() {
-        let visibleFrame: NSRect = NSRect(x: 0, y: 40, width: 1440, height: 860)
-        let scanFrame: NSRect = NSRect(x: 301, y: 40, width: 837, height: 860)
-        let inspectorFrame: NSRect = NSRect(x: 490, y: 260, width: 460, height: 420)
+struct ApplicationWindowPlacementServiceTests {
+    @Test func movesNewWindowIntoAvailableSpaceWithoutMovingExistingWindow() {
+        let visibleFrame: NSRect = NSRect(x: 0, y: 0, width: 1_440, height: 900)
+        let sourceFrame: NSRect = NSRect(x: 800, y: 250, width: 300, height: 400)
+        let scanFrame: NSRect = NSRect(x: 500, y: 180, width: 700, height: 600)
 
-        let frames: OrganizedWindowFrames = ApplicationWindowOrganizer.frames(
-            primary: scanFrame,
-            accessory: inspectorFrame,
+        let plan: ManagedWindowPlacementPlan = ApplicationWindowPlacementService.placementPlan(
+            targetFrame: scanFrame,
+            obstacleFrames: [sourceFrame],
             visibleFrame: visibleFrame
         )
 
-        #expect(frames.primary.intersects(frames.accessory) == false)
-        #expect(frames.accessory.minX - frames.primary.maxX == ApplicationWindowOrganizer.windowGap)
-        #expect(visibleFrame.contains(frames.primary))
-        #expect(visibleFrame.contains(frames.accessory))
+        #expect(plan.targetFrame.intersects(sourceFrame) == false)
+        #expect(plan.movedObstacleIndex == nil)
+        #expect(visibleFrame.contains(plan.targetFrame))
+    }
+
+    @Test func movesOneExistingWindowWhenThatAvoidsOtherwiseUnavoidableOverlap() throws {
+        let visibleFrame: NSRect = NSRect(x: 0, y: 0, width: 1_000, height: 700)
+        let sourceFrame: NSRect = NSRect(x: 300, y: 100, width: 300, height: 500)
+        let scanFrame: NSRect = NSRect(x: 100, y: 100, width: 600, height: 500)
+
+        let plan: ManagedWindowPlacementPlan = ApplicationWindowPlacementService.placementPlan(
+            targetFrame: scanFrame,
+            obstacleFrames: [sourceFrame],
+            visibleFrame: visibleFrame
+        )
+        let movedSourceFrame: NSRect = try #require(plan.movedObstacleFrame)
+
+        #expect(plan.movedObstacleIndex == 0)
+        #expect(plan.targetFrame.intersects(movedSourceFrame) == false)
+        #expect(visibleFrame.contains(plan.targetFrame))
+        #expect(visibleFrame.contains(movedSourceFrame))
     }
 }
 
@@ -544,6 +583,35 @@ struct DiskItemTests {
         #expect(copiedText.contains("Path: \(temporaryURL.path)"))
         #expect(copiedText.contains("\n\nOwnership and Access\n"))
         #expect(copiedText.contains("\n\nFile System\n"))
+    }
+
+    @Test func volumeInformationIncludesCapacityAndOmitsScanOnlySizes() throws {
+        let source: ScanSource = ScanSource(
+            path: "/Volumes/Nonexistent-Disk-Hog-Information-Test",
+            displayName: "Test Volume",
+            volumeFormat: "APFS",
+            totalCapacity: 1_000,
+            availableCapacity: 250,
+            isLocalVolume: true,
+            isInternalVolume: true,
+            isDiskImageVolume: false
+        )
+
+        let snapshot: FileInformationSnapshot = FileInformationSnapshot.load(source: source)
+        let volumeSection: FileInformationSection = try #require(
+            snapshot.sections.first(where: { $0.title == "Volume" })
+        )
+        let rowsByLabel: [String: String] = Dictionary(
+            uniqueKeysWithValues: volumeSection.rows.map { ($0.label, $0.value) }
+        )
+
+        #expect(snapshot.sections.contains(where: { $0.title == "Identity" }))
+        #expect(snapshot.sections.contains(where: { $0.title == "Ownership and Access" }))
+        #expect(snapshot.sections.contains(where: { $0.title == "Extended Attributes" }))
+        #expect(snapshot.sections.contains(where: { $0.title == "Sizes" }) == false)
+        #expect(rowsByLabel["Mount point"] == "/Volumes/Nonexistent-Disk-Hog-Information-Test")
+        #expect(rowsByLabel["Format"]?.contains("APFS") == true)
+        #expect(rowsByLabel["Scan availability"] == "Available")
     }
 
     @Test func descendantsMatchingAncestorPathRejectsSiblingPathPrefixes() {

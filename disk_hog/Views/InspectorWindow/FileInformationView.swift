@@ -12,45 +12,12 @@ struct FileInformationView: View {
     var body: some View {
         if let selectedItem: DiskItem = selectionCoordinator.selectedItem, !selectedItem.isSpecialItem {
             let item: DiskItem = displayedItem ?? selectedItem
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 9) {
-                    HStack(spacing: 8) {
-                        Image(nsImage: NSWorkspace.shared.icon(forFile: item.path))
-                            .resizable()
-                            .interpolation(.high)
-                            .frame(width: 32, height: 32)
-
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(item.displayName)
-                                .font(.system(size: NSFont.systemFontSize, weight: .semibold))
-                                .lineLimit(1)
-                            Text(item.kindName ?? (item.isFolder ? "Folder" : "File"))
-                                .font(.system(size: NSFont.smallSystemFontSize))
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
-                    }
-
-                    if let snapshot {
-                        ForEach(snapshot.sections) { section in
-                            informationSection(section)
-                        }
-                    } else if isLoading {
-                        ProgressView("Reading file metadata")
-                            .frame(maxWidth: .infinity, minHeight: 120)
-                    }
-                }
-                .id(item.id)
-                .transition(.opacity)
-                .padding(10)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .background {
-                InformationContextMenuAugmenter(
-                    item: item,
-                    snapshot: snapshot
-                )
-            }
+            FileInformationContent(
+                item: item,
+                kindDescription: item.kindName ?? (item.isFolder ? "Folder" : "File"),
+                snapshot: snapshot,
+                isLoading: isLoading
+            )
             .task(id: selectedItem.id) {
                 isLoading = snapshot == nil
                 let usePhysicalSize: Bool = session.scanSettings.usePhysicalSize
@@ -79,6 +46,98 @@ struct FileInformationView: View {
                 "No Item Selected",
                 systemImage: "doc.text.magnifyingglass",
                 description: Text("Select a file or folder in the active scan window.")
+            )
+        }
+    }
+}
+
+struct VolumeInformationView: View {
+    let source: ScanSource
+    @State private var item: DiskItem
+    @State private var snapshot: FileInformationSnapshot?
+    @State private var isLoading: Bool = true
+
+    init(source: ScanSource) {
+        self.source = source
+        _item = State(initialValue: FileInformationSnapshot.volumeItem(for: source))
+    }
+
+    var body: some View {
+        FileInformationContent(
+            item: item,
+            kindDescription: source.volumeFormat ?? "Volume",
+            snapshot: snapshot,
+            isLoading: isLoading
+        )
+        .task(id: source.id) {
+            isLoading = snapshot == nil
+            let loadedSnapshot: FileInformationSnapshot = await Task.detached(priority: .utility) {
+                FileInformationSnapshot.load(source: source)
+            }.value
+            guard !Task.isCancelled else {
+                return
+            }
+            snapshot = loadedSnapshot
+            isLoading = false
+        }
+    }
+}
+
+private struct FileInformationContent: View {
+    let item: DiskItem
+    let kindDescription: String
+    let snapshot: FileInformationSnapshot?
+    let isLoading: Bool
+
+    var body: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 9) {
+                HStack(spacing: 8) {
+                    Image(nsImage: NSWorkspace.shared.icon(forFile: item.path))
+                        .resizable()
+                        .interpolation(.high)
+                        .frame(width: 32, height: 32)
+
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(item.displayName)
+                            .font(.system(size: NSFont.systemFontSize, weight: .semibold))
+                            .lineLimit(1)
+                        Text(kindDescription)
+                            .font(.system(size: NSFont.smallSystemFontSize))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+
+                if let snapshot {
+                    ForEach(snapshot.sections) { section in
+                        informationSection(section)
+                    }
+                } else if isLoading {
+                    ProgressView("Reading file metadata")
+                        .frame(maxWidth: .infinity, minHeight: 120)
+                }
+            }
+            .id(item.id)
+            .transition(.opacity)
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                if snapshot != nil {
+                    GeometryReader { proxy in
+                        Color.clear.preference(
+                            key: InformationContentHeightPreferenceKey.self,
+                            value: proxy.size.height
+                        )
+                    }
+                }
+            }
+        }
+        .background {
+            InformationContextMenuAugmenter(
+                item: item,
+                snapshot: snapshot,
+                kindDescription: kindDescription
             )
         }
     }
@@ -138,6 +197,14 @@ struct FileInformationView: View {
     }
 }
 
+struct InformationContentHeightPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
 private struct FileInformationLine: Identifiable {
     let first: FileInformationRow
     let second: FileInformationRow?
@@ -159,6 +226,32 @@ nonisolated struct FileInformationSnapshot: Sendable {
         }.joined(separator: "\n\n")
 
         return "\(itemName)\n\(kindDescription)\n\n\(sectionText)"
+    }
+
+    static func volumeItem(for source: ScanSource) -> DiskItem {
+        let totalBytes: UInt64 = source.totalCapacity ?? 0
+        let freeBytes: UInt64 = min(source.availableCapacity ?? 0, totalBytes)
+        return DiskItem(
+            url: source.url,
+            displayName: source.displayName,
+            name: source.url.lastPathComponent.isEmpty
+                ? source.displayName
+                : source.url.lastPathComponent,
+            allocatedSizeValue: totalBytes - freeBytes,
+            logicalSizeValue: totalBytes - freeBytes,
+            kindName: source.volumeFormat ?? "Volume",
+            isDirectory: true
+        )
+    }
+
+    static func load(source: ScanSource) -> FileInformationSnapshot {
+        let item: DiskItem = volumeItem(for: source)
+        var sections: [FileInformationSection] = load(
+            item: item,
+            usePhysicalSize: true
+        ).sections.filter { $0.title != "Sizes" }
+        sections.insert(volumeSection(source: source), at: min(1, sections.count))
+        return FileInformationSnapshot(sections: sections)
     }
 
     static func load(
@@ -215,6 +308,66 @@ nonisolated struct FileInformationSnapshot: Sendable {
         sections.append(fileSystemSection(item: item, values: values, attributes: attributes))
         sections.append(extendedAttributeSection(extendedAttributes))
         return FileInformationSnapshot(sections: sections.filter { !$0.rows.isEmpty })
+    }
+
+    private static func volumeSection(source: ScanSource) -> FileInformationSection {
+        let resourceKeys: Set<URLResourceKey> = [
+            .volumeNameKey,
+            .volumeLocalizedFormatDescriptionKey,
+            .volumeTotalCapacityKey,
+            .volumeAvailableCapacityKey,
+            .volumeIsLocalKey,
+            .volumeIsInternalKey,
+            .volumeIsRemovableKey,
+            .volumeIsEjectableKey,
+            .volumeIsReadOnlyKey
+        ]
+        let values: URLResourceValues? = try? source.url.resourceValues(forKeys: resourceKeys)
+        let totalBytes: UInt64? = values?.volumeTotalCapacity.map(UInt64.init)
+            ?? source.totalCapacity
+        let availableBytes: UInt64? = values?.volumeAvailableCapacity.map(UInt64.init)
+            ?? source.availableCapacity
+        var rows: [FileInformationRow] = [
+            FileInformationRow("Mount point", source.path)
+        ]
+        append("Volume name", values?.volumeName ?? source.displayName, to: &rows)
+        append(
+            "Format",
+            values?.volumeLocalizedFormatDescription ?? source.volumeFormat,
+            to: &rows
+        )
+        if let totalBytes {
+            rows.append(FileInformationRow("Capacity", byteString(totalBytes)))
+        }
+        if let availableBytes {
+            rows.append(FileInformationRow("Available", byteString(availableBytes)))
+        }
+        if let totalBytes, let availableBytes {
+            rows.append(
+                FileInformationRow(
+                    "Used",
+                    byteString(totalBytes > availableBytes ? totalBytes - availableBytes : 0)
+                )
+            )
+        }
+        appendBoolean("Local", values?.volumeIsLocal ?? source.isLocalVolume, to: &rows)
+        appendBoolean("Internal", values?.volumeIsInternal ?? source.isInternalVolume, to: &rows)
+        appendBoolean("Removable", values?.volumeIsRemovable ?? source.isRemovableVolume, to: &rows)
+        appendBoolean("Ejectable", values?.volumeIsEjectable ?? source.isEjectableVolume, to: &rows)
+        appendBoolean("Read-only", values?.volumeIsReadOnly, to: &rows)
+        rows.append(
+            FileInformationRow(
+                "Disk image",
+                yesNo(source.isDiskImageVolume == true)
+            )
+        )
+        rows.append(
+            FileInformationRow(
+                "Scan availability",
+                source.scanDisabledReason ?? "Available"
+            )
+        )
+        return FileInformationSection(title: "Volume", rows: rows)
     }
 
     private static func identitySection(
@@ -403,6 +556,17 @@ nonisolated struct FileInformationSnapshot: Sendable {
             return
         }
         rows.append(FileInformationRow(label, byteString(UInt64(value))))
+    }
+
+    private static func appendBoolean(
+        _ label: String,
+        _ value: Bool?,
+        to rows: inout [FileInformationRow]
+    ) {
+        guard let value else {
+            return
+        }
+        rows.append(FileInformationRow(label, yesNo(value)))
     }
 
     private static func appendNumber(_ label: String, _ value: Any?, to rows: inout [FileInformationRow]) {
