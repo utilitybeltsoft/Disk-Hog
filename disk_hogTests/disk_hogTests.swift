@@ -718,6 +718,162 @@ struct DiskItemTests {
     }
 }
 
+struct SelectionListPipelineTests {
+    @Test func snapshotIncludesAllFilesAndBuildsSelectionIndex() throws {
+        let root: DiskItem = selectionListRoot()
+
+        let snapshot: SelectionListSnapshot = try SelectionListPipeline.makeSnapshot(
+            rootItem: root,
+            filter: .all,
+            usePhysicalSize: true
+        )
+
+        #expect(Set(snapshot.rows.map(\.fullPath)) == [
+            "/scan/Notes/Read Me.TXT",
+            "/scan/Notes/todo.md",
+            "/scan/photo.png"
+        ])
+        #expect(snapshot.rowsByID.count == snapshot.rows.count)
+        #expect(snapshot.rows.allSatisfy { snapshot.rowsByID[$0.id]?.item == $0.item })
+    }
+
+    @Test func snapshotFiltersByKindAndUsesRequestedSize() throws {
+        let root: DiskItem = selectionListRoot()
+
+        let snapshot: SelectionListSnapshot = try SelectionListPipeline.makeSnapshot(
+            rootItem: root,
+            filter: .kind("Plain Text"),
+            usePhysicalSize: false
+        )
+
+        #expect(snapshot.rows.map(\.name) == ["Read Me.TXT"])
+        #expect(snapshot.rows.first?.size == 12)
+    }
+
+    @Test func querySearchesCaseInsensitivelyInTheSelectedScope() throws {
+        let snapshot: SelectionListSnapshot = try SelectionListPipeline.makeSnapshot(
+            rootItem: selectionListRoot(),
+            filter: .all,
+            usePhysicalSize: true
+        )
+        let descriptors: [SelectionListSortDescriptor] = [
+            SelectionListSortDescriptor(field: .name, isAscending: true)
+        ]
+
+        let nameMatches: [SelectionListRow] = try SelectionListPipeline.visibleRows(
+            from: snapshot.rows,
+            searchText: "read me",
+            scope: .name,
+            sortDescriptors: descriptors
+        )
+        let pathMatches: [SelectionListRow] = try SelectionListPipeline.visibleRows(
+            from: snapshot.rows,
+            searchText: "NOTES",
+            scope: .path,
+            sortDescriptors: descriptors
+        )
+        let kindMatches: [SelectionListRow] = try SelectionListPipeline.visibleRows(
+            from: snapshot.rows,
+            searchText: "markdown",
+            scope: .all,
+            sortDescriptors: descriptors
+        )
+
+        #expect(nameMatches.map(\.name) == ["Read Me.TXT"])
+        #expect(pathMatches.map(\.name) == ["Read Me.TXT", "todo.md"])
+        #expect(kindMatches.map(\.name) == ["todo.md"])
+    }
+
+    @Test func queryUsesRequestedSortOrder() throws {
+        let snapshot: SelectionListSnapshot = try SelectionListPipeline.makeSnapshot(
+            rootItem: selectionListRoot(),
+            filter: .all,
+            usePhysicalSize: true
+        )
+
+        let ascendingNames: [SelectionListRow] = try SelectionListPipeline.visibleRows(
+            from: snapshot.rows,
+            searchText: "",
+            scope: .all,
+            sortDescriptors: [SelectionListSortDescriptor(field: .name, isAscending: true)]
+        )
+        let descendingSizes: [SelectionListRow] = try SelectionListPipeline.visibleRows(
+            from: snapshot.rows,
+            searchText: "",
+            scope: .all,
+            sortDescriptors: [SelectionListSortDescriptor(field: .size, isAscending: false)]
+        )
+
+        #expect(ascendingNames.map(\.name) == ["photo.png", "Read Me.TXT", "todo.md"])
+        #expect(descendingSizes.map(\.size) == [12_288, 8_192, 4_096])
+    }
+
+    @Test func canceledQueryStopsBeforePublishingResults() async {
+        let row: SelectionListRow = SelectionListRow(
+            item: DiskItem(
+                url: URL(fileURLWithPath: "/scan/file.txt"),
+                displayName: "file.txt",
+                allocatedSizeValue: 4_096,
+                logicalSizeValue: 4,
+                kindName: "Plain Text"
+            ),
+            size: 4_096
+        )
+        let worker = Task.detached {
+            try SelectionListPipeline.visibleRows(
+                from: Array(repeating: row, count: 10_000),
+                searchText: "file",
+                scope: .all,
+                sortDescriptors: [SelectionListSortDescriptor(field: .size, isAscending: false)]
+            )
+        }
+
+        worker.cancel()
+
+        await #expect(throws: CancellationError.self) {
+            try await worker.value
+        }
+    }
+
+    private func selectionListRoot() -> DiskItem {
+        let root: DiskItemBuilder = DiskItemBuilder(
+            url: URL(fileURLWithPath: "/scan"),
+            isDirectory: true
+        )
+        let notes: DiskItemBuilder = DiskItemBuilder(
+            url: URL(fileURLWithPath: "/scan/Notes"),
+            isDirectory: true
+        )
+        notes.appendChild(
+            DiskItemBuilder(
+                url: URL(fileURLWithPath: "/scan/Notes/Read Me.TXT"),
+                displayName: "Read Me.TXT",
+                allocatedSizeValue: 4_096,
+                logicalSizeValue: 12,
+                kindName: "Plain Text"
+            )
+        )
+        notes.appendChild(
+            DiskItemBuilder(
+                url: URL(fileURLWithPath: "/scan/Notes/todo.md"),
+                allocatedSizeValue: 8_192,
+                logicalSizeValue: 24,
+                kindName: "Markdown document"
+            )
+        )
+        root.appendChild(notes)
+        root.appendChild(
+            DiskItemBuilder(
+                url: URL(fileURLWithPath: "/scan/photo.png"),
+                allocatedSizeValue: 12_288,
+                logicalSizeValue: 36,
+                kindName: "PNG image"
+            )
+        )
+        return root.freeze()
+    }
+}
+
 struct TreemapDiskItemDataSourceTests {
 
     @Test func weightUsesSelectedPhysicalOrLogicalSizeMode() {

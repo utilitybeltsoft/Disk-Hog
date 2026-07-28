@@ -118,7 +118,6 @@ final class InspectorWindowController: NSObject, ObservableObject {
                 from: contentSizeSlot(for: oldValue),
                 to: currentContentSizeSlot
             )
-            scheduleArrangementBesideActiveScanWindow()
         }
     }
 
@@ -156,7 +155,6 @@ final class InspectorWindowController: NSObject, ObservableObject {
         }
         resizeWindowIfNeeded(from: previousContentSizeSlot)
         updateWindowTitle()
-        scheduleArrangementBesideActiveScanWindow()
     }
 
     func activate(source: ScanSource?) {
@@ -205,7 +203,6 @@ final class InspectorWindowController: NSObject, ObservableObject {
         updateWindowTitle()
         windowController.window?.makeKeyAndOrderFront(nil)
         isVisible = true
-        scheduleArrangementBesideActiveScanWindow()
     }
 
     func toggle() {
@@ -265,6 +262,7 @@ final class InspectorWindowController: NSObject, ObservableObject {
         context.markDiskUsageAutomaticallyShown()
         activate(context)
         show(tab: .diskUsage)
+        scheduleInitialArrangementBesideActiveScanWindow()
     }
 
     func arrangeBesideScanWindowIfNeeded(_ scanWindow: NSWindow, for session: ScanSession) {
@@ -403,7 +401,7 @@ final class InspectorWindowController: NSObject, ObservableObject {
         window.setFrame(targetFrame, display: true, animate: false)
     }
 
-    private func scheduleArrangementBesideActiveScanWindow() {
+    private func scheduleInitialArrangementBesideActiveScanWindow() {
         guard selectedTab == .diskUsage,
               let context: InspectorWindowContext = activeContext,
               context.isVolumeScan else {

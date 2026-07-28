@@ -148,7 +148,12 @@ private struct DiskUsageView: View {
                 description: Text("Disk-wide usage is shown when an entire mounted volume is scanned.")
             )
         } else if let usage: DiskUsage = DiskUsage.make(for: session) {
-            DiskUsageContent(usage: usage, primaryLabel: "Scanned", showsOtherUsed: true)
+            DiskUsageContent(
+                usage: usage,
+                primaryLabel: "Scanned",
+                showsOtherUsed: true,
+                isScanning: session.state == .scanning
+            )
         } else {
             ContentUnavailableView(
                 "Disk Usage Unavailable",
@@ -164,7 +169,12 @@ private struct SourceDiskUsageView: View {
 
     var body: some View {
         if let usage: DiskUsage = DiskUsage.make(for: source) {
-            DiskUsageContent(usage: usage, primaryLabel: "Used", showsOtherUsed: false)
+            DiskUsageContent(
+                usage: usage,
+                primaryLabel: "Used",
+                showsOtherUsed: false,
+                isScanning: false
+            )
         } else {
             ContentUnavailableView(
                 "Disk Usage Unavailable",
@@ -184,6 +194,7 @@ private struct DiskUsageContent: View {
     let usage: DiskUsage
     let primaryLabel: String
     let showsOtherUsed: Bool
+    let isScanning: Bool
 
     var body: some View {
         VStack(spacing: 18) {
@@ -197,14 +208,14 @@ private struct DiskUsageContent: View {
             VStack(spacing: 10) {
                 DiskUsageLegendRow(
                     color: .accentColor,
-                    label: primaryLabel,
+                    label: isScanning ? "Scanned so far" : primaryLabel,
                     bytes: usage.primaryUsedBytes,
                     totalBytes: usage.totalBytes
                 )
                 if showsOtherUsed {
                     DiskUsageLegendRow(
                         color: Color(nsColor: .systemGray),
-                        label: "Other used",
+                        label: isScanning ? "Remaining used" : "Other used",
                         bytes: usage.otherUsedBytes,
                         totalBytes: usage.totalBytes
                     )
@@ -219,7 +230,7 @@ private struct DiskUsageContent: View {
             .padding(.horizontal, 20)
 
             if showsOtherUsed {
-                Text("Other used includes space outside the scan tree, such as protected files, snapshots, and sibling system volumes.")
+                Text(otherUsedExplanation)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -228,6 +239,13 @@ private struct DiskUsageContent: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .padding(.bottom, DiskUsageLayoutMetrics.bottomPadding)
+    }
+
+    private var otherUsedExplanation: String {
+        if isScanning {
+            return "Remaining used includes files not yet added to the scan tree and space outside it. The value is recalculated as scanning progresses."
+        }
+        return "Other used includes space outside the completed scan tree, such as protected files, snapshots, and sibling system volumes."
     }
 }
 
@@ -375,6 +393,9 @@ private struct SelectionListView: View {
     @ObservedObject var selectionCoordinator: ScanWindowSelectionCoordinator
     @Binding var selectionFilter: SelectionListFilter?
     @State private var rows: [SelectionListRow] = []
+    @State private var visibleRows: [SelectionListRow] = []
+    @State private var rowsByID: [DiskItemID: SelectionListRow] = [:]
+    @State private var rowsGeneration: Int = 0
     @State private var selectedItemID: DiskItemID?
     @State private var isLoading: Bool = false
     @State private var searchText: String = ""
@@ -458,14 +479,14 @@ private struct SelectionListView: View {
                 .font(.system(size: NSFont.smallSystemFontSize))
                 .onChange(of: selectedItemID) {
                     guard let selectedItemID,
-                          let item: DiskItem = rows.first(where: { $0.id == selectedItemID })?.item else {
+                          let item: DiskItem = rowsByID[selectedItemID]?.item else {
                         return
                     }
                     selectionCoordinator.setSelectedItem(item)
                 }
                 .onChange(of: selectionCoordinator.selectedItem?.id) {
                     let selectedItem: DiskItem? = selectionCoordinator.selectedItem
-                    selectedItemID = rows.contains(where: { $0.id == selectedItem?.id }) ? selectedItem?.id : nil
+                    selectedItemID = selectedItem.flatMap { rowsByID[$0.id] }?.id
                 }
             }
         }
@@ -473,71 +494,106 @@ private struct SelectionListView: View {
             guard let rootItem: DiskItem = session.rootItem,
                   let selectionFilter else {
                 rows = []
+                visibleRows = []
+                rowsByID = [:]
+                rowsGeneration += 1
+                isLoading = false
                 return
             }
 
             isLoading = true
+            rows = []
+            visibleRows = []
+            rowsByID = [:]
+            rowsGeneration += 1
             let usePhysicalSize: Bool = session.scanSettings.usePhysicalSize
-            rows = await Task.detached(priority: .userInitiated) {
-                let items: [DiskItem]
-                switch selectionFilter {
-                case .all:
-                    items = rootItem.allFiles()
-                case .kind(let kindName):
-                    items = rootItem.files(ofKind: kindName)
-                }
-                return items.map { item in
-                    SelectionListRow(
-                        item: item,
-                        size: item.sizeValue(usePhysicalSize: usePhysicalSize)
-                    )
-                }
-            }.value
+            let worker = Task.detached(priority: .userInitiated) {
+                try SelectionListPipeline.makeSnapshot(
+                    rootItem: rootItem,
+                    filter: selectionFilter,
+                    usePhysicalSize: usePhysicalSize
+                )
+            }
+            let snapshot: SelectionListSnapshot
+            do {
+                snapshot = try await withTaskCancellationHandler(
+                    operation: { try await worker.value },
+                    onCancel: { worker.cancel() }
+                )
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
+            rows = snapshot.rows
+            rowsByID = snapshot.rowsByID
+            rowsGeneration += 1
             isLoading = false
             let selectedItem: DiskItem? = selectionCoordinator.selectedItem
-            selectedItemID = rows.contains(where: { $0.id == selectedItem?.id }) ? selectedItem?.id : nil
+            selectedItemID = selectedItem.flatMap { snapshot.rowsByID[$0.id] }?.id
+        }
+        .task(
+            id: SelectionListQueryTaskID(
+                rowsGeneration: rowsGeneration,
+                searchText: searchText,
+                searchScope: searchScope,
+                sortDescriptors: selectionSortDescriptors
+            )
+        ) {
+            guard !isLoading else { return }
+            let sourceRows: [SelectionListRow] = rows
+            let sourceGeneration: Int = rowsGeneration
+            let query: String = searchText
+            let scope: SelectionListSearchScope = searchScope
+            let descriptors: [SelectionListSortDescriptor] = selectionSortDescriptors
+
+            if !query.isEmpty {
+                do {
+                    try await Task.sleep(for: .milliseconds(150))
+                } catch {
+                    return
+                }
+            }
+
+            let worker = Task.detached(priority: .userInitiated) {
+                try SelectionListPipeline.visibleRows(
+                    from: sourceRows,
+                    searchText: query,
+                    scope: scope,
+                    sortDescriptors: descriptors
+                )
+            }
+            let result: [SelectionListRow]
+            do {
+                result = try await withTaskCancellationHandler(
+                    operation: { try await worker.value },
+                    onCancel: { worker.cancel() }
+                )
+            } catch {
+                return
+            }
+            guard !Task.isCancelled, rowsGeneration == sourceGeneration else { return }
+            visibleRows = result
         }
     }
 
-    private var visibleRows: [SelectionListRow] {
-        let filteredRows: [SelectionListRow]
-        if searchText.isEmpty {
-            filteredRows = rows
-        } else {
-            filteredRows = rows.filter { $0.matches(searchText, in: searchScope) }
+    private var selectionSortDescriptors: [SelectionListSortDescriptor] {
+        sortOrder.compactMap { comparator in
+            let field: SelectionListSortField
+            switch comparator.keyPath {
+            case \SelectionListRow.name:
+                field = .name
+            case \SelectionListRow.parentPath:
+                field = .path
+            case \SelectionListRow.size:
+                field = .size
+            default:
+                return nil
+            }
+            return SelectionListSortDescriptor(
+                field: field,
+                isAscending: comparator.order == .forward
+            )
         }
-        return filteredRows.sorted(using: sortOrder)
-    }
-}
-
-nonisolated enum SelectionListSearchScope: String, CaseIterable, Identifiable {
-    case all
-    case name
-    case kind
-    case path
-
-    var id: Self { self }
-
-    var title: String {
-        switch self {
-        case .all: "All fields"
-        case .name: "Name"
-        case .kind: "Kind"
-        case .path: "Path"
-        }
-    }
-
-    var accessibilityTitle: String {
-        switch self {
-        case .all: "name, kind, and path"
-        case .name: "file name"
-        case .kind: "file kind"
-        case .path: "file path"
-        }
-    }
-
-    var helpText: String {
-        "Performs a case-insensitive substring search in \(accessibilityTitle)."
     }
 }
 
@@ -546,30 +602,11 @@ private struct SelectionListTaskID: Hashable {
     let filter: SelectionListFilter?
 }
 
-private struct SelectionListRow: Identifiable {
-    let item: DiskItem
-    let size: UInt64
-
-    var id: DiskItemID { item.id }
-    var name: String { item.displayName }
-    var kindName: String { item.kindName ?? "" }
-    var parentPath: String { item.url.deletingLastPathComponent().path }
-    var fullPath: String { item.path }
-
-    func matches(_ searchText: String, in scope: SelectionListSearchScope) -> Bool {
-        switch scope {
-        case .all:
-            name.localizedCaseInsensitiveContains(searchText)
-                || kindName.localizedCaseInsensitiveContains(searchText)
-                || fullPath.localizedCaseInsensitiveContains(searchText)
-        case .name:
-            name.localizedCaseInsensitiveContains(searchText)
-        case .kind:
-            kindName.localizedCaseInsensitiveContains(searchText)
-        case .path:
-            fullPath.localizedCaseInsensitiveContains(searchText)
-        }
-    }
+private struct SelectionListQueryTaskID: Hashable {
+    let rowsGeneration: Int
+    let searchText: String
+    let searchScope: SelectionListSearchScope
+    let sortDescriptors: [SelectionListSortDescriptor]
 }
 
 private func byteString(_ bytes: UInt64) -> String {
