@@ -63,7 +63,7 @@ struct SelectionListTableView: NSViewRepresentable {
         tableView.setDraggingSourceOperationMask(.copy, forLocal: false)
 
         let nameColumn: NSTableColumn = NSTableColumn(identifier: SelectionListColumnID.name)
-        nameColumn.title = "Name"
+        nameColumn.title = String(localized: "Name")
         nameColumn.width = 220
         nameColumn.minWidth = 120
         nameColumn.resizingMask = [.autoresizingMask, .userResizingMask]
@@ -75,7 +75,7 @@ struct SelectionListTableView: NSViewRepresentable {
         tableView.addTableColumn(nameColumn)
 
         let pathColumn: NSTableColumn = NSTableColumn(identifier: SelectionListColumnID.path)
-        pathColumn.title = "Path"
+        pathColumn.title = String(localized: "Path")
         pathColumn.width = 360
         pathColumn.minWidth = 160
         pathColumn.resizingMask = [.autoresizingMask, .userResizingMask]
@@ -87,7 +87,7 @@ struct SelectionListTableView: NSViewRepresentable {
         tableView.addTableColumn(pathColumn)
 
         let sizeColumn: NSTableColumn = NSTableColumn(identifier: SelectionListColumnID.size)
-        sizeColumn.title = "Size"
+        sizeColumn.title = String(localized: "Size")
         sizeColumn.headerCell.alignment = .right
         sizeColumn.width = 92
         sizeColumn.minWidth = 72

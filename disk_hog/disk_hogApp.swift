@@ -75,13 +75,13 @@ final class DiskHogApplicationDelegate: NSObject, NSApplicationDelegate {
         }
 
         let alert: NSAlert = NSAlert()
-        alert.messageText = "Cancel active scans and quit Disk Hog?"
+        alert.messageText = String(localized: "Cancel active scans and quit Disk Hog?")
         alert.informativeText = activeScanningSessions.count == 1
-            ? "One scan is still running. Quitting Disk Hog will cancel it."
-            : "\(activeScanningSessions.count) scans are still running. Quitting Disk Hog will cancel them."
+            ? String(localized: "One scan is still running. Quitting Disk Hog will cancel it.")
+            : String(localized: "\(activeScanningSessions.count) scans are still running. Quitting Disk Hog will cancel them.")
         alert.alertStyle = .warning
-        alert.addButton(withTitle: "Cancel Scans and Quit")
-        alert.addButton(withTitle: "Keep Scanning")
+        alert.addButton(withTitle: String(localized: "Cancel Scans and Quit"))
+        alert.addButton(withTitle: String(localized: "Keep Scanning"))
 
         guard alert.runModal() == .alertFirstButtonReturn else {
             return .terminateCancel

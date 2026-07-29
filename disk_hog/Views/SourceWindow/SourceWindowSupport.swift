@@ -50,13 +50,15 @@ final class SourceWindowCloseRegistrationNSView: NSView {
         }
 
         let alert: NSAlert = NSAlert()
-        alert.messageText = "Cancel active scans before closing the source window?"
+        alert.messageText = String(
+            localized: "Cancel active scans before closing the source window?"
+        )
         alert.informativeText = activeScanningSessions.count == 1
-            ? "One scan is still running. Disk Hog will keep the source window open after cancelling it."
-            : "\(activeScanningSessions.count) scans are still running. Disk Hog will keep the source window open after cancelling them."
+            ? String(localized: "One scan is still running. Disk Hog will keep the source window open after cancelling it.")
+            : String(localized: "\(activeScanningSessions.count) scans are still running. Disk Hog will keep the source window open after cancelling them.")
         alert.alertStyle = .warning
-        alert.addButton(withTitle: "Cancel Active Scans")
-        alert.addButton(withTitle: "Keep Scanning")
+        alert.addButton(withTitle: String(localized: "Cancel Active Scans"))
+        alert.addButton(withTitle: String(localized: "Keep Scanning"))
 
         if alert.runModal() == .alertFirstButtonReturn {
             ScanWindowRegistry.shared.cancelActiveScans()
@@ -74,7 +76,7 @@ enum SourceFolderChooser {
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
         panel.canCreateDirectories = false
-        panel.prompt = "Scan"
+        panel.prompt = String(localized: "Scan")
         return panel
     }()
     private static var activePanel: NSOpenPanel?

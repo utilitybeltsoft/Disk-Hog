@@ -55,7 +55,9 @@ extension DiskItemTreeNode {
     nonisolated var allocatedSizeValue: UInt64 { itemMetadata.allocatedSizeValue }
     nonisolated var logicalSizeValue: UInt64 { itemMetadata.logicalSizeValue }
     nonisolated var kindName: String? { itemMetadata.kindName }
-    nonisolated var resolvedKindName: String { resolvedKindName(folderName: "Folder") }
+    nonisolated var resolvedKindName: String {
+        resolvedKindName(folderName: String(localized: "Folder"))
+    }
     nonisolated func resolvedKindName(folderName: String) -> String {
         if let kindName: String = itemMetadata.kindName { return kindName }
         return isFolder && !isPackage ? folderName : ""
@@ -69,8 +71,8 @@ extension DiskItemTreeNode {
     nonisolated var displayName: String {
         switch itemMetadata.itemType {
         case .fileOrFolder: itemMetadata.displayNameOverride ?? itemMetadata.fileSystemName
-        case .otherSpace: "space occupied by other files and folders"
-        case .freeSpace: "free space on drive"
+        case .otherSpace: String(localized: "space occupied by other files and folders")
+        case .freeSpace: String(localized: "free space on drive")
         }
     }
     nonisolated var name: String {
@@ -189,8 +191,8 @@ nonisolated final class DiskItem: Identifiable, Hashable, Sendable, DiskItemTree
             return snapshot.string(record.displayName, at: address)
                 ?? snapshot.string(record.fileSystemName, at: address)
                 ?? ""
-        case .otherSpace: return "space occupied by other files and folders"
-        case .freeSpace: return "free space on drive"
+        case .otherSpace: return String(localized: "space occupied by other files and folders")
+        case .freeSpace: return String(localized: "free space on drive")
         }
     }
     var name: String {

@@ -104,7 +104,7 @@ nonisolated final class TreemapPresentationMetrics: @unchecked Sendable {
         let statisticsByKind: [String: TreemapKindAggregate] = TreemapKindCatalog.aggregates(
             from: rootItem,
             usePhysicalSize: usePhysicalSize,
-            folderKindName: "Folder",
+            folderKindName: String(localized: "Folder"),
             progress: progress
         )
         let orderedKinds: [String] = TreemapKindCatalog.orderedKinds(from: statisticsByKind)

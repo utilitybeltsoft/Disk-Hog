@@ -47,14 +47,14 @@ struct KindStatisticTableView: NSViewRepresentable {
         tableView.menu = menu
 
         let colorColumn: NSTableColumn = NSTableColumn(identifier: KindColumnID.color)
-        colorColumn.title = "Color"
+        colorColumn.title = String(localized: "Color")
         colorColumn.width = ScanWindowMetrics.kindColorColumnWidth
         colorColumn.minWidth = ScanWindowMetrics.kindColorColumnMinimumWidth
         colorColumn.resizingMask = .userResizingMask
         tableView.addTableColumn(colorColumn)
 
         let kindColumn: NSTableColumn = NSTableColumn(identifier: KindColumnID.kind)
-        kindColumn.title = "Kind"
+        kindColumn.title = String(localized: "Kind")
         kindColumn.minWidth = ScanWindowMetrics.kindNameColumnMinimumWidth
         kindColumn.resizingMask = [.autoresizingMask, .userResizingMask]
         kindColumn.sortDescriptorPrototype = NSSortDescriptor(
@@ -65,7 +65,7 @@ struct KindStatisticTableView: NSViewRepresentable {
         tableView.addTableColumn(kindColumn)
 
         let sizeColumn: NSTableColumn = NSTableColumn(identifier: KindColumnID.size)
-        sizeColumn.title = "Size"
+        sizeColumn.title = String(localized: "Size")
         sizeColumn.headerCell.alignment = .right
         sizeColumn.width = ScanWindowMetrics.kindSizeColumnWidth
         sizeColumn.minWidth = ScanWindowMetrics.kindSizeColumnWidth
@@ -77,7 +77,7 @@ struct KindStatisticTableView: NSViewRepresentable {
         tableView.addTableColumn(sizeColumn)
 
         let filesColumn: NSTableColumn = NSTableColumn(identifier: KindColumnID.files)
-        filesColumn.title = "Files"
+        filesColumn.title = String(localized: "Files")
         filesColumn.headerCell.alignment = .right
         filesColumn.width = ScanWindowMetrics.kindFilesColumnWidth
         filesColumn.minWidth = ScanWindowMetrics.kindFilesColumnWidth
@@ -290,7 +290,7 @@ struct KindStatisticTableView: NSViewRepresentable {
         private static func allKindsRow(from statistics: [TreemapKindStatistic]) -> KindStatisticRow {
             KindStatisticRow(
                 filter: .all,
-                kindName: "All",
+                kindName: String(localized: "All"),
                 size: statistics.reduce(0) { $0 + $1.size },
                 fileCount: statistics.reduce(0) { $0 + $1.fileCount },
                 color: nil

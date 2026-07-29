@@ -55,14 +55,18 @@ final class PackageContentsPreferenceCoordinator: ObservableObject {
 
         let alert: NSAlert = NSAlert()
         alert.messageText = affectedSessions.count == 1
-            ? "Rescan the Open Scan Window?"
-            : "Rescan All Open Scan Windows?"
+            ? String(localized: "Rescan the Open Scan Window?")
+            : String(localized: "Rescan All Open Scan Windows?")
         alert.informativeText = newValue
-            ? "Showing package contents changes which files and folders are included. Rescan now to apply this setting to existing results."
-            : "Hiding package contents changes which files and folders are included. Rescan now to apply this setting to existing results."
+            ? String(localized: "Showing package contents changes which files and folders are included. Rescan now to apply this setting to existing results.")
+            : String(localized: "Hiding package contents changes which files and folders are included. Rescan now to apply this setting to existing results.")
         alert.alertStyle = .informational
-        alert.addButton(withTitle: affectedSessions.count == 1 ? "Rescan" : "Rescan All")
-        alert.addButton(withTitle: "Not Now")
+        alert.addButton(
+            withTitle: affectedSessions.count == 1
+                ? String(localized: "Rescan")
+                : String(localized: "Rescan All")
+        )
+        alert.addButton(withTitle: String(localized: "Not Now"))
 
         if alert.runModal() == .alertFirstButtonReturn {
             ScanWindowRegistry.shared.rescanAllForPackageContentsPreference(newValue)

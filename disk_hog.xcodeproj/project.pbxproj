@@ -190,7 +190,11 @@
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
+				de,
 				en,
+				es,
+				fr,
+				it,
 				Base,
 			);
 			mainGroup = 51CD96F92FF09A6500A37403;

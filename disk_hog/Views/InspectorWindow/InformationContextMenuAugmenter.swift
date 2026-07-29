@@ -109,7 +109,7 @@ final class InformationContextMenuCoordinator: NSObject {
     }
 
     private func addInformationCommands(to menu: NSMenu) {
-        guard menu.item(withTitle: "Copy Information") == nil else {
+        guard menu.item(withTitle: String(localized: "Copy Information")) == nil else {
             return
         }
 
@@ -118,7 +118,7 @@ final class InformationContextMenuCoordinator: NSObject {
         }
 
         let copyItem: NSMenuItem = NSMenuItem(
-            title: "Copy Information",
+            title: String(localized: "Copy Information"),
             action: #selector(copyInformation(_:)),
             keyEquivalent: ""
         )
@@ -127,7 +127,7 @@ final class InformationContextMenuCoordinator: NSObject {
         menu.addItem(copyItem)
 
         let revealItem: NSMenuItem = NSMenuItem(
-            title: "Reveal in Finder",
+            title: String(localized: "Reveal in Finder"),
             action: #selector(revealInFinder(_:)),
             keyEquivalent: ""
         )
@@ -148,7 +148,9 @@ final class InformationContextMenuCoordinator: NSObject {
                 itemName: item.displayName,
                 kindDescription: kindDescription
                     ?? item.kindName
-                    ?? (item.isFolder ? "Folder" : "File")
+                    ?? (item.isFolder
+                        ? String(localized: "Folder")
+                        : String(localized: "File"))
             ),
             forType: .string
         )

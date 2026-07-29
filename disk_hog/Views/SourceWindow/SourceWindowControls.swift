@@ -78,7 +78,7 @@ struct SourceWindowActionBar: View {
 }
 
 private struct SourceWindowButtonLabel: View {
-    let title: String
+    let title: LocalizedStringKey
     let systemImage: String
 
     var body: some View {
@@ -127,8 +127,8 @@ private struct ScanSettingsPopoverView: View {
 }
 
 private struct ScanSettingsRowView: View {
-    let title: String
-    let description: String
+    let title: LocalizedStringKey
+    let description: LocalizedStringKey
     @Binding var isOn: Bool
 
     var body: some View {

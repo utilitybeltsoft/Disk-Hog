@@ -13,7 +13,7 @@ struct ZStatusFieldsView: View {
                         .lineLimit(1)
                         .truncationMode(.middle)
                         .textSelection(.enabled)
-                    Text(hoverStatusLine ?? "Hovering on:")
+                    Text(hoverStatusLine ?? String(localized: "Hovering on:"))
                         .lineLimit(1)
                         .truncationMode(.middle)
                         .opacity(hoverStatusLine == nil ? 0 : 1)
@@ -47,7 +47,7 @@ struct ZStatusFieldsView: View {
 
     private var selectedStatusLine: String {
         if let selectedItem: DiskItem = selectedItem.wrappedValue {
-            return statusLine(prefix: "Selected", item: selectedItem)
+            return statusLine(prefix: String(localized: "Selected"), item: selectedItem)
         }
 
         return session.currentPath
@@ -55,7 +55,7 @@ struct ZStatusFieldsView: View {
 
     private var hoverStatusLine: String? {
         if let hoveredItem: DiskItem = hoveredItem.wrappedValue {
-            return statusLine(prefix: "Hovering on", item: hoveredItem)
+            return statusLine(prefix: String(localized: "Hovering on"), item: hoveredItem)
         }
 
         return nil
@@ -67,20 +67,20 @@ struct ZStatusFieldsView: View {
             countStyle: .file
         )
         if let kindName: String = item.kindName, !kindName.isEmpty {
-            return "\(prefix): \(item.path), \(kindName), \(size)"
+            return String(localized: "\(prefix): \(item.path), \(kindName), \(size)")
         }
 
-        return "\(prefix): \(item.path), \(size)"
+        return String(localized: "\(prefix): \(item.path), \(size)")
     }
 
     private func progressSummary(referenceDate: Date) -> String {
         switch session.state {
         case .complete:
             if let completedAt: Date = session.completedAt {
-                return "Scan complete at \(Self.dateTimeFormatter.string(from: completedAt))"
+                return String(localized: "Scan complete at \(Self.dateTimeFormatter.string(from: completedAt))")
             }
 
-            return "Scan complete"
+            return String(localized: "Scan complete")
         case .ready, .scanning, .cancelled, .failed:
             return session.isBuildingTreemap
                 ? preparingTreemapStatus(referenceDate: referenceDate)
@@ -91,11 +91,13 @@ struct ZStatusFieldsView: View {
     private func preparingTreemapStatus(referenceDate: Date) -> String {
         if let progress: Double = session.treemapPreparationProgress {
             let percentage: Int = Int((progress * 100).rounded(.down))
-            return "Preparing treemap: \(percentage)%"
+            return String(localized: "Preparing treemap: \(percentage)%")
         }
 
         let showsEllipsis: Bool = Int(referenceDate.timeIntervalSinceReferenceDate).isMultiple(of: 2)
-        return showsEllipsis ? "Preparing treemap..." : "Preparing treemap"
+        return showsEllipsis
+            ? String(localized: "Preparing treemap...")
+            : String(localized: "Preparing treemap")
     }
 
     private func scanTotalsView(referenceDate: Date) -> some View {
@@ -135,7 +137,7 @@ struct ZStatusFieldsView: View {
 
     private func countField(_ label: String, count: Int, width: CGFloat) -> some View {
         let formattedCount: String = Self.integerFormatter.string(from: NSNumber(value: count)) ?? String(count)
-        return Text("\(label): \(formattedCount)")
+        return Text(String(localized: "\(label): \(formattedCount)"))
             .monospacedDigit()
             .frame(minWidth: width, alignment: .leading)
     }

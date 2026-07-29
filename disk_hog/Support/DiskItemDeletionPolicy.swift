@@ -92,11 +92,15 @@ enum DiskItemDeletionCoordinator {
         presentingWindow: NSWindow?
     ) {
         let alert: NSAlert = NSAlert()
-        alert.messageText = "\"\(item.displayName)\" cannot be moved to the Trash."
-        alert.informativeText = "This item is on a network volume. Do you want to delete it permanently?"
+        alert.messageText = String(
+            localized: "\"\(item.displayName)\" cannot be moved to the Trash."
+        )
+        alert.informativeText = String(
+            localized: "This item is on a network volume. Do you want to delete it permanently?"
+        )
         alert.alertStyle = .warning
-        alert.addButton(withTitle: "Delete Permanently")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: String(localized: "Delete Permanently"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
 
         present(alert, on: presentingWindow) { response in
             guard response == .alertFirstButtonReturn else {

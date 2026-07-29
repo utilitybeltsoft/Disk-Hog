@@ -15,11 +15,11 @@ nonisolated enum DiskScannerError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case let .topLevelEnumerationFailed(path, underlyingDescription):
-            return "Could not list the top level of \"\(path)\". \(underlyingDescription)"
+            return String(localized: "Could not list the top level of \"\(path)\". \(underlyingDescription)")
         case let .itemOutsideScanRoot(path):
-            return "Could not refresh \"\(path)\" because it is outside the scanned folder."
+            return String(localized: "Could not refresh \"\(path)\" because it is outside the scanned folder.")
         case let .traversalInconsistency(detail):
-            return "Scanner traversal failed because the directory structure changed unexpectedly. \(detail)"
+            return String(localized: "Scanner traversal failed because the directory structure changed unexpectedly. \(detail)")
         }
     }
 }

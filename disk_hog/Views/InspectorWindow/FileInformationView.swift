@@ -14,7 +14,10 @@ struct FileInformationView: View {
             let item: DiskItem = displayedItem ?? selectedItem
             FileInformationContent(
                 item: item,
-                kindDescription: item.kindName ?? (item.isFolder ? "Folder" : "File"),
+                kindDescription: item.kindName
+                    ?? (item.isFolder
+                        ? String(localized: "Folder")
+                        : String(localized: "File")),
                 snapshot: snapshot,
                 isLoading: isLoading
             )
@@ -65,7 +68,7 @@ struct VolumeInformationView: View {
     var body: some View {
         FileInformationContent(
             item: item,
-            kindDescription: source.volumeFormat ?? "Volume",
+            kindDescription: source.volumeFormat ?? String(localized: "Volume"),
             snapshot: snapshot,
             isLoading: isLoading
         )
@@ -239,7 +242,7 @@ nonisolated struct FileInformationSnapshot: Sendable {
                 : source.url.lastPathComponent,
             allocatedSizeValue: totalBytes - freeBytes,
             logicalSizeValue: totalBytes - freeBytes,
-            kindName: source.volumeFormat ?? "Volume",
+            kindName: source.volumeFormat ?? String(localized: "Volume"),
             isDirectory: true
         )
     }
@@ -249,7 +252,7 @@ nonisolated struct FileInformationSnapshot: Sendable {
         var sections: [FileInformationSection] = load(
             item: item,
             usePhysicalSize: true
-        ).sections.filter { $0.title != "Sizes" }
+        ).sections.filter { $0.title != String(localized: "Sizes") }
         sections.insert(volumeSection(source: source), at: min(1, sections.count))
         return FileInformationSnapshot(sections: sections)
     }
@@ -364,7 +367,7 @@ nonisolated struct FileInformationSnapshot: Sendable {
         rows.append(
             FileInformationRow(
                 "Scan availability",
-                source.scanDisabledReason ?? "Available"
+                source.scanDisabledReason ?? String(localized: "Available")
             )
         )
         return FileInformationSection(title: "Volume", rows: rows)
@@ -378,7 +381,14 @@ nonisolated struct FileInformationSnapshot: Sendable {
         var rows: [FileInformationRow] = [
             FileInformationRow("Name", item.name),
             FileInformationRow("Display name", item.displayName),
-            FileInformationRow("Kind", values?.localizedTypeDescription ?? item.kindName ?? (item.isFolder ? "Folder" : "File")),
+            FileInformationRow(
+                "Kind",
+                values?.localizedTypeDescription
+                    ?? item.kindName
+                    ?? (item.isFolder
+                        ? String(localized: "Folder")
+                        : String(localized: "File"))
+            ),
             FileInformationRow("Path", item.path)
         ]
         append("Type identifier", values?.typeIdentifier, to: &rows)
@@ -534,13 +544,17 @@ nonisolated struct FileInformationSnapshot: Sendable {
             } else {
                 value = "\(attribute.size.formatted()) bytes"
             }
-            return FileInformationRow(attribute.name, value, monospaced: true)
+            return FileInformationRow(
+                verbatimLabel: attribute.name,
+                value,
+                monospaced: true
+            )
         }
         return FileInformationSection(title: "Extended Attributes", rows: rows)
     }
 
     private static func append(
-        _ label: String,
+        _ label: String.LocalizationValue,
         _ value: String?,
         to rows: inout [FileInformationRow],
         monospaced: Bool = false
@@ -551,7 +565,11 @@ nonisolated struct FileInformationSnapshot: Sendable {
         rows.append(FileInformationRow(label, value, monospaced: monospaced))
     }
 
-    private static func appendBytes(_ label: String, _ value: Int?, to rows: inout [FileInformationRow]) {
+    private static func appendBytes(
+        _ label: String.LocalizationValue,
+        _ value: Int?,
+        to rows: inout [FileInformationRow]
+    ) {
         guard let value, value >= 0 else {
             return
         }
@@ -559,7 +577,7 @@ nonisolated struct FileInformationSnapshot: Sendable {
     }
 
     private static func appendBoolean(
-        _ label: String,
+        _ label: String.LocalizationValue,
         _ value: Bool?,
         to rows: inout [FileInformationRow]
     ) {
@@ -569,14 +587,22 @@ nonisolated struct FileInformationSnapshot: Sendable {
         rows.append(FileInformationRow(label, yesNo(value)))
     }
 
-    private static func appendNumber(_ label: String, _ value: Any?, to rows: inout [FileInformationRow]) {
+    private static func appendNumber(
+        _ label: String.LocalizationValue,
+        _ value: Any?,
+        to rows: inout [FileInformationRow]
+    ) {
         guard let number: NSNumber = value as? NSNumber else {
             return
         }
         rows.append(FileInformationRow(label, number.stringValue, monospaced: true))
     }
 
-    private static func appendDate(_ label: String, _ value: Date?, to rows: inout [FileInformationRow]) {
+    private static func appendDate(
+        _ label: String.LocalizationValue,
+        _ value: Date?,
+        to rows: inout [FileInformationRow]
+    ) {
         guard let value else {
             return
         }
@@ -584,11 +610,13 @@ nonisolated struct FileInformationSnapshot: Sendable {
     }
 
     private static func byteString(_ bytes: UInt64) -> String {
-        "\(ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)) (\(bytes.formatted()) bytes)"
+        String(
+            localized: "\(ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)) (\(bytes.formatted()) bytes)"
+        )
     }
 
     private static func yesNo(_ value: Bool) -> String {
-        value ? "Yes" : "No"
+        value ? String(localized: "Yes") : String(localized: "No")
     }
 
     private static func symbolicPermissions(_ mode: UInt16) -> String {
@@ -682,7 +710,7 @@ nonisolated struct FileInformationSnapshot: Sendable {
 
     private static func finderFlagsDescription(_ data: Data) -> String {
         guard data.count >= 10 else {
-            return "Unavailable"
+            return String(localized: "Unavailable")
         }
         let flags: UInt16 = UInt16(data[8]) << 8 | UInt16(data[9])
         let knownFlags: [(UInt16, String)] = [
@@ -697,7 +725,9 @@ nonisolated struct FileInformationSnapshot: Sendable {
             (0x8000, "Alias")
         ]
         let names: [String] = knownFlags.compactMap { flags & $0.0 == 0 ? nil : $0.1 }
-        let description: String = names.isEmpty ? "None" : names.joined(separator: ", ")
+        let description: String = names.isEmpty
+            ? String(localized: "None")
+            : names.joined(separator: ", ")
         return String(format: "0x%04X (%@)", flags, description)
     }
 
@@ -731,6 +761,11 @@ nonisolated struct FileInformationSection: Identifiable, Sendable {
     let title: String
     let rows: [FileInformationRow]
 
+    init(title: String.LocalizationValue, rows: [FileInformationRow]) {
+        self.title = String(localized: title)
+        self.rows = rows
+    }
+
     var id: String { title }
 }
 
@@ -739,7 +774,17 @@ nonisolated struct FileInformationRow: Identifiable, Sendable {
     let value: String
     let monospaced: Bool
 
-    init(_ label: String, _ value: String, monospaced: Bool = false) {
+    init(
+        _ label: String.LocalizationValue,
+        _ value: String,
+        monospaced: Bool = false
+    ) {
+        self.label = String(localized: label)
+        self.value = value
+        self.monospaced = monospaced
+    }
+
+    init(verbatimLabel label: String, _ value: String, monospaced: Bool = false) {
         self.label = label
         self.value = value
         self.monospaced = monospaced

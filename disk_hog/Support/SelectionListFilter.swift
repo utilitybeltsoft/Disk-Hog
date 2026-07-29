@@ -7,7 +7,7 @@ nonisolated enum SelectionListFilter: Hashable, Sendable {
     var title: String {
         switch self {
         case .all:
-            "All"
+            String(localized: "All")
         case .kind(let kindName):
             kindName
         }

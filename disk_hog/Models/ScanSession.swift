@@ -623,15 +623,15 @@ enum ScanSessionState: Hashable {
     var title: String {
         switch self {
         case .ready:
-            return "Ready"
+            return String(localized: "Ready")
         case .scanning:
-            return "Scanning"
+            return String(localized: "Scanning")
         case .complete:
-            return "Complete"
+            return String(localized: "Complete")
         case .cancelled:
-            return "Cancelled"
+            return String(localized: "Cancelled")
         case .failed:
-            return "Failed"
+            return String(localized: "Failed")
         }
     }
 }

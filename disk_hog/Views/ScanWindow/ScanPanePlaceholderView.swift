@@ -1,8 +1,8 @@
 import SwiftUI
 
 struct ScanPanePlaceholderView: View {
-    let title: String
-    let message: String
+    let title: LocalizedStringKey
+    let message: LocalizedStringKey
     var showsProgress: Bool = false
     var progress: Double?
 

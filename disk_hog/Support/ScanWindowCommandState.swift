@@ -279,14 +279,18 @@ enum DiskItemContextMenuBuilder {
         menu.removeAllItems()
 
         guard let item: DiskItem = item, item.isSpecialItem == false else {
-            let noItem: NSMenuItem = NSMenuItem(title: "No Item Selected", action: nil, keyEquivalent: "")
+            let noItem: NSMenuItem = NSMenuItem(
+                title: String(localized: "No Item Selected"),
+                action: nil,
+                keyEquivalent: ""
+            )
             noItem.isEnabled = false
             menu.addItem(noItem)
             return
         }
 
         let openItem: NSMenuItem = NSMenuItem(
-            title: "Open",
+            title: String(localized: "Open"),
             action: #selector(DiskItemContextMenuActionTarget.openMenuItem(_:)),
             keyEquivalent: ""
         )
@@ -294,14 +298,18 @@ enum DiskItemContextMenuBuilder {
         openItem.representedObject = DiskItemContextMenuPayload(item: item)
         menu.addItem(openItem)
 
-        let openWithItem: NSMenuItem = NSMenuItem(title: "Open With", action: nil, keyEquivalent: "")
+        let openWithItem: NSMenuItem = NSMenuItem(
+            title: String(localized: "Open With"),
+            action: nil,
+            keyEquivalent: ""
+        )
         openWithItem.submenu = openWithSubmenu(for: item, actionTarget: actionTarget)
         menu.addItem(openWithItem)
 
         menu.addItem(.separator())
 
         let revealItem: NSMenuItem = NSMenuItem(
-            title: "Reveal in Finder",
+            title: String(localized: "Reveal in Finder"),
             action: #selector(DiskItemContextMenuActionTarget.revealMenuItem(_:)),
             keyEquivalent: ""
         )
@@ -310,20 +318,20 @@ enum DiskItemContextMenuBuilder {
         menu.addItem(revealItem)
 
         let refreshItem: NSMenuItem = NSMenuItem(
-            title: "Refresh",
+            title: String(localized: "Refresh"),
             action: #selector(DiskItemContextMenuActionTarget.refreshMenuItem(_:)),
             keyEquivalent: ""
         )
         refreshItem.target = actionTarget
         refreshItem.representedObject = DiskItemContextMenuPayload(item: item)
-        refreshItem.toolTip = "Synchronizes folder or file with Finder."
+        refreshItem.toolTip = String(localized: "Synchronizes folder or file with Finder.")
         refreshItem.isEnabled = treeActionsEnabled
         menu.addItem(refreshItem)
 
         menu.addItem(.separator())
 
         let trashItem: NSMenuItem = NSMenuItem(
-            title: "Move To Trash",
+            title: String(localized: "Move To Trash"),
             action: #selector(DiskItemContextMenuActionTarget.trashMenuItem(_:)),
             keyEquivalent: ""
         )
@@ -335,7 +343,7 @@ enum DiskItemContextMenuBuilder {
         menu.addItem(.separator())
 
         let showInspectorItem: NSMenuItem = NSMenuItem(
-            title: "Show Inspector",
+            title: String(localized: "Show Inspector"),
             action: #selector(DiskItemContextMenuActionTarget.showInspectorMenuItem(_:)),
             keyEquivalent: ""
         )
@@ -344,7 +352,7 @@ enum DiskItemContextMenuBuilder {
         menu.addItem(showInspectorItem)
 
         let selectionListItem: NSMenuItem = NSMenuItem(
-            title: "Show Files in Selection List",
+            title: String(localized: "Show Files in Selection List"),
             action: #selector(DiskItemContextMenuActionTarget.showInSelectionListMenuItem(_:)),
             keyEquivalent: ""
         )
@@ -358,7 +366,7 @@ enum DiskItemContextMenuBuilder {
         for item: DiskItem,
         actionTarget: DiskItemContextMenuActionTarget
     ) -> NSMenu {
-        let submenu: NSMenu = NSMenu(title: "Open With")
+        let submenu: NSMenu = NSMenu(title: String(localized: "Open With"))
         var addedApplicationURLs: Set<URL> = []
 
         if let defaultApplicationURL: URL = NSWorkspace.shared.urlForApplication(toOpen: item.url) {
@@ -388,7 +396,11 @@ enum DiskItemContextMenuBuilder {
         }
 
         if submenu.items.isEmpty {
-            let unavailableItem: NSMenuItem = NSMenuItem(title: "No Applications Available", action: nil, keyEquivalent: "")
+            let unavailableItem: NSMenuItem = NSMenuItem(
+                title: String(localized: "No Applications Available"),
+                action: nil,
+                keyEquivalent: ""
+            )
             unavailableItem.isEnabled = false
             submenu.addItem(unavailableItem)
         }

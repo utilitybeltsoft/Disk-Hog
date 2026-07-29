@@ -191,7 +191,7 @@ enum DiskUsageLayoutMetrics {
 
 private struct DiskUsageContent: View {
     let usage: DiskUsage
-    let primaryLabel: String
+    let primaryLabel: LocalizedStringKey
     let showsOtherUsed: Bool
     let isScanning: Bool
 
@@ -242,9 +242,9 @@ private struct DiskUsageContent: View {
 
     private var otherUsedExplanation: String {
         if isScanning {
-            return "Remaining used includes files not yet added to the scan tree and space outside it. The value is recalculated as scanning progresses."
+            return String(localized: "Remaining used includes files not yet added to the scan tree and space outside it. The value is recalculated as scanning progresses.")
         }
-        return "Other used includes space outside the completed scan tree, such as protected files, snapshots, and sibling system volumes."
+        return String(localized: "Other used includes space outside the completed scan tree, such as protected files, snapshots, and sibling system volumes.")
     }
 }
 
@@ -361,7 +361,7 @@ private struct DiskUsagePie: View {
 
 private struct DiskUsageLegendRow: View {
     let color: Color
-    let label: String
+    let label: LocalizedStringKey
     let bytes: UInt64
     let totalBytes: UInt64
 
@@ -407,17 +407,14 @@ private struct SelectionListView: View {
         VStack(spacing: 0) {
             VStack(spacing: 6) {
                 HStack(spacing: 8) {
-                    Text(selectionFilter?.title ?? "No file kind selected")
+                    Text(
+                        selectionFilter?.title
+                            ?? String(localized: "No file kind selected")
+                    )
                         .font(.system(size: NSFont.smallSystemFontSize, weight: .semibold))
                         .lineLimit(1)
                     Spacer()
-                    Text(
-                        isBuildingInitialList
-                            ? "Building..."
-                            : (isUpdatingVisibleList
-                                ? "Searching..."
-                                : "\(dataStore.resultCount) files")
-                    )
+                    Text(selectionStatus)
                         .foregroundStyle(.secondary)
                         .monospacedDigit()
                 }
@@ -566,6 +563,16 @@ private struct SelectionListView: View {
             isQuerying = false
             hasCompletedInitialQuery = true
         }
+    }
+
+    private var selectionStatus: String {
+        if isBuildingInitialList {
+            return String(localized: "Building...")
+        }
+        if isUpdatingVisibleList {
+            return String(localized: "Searching...")
+        }
+        return String(localized: "\(dataStore.resultCount) files")
     }
 
     private var isBuildingInitialList: Bool {

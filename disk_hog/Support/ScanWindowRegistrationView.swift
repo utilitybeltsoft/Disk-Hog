@@ -85,11 +85,13 @@ final class ScanWindowRegistrationNSView: NSView {
         }
 
         let alert: NSAlert = NSAlert()
-        alert.messageText = "Cancel this scan and close this window?"
-        alert.informativeText = "This scan is still running. Closing the window will cancel it."
+        alert.messageText = String(localized: "Cancel this scan and close this window?")
+        alert.informativeText = String(
+            localized: "This scan is still running. Closing the window will cancel it."
+        )
         alert.alertStyle = .warning
-        alert.addButton(withTitle: "Cancel Scan and Close")
-        alert.addButton(withTitle: "Keep Scanning")
+        alert.addButton(withTitle: String(localized: "Cancel Scan and Close"))
+        alert.addButton(withTitle: String(localized: "Keep Scanning"))
 
         guard alert.runModal() == .alertFirstButtonReturn else {
             return false

@@ -31,14 +31,14 @@ struct DiskItemOutlineView: NSViewRepresentable {
         outlineView.backgroundColor = .controlBackgroundColor
 
         let nameColumn: NSTableColumn = NSTableColumn(identifier: DiskItemOutlineColumnID.name)
-        nameColumn.title = "Name"
+        nameColumn.title = String(localized: "Name")
         nameColumn.minWidth = ScanWindowMetrics.outlineNameColumnMinimumWidth
         nameColumn.resizingMask = [.autoresizingMask, .userResizingMask]
         outlineView.addTableColumn(nameColumn)
         outlineView.outlineTableColumn = nameColumn
 
         let sizeColumn: NSTableColumn = NSTableColumn(identifier: DiskItemOutlineColumnID.size)
-        sizeColumn.title = "Size"
+        sizeColumn.title = String(localized: "Size")
         sizeColumn.headerCell.alignment = .right
         sizeColumn.width = ScanWindowMetrics.filesSizeColumnWidth
         sizeColumn.minWidth = ScanWindowMetrics.filesSizeColumnWidth

@@ -229,7 +229,7 @@ enum ScanSourceProvider {
             guard isPermissionDenied(error) else {
                 return nil
             }
-            return "Full Disk Access required"
+            return String(localized: "Full Disk Access required")
         }
 
         for protectedURL: URL in protectedURLs
@@ -238,7 +238,7 @@ enum ScanSourceProvider {
                 _ = try directoryContents(protectedURL)
             } catch {
                 if isPermissionDenied(error) {
-                    return "Full Disk Access required"
+                    return String(localized: "Full Disk Access required")
                 }
             }
         }

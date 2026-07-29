@@ -10,24 +10,26 @@ nonisolated enum SelectionListSearchScope: String, CaseIterable, Identifiable, S
 
     var title: String {
         switch self {
-        case .all: "All fields"
-        case .name: "Name"
-        case .kind: "Kind"
-        case .path: "Path"
+        case .all: String(localized: "All fields")
+        case .name: String(localized: "Name")
+        case .kind: String(localized: "Kind")
+        case .path: String(localized: "Path")
         }
     }
 
     var accessibilityTitle: String {
         switch self {
-        case .all: "name, kind, and path"
-        case .name: "file name"
-        case .kind: "file kind"
-        case .path: "file path"
+        case .all: String(localized: "name, kind, and path")
+        case .name: String(localized: "file name")
+        case .kind: String(localized: "file kind")
+        case .path: String(localized: "file path")
         }
     }
 
     var helpText: String {
-        "Performs a case-insensitive substring search in \(accessibilityTitle)."
+        String(
+            localized: "Performs a case-insensitive substring search in \(accessibilityTitle)."
+        )
     }
 }
 

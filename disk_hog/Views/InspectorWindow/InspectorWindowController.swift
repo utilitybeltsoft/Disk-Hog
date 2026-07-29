@@ -11,9 +11,9 @@ enum InspectorWindowTab: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .information: "Information"
-        case .diskUsage: "Disk Usage"
-        case .selectionList: "Selection List"
+        case .information: String(localized: "Information")
+        case .diskUsage: String(localized: "Disk Usage")
+        case .selectionList: String(localized: "Selection List")
         }
     }
 
@@ -27,8 +27,8 @@ enum InspectorWindowTab: String, CaseIterable, Identifiable {
 
     var inactiveTitle: String {
         switch self {
-        case .diskUsage: "No Volume Selected"
-        case .information, .selectionList: "No Scan Window Active"
+        case .diskUsage: String(localized: "No Volume Selected")
+        case .information, .selectionList: String(localized: "No Scan Window Active")
         }
     }
 
@@ -42,11 +42,11 @@ enum InspectorWindowTab: String, CaseIterable, Identifiable {
     var inactiveDescription: String {
         switch self {
         case .diskUsage:
-            "Select a volume in the source window or activate a volume scan window."
+            String(localized: "Select a volume in the source window or activate a volume scan window.")
         case .information:
-            "Select a scan window to inspect its contents."
+            String(localized: "Select a scan window to inspect its contents.")
         case .selectionList:
-            "Select a scan window to view its file selection list."
+            String(localized: "Select a scan window to view its file selection list.")
         }
     }
 
@@ -549,11 +549,11 @@ final class InspectorWindowController: NSObject, ObservableObject {
         }
 
         if let context: InspectorWindowContext = activeContext {
-            window.title = "Inspector - \(context.session.source.displayName)"
+            window.title = String(localized: "Inspector - \(context.session.source.displayName)")
         } else if let activeSource {
-            window.title = "Inspector - \(activeSource.displayName)"
+            window.title = String(localized: "Inspector - \(activeSource.displayName)")
         } else {
-            window.title = "Inspector"
+            window.title = String(localized: "Inspector")
         }
     }
 
