@@ -34,6 +34,7 @@ final class ScanSession: ObservableObject {
     private var settings: DiskScanSettings
     private var scanTask: Task<Void, Never>?
     private var treeUpdateTask: Task<Void, Never>?
+    private var presentationUpdateTask: Task<Void, Never>?
     private var restartsAfterCancellation: Bool = false
 
     init(source: ScanSource) {
@@ -151,7 +152,8 @@ final class ScanSession: ObservableObject {
                 }
                 let presentationMetrics: TreemapPresentationMetrics = TreemapPresentationMetrics(
                     rootItem: rootItem,
-                    usePhysicalSize: settings.usePhysicalSize
+                    usePhysicalSize: settings.usePhysicalSize,
+                    sharesKindColors: KindColorPreferences.sharesColors
                 ) { progress in
                     Task { @MainActor [weak self] in
                         self?.applyTreemapPreparationProgress(progress)
@@ -183,6 +185,7 @@ final class ScanSession: ObservableObject {
             scanTask?.cancel()
         }
         treeUpdateTask?.cancel()
+        presentationUpdateTask?.cancel()
     }
 
     func updatePackageContentsSynchronization(with showPackageContents: Bool) {
@@ -249,7 +252,8 @@ final class ScanSession: ObservableObject {
 
                 let metrics: TreemapPresentationMetrics = TreemapPresentationMetrics(
                     rootItem: updatedRoot,
-                    usePhysicalSize: settings.usePhysicalSize
+                    usePhysicalSize: settings.usePhysicalSize,
+                    sharesKindColors: KindColorPreferences.sharesColors
                 )
                 await MainActor.run {
                     self.finishTreeUpdate(
@@ -303,7 +307,8 @@ final class ScanSession: ObservableObject {
                 }
                 let metrics: TreemapPresentationMetrics = TreemapPresentationMetrics(
                     rootItem: updatedRoot,
-                    usePhysicalSize: settings.usePhysicalSize
+                    usePhysicalSize: settings.usePhysicalSize,
+                    sharesKindColors: KindColorPreferences.sharesColors
                 )
                 await MainActor.run {
                     self.finishTreeUpdate(
@@ -316,6 +321,30 @@ final class ScanSession: ObservableObject {
                 await MainActor.run { self.finishTreeUpdateCancellation() }
             } catch {
                 await MainActor.run { self.finishTreeUpdateFailure(error) }
+            }
+        }
+    }
+
+    func rebuildPresentationMetrics(sharesKindColors: Bool) {
+        guard state == .complete,
+              let rootItem: DiskItem else {
+            return
+        }
+
+        presentationUpdateTask?.cancel()
+        let usePhysicalSize: Bool = settings.usePhysicalSize
+        presentationUpdateTask = Task.detached(priority: .userInitiated) {
+            let metrics: TreemapPresentationMetrics = TreemapPresentationMetrics(
+                rootItem: rootItem,
+                usePhysicalSize: usePhysicalSize,
+                sharesKindColors: sharesKindColors
+            )
+            guard !Task.isCancelled else {
+                return
+            }
+            await MainActor.run {
+                self.presentationMetrics = metrics
+                self.presentationUpdateTask = nil
             }
         }
     }

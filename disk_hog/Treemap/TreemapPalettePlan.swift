@@ -113,7 +113,7 @@ nonisolated struct TreemapPalettePlan: Sendable {
         rawColorsByKind[kindName] ?? fallbackFolderColor
     }
 
-    private static func rawColor(at index: Int) -> TreemapRawColor {
+    static func rawColor(at index: Int) -> TreemapRawColor {
         guard index < predefinedColors.count else {
             let component: Double = min(
                 maximumGeneratedGrayComponent,

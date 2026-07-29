@@ -8,6 +8,7 @@ struct SourceWindowView: View {
     @AppStorage(SourceWindowPreferences.showNetworkVolumesKey) private var showNetworkVolumes: Bool = false
     @AppStorage(SourceWindowPreferences.showDiskImagesKey) private var showDiskImages: Bool = false
     @ObservedObject private var packageContentsPreference: PackageContentsPreferenceCoordinator = .shared
+    @ObservedObject private var kindColorPreference: KindColorPreferenceCoordinator = .shared
     @AppStorage(DiskScanSettingsDefaultsKeys.ignoreCreatorCode) private var ignoreCreatorCode: Bool = false
     @AppStorage(DiskScanSettingsDefaultsKeys.showPhysicalFileSize) private var showPhysicalFileSize: Bool = true
 
@@ -36,6 +37,10 @@ struct SourceWindowView: View {
                 ),
                 ignoreCreatorCode: $ignoreCreatorCode,
                 showPhysicalFileSize: $showPhysicalFileSize,
+                shareKindColors: Binding(
+                    get: { kindColorPreference.sharesColors },
+                    set: { kindColorPreference.setSharesColors($0) }
+                ),
                 canScanSelectedVolume: viewModel.selectedSource?.canScan == true,
                 onRefresh: refreshSources,
                 onChooseFolder: chooseFolder,

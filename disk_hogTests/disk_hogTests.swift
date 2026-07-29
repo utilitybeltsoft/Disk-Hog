@@ -1167,6 +1167,32 @@ struct TreemapDiskItemDataSourceTests {
         #expect(metrics.kindStatistics.first?.kindName == "Plain Text")
     }
 
+    @Test func sharedKindColorsRemainStableAcrossDifferentRankings() {
+        SharedKindColorRegistry.shared.resetForTesting()
+        let firstTable: TreemapDiskItemColorTable = TreemapDiskItemColorTable(
+            orderedKinds: ["Plain Text", "Image"],
+            sharesKindColors: true
+        )
+        let secondTable: TreemapDiskItemColorTable = TreemapDiskItemColorTable(
+            orderedKinds: ["Image", "Plain Text"],
+            sharesKindColors: true
+        )
+
+        #expect(colorComponents(firstTable.colorForKind("Plain Text")) == colorComponents(secondTable.colorForKind("Plain Text")))
+        #expect(colorComponents(firstTable.colorForKind("Image")) == colorComponents(secondTable.colorForKind("Image")))
+    }
+
+    @Test func independentKindColorsFollowEachWindowsRanking() {
+        let firstTable: TreemapDiskItemColorTable = TreemapDiskItemColorTable(
+            orderedKinds: ["Plain Text", "Image"]
+        )
+        let secondTable: TreemapDiskItemColorTable = TreemapDiskItemColorTable(
+            orderedKinds: ["Image", "Plain Text"]
+        )
+
+        #expect(colorComponents(firstTable.colorForKind("Plain Text")) != colorComponents(secondTable.colorForKind("Plain Text")))
+    }
+
     @Test func visibleVolumeSpaceItemsAreAppendedAndIncludedInRootWeight() {
         let file: DiskItem = DiskItem(
             url: URL(fileURLWithPath: "/scan/file.dat"),
@@ -1205,6 +1231,18 @@ struct TreemapDiskItemDataSourceTests {
         #expect(dataSource.child(1, of: root).itemType == .otherSpace)
         #expect(dataSource.child(2, of: root).itemType == .freeSpace)
         #expect(dataSource.weight(of: root) == 100)
+    }
+
+    private func colorComponents(_ color: NSColor) -> [CGFloat] {
+        guard let rgbColor: NSColor = color.usingColorSpace(.genericRGB) else {
+            return []
+        }
+        return [
+            rgbColor.redComponent,
+            rgbColor.greenComponent,
+            rgbColor.blueComponent,
+            rgbColor.alphaComponent
+        ]
     }
 }
 

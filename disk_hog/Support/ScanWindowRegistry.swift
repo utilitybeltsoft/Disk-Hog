@@ -72,6 +72,12 @@ final class ScanWindowRegistry {
         }
     }
 
+    func rebuildPresentationMetricsForColorPreference(_ sharesKindColors: Bool) {
+        for session: ScanSession in openSessions {
+            session.rebuildPresentationMetrics(sharesKindColors: sharesKindColors)
+        }
+    }
+
     private var openSessions: [ScanSession] {
         windowsBySourceKey = windowsBySourceKey.filter { _, weakWindow in
             weakWindow.window != nil

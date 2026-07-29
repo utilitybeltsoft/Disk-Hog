@@ -28,6 +28,7 @@ struct SourceWindowActionBar: View {
     @Binding var showPackageContents: Bool
     @Binding var ignoreCreatorCode: Bool
     @Binding var showPhysicalFileSize: Bool
+    @Binding var shareKindColors: Bool
     let canScanSelectedVolume: Bool
     let onRefresh: () -> Void
     let onChooseFolder: () -> Void
@@ -46,7 +47,8 @@ struct SourceWindowActionBar: View {
                 ScanSettingsPopoverView(
                     showPackageContents: $showPackageContents,
                     ignoreCreatorCode: $ignoreCreatorCode,
-                    showPhysicalFileSize: $showPhysicalFileSize
+                    showPhysicalFileSize: $showPhysicalFileSize,
+                    shareKindColors: $shareKindColors
                 )
             }
 
@@ -90,6 +92,7 @@ private struct ScanSettingsPopoverView: View {
     @Binding var showPackageContents: Bool
     @Binding var ignoreCreatorCode: Bool
     @Binding var showPhysicalFileSize: Bool
+    @Binding var shareKindColors: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: Metrics.scanSettingsSpacing) {
@@ -108,7 +111,12 @@ private struct ScanSettingsPopoverView: View {
                 description: "The physical size is the space that a file occupies on a drive. Many applications show the logical size, which is the size of a file's content.",
                 isOn: $showPhysicalFileSize
             )
-            Text("Package-content changes can rescan open windows. Other settings apply to the next volume or folder you open.")
+            ScanSettingsRowView(
+                title: "Match File-Kind Colors Across Open Windows",
+                description: "Use the same color for a file kind in every scan window. Turn this off to color each window by its own largest kinds.",
+                isOn: $shareKindColors
+            )
+            Text("Package-content changes can rescan open windows. Color changes update open windows. Other settings apply to the next volume or folder you open.")
                 .font(.system(size: Metrics.standardFontSize))
                 .foregroundStyle(.tertiary)
                 .fixedSize(horizontal: false, vertical: true)

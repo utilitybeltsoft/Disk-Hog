@@ -98,6 +98,7 @@ nonisolated final class TreemapPresentationMetrics: @unchecked Sendable {
     init(
         rootItem: DiskItem,
         usePhysicalSize: Bool,
+        sharesKindColors: Bool = false,
         progress: (@Sendable (Double) -> Void)? = nil
     ) {
         let statisticsByKind: [String: TreemapKindAggregate] = TreemapKindCatalog.aggregates(
@@ -107,7 +108,10 @@ nonisolated final class TreemapPresentationMetrics: @unchecked Sendable {
             progress: progress
         )
         let orderedKinds: [String] = TreemapKindCatalog.orderedKinds(from: statisticsByKind)
-        let colorTable: TreemapDiskItemColorTable = TreemapDiskItemColorTable(orderedKinds: orderedKinds)
+        let colorTable: TreemapDiskItemColorTable = TreemapDiskItemColorTable(
+            orderedKinds: orderedKinds,
+            sharesKindColors: sharesKindColors
+        )
         self.colorTable = colorTable
         self.kindStatistics = orderedKinds.map { kindName in
             let accumulator: TreemapKindAggregate = statisticsByKind[kindName] ?? TreemapKindAggregate()
@@ -126,14 +130,27 @@ nonisolated final class TreemapDiskItemColorTable: @unchecked Sendable {
     private let colorsByKind: [String: NSColor]
     private let fallbackFolderColor: NSColor
 
-    init(orderedKinds: [String]) {
-        let plan: TreemapPalettePlan = TreemapPalettePlan(orderedKinds: orderedKinds)
+    init(orderedKinds: [String], sharesKindColors: Bool = false) {
         var colorsByKind: [String: NSColor] = [:]
-        for kindName: String in plan.orderedKinds {
-            colorsByKind[kindName] = Self.color(from: plan.rawColor(forKind: kindName))
+        if sharesKindColors {
+            let colorIndexes: [String: Int] = SharedKindColorRegistry.shared.colorIndexes(
+                for: orderedKinds
+            )
+            for kindName: String in orderedKinds {
+                colorsByKind[kindName] = Self.color(
+                    from: TreemapPalettePlan.rawColor(at: colorIndexes[kindName] ?? 0)
+                )
+            }
+        } else {
+            let plan: TreemapPalettePlan = TreemapPalettePlan(orderedKinds: orderedKinds)
+            for kindName: String in plan.orderedKinds {
+                colorsByKind[kindName] = Self.color(from: plan.rawColor(forKind: kindName))
+            }
         }
         self.colorsByKind = colorsByKind
-        fallbackFolderColor = Self.color(from: plan.fallbackFolderColor)
+        fallbackFolderColor = Self.color(
+            from: TreemapRawColor(red: 0.66, green: 0.66, blue: 0.66, alpha: 1)
+        )
     }
 
     func color(for item: DiskItem) -> NSColor {
@@ -160,5 +177,32 @@ nonisolated final class TreemapDiskItemColorTable: @unchecked Sendable {
                 alpha: CGFloat(rawColor.alpha)
             )
         )
+    }
+}
+
+nonisolated final class SharedKindColorRegistry: @unchecked Sendable {
+    static let shared: SharedKindColorRegistry = SharedKindColorRegistry()
+
+    private let lock: NSLock = NSLock()
+    private var colorIndexByKind: [String: Int] = [:]
+
+    func colorIndexes(for orderedKinds: [String]) -> [String: Int] {
+        lock.lock()
+        defer { lock.unlock() }
+
+        for kindName: String in orderedKinds where colorIndexByKind[kindName] == nil {
+            colorIndexByKind[kindName] = colorIndexByKind.count
+        }
+        return Dictionary(
+            uniqueKeysWithValues: orderedKinds.compactMap { kindName in
+                colorIndexByKind[kindName].map { (kindName, $0) }
+            }
+        )
+    }
+
+    func resetForTesting() {
+        lock.lock()
+        colorIndexByKind = [:]
+        lock.unlock()
     }
 }
