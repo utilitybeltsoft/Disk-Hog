@@ -410,6 +410,23 @@ struct DiskItemPasteboardWriterTests {
         #expect(pasteboard.string(forType: .fileURL) == item.url.absoluteString)
         #expect(pasteboard.string(forType: .string) == item.path)
     }
+
+    @Test @MainActor func focusedFileViewSupportsCopyAndServices() throws {
+        let item: DiskItem = DiskItemBuilder(
+            url: URL(fileURLWithPath: "/Users/test/Documents/report.txt")
+        ).freeze()
+        let view: DiskItemPasteboardTableView = DiskItemPasteboardTableView()
+        view.pasteboardItemProvider = { item }
+        let pasteboard: NSPasteboard = NSPasteboard(
+            name: NSPasteboard.Name("DiskItemPasteboardServicesTests")
+        )
+
+        let requestor: Any? = view.validRequestor(forSendType: .fileURL, returnType: nil)
+        #expect(requestor as? DiskItemPasteboardTableView === view)
+        #expect(view.validRequestor(forSendType: .fileURL, returnType: .string) == nil)
+        #expect(view.writeSelection(to: pasteboard, types: [.fileURL]))
+        #expect(pasteboard.string(forType: .fileURL) == item.url.absoluteString)
+    }
 }
 
 struct ScanSourceAccessTests {

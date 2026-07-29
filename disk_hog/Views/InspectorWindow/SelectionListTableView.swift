@@ -46,7 +46,7 @@ struct SelectionListTableView: NSViewRepresentable {
     }
 
     func makeNSView(context: Context) -> NSScrollView {
-        let tableView: NSTableView = NSTableView()
+        let tableView: DiskItemPasteboardTableView = DiskItemPasteboardTableView()
         tableView.headerView = NSTableHeaderView()
         tableView.rowHeight = 20
         tableView.intercellSpacing = NSSize(width: 3, height: 2)
@@ -56,6 +56,9 @@ struct SelectionListTableView: NSViewRepresentable {
         tableView.columnAutoresizingStyle = .noColumnAutoresizing
         tableView.delegate = context.coordinator
         tableView.dataSource = context.coordinator
+        tableView.pasteboardItemProvider = { [weak contextCoordinator = context.coordinator] in
+            contextCoordinator?.selectedItemForPasteboard()
+        }
         tableView.setDraggingSourceOperationMask([], forLocal: true)
         tableView.setDraggingSourceOperationMask(.copy, forLocal: false)
 
@@ -165,6 +168,14 @@ struct SelectionListTableView: NSViewRepresentable {
 
         func numberOfRows(in tableView: NSTableView) -> Int {
             rows.count
+        }
+
+        func selectedItemForPasteboard() -> DiskItem? {
+            guard let tableView,
+                  rows.indices.contains(tableView.selectedRow) else {
+                return nil
+            }
+            return rows[tableView.selectedRow].item
         }
 
         func tableView(

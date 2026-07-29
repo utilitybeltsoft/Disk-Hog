@@ -19,7 +19,7 @@ struct DiskItemOutlineView: NSViewRepresentable {
     }
 
     func makeNSView(context: Context) -> NSScrollView {
-        let outlineView: NSOutlineView = NSOutlineView()
+        let outlineView: DiskItemPasteboardOutlineView = DiskItemPasteboardOutlineView()
         outlineView.headerView = NSTableHeaderView()
         outlineView.rowHeight = ScanWindowMetrics.tableRowHeight
         outlineView.intercellSpacing = NSSize(width: ScanWindowMetrics.tableIntercellWidth, height: ScanWindowMetrics.tableIntercellHeight)
@@ -50,6 +50,9 @@ struct DiskItemOutlineView: NSViewRepresentable {
         outlineView.target = context.coordinator
         outlineView.doubleAction = #selector(Coordinator.doubleClick(_:))
         outlineView.menu = context.coordinator.contextMenu
+        outlineView.pasteboardItemProvider = { [weak contextCoordinator = context.coordinator] in
+            contextCoordinator?.selectedItemForPasteboard()
+        }
         outlineView.setDraggingSourceOperationMask([], forLocal: true)
         outlineView.setDraggingSourceOperationMask(.copy, forLocal: false)
 
@@ -250,6 +253,14 @@ struct DiskItemOutlineView: NSViewRepresentable {
         }
 
         func outlineView(_ outlineView: NSOutlineView, mouseDownInHeaderOf tableColumn: NSTableColumn) {}
+
+        func selectedItemForPasteboard() -> DiskItem? {
+            guard let outlineView,
+                  outlineView.selectedRow >= 0 else {
+                return nil
+            }
+            return outlineView.item(atRow: outlineView.selectedRow) as? DiskItem
+        }
 
         @objc func doubleClick(_ sender: Any?) {
             guard let outlineView: NSOutlineView = outlineView,
