@@ -1140,6 +1140,32 @@ struct TreemapDiskItemDataSourceTests {
         #expect(logicalStatistics.map(\.size) == [12])
     }
 
+    @Test func sizeModeReordersExistingTreeWithoutChangingItsMeasurements() {
+        let rootBuilder: DiskItemBuilder = DiskItemBuilder(
+            url: URL(fileURLWithPath: "/scan"),
+            isDirectory: true
+        )
+        rootBuilder.appendChild(DiskItemBuilder(
+            url: URL(fileURLWithPath: "/scan/physical"),
+            allocatedSizeValue: 8_192,
+            logicalSizeValue: 10
+        ))
+        rootBuilder.appendChild(DiskItemBuilder(
+            url: URL(fileURLWithPath: "/scan/logical"),
+            allocatedSizeValue: 4_096,
+            logicalSizeValue: 20_000
+        ))
+        rootBuilder.recalculateSize(usePhysicalSize: true)
+        let physicalRoot: DiskItem = rootBuilder.freeze()
+
+        let logicalRoot: DiskItem = physicalRoot.reordered(usePhysicalSize: false)
+
+        #expect(physicalRoot.child(at: 0).name == "physical")
+        #expect(logicalRoot.child(at: 0).name == "logical")
+        #expect(logicalRoot.allocatedSizeValue == physicalRoot.allocatedSizeValue)
+        #expect(logicalRoot.logicalSizeValue == physicalRoot.logicalSizeValue)
+    }
+
     @Test func presentationMetricsReportMeasuredTraversalProgress() {
         let rootBuilder: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan"),

@@ -90,6 +90,7 @@ struct ScanWindowView: View {
             updateScanWindowCommandState()
         }
         .onChange(of: selectionCoordinator.selectedItem?.id) {
+            session.rememberSelection(selectionCoordinator.selectedItem)
             updateScanWindowCommandState()
         }
         #if FILE_MATCHING_DIAGNOSTICS

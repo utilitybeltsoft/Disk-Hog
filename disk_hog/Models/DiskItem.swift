@@ -277,6 +277,12 @@ nonisolated final class DiskItem: Identifiable, Hashable, Sendable, DiskItemTree
         return rebuilt(replacingPath: targetPath, replacement: nil, remove: true, usePhysicalSize: usePhysicalSize)
     }
 
+    func reordered(usePhysicalSize: Bool) -> DiskItem {
+        let builder: DiskItemBuilder = builderCopy()
+        builder.recalculateSize(usePhysicalSize: usePhysicalSize)
+        return builder.freeze(isRoot: isRoot)
+    }
+
     func scanCounts(includeSelf: Bool = true) -> (files: Int, folders: Int) {
         let record: PackedDiskItemRecord = snapshot.record(at: address)
         let counts: (files: Int, folders: Int) = snapshot.scanCounts(at: address)

@@ -78,6 +78,12 @@ final class ScanWindowRegistry {
         }
     }
 
+    func updateSizeModeForOpenSessions(_ usePhysicalSize: Bool) {
+        for session: ScanSession in openSessions {
+            session.updateSizeMode(usePhysicalSize)
+        }
+    }
+
     private var openSessions: [ScanSession] {
         windowsBySourceKey = windowsBySourceKey.filter { _, weakWindow in
             weakWindow.window != nil

@@ -116,7 +116,7 @@ private struct ScanSettingsPopoverView: View {
                 description: "Use the same color for a file kind in every scan window. Turn this off to color each window by its own largest kinds.",
                 isOn: $shareKindColors
             )
-            Text("Package-content changes can rescan open windows. Color changes update open windows. Other settings apply to the next volume or folder you open.")
+            Text("Package-content changes can rescan open windows. Size and color changes update open windows. Creator-code changes apply to the next volume or folder you open.")
                 .font(.system(size: Metrics.standardFontSize))
                 .foregroundStyle(.tertiary)
                 .fixedSize(horizontal: false, vertical: true)

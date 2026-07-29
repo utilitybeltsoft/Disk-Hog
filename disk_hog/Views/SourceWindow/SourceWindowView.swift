@@ -9,8 +9,8 @@ struct SourceWindowView: View {
     @AppStorage(SourceWindowPreferences.showDiskImagesKey) private var showDiskImages: Bool = false
     @ObservedObject private var packageContentsPreference: PackageContentsPreferenceCoordinator = .shared
     @ObservedObject private var kindColorPreference: KindColorPreferenceCoordinator = .shared
+    @ObservedObject private var sizeModePreference: SizeModePreferenceCoordinator = .shared
     @AppStorage(DiskScanSettingsDefaultsKeys.ignoreCreatorCode) private var ignoreCreatorCode: Bool = false
-    @AppStorage(DiskScanSettingsDefaultsKeys.showPhysicalFileSize) private var showPhysicalFileSize: Bool = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: Metrics.outerSpacing) {
@@ -36,7 +36,10 @@ struct SourceWindowView: View {
                     set: { packageContentsPreference.requestChange(to: $0) }
                 ),
                 ignoreCreatorCode: $ignoreCreatorCode,
-                showPhysicalFileSize: $showPhysicalFileSize,
+                showPhysicalFileSize: Binding(
+                    get: { sizeModePreference.usesPhysicalSize },
+                    set: { sizeModePreference.setUsesPhysicalSize($0) }
+                ),
                 shareKindColors: Binding(
                     get: { kindColorPreference.sharesColors },
                     set: { kindColorPreference.setSharesColors($0) }
@@ -83,7 +86,7 @@ struct SourceWindowView: View {
 
     private var currentScanSettings: DiskScanSettings {
         DiskScanSettings(
-            usePhysicalSize: showPhysicalFileSize,
+            usePhysicalSize: sizeModePreference.usesPhysicalSize,
             lookInsidePackages: packageContentsPreference.showPackageContents,
             ignoreCreatorCode: ignoreCreatorCode
         )

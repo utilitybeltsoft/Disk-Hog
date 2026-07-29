@@ -35,6 +35,7 @@ final class ScanSession: ObservableObject {
     private var scanTask: Task<Void, Never>?
     private var treeUpdateTask: Task<Void, Never>?
     private var presentationUpdateTask: Task<Void, Never>?
+    private var sizeModeUpdateTask: Task<Void, Never>?
     private var restartsAfterCancellation: Bool = false
 
     init(source: ScanSource) {
@@ -162,7 +163,11 @@ final class ScanSession: ObservableObject {
                 try Task.checkCancellation()
 
                 await MainActor.run {
-                    self.finishScan(rootItem: rootItem, presentationMetrics: presentationMetrics)
+                    self.finishScan(
+                        rootItem: rootItem,
+                        presentationMetrics: presentationMetrics,
+                        builtUsingPhysicalSize: settings.usePhysicalSize
+                    )
                 }
             } catch is CancellationError {
                 progressContinuation.finish()
@@ -186,10 +191,15 @@ final class ScanSession: ObservableObject {
         }
         treeUpdateTask?.cancel()
         presentationUpdateTask?.cancel()
+        sizeModeUpdateTask?.cancel()
     }
 
     func updatePackageContentsSynchronization(with showPackageContents: Bool) {
         isPackageContentsSettingOutOfSync = settings.lookInsidePackages != showPackageContents
+    }
+
+    func rememberSelection(_ item: DiskItem?) {
+        preferredSelection = item
     }
 
     func rescanForPackageContentsPreference(_ showPackageContents: Bool) {
@@ -259,7 +269,8 @@ final class ScanSession: ObservableObject {
                     self.finishTreeUpdate(
                         rootItem: updatedRoot,
                         presentationMetrics: metrics,
-                        selectionPath: requestedSelectionPath
+                        selectionPath: requestedSelectionPath,
+                        builtUsingPhysicalSize: settings.usePhysicalSize
                     )
                 }
             } catch is CancellationError {
@@ -314,7 +325,8 @@ final class ScanSession: ObservableObject {
                     self.finishTreeUpdate(
                         rootItem: updatedRoot,
                         presentationMetrics: metrics,
-                        selectionPath: parentPath
+                        selectionPath: parentPath,
+                        builtUsingPhysicalSize: settings.usePhysicalSize
                     )
                 }
             } catch is CancellationError {
@@ -347,6 +359,20 @@ final class ScanSession: ObservableObject {
                 self.presentationUpdateTask = nil
             }
         }
+    }
+
+    func updateSizeMode(_ usePhysicalSize: Bool) {
+        let needsRebuild: Bool = settings.usePhysicalSize != usePhysicalSize
+        settings.usePhysicalSize = usePhysicalSize
+
+        guard needsRebuild,
+              state == .complete,
+              !isUpdatingTree,
+              let rootItem: DiskItem else {
+            return
+        }
+
+        rebuildForSizeMode(rootItem: rootItem, usePhysicalSize: usePhysicalSize)
     }
 
     func elapsedTime(referenceDate: Date) -> TimeInterval {
@@ -402,7 +428,11 @@ final class ScanSession: ObservableObject {
         currentPath = progress.currentPath
     }
 
-    private func finishScan(rootItem: DiskItem, presentationMetrics: TreemapPresentationMetrics) {
+    private func finishScan(
+        rootItem: DiskItem,
+        presentationMetrics: TreemapPresentationMetrics,
+        builtUsingPhysicalSize: Bool
+    ) {
         isBuildingTreemap = false
         treemapPreparationProgress = nil
         self.presentationMetrics = presentationMetrics
@@ -414,6 +444,9 @@ final class ScanSession: ObservableObject {
         scanTask = nil
         currentPath = rootItem.path
         scannedByteCount = rootItem.sizeValue(usePhysicalSize: settings.usePhysicalSize)
+        if builtUsingPhysicalSize != settings.usePhysicalSize {
+            rebuildForSizeMode(rootItem: rootItem, usePhysicalSize: settings.usePhysicalSize)
+        }
     }
 
     private func beginTreeUpdate() {
@@ -424,7 +457,8 @@ final class ScanSession: ObservableObject {
     private func finishTreeUpdate(
         rootItem: DiskItem,
         presentationMetrics: TreemapPresentationMetrics,
-        selectionPath: String
+        selectionPath: String,
+        builtUsingPhysicalSize: Bool
     ) {
         let counts: (files: Int, folders: Int) = rootItem.scanCounts(includeSelf: false)
         preferredSelection = rootItem.item(atPath: selectionPath, allowAncestors: true) ?? rootItem
@@ -437,6 +471,45 @@ final class ScanSession: ObservableObject {
         currentPath = preferredSelection?.path ?? rootItem.path
         isUpdatingTree = false
         treeUpdateTask = nil
+        if builtUsingPhysicalSize != settings.usePhysicalSize {
+            rebuildForSizeMode(rootItem: rootItem, usePhysicalSize: settings.usePhysicalSize)
+        }
+    }
+
+    private func rebuildForSizeMode(rootItem: DiskItem, usePhysicalSize: Bool) {
+        sizeModeUpdateTask?.cancel()
+        let selectionPath: String = preferredSelection?.path ?? rootItem.path
+        sizeModeUpdateTask = Task.detached(priority: .userInitiated) {
+            let reorderedRoot: DiskItem = rootItem.reordered(usePhysicalSize: usePhysicalSize)
+            guard !Task.isCancelled else {
+                return
+            }
+            let metrics: TreemapPresentationMetrics = TreemapPresentationMetrics(
+                rootItem: reorderedRoot,
+                usePhysicalSize: usePhysicalSize,
+                sharesKindColors: KindColorPreferences.sharesColors
+            )
+            guard !Task.isCancelled else {
+                return
+            }
+            await MainActor.run {
+                guard self.settings.usePhysicalSize == usePhysicalSize else {
+                    return
+                }
+                self.preferredSelection = reorderedRoot.item(
+                    atPath: selectionPath,
+                    allowAncestors: true
+                ) ?? reorderedRoot
+                self.presentationMetrics = metrics
+                self.updateSpaceItems(for: reorderedRoot)
+                self.rootItem = reorderedRoot
+                self.scannedByteCount = reorderedRoot.sizeValue(
+                    usePhysicalSize: usePhysicalSize
+                )
+                self.currentPath = self.preferredSelection?.path ?? reorderedRoot.path
+                self.sizeModeUpdateTask = nil
+            }
+        }
     }
 
     private func updateSpaceItems(for rootItem: DiskItem) {
