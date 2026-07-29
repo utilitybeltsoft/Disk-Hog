@@ -229,7 +229,11 @@ final class DiskItemContextMenuActionTarget: NSObject {
             return
         }
 
-        session?.moveToTrash(payload.item)
+        DiskItemDeletionCoordinator.requestDeletion(
+            of: payload.item,
+            from: session,
+            presentingWindow: NSApp.keyWindow
+        )
     }
 
     @objc func showInSelectionListMenuItem(_ sender: NSMenuItem) {
@@ -325,7 +329,7 @@ enum DiskItemContextMenuBuilder {
         )
         trashItem.target = actionTarget
         trashItem.representedObject = DiskItemContextMenuPayload(item: item)
-        trashItem.isEnabled = treeActionsEnabled && !item.isRoot
+        trashItem.isEnabled = treeActionsEnabled && DiskItemDeletionPolicy.canDelete(item)
         menu.addItem(trashItem)
 
         menu.addItem(.separator())

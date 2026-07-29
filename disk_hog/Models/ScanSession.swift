@@ -266,11 +266,10 @@ final class ScanSession: ObservableObject {
         }
     }
 
-    func moveToTrash(_ item: DiskItem) {
+    func delete(_ item: DiskItem, using deletionMethod: DiskItemDeletionMethod) {
         guard state == .complete,
               !isUpdatingTree,
-              !item.isSpecialItem,
-              !item.isRoot,
+              DiskItemDeletionPolicy.canDelete(item),
               let currentRoot: DiskItem = rootItem,
               currentRoot.item(atPath: item.path) != nil else {
             return
@@ -287,10 +286,10 @@ final class ScanSession: ObservableObject {
                 let didStartSecurityScopedAccess: Bool = rootURL.startAccessingSecurityScopedResource()
                 defer { if didStartSecurityScopedAccess { rootURL.stopAccessingSecurityScopedResource() } }
 
-                let values: URLResourceValues = try item.url.resourceValues(forKeys: [.volumeIsLocalKey])
-                if values.volumeIsLocal == false {
+                switch deletionMethod {
+                case .deletePermanently:
                     try FileManager.default.removeItem(at: item.url)
-                } else {
+                case .moveToTrash:
                     var resultingURL: NSURL?
                     try FileManager.default.trashItem(at: item.url, resultingItemURL: &resultingURL)
                 }

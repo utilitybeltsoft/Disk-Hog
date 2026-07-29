@@ -251,6 +251,39 @@ struct InspectorWindowLayoutTests {
         #expect(inspectorItem?.target === actionTarget)
     }
 
+    @Test func moveToTrashIsDisabledForTrashAndDescendants() throws {
+        let trashURL: URL = URL(fileURLWithPath: "/Users/test/.Trash")
+        let rootBuilder: DiskItemBuilder = DiskItemBuilder(
+            url: URL(fileURLWithPath: "/Users/test"),
+            isDirectory: true
+        )
+        rootBuilder.appendChild(DiskItemBuilder(
+            url: trashURL,
+            isDirectory: true
+        ))
+        rootBuilder.appendChild(DiskItemBuilder(
+            url: trashURL.appendingPathComponent("folder/file.txt")
+        ))
+        rootBuilder.appendChild(DiskItemBuilder(
+            url: URL(fileURLWithPath: "/Users/test/Documents/file.txt")
+        ))
+        let rootItem: DiskItem = rootBuilder.freeze()
+        let trashItem: DiskItem = try #require(rootItem.item(atPath: trashURL.path))
+        let descendant: DiskItem = try #require(rootItem.item(atPath: trashURL.appendingPathComponent("folder/file.txt").path))
+        let ordinaryItem: DiskItem = try #require(rootItem.item(atPath: "/Users/test/Documents/file.txt"))
+
+        #expect(!DiskItemDeletionPolicy.canDelete(trashItem, trashDirectoryURL: trashURL))
+        #expect(!DiskItemDeletionPolicy.canDelete(descendant, trashDirectoryURL: trashURL))
+        #expect(DiskItemDeletionPolicy.canDelete(ordinaryItem, trashDirectoryURL: trashURL))
+    }
+
+    @Test func trashContainmentUsesPathComponents() {
+        let trashURL: URL = URL(fileURLWithPath: "/Users/test/.Trash")
+        let similarlyNamedDirectory: URL = URL(fileURLWithPath: "/Users/test/.Trash-Archive/file.txt")
+
+        #expect(!DiskItemDeletionPolicy.contains(similarlyNamedDirectory, in: trashURL))
+    }
+
     @Test func showingItemInformationSelectsInformationTab() {
         let controller: InspectorWindowController = .shared
         controller.selectedTab = .selectionList
