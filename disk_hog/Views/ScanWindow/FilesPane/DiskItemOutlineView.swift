@@ -50,6 +50,8 @@ struct DiskItemOutlineView: NSViewRepresentable {
         outlineView.target = context.coordinator
         outlineView.doubleAction = #selector(Coordinator.doubleClick(_:))
         outlineView.menu = context.coordinator.contextMenu
+        outlineView.setDraggingSourceOperationMask([], forLocal: true)
+        outlineView.setDraggingSourceOperationMask(.copy, forLocal: false)
 
         let scrollView: NSScrollView = NSScrollView()
         scrollView.hasVerticalScroller = true
@@ -234,6 +236,17 @@ struct DiskItemOutlineView: NSViewRepresentable {
 
         func outlineView(_ outlineView: NSOutlineView, shouldSelectItem item: Any) -> Bool {
             item is DiskItem
+        }
+
+        func outlineView(
+            _ outlineView: NSOutlineView,
+            pasteboardWriterForItem item: Any
+        ) -> NSPasteboardWriting? {
+            guard let item: DiskItem = item as? DiskItem,
+                  !item.isSpecialItem else {
+                return nil
+            }
+            return DiskItemPasteboardWriter(item: item)
         }
 
         func outlineView(_ outlineView: NSOutlineView, mouseDownInHeaderOf tableColumn: NSTableColumn) {}

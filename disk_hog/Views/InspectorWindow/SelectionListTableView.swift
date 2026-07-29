@@ -56,6 +56,8 @@ struct SelectionListTableView: NSViewRepresentable {
         tableView.columnAutoresizingStyle = .noColumnAutoresizing
         tableView.delegate = context.coordinator
         tableView.dataSource = context.coordinator
+        tableView.setDraggingSourceOperationMask([], forLocal: true)
+        tableView.setDraggingSourceOperationMask(.copy, forLocal: false)
 
         let nameColumn: NSTableColumn = NSTableColumn(identifier: SelectionListColumnID.name)
         nameColumn.title = "Name"
@@ -163,6 +165,16 @@ struct SelectionListTableView: NSViewRepresentable {
 
         func numberOfRows(in tableView: NSTableView) -> Int {
             rows.count
+        }
+
+        func tableView(
+            _ tableView: NSTableView,
+            pasteboardWriterForRow row: Int
+        ) -> NSPasteboardWriting? {
+            guard rows.indices.contains(row) else {
+                return nil
+            }
+            return DiskItemPasteboardWriter(item: rows[row].item)
         }
 
         func tableView(

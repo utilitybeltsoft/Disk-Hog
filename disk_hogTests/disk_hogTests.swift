@@ -393,6 +393,25 @@ struct InspectorWindowLayoutTests {
     }
 }
 
+struct DiskItemPasteboardWriterTests {
+    @Test func publishesFinderCompatibleFileRepresentations() throws {
+        let item: DiskItem = DiskItemBuilder(
+            url: URL(fileURLWithPath: "/Users/test/Documents/report.txt")
+        ).freeze()
+        let writer: DiskItemPasteboardWriter = DiskItemPasteboardWriter(item: item)
+        let pasteboard: NSPasteboard = NSPasteboard(
+            name: NSPasteboard.Name("DiskItemPasteboardWriterTests")
+        )
+
+        #expect(writer.write(to: pasteboard))
+        #expect(pasteboard.types?.contains(.fileURL) == true)
+        #expect(pasteboard.types?.contains(.URL) == true)
+        #expect(pasteboard.types?.contains(.string) == true)
+        #expect(pasteboard.string(forType: .fileURL) == item.url.absoluteString)
+        #expect(pasteboard.string(forType: .string) == item.path)
+    }
+}
+
 struct ScanSourceAccessTests {
     @Test func permissionFailureDisablesLocalVolumeScan() {
         let reason: String? = ScanSourceProvider.scanDisabledReason(
