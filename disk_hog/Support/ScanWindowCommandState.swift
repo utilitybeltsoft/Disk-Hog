@@ -18,10 +18,16 @@ final class ScanWindowCommandState: ObservableObject {
     #endif
 
     private weak var activeSession: ScanSession?
-    private weak var selectedItem: DiskItem?
+    // DiskItem instances are short-lived flyweights over immutable packed storage.
+    // Keep the command target alive independently of the selection view's instance.
+    private var selectedItem: DiskItem?
     private weak var selectionCoordinator: ScanWindowSelectionCoordinator?
 
     init() {}
+
+    var commandSelectedItem: DiskItem? {
+        selectedItem
+    }
 
     func activate(
         session: ScanSession,

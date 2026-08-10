@@ -60,6 +60,39 @@ struct ScanSessionFailureTests {
 }
 
 @MainActor
+struct ScanWindowCommandStateSelectionTests {
+    @Test func retainsCommandTargetWhenSelectionReplacesAnEqualFlyweight() {
+        let commandState: ScanWindowCommandState = ScanWindowCommandState()
+        let session: ScanSession = ScanSession(source: ScanSource(path: "/scan", displayName: "scan"))
+        let coordinator: ScanWindowSelectionCoordinator = ScanWindowSelectionCoordinator()
+        var firstSelection: DiskItem? = DiskItem(
+            url: URL(fileURLWithPath: "/scan/report.txt"),
+            allocatedSizeValue: 8,
+            logicalSizeValue: 8
+        )
+        weak let weakFirstSelection: DiskItem? = firstSelection
+
+        commandState.activate(
+            session: session,
+            selectionCoordinator: coordinator,
+            selectedItem: firstSelection
+        )
+
+        let replacement: DiskItem = DiskItem(
+            snapshot: firstSelection!.snapshot,
+            address: firstSelection!.address
+        )
+        coordinator.setSelectedItem(replacement)
+        firstSelection = nil
+
+        #expect(weakFirstSelection != nil)
+        #expect(commandState.commandSelectedItem?.id == replacement.id)
+        #expect(commandState.canOpenSelectedItem)
+        #expect(commandState.canRevealSelectedItem)
+    }
+}
+
+@MainActor
 struct ApplicationStateRestorationTests {
     @Test func applicationDoesNotSaveOrRestoreWindowState() {
         let delegate: DiskHogApplicationDelegate = DiskHogApplicationDelegate()
