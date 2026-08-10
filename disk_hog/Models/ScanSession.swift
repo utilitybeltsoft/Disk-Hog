@@ -35,9 +35,7 @@ final class ScanSession: ObservableObject {
     private var settings: DiskScanSettings
     private var scanTask: Task<Void, Never>?
     private var treeUpdateTask: Task<Void, Never>?
-    private var presentationUpdateTask: Task<Void, Never>?
-    private var presentationUpdateID: UUID?
-    private var sizeModeUpdateTask: Task<Void, Never>?
+    private let taskCoordinator: ScanSessionTaskCoordinator = ScanSessionTaskCoordinator()
     private var rescanCoordinator: ScanSessionRescanCoordinator = ScanSessionRescanCoordinator()
 
     init(source: ScanSource) {
@@ -209,8 +207,8 @@ final class ScanSession: ObservableObject {
             scanTask?.cancel()
         }
         treeUpdateTask?.cancel()
-        presentationUpdateTask?.cancel()
-        sizeModeUpdateTask?.cancel()
+        taskCoordinator.cancel(.presentationUpdate)
+        taskCoordinator.cancel(.sizeModeUpdate)
     }
 
     func updatePackageContentsSynchronization(with showPackageContents: Bool) {
@@ -389,11 +387,8 @@ final class ScanSession: ObservableObject {
             return
         }
 
-        presentationUpdateTask?.cancel()
         let usePhysicalSize: Bool = settings.usePhysicalSize
-        let updateID: UUID = UUID()
-        presentationUpdateID = updateID
-        presentationUpdateTask = Task.detached(priority: .userInitiated) { [weak self] in
+        _ = taskCoordinator.start(.presentationUpdate) { [weak self] updateID in Task.detached(priority: .userInitiated) {
             let metrics: TreemapPresentationMetrics = TreemapPresentationMetrics(
                 rootItem: rootItem,
                 usePhysicalSize: usePhysicalSize,
@@ -408,7 +403,7 @@ final class ScanSession: ObservableObject {
             await MainActor.run { [weak self] in
                 self?.finishPresentationUpdate(id: updateID, metrics: metrics)
             }
-        }
+        } }
     }
 
     func updateSizeMode(_ usePhysicalSize: Bool) {
@@ -513,14 +508,12 @@ final class ScanSession: ObservableObject {
     }
 
     private func finishPresentationUpdate(id: UUID, metrics: TreemapPresentationMetrics?) {
-        guard presentationUpdateID == id else {
+        guard taskCoordinator.finish(.presentationUpdate, operationID: id) else {
             return
         }
         if let metrics {
             presentationMetrics = metrics
         }
-        presentationUpdateTask = nil
-        presentationUpdateID = nil
     }
 
     private func finishTreeUpdate(
@@ -551,9 +544,8 @@ final class ScanSession: ObservableObject {
     }
 
     private func rebuildForSizeMode(rootItem: DiskItem, usePhysicalSize: Bool) {
-        sizeModeUpdateTask?.cancel()
         let selectionPath: String = preferredSelection?.path ?? rootItem.path
-        sizeModeUpdateTask = Task.detached(priority: .userInitiated) { [weak self] in
+        _ = taskCoordinator.start(.sizeModeUpdate) { [weak self] updateID in Task.detached(priority: .userInitiated) {
             let reorderedRoot: DiskItem = rootItem.reordered(usePhysicalSize: usePhysicalSize)
             guard !Task.isCancelled else {
                 return
@@ -568,6 +560,7 @@ final class ScanSession: ObservableObject {
             }
             await MainActor.run { [weak self] in
                 guard let self,
+                      self.taskCoordinator.isCurrent(.sizeModeUpdate, operationID: updateID),
                       self.settings.usePhysicalSize == usePhysicalSize else {
                     return
                 }
@@ -582,9 +575,9 @@ final class ScanSession: ObservableObject {
                     usePhysicalSize: usePhysicalSize
                 )
                 self.currentPath = self.preferredSelection?.path ?? reorderedRoot.path
-                self.sizeModeUpdateTask = nil
+                _ = self.taskCoordinator.finish(.sizeModeUpdate, operationID: updateID)
             }
-        }
+        } }
     }
 
     private func updateSpaceItems(for rootItem: DiskItem) {
