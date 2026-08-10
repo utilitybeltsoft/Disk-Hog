@@ -35,18 +35,21 @@ final class ScanSession: ObservableObject {
     private var settings: DiskScanSettings
     private let scanWorker: any ScanSessionScanning
     private let treeWorker: any ScanSessionTreeUpdating
+    private let presentationWorker: any ScanSessionPresenting
     private let taskCoordinator: ScanSessionTaskCoordinator = ScanSessionTaskCoordinator()
     private var rescanCoordinator: ScanSessionRescanCoordinator = ScanSessionRescanCoordinator()
 
     init(
         source: ScanSource,
         scanWorker: any ScanSessionScanning = DiskInventoryZScanSessionWorker(),
-        treeWorker: any ScanSessionTreeUpdating = DiskInventoryZScanSessionTreeWorker()
+        treeWorker: any ScanSessionTreeUpdating = DiskInventoryZScanSessionTreeWorker(),
+        presentationWorker: any ScanSessionPresenting = DiskInventoryZScanSessionPresentationWorker()
     ) {
         self.source = source
         self.settings = source.scanSettings ?? .diskInventoryZDefault
         self.scanWorker = scanWorker
         self.treeWorker = treeWorker
+        self.presentationWorker = presentationWorker
         self.state = .ready
         self.startedAt = nil
         self.completedAt = nil
@@ -332,8 +335,9 @@ final class ScanSession: ObservableObject {
         }
 
         let usePhysicalSize: Bool = settings.usePhysicalSize
+        let presentationWorker: any ScanSessionPresenting = presentationWorker
         _ = taskCoordinator.start(.presentationUpdate) { [weak self] updateID in Task.detached(priority: .userInitiated) {
-            let metrics: TreemapPresentationMetrics = TreemapPresentationMetrics(
+            let metrics: TreemapPresentationMetrics = presentationWorker.presentationMetrics(
                 rootItem: rootItem,
                 usePhysicalSize: usePhysicalSize,
                 sharesKindColors: sharesKindColors
@@ -489,39 +493,44 @@ final class ScanSession: ObservableObject {
 
     private func rebuildForSizeMode(rootItem: DiskItem, usePhysicalSize: Bool) {
         let selectionPath: String = preferredSelection?.path ?? rootItem.path
+        let presentationWorker: any ScanSessionPresenting = presentationWorker
         _ = taskCoordinator.start(.sizeModeUpdate) { [weak self] updateID in Task.detached(priority: .userInitiated) {
-            let reorderedRoot: DiskItem = rootItem.reordered(usePhysicalSize: usePhysicalSize)
-            guard !Task.isCancelled else {
-                return
-            }
-            let metrics: TreemapPresentationMetrics = TreemapPresentationMetrics(
-                rootItem: reorderedRoot,
+            let result: ScanSessionSizeModeUpdateResult = presentationWorker.sizeModeUpdate(
+                rootItem: rootItem,
+                selectionPath: selectionPath,
                 usePhysicalSize: usePhysicalSize,
                 sharesKindColors: KindColorPreferences.sharesColors
             )
             guard !Task.isCancelled else {
+                await MainActor.run { [weak self] in
+                    self?.finishSizeModeUpdate(id: updateID, result: nil)
+                }
                 return
             }
             await MainActor.run { [weak self] in
-                guard let self,
-                      self.taskCoordinator.isCurrent(.sizeModeUpdate, operationID: updateID),
-                      self.settings.usePhysicalSize == usePhysicalSize else {
-                    return
-                }
-                self.preferredSelection = reorderedRoot.item(
-                    atPath: selectionPath,
-                    allowAncestors: true
-                ) ?? reorderedRoot
-                self.presentationMetrics = metrics
-                self.updateSpaceItems(for: reorderedRoot)
-                self.rootItem = reorderedRoot
-                self.scannedByteCount = reorderedRoot.sizeValue(
-                    usePhysicalSize: usePhysicalSize
-                )
-                self.currentPath = self.preferredSelection?.path ?? reorderedRoot.path
-                _ = self.taskCoordinator.finish(.sizeModeUpdate, operationID: updateID)
+                self?.finishSizeModeUpdate(id: updateID, result: result)
             }
         } }
+    }
+
+    private func finishSizeModeUpdate(
+        id: UUID,
+        result: ScanSessionSizeModeUpdateResult?
+    ) {
+        guard taskCoordinator.finish(.sizeModeUpdate, operationID: id),
+              let result,
+              settings.usePhysicalSize == result.usePhysicalSize else {
+            return
+        }
+        preferredSelection = result.rootItem.item(
+            atPath: result.selectionPath,
+            allowAncestors: true
+        ) ?? result.rootItem
+        presentationMetrics = result.presentationMetrics
+        updateSpaceItems(for: result.rootItem)
+        rootItem = result.rootItem
+        scannedByteCount = result.rootItem.sizeValue(usePhysicalSize: result.usePhysicalSize)
+        currentPath = preferredSelection?.path ?? result.rootItem.path
     }
 
     private func updateSpaceItems(for rootItem: DiskItem) {

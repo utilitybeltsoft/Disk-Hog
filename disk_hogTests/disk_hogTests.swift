@@ -355,17 +355,74 @@ struct ScanSessionWorkerIntegrationTests {
         #expect(session.failure?.title.contains("file.txt") == true)
     }
 
+    @Test func rebuildsPresentationMetricsFromInjectedWorker() async throws {
+        let rootItem: DiskItem = Self.rootItem(fileSize: 12)
+        let presentationWorker: ImmediatePresentationWorker = ImmediatePresentationWorker(
+            sizeModeRootItem: rootItem
+        )
+        let session: ScanSession = ScanSession(
+            source: ScanSource(path: "/scan", displayName: "scan"),
+            scanWorker: ImmediateScanWorker(result: .success(Self.scanResult(rootItem: rootItem))),
+            presentationWorker: presentationWorker
+        )
+        session.startScan()
+        try await Self.waitUntil { session.state == .complete }
+        let originalMetricsID: ObjectIdentifier? = session.presentationMetrics.map(ObjectIdentifier.init)
+
+        session.rebuildPresentationMetrics(sharesKindColors: false)
+
+        try await Self.waitUntil {
+            session.presentationMetrics.map(ObjectIdentifier.init) != originalMetricsID
+        }
+        #expect(session.presentationMetrics != nil)
+        #expect(session.state == .complete)
+    }
+
+    @Test func updatesSizeModeFromInjectedPresentationWorker() async throws {
+        let originalRoot: DiskItem = Self.rootItem(fileSize: 12)
+        let logicalRoot: DiskItem = Self.rootItem(allocatedSize: 12, logicalSize: 5)
+        let presentationWorker: ImmediatePresentationWorker = ImmediatePresentationWorker(
+            sizeModeRootItem: logicalRoot
+        )
+        let session: ScanSession = ScanSession(
+            source: ScanSource(
+                path: "/scan",
+                displayName: "scan",
+                scanSettings: DiskScanSettings(
+                    usePhysicalSize: true,
+                    lookInsidePackages: true,
+                    ignoreCreatorCode: false
+                )
+            ),
+            scanWorker: ImmediateScanWorker(result: .success(Self.scanResult(rootItem: originalRoot))),
+            presentationWorker: presentationWorker
+        )
+        session.startScan()
+        try await Self.waitUntil { session.state == .complete }
+
+        session.updateSizeMode(false)
+
+        try await Self.waitUntil { session.scannedByteCount == 5 }
+        #expect(session.rootItem?.sizeValue(usePhysicalSize: false) == 5)
+        #expect(session.preferredSelection?.path == "/scan")
+        #expect(session.state == .complete)
+    }
+
     private static func rootItem(fileSize: UInt64) -> DiskItem {
+        rootItem(allocatedSize: fileSize, logicalSize: fileSize)
+    }
+
+    private static func rootItem(allocatedSize: UInt64, logicalSize: UInt64) -> DiskItem {
         DiskItem(
             url: URL(fileURLWithPath: "/scan"),
-            allocatedSizeValue: fileSize,
-            logicalSizeValue: fileSize,
+            allocatedSizeValue: allocatedSize,
+            logicalSizeValue: logicalSize,
             isDirectory: true,
             children: [
                 DiskItem(
                     url: URL(fileURLWithPath: "/scan/file.txt"),
-                    allocatedSizeValue: fileSize,
-                    logicalSizeValue: fileSize
+                    allocatedSizeValue: allocatedSize,
+                    logicalSizeValue: logicalSize
                 )
             ]
         )
@@ -500,6 +557,40 @@ private struct ImmediateTreeWorker: ScanSessionTreeUpdating {
         settings: DiskScanSettings
     ) async throws -> ScanSessionTreeUpdateResult {
         try deleteResult.get()
+    }
+}
+
+private struct ImmediatePresentationWorker: ScanSessionPresenting {
+    let sizeModeRootItem: DiskItem
+
+    func presentationMetrics(
+        rootItem: DiskItem,
+        usePhysicalSize: Bool,
+        sharesKindColors: Bool
+    ) -> TreemapPresentationMetrics {
+        TreemapPresentationMetrics(
+            rootItem: rootItem,
+            usePhysicalSize: usePhysicalSize,
+            sharesKindColors: sharesKindColors
+        )
+    }
+
+    func sizeModeUpdate(
+        rootItem: DiskItem,
+        selectionPath: String,
+        usePhysicalSize: Bool,
+        sharesKindColors: Bool
+    ) -> ScanSessionSizeModeUpdateResult {
+        ScanSessionSizeModeUpdateResult(
+            rootItem: sizeModeRootItem,
+            presentationMetrics: presentationMetrics(
+                rootItem: sizeModeRootItem,
+                usePhysicalSize: usePhysicalSize,
+                sharesKindColors: sharesKindColors
+            ),
+            selectionPath: selectionPath,
+            usePhysicalSize: usePhysicalSize
+        )
     }
 }
 
