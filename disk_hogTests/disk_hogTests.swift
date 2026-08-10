@@ -75,6 +75,23 @@ struct ScanSessionFailureTests {
         #expect(failure.message == "The test operation failed.")
         #expect(failure.recoverySuggestion.contains("Try again"))
     }
+
+    @Test func createsUserFacingAlertPresentation() {
+        let failure: ScanSessionFailure = ScanSessionFailure(
+            error: NSError(domain: NSPOSIXErrorDomain, code: Int(EACCES)),
+            operation: .deletion(itemName: "Locked File", method: .moveToTrash)
+        )
+
+        let presentation: ScanSessionFailureAlertPresentation = ScanSessionFailureAlertPresentation(
+            failure: failure
+        )
+
+        #expect(presentation.id == failure.id)
+        #expect(presentation.title.contains("Locked File"))
+        #expect(presentation.message.contains("permission"))
+        #expect(presentation.message.contains("permissions"))
+        #expect(presentation.dismissButtonTitle == "OK")
+    }
 }
 
 struct ScanSourceBookmarkTests {
@@ -381,6 +398,27 @@ struct ScanSessionWorkerIntegrationTests {
         try await Self.waitUntil { session.state == .failed }
         #expect(session.failure?.message == "scan failed")
         #expect(session.failure?.title.contains("scan") == true)
+    }
+
+    @Test func scanFailureReachesUserFacingAlertBindingAndDismisses() async throws {
+        let session: ScanSession = ScanSession(
+            source: ScanSource(path: "/scan", displayName: "scan"),
+            scanWorker: ImmediateScanWorker(result: .failure(.failed("scan failed")))
+        )
+
+        session.startScan()
+
+        try await Self.waitUntil { session.state == .failed }
+        let alertBinding: Binding<ScanSessionFailureAlertPresentation?> =
+            ScanSessionFailureAlertBinding.binding(for: session)
+        let alertPresentation: ScanSessionFailureAlertPresentation = try #require(alertBinding.wrappedValue)
+        #expect(alertPresentation.title.contains("scan"))
+        #expect(alertPresentation.message.contains("scan failed"))
+        #expect(alertPresentation.dismissButtonTitle == "OK")
+
+        alertBinding.wrappedValue = nil
+
+        #expect(session.failure == nil)
     }
 
     @Test func refreshesTreeFromInjectedWorker() async throws {

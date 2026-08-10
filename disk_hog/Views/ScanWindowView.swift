@@ -99,14 +99,11 @@ struct ScanWindowView: View {
             session.rememberSelection(selectionCoordinator.selectedItem)
             updateScanWindowCommandState()
         }
-        .alert(item: Binding(
-            get: { session.failure },
-            set: { _ in session.dismissFailure() }
-        )) { failure in
+        .alert(item: ScanSessionFailureAlertBinding.binding(for: session)) { failureAlert in
             Alert(
-                title: Text(failure.title),
-                message: Text("\(failure.message)\n\n\(failure.recoverySuggestion)"),
-                dismissButton: .default(Text("OK"))
+                title: Text(failureAlert.title),
+                message: Text(failureAlert.message),
+                dismissButton: .default(Text(failureAlert.dismissButtonTitle))
             )
         }
         #if FILE_MATCHING_DIAGNOSTICS
