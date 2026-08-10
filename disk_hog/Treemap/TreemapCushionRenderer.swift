@@ -27,7 +27,10 @@ final class TreemapCushionRenderer {
     func setColor(_ newColor: NSColor) {
         var colorInRGBSpace: NSColor = newColor
         if colorInRGBSpace.colorSpace != NSColorSpace.genericRGB {
-            colorInRGBSpace = colorInRGBSpace.usingColorSpace(.genericRGB)!
+            guard let convertedColor: NSColor = colorInRGBSpace.usingColorSpace(.genericRGB) else {
+                return
+            }
+            colorInRGBSpace = convertedColor
         }
         self.color = colorInRGBSpace
     }
@@ -56,12 +59,15 @@ final class TreemapCushionRenderer {
     }
 
     func renderCushionGeneric(in bitmap: NSBitmapImageRep, backingScaleFactor: CGFloat = 1) {
-        precondition(backingScaleFactor > 0)
+        guard backingScaleFactor.isFinite, backingScaleFactor > 0,
+              bitmap.bitsPerSample == 8,
+              !bitmap.hasAlpha,
+              let pixels: UnsafeMutablePointer<UInt8> = bitmap.bitmapData else {
+            return
+        }
         let rect: NSRect = self.rect
         let surface: [CGFloat] = self.surface
         let baseColor: NSColor = self.color
-        assert(bitmap.bitsPerSample == 8)
-        assert(!bitmap.hasAlpha)
         let ambientLight: Double = 0.15
         let lightX: Double = -1
         let lightY: Double = -1
@@ -74,7 +80,6 @@ final class TreemapCushionRenderer {
         let baseRed: CGFloat = baseColor.redComponent
         let baseGreen: CGFloat = baseColor.greenComponent
         let baseBlue: CGFloat = baseColor.blueComponent
-        let pixels: UnsafeMutablePointer<UInt8> = bitmap.bitmapData!
         let bytesPerRow: Int = bitmap.bytesPerRow
         let yStart: Int = Int((rect.minY * backingScaleFactor).rounded(.down))
         let yEnd: Int = Int((rect.maxY * backingScaleFactor).rounded(.up))
@@ -113,7 +118,10 @@ final class TreemapCushionRenderer {
     nonisolated static func normalizeColor(_ color: NSColor) -> NSColor {
         var colorInRGBSpace: NSColor = color
         if colorInRGBSpace.colorSpace != NSColorSpace.genericRGB {
-            colorInRGBSpace = colorInRGBSpace.usingColorSpace(.genericRGB)!
+            guard let convertedColor: NSColor = colorInRGBSpace.usingColorSpace(.genericRGB) else {
+                return color
+            }
+            colorInRGBSpace = convertedColor
         }
         var red: CGFloat = colorInRGBSpace.redComponent
         var green: CGFloat = colorInRGBSpace.greenComponent

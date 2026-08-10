@@ -136,8 +136,11 @@ final class TreemapViewRenderer {
             return cachedContent
         }
         allocContentCache(size: size, scale: scale, colorSpace: colorSpace)
-        if rootItemRenderer != nil {
-            rootItemRenderer?.drawCushion(in: cachedContent!, backingScaleFactor: scale)
+        guard let cachedContent else {
+            return nil
+        }
+        if let rootItemRenderer {
+            rootItemRenderer.drawCushion(in: cachedContent, backingScaleFactor: scale)
         }
         return cachedContent
     }
@@ -148,10 +151,12 @@ final class TreemapViewRenderer {
 
     private func allocContentCache(size: NSSize, scale: CGFloat, colorSpace: NSColorSpace?) {
         deallocContentCache()
-        cachedContent = NSBitmapImageRep.treemapImageRepCompatible(withBounds: NSRect(origin: .zero, size: size), backingScaleFactor: scale, colorSpace: colorSpace)
-        cachedSize = size
-        cachedScale = scale
-        cachedColorSpace = colorSpace
+        if let bitmap: NSBitmapImageRep = NSBitmapImageRep.treemapImageRepCompatible(withBounds: NSRect(origin: .zero, size: size), backingScaleFactor: scale, colorSpace: colorSpace) {
+            cachedContent = bitmap
+            cachedSize = size
+            cachedScale = scale
+            cachedColorSpace = colorSpace
+        }
     }
 
     private func deallocContentCache() {

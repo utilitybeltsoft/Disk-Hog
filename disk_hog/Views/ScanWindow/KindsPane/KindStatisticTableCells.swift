@@ -40,17 +40,23 @@ final class KindColorCellView: NSTableCellView {
             width: ScanWindowMetrics.kindColorColumnWidth,
             height: ScanWindowMetrics.tableRowHeight
         )
-        let bitmap: NSBitmapImageRep = NSBitmapImageRep(
-            treemapRGBBitmapWithWidth: Int(imageSize.width),
-            height: Int(imageSize.height)
-        )
+        guard let bitmap: NSBitmapImageRep = NSBitmapImageRep.treemapImageRepCompatible(
+            withBounds: NSRect(origin: .zero, size: imageSize),
+            backingScaleFactor: 1,
+            colorSpace: .genericRGB
+        ) else {
+            let image: NSImage = NSImage(size: imageSize)
+            image.lockFocus()
+            color.drawSwatch(in: NSRect(origin: .zero, size: imageSize))
+            image.unlockFocus()
+            return image
+        }
         let renderer: TreemapCushionRenderer = TreemapCushionRenderer(
             rect: NSRect(origin: .zero, size: imageSize)
         )
         renderer.setColor(color)
         renderer.addRidgeByHeightFactor(ScanWindowMetrics.kindSwatchCushionRidgeHeightFactor)
         renderer.renderCushion(in: bitmap)
-        bitmap.size = imageSize
         let image: NSImage = bitmap.treemapSuitableImage()
         swatchImageCache.setObject(image, forKey: cacheKey)
         return image

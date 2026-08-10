@@ -1777,11 +1777,11 @@ struct TreemapViewRendererTests {
 struct TreemapCushionRendererTests {
 
     @Test func fillsTheFullPixelAreaOfARetinaBitmap() throws {
-        let bitmap: NSBitmapImageRep = NSBitmapImageRep.treemapImageRepCompatible(
+        let bitmap: NSBitmapImageRep = try #require(NSBitmapImageRep.treemapImageRepCompatible(
             withBounds: NSRect(x: 0, y: 0, width: 100, height: 100),
             backingScaleFactor: 2,
             colorSpace: .genericRGB
-        )
+        ))
         let renderer: TreemapCushionRenderer = TreemapCushionRenderer(
             rect: NSRect(x: 0, y: 0, width: 100, height: 100)
         )
@@ -1791,6 +1791,16 @@ struct TreemapCushionRendererTests {
         let bytes: UnsafeMutablePointer<UInt8> = try #require(bitmap.bitmapData)
         let pixelOutsidePointSpace: UnsafeMutablePointer<UInt8> = bytes + 150 * bitmap.bytesPerRow + 150 * 3
         #expect(pixelOutsidePointSpace[0] > 0)
+    }
+
+    @Test func rejectsInvalidBitmapScaleWithoutRendering() {
+        let bitmap: NSBitmapImageRep? = NSBitmapImageRep.treemapImageRepCompatible(
+            withBounds: NSRect(x: 0, y: 0, width: 100, height: 100),
+            backingScaleFactor: 0,
+            colorSpace: .genericRGB
+        )
+
+        #expect(bitmap == nil)
     }
 
     @Test func colorNormalizationRedistributesOverflowAcrossRemainingChannels() {
