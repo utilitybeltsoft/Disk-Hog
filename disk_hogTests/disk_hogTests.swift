@@ -1162,6 +1162,19 @@ struct ApplicationWindowPlacementServiceTests {
 
 struct DiskItemTests {
 
+    @Test func builderCopiesAreReferencesToTheSameNode() {
+        let builder: DiskItemBuilder = DiskItemBuilder(
+            url: URL(fileURLWithPath: "/scan/file.txt"),
+            allocatedSizeValue: 1
+        )
+        let sameBuilder: DiskItemBuilder = builder
+
+        sameBuilder.allocatedSizeValue = 2
+
+        #expect(builder === sameBuilder)
+        #expect(builder.allocatedSizeValue == 2)
+    }
+
     @Test func builderFreezePreservesChildAncestryAndUpdatesSizes() {
         let rootBuilder: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan"),

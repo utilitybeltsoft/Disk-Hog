@@ -1,6 +1,6 @@
 import Foundation
 
-nonisolated struct DiskItemBuilder: @unchecked Sendable, DiskItemTreeNode {
+nonisolated final class DiskItemBuilder: @unchecked Sendable, DiskItemTreeNode {
     typealias ChildItem = DiskItemBuilder
 
     let arena: DiskItemBuilderArena
@@ -51,7 +51,7 @@ nonisolated struct DiskItemBuilder: @unchecked Sendable, DiskItemTreeNode {
 
     var itemMetadata: DiskItemMetadata {
         get { arena.records[index].metadata }
-        nonmutating set { arena.records[index].metadata = newValue }
+        set { arena.records[index].metadata = newValue }
     }
 
     var itemChildren: [DiskItemBuilder] {
@@ -64,42 +64,42 @@ nonisolated struct DiskItemBuilder: @unchecked Sendable, DiskItemTreeNode {
 
     var itemType: DiskItemType {
         get { itemMetadata.itemType }
-        nonmutating set { arena.records[index].metadata.itemType = newValue }
+        set { arena.records[index].metadata.itemType = newValue }
     }
 
     var allocatedSizeValue: UInt64 {
         get { itemMetadata.allocatedSizeValue }
-        nonmutating set { arena.records[index].metadata.allocatedSizeValue = newValue }
+        set { arena.records[index].metadata.allocatedSizeValue = newValue }
     }
 
     var logicalSizeValue: UInt64 {
         get { itemMetadata.logicalSizeValue }
-        nonmutating set { arena.records[index].metadata.logicalSizeValue = newValue }
+        set { arena.records[index].metadata.logicalSizeValue = newValue }
     }
 
     var kindName: String? {
         get { itemMetadata.kindName }
-        nonmutating set { arena.records[index].metadata.kindName = newValue }
+        set { arena.records[index].metadata.kindName = newValue }
     }
 
     var isDirectory: Bool {
         get { itemMetadata.isDirectory }
-        nonmutating set { arena.records[index].metadata.isDirectory = newValue }
+        set { arena.records[index].metadata.isDirectory = newValue }
     }
 
     var isPackage: Bool {
         get { itemMetadata.isPackage }
-        nonmutating set { arena.records[index].metadata.isPackage = newValue }
+        set { arena.records[index].metadata.isPackage = newValue }
     }
 
     var isAliasOrSymbolicLink: Bool {
         get { itemMetadata.isAliasOrSymbolicLink }
-        nonmutating set { arena.records[index].metadata.isAliasOrSymbolicLink = newValue }
+        set { arena.records[index].metadata.isAliasOrSymbolicLink = newValue }
     }
 
     var isHardlinkDuplicate: Bool {
         get { itemMetadata.isHardlinkDuplicate }
-        nonmutating set { arena.records[index].metadata.isHardlinkDuplicate = newValue }
+        set { arena.records[index].metadata.isHardlinkDuplicate = newValue }
     }
 
     func makeChild(
