@@ -1466,7 +1466,8 @@ struct DiskItemTests {
             logicalSizeValue: 25
         ))
         let replacement: DiskItem = replacementBuilder.freeze(isRoot: false)
-        let updatedRoot: DiskItem? = root.replacingSubtree(
+        let updatedRoot: DiskItem? = DiskItemTreeEditor.replacingSubtree(
+            in: root,
             atPath: "/scan/folder",
             with: replacement,
             usePhysicalSize: true
@@ -1488,7 +1489,8 @@ struct DiskItemTests {
         ))
         rootBuilder.appendChild(folderBuilder)
         let root: DiskItem = rootBuilder.freeze()
-        let updatedRoot: DiskItem? = root.removingSubtree(
+        let updatedRoot: DiskItem? = DiskItemTreeEditor.removingSubtree(
+            from: root,
             atPath: "/scan/folder/file.txt",
             usePhysicalSize: true
         )
@@ -1496,6 +1498,48 @@ struct DiskItemTests {
         #expect(updatedRoot?.allocatedSizeValue == 0)
         #expect(updatedRoot?.item(atPath: "/scan/folder/file.txt") == nil)
         #expect(updatedRoot?.item(atPath: "/scan/folder/file.txt", allowAncestors: true)?.path == "/scan/folder")
+    }
+
+    @Test func replacingDeepSubtreeUsesIterativeEditor() throws {
+        var currentPath: String = "/scan"
+        let rootBuilder: DiskItemBuilder = DiskItemBuilder(
+            url: URL(fileURLWithPath: currentPath),
+            isDirectory: true
+        )
+        var parentBuilder: DiskItemBuilder = rootBuilder
+        for depth: Int in 0..<500 {
+            currentPath += "/\(depth)"
+            let childBuilder: DiskItemBuilder = parentBuilder.makeChild(
+                url: URL(fileURLWithPath: currentPath),
+                isDirectory: true
+            )
+            parentBuilder.appendChild(childBuilder, updateSize: false)
+            parentBuilder = childBuilder
+        }
+        let oldFilePath: String = currentPath + "/old.txt"
+        parentBuilder.appendChild(DiskItemBuilder(
+            url: URL(fileURLWithPath: oldFilePath),
+            allocatedSizeValue: 10,
+            logicalSizeValue: 10
+        ))
+        rootBuilder.recalculateSize(usePhysicalSize: true)
+        let root: DiskItem = rootBuilder.freeze()
+
+        let replacement: DiskItem = DiskItemBuilder(
+            url: URL(fileURLWithPath: currentPath + "/new.txt"),
+            allocatedSizeValue: 25,
+            logicalSizeValue: 25
+        ).freeze(isRoot: false)
+        let updatedRoot: DiskItem = try #require(DiskItemTreeEditor.replacingSubtree(
+            in: root,
+            atPath: oldFilePath,
+            with: replacement,
+            usePhysicalSize: true
+        ))
+
+        #expect(updatedRoot.allocatedSizeValue == 25)
+        #expect(updatedRoot.item(atPath: oldFilePath) == nil)
+        #expect(updatedRoot.item(atPath: currentPath + "/new.txt")?.allocatedSizeValue == 25)
     }
 }
 
@@ -1815,7 +1859,7 @@ struct TreemapDiskItemDataSourceTests {
         rootBuilder.recalculateSize(usePhysicalSize: true)
         let physicalRoot: DiskItem = rootBuilder.freeze()
 
-        let logicalRoot: DiskItem = physicalRoot.reordered(usePhysicalSize: false)
+        let logicalRoot: DiskItem = DiskItemTreeEditor.reordered(physicalRoot, usePhysicalSize: false)
 
         #expect(physicalRoot.child(at: 0).name == "physical")
         #expect(logicalRoot.child(at: 0).name == "logical")

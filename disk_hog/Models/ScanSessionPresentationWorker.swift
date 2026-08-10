@@ -41,7 +41,7 @@ nonisolated struct DiskInventoryZScanSessionPresentationWorker: ScanSessionPrese
         usePhysicalSize: Bool,
         sharesKindColors: Bool
     ) -> ScanSessionSizeModeUpdateResult {
-        let reorderedRoot: DiskItem = rootItem.reordered(usePhysicalSize: usePhysicalSize)
+        let reorderedRoot: DiskItem = DiskItemTreeEditor.reordered(rootItem, usePhysicalSize: usePhysicalSize)
         return ScanSessionSizeModeUpdateResult(
             rootItem: reorderedRoot,
             presentationMetrics: presentationMetrics(

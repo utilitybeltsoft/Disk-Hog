@@ -47,7 +47,8 @@ nonisolated struct DiskInventoryZScanSessionTreeWorker: ScanSessionTreeUpdating 
                 from: resolvedSource,
                 settings: settings
             )
-            guard let replacementRoot: DiskItem = currentRoot.replacingSubtree(
+            guard let replacementRoot: DiskItem = DiskItemTreeEditor.replacingSubtree(
+                in: currentRoot,
                 atPath: refreshPath,
                 with: refreshedItem,
                 usePhysicalSize: settings.usePhysicalSize
@@ -91,7 +92,8 @@ nonisolated struct DiskInventoryZScanSessionTreeWorker: ScanSessionTreeUpdating 
         }
         try Task.checkCancellation()
 
-        guard let updatedRoot: DiskItem = currentRoot.removingSubtree(
+        guard let updatedRoot: DiskItem = DiskItemTreeEditor.removingSubtree(
+            from: currentRoot,
             atPath: item.path,
             usePhysicalSize: settings.usePhysicalSize
         ) else {

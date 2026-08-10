@@ -138,7 +138,7 @@ nonisolated final class DiskItem: Identifiable, Hashable, Sendable, DiskItemTree
             isHardlinkDuplicate: isHardlinkDuplicate
         )
         for child: DiskItem in children {
-            builder.appendChild(child.builderCopy(), updateSize: false)
+            builder.appendChild(DiskItemTreeEditor.builderCopy(of: child), updateSize: false)
         }
         let chunk: PackedDiskItemChunk = builder.packedChunk(isRoot: isRoot)
         let snapshot: PackedDiskItemSnapshot = PackedDiskItemSnapshot(
@@ -266,25 +266,6 @@ nonisolated final class DiskItem: Identifiable, Hashable, Sendable, DiskItemTree
         return allowAncestors ? deepest?.0 : nil
     }
 
-    func replacingSubtree(atPath targetPath: String, with replacement: DiskItem, usePhysicalSize: Bool) -> DiskItem? {
-        guard item(atPath: targetPath) != nil else { return nil }
-        if path == targetPath {
-            return replacement.copy(isRoot: isRoot)
-        }
-        return rebuilt(replacingPath: targetPath, replacement: replacement, remove: false, usePhysicalSize: usePhysicalSize)
-    }
-
-    func removingSubtree(atPath targetPath: String, usePhysicalSize: Bool) -> DiskItem? {
-        guard path != targetPath, item(atPath: targetPath) != nil else { return nil }
-        return rebuilt(replacingPath: targetPath, replacement: nil, remove: true, usePhysicalSize: usePhysicalSize)
-    }
-
-    func reordered(usePhysicalSize: Bool) -> DiskItem {
-        let builder: DiskItemBuilder = builderCopy()
-        builder.recalculateSize(usePhysicalSize: usePhysicalSize)
-        return builder.freeze(isRoot: isRoot)
-    }
-
     func scanCounts(includeSelf: Bool = true) -> (files: Int, folders: Int) {
         let record: PackedDiskItemRecord = snapshot.record(at: address)
         let counts: (files: Int, folders: Int) = snapshot.scanCounts(at: address)
@@ -308,98 +289,6 @@ nonisolated final class DiskItem: Identifiable, Hashable, Sendable, DiskItemTree
             pendingItems.append(contentsOf: item.children)
         }
         return matches
-    }
-
-    private func rebuilt(
-        replacingPath targetPath: String,
-        replacement: DiskItem?,
-        remove: Bool,
-        usePhysicalSize: Bool
-    ) -> DiskItem? {
-        if path == targetPath { return remove ? nil : replacement }
-        let rebuiltChildren: [DiskItem] = children.compactMap { child in
-            child.containsPath(targetPath)
-                ? child.rebuilt(replacingPath: targetPath, replacement: replacement, remove: remove, usePhysicalSize: usePhysicalSize)
-                : child
-        }.sorted {
-            let firstSize: UInt64 = $0.sizeValue(usePhysicalSize: usePhysicalSize)
-            let secondSize: UInt64 = $1.sizeValue(usePhysicalSize: usePhysicalSize)
-            return firstSize == secondSize
-                ? $0.name.localizedStandardCompare($1.name) == .orderedDescending
-                : firstSize > secondSize
-        }
-        let allocated: UInt64 = isFolder ? rebuiltChildren.reduce(0) { $0 + $1.allocatedSizeValue } : allocatedSizeValue
-        let logical: UInt64 = isFolder ? rebuiltChildren.reduce(0) { $0 + $1.logicalSizeValue } : logicalSizeValue
-        return DiskItem(
-            url: url,
-            itemType: itemType,
-            displayName: displayName,
-            name: itemMetadata.fileSystemName,
-            allocatedSizeValue: allocated,
-            logicalSizeValue: logical,
-            kindName: kindName,
-            isDirectory: isDirectory,
-            isPackage: isPackage,
-            isAliasOrSymbolicLink: isAliasOrSymbolicLink,
-            isHardlinkDuplicate: isHardlinkDuplicate,
-            children: rebuiltChildren,
-            isRoot: isRoot
-        )
-    }
-
-    private func builderCopy() -> DiskItemBuilder {
-        let root: DiskItemBuilder = DiskItemBuilder(
-            url: url,
-            itemType: itemType,
-            displayName: displayName,
-            name: itemMetadata.fileSystemName,
-            allocatedSizeValue: allocatedSizeValue,
-            logicalSizeValue: logicalSizeValue,
-            kindName: kindName,
-            isDirectory: isDirectory,
-            isPackage: isPackage,
-            isAliasOrSymbolicLink: isAliasOrSymbolicLink,
-            isHardlinkDuplicate: isHardlinkDuplicate
-        )
-        var pending: [(DiskItem, DiskItemBuilder)] = [(self, root)]
-        while let (source, destination) = pending.popLast() {
-            for child: DiskItem in source.children {
-                let childBuilder: DiskItemBuilder = destination.makeChild(
-                    url: child.url,
-                    itemType: child.itemType,
-                    displayName: child.displayName,
-                    name: child.itemMetadata.fileSystemName,
-                    allocatedSizeValue: child.allocatedSizeValue,
-                    logicalSizeValue: child.logicalSizeValue,
-                    kindName: child.kindName,
-                    isDirectory: child.isDirectory,
-                    isPackage: child.isPackage,
-                    isAliasOrSymbolicLink: child.isAliasOrSymbolicLink,
-                    isHardlinkDuplicate: child.isHardlinkDuplicate
-                )
-                destination.appendChild(childBuilder, updateSize: false)
-                pending.append((child, childBuilder))
-            }
-        }
-        return root
-    }
-
-    private func copy(isRoot: Bool) -> DiskItem {
-        DiskItem(
-            url: url,
-            itemType: itemType,
-            displayName: displayName,
-            name: itemMetadata.fileSystemName,
-            allocatedSizeValue: allocatedSizeValue,
-            logicalSizeValue: logicalSizeValue,
-            kindName: kindName,
-            isDirectory: isDirectory,
-            isPackage: isPackage,
-            isAliasOrSymbolicLink: isAliasOrSymbolicLink,
-            isHardlinkDuplicate: isHardlinkDuplicate,
-            children: children,
-            isRoot: isRoot
-        )
     }
 
     private func containsPath(_ candidatePath: String) -> Bool {
