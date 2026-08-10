@@ -216,6 +216,44 @@ struct ScanWindowControllerTests {
     }
 }
 
+struct ScanSessionRescanCoordinatorTests {
+    @Test func coalescesRepeatedRescanRequestsIntoOneReplacement() {
+        var coordinator: ScanSessionRescanCoordinator = ScanSessionRescanCoordinator()
+        let operation: ScanSessionWorkOperation = coordinator.beginScan()
+
+        #expect(coordinator.requestRescan() == operation)
+        #expect(coordinator.requestRescan() == operation)
+        #expect(coordinator.finish(operation))
+        #expect(coordinator.consumePendingRescan())
+        #expect(coordinator.consumePendingRescan() == false)
+    }
+
+    @Test func acceptsOnlyTheCurrentOperationCompletion() {
+        var coordinator: ScanSessionRescanCoordinator = ScanSessionRescanCoordinator()
+        let firstOperation: ScanSessionWorkOperation = coordinator.beginTreeUpdate()
+
+        #expect(coordinator.finish(firstOperation))
+        let replacementOperation: ScanSessionWorkOperation = coordinator.beginScan()
+
+        #expect(coordinator.finish(firstOperation) == false)
+        #expect(coordinator.activeOperation == replacementOperation)
+    }
+
+    @Test func preservesPendingRescanThroughAnyTerminalOperation() {
+        var scanCoordinator: ScanSessionRescanCoordinator = ScanSessionRescanCoordinator()
+        let scanOperation: ScanSessionWorkOperation = scanCoordinator.beginScan()
+        _ = scanCoordinator.requestRescan()
+        #expect(scanCoordinator.finish(scanOperation))
+        #expect(scanCoordinator.consumePendingRescan())
+
+        var treeCoordinator: ScanSessionRescanCoordinator = ScanSessionRescanCoordinator()
+        let treeOperation: ScanSessionWorkOperation = treeCoordinator.beginTreeUpdate()
+        _ = treeCoordinator.requestRescan()
+        #expect(treeCoordinator.finish(treeOperation))
+        #expect(treeCoordinator.consumePendingRescan())
+    }
+}
+
 @MainActor
 struct ScanSessionPackageContentsSynchronizationTests {
     @Test func reportsWhetherExistingResultsMatchCurrentPreference() {

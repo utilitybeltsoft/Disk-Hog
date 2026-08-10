@@ -38,7 +38,7 @@ final class ScanSession: ObservableObject {
     private var presentationUpdateTask: Task<Void, Never>?
     private var presentationUpdateID: UUID?
     private var sizeModeUpdateTask: Task<Void, Never>?
-    private var restartsAfterCancellation: Bool = false
+    private var rescanCoordinator: ScanSessionRescanCoordinator = ScanSessionRescanCoordinator()
 
     init(source: ScanSource) {
         self.source = source
@@ -106,9 +106,12 @@ final class ScanSession: ObservableObject {
     }
 
     private func startScan(preservingFailure: Bool) {
-        guard state != .scanning else {
+        guard state != .scanning,
+              rescanCoordinator.activeOperation == nil else {
             return
         }
+
+        let operation: ScanSessionWorkOperation = rescanCoordinator.beginScan()
 
         let now: Date = Date()
 
@@ -142,7 +145,7 @@ final class ScanSession: ObservableObject {
 
         let progressTask: Task<Void, Never> = Task { [weak self] in
             for await progress: DiskScanProgress in progressStream {
-                self?.applyProgress(progress)
+                self?.applyProgress(progress, for: operation)
             }
         }
 
@@ -164,8 +167,7 @@ final class ScanSession: ObservableObject {
                 await progressTask.value
                 try Task.checkCancellation()
                 await MainActor.run { [weak self] in
-                    self?.isBuildingTreemap = true
-                    self?.treemapPreparationProgress = 0
+                    self?.beginTreemapPreparation(for: operation)
                 }
                 let presentationMetrics: TreemapPresentationMetrics = TreemapPresentationMetrics(
                     rootItem: rootItem,
@@ -173,7 +175,7 @@ final class ScanSession: ObservableObject {
                     sharesKindColors: KindColorPreferences.sharesColors
                 ) { progress in
                     Task { @MainActor [weak self] in
-                        self?.applyTreemapPreparationProgress(progress)
+                        self?.applyTreemapPreparationProgress(progress, for: operation)
                     }
                 }
                 try Task.checkCancellation()
@@ -182,20 +184,21 @@ final class ScanSession: ObservableObject {
                     self?.finishScan(
                         rootItem: rootItem,
                         presentationMetrics: presentationMetrics,
-                        builtUsingPhysicalSize: settings.usePhysicalSize
+                        builtUsingPhysicalSize: settings.usePhysicalSize,
+                        operation: operation
                     )
                 }
             } catch is CancellationError {
                 progressContinuation.finish()
                 await progressTask.value
                 await MainActor.run { [weak self] in
-                    self?.finishCancellation()
+                    self?.finishCancellation(for: operation)
                 }
             } catch {
                 progressContinuation.finish()
                 await progressTask.value
                 await MainActor.run { [weak self] in
-                    self?.finishFailure(error)
+                    self?.finishFailure(error, for: operation)
                 }
             }
         }
@@ -228,14 +231,16 @@ final class ScanSession: ObservableObject {
             return
         }
 
-        if state == .scanning {
-            restartsAfterCancellation = true
-            scanTask?.cancel()
-        } else if isUpdatingTree {
-            restartsAfterCancellation = true
-            treeUpdateTask?.cancel()
-        } else {
+        guard let activeOperation: ScanSessionWorkOperation = rescanCoordinator.requestRescan() else {
             startScan()
+            return
+        }
+
+        switch activeOperation {
+        case .scan:
+            scanTask?.cancel()
+        case .treeUpdate:
+            treeUpdateTask?.cancel()
         }
     }
 
@@ -248,7 +253,7 @@ final class ScanSession: ObservableObject {
             return
         }
 
-        beginTreeUpdate()
+        let operation: ScanSessionWorkOperation = beginTreeUpdate()
         let source: ScanSource = source
         let settings: DiskScanSettings = settings
         let requestedSelectionPath: String = item.path
@@ -290,16 +295,18 @@ final class ScanSession: ObservableObject {
                         rootItem: updatedRoot,
                         presentationMetrics: metrics,
                         selectionPath: requestedSelectionPath,
-                        builtUsingPhysicalSize: settings.usePhysicalSize
+                        builtUsingPhysicalSize: settings.usePhysicalSize,
+                        operation: operation
                     )
                 }
             } catch is CancellationError {
-                await MainActor.run { [weak self] in self?.finishTreeUpdateCancellation() }
+                await MainActor.run { [weak self] in self?.finishTreeUpdateCancellation(for: operation) }
             } catch {
                 await MainActor.run { [weak self] in
                     self?.finishTreeUpdateFailure(
                         error,
-                        operation: .refresh(itemName: item.displayName)
+                        operation: .refresh(itemName: item.displayName),
+                        workOperation: operation
                     )
                 }
             }
@@ -315,7 +322,7 @@ final class ScanSession: ObservableObject {
             return
         }
 
-        beginTreeUpdate()
+        let operation: ScanSessionWorkOperation = beginTreeUpdate()
         let source: ScanSource = source
         let settings: DiskScanSettings = settings
         let parentPath: String = item.url.deletingLastPathComponent().path
@@ -355,11 +362,12 @@ final class ScanSession: ObservableObject {
                         rootItem: updatedRoot,
                         presentationMetrics: metrics,
                         selectionPath: parentPath,
-                        builtUsingPhysicalSize: settings.usePhysicalSize
+                        builtUsingPhysicalSize: settings.usePhysicalSize,
+                        operation: operation
                     )
                 }
             } catch is CancellationError {
-                await MainActor.run { [weak self] in self?.finishTreeUpdateCancellation() }
+                await MainActor.run { [weak self] in self?.finishTreeUpdateCancellation(for: operation) }
             } catch {
                 await MainActor.run { [weak self] in
                     self?.finishTreeUpdateFailure(
@@ -367,7 +375,8 @@ final class ScanSession: ObservableObject {
                         operation: .deletion(
                             itemName: item.displayName,
                             method: deletionMethod
-                        )
+                        ),
+                        workOperation: operation
                     )
                 }
             }
@@ -458,8 +467,9 @@ final class ScanSession: ObservableObject {
     }
     #endif
 
-    private func applyProgress(_ progress: DiskScanProgress) {
-        guard state == .scanning else {
+    private func applyProgress(_ progress: DiskScanProgress, for operation: ScanSessionWorkOperation) {
+        guard state == .scanning,
+              rescanCoordinator.activeOperation == operation else {
             return
         }
 
@@ -472,8 +482,12 @@ final class ScanSession: ObservableObject {
     private func finishScan(
         rootItem: DiskItem,
         presentationMetrics: TreemapPresentationMetrics,
-        builtUsingPhysicalSize: Bool
+        builtUsingPhysicalSize: Bool,
+        operation: ScanSessionWorkOperation
     ) {
+        guard rescanCoordinator.finish(operation) else {
+            return
+        }
         isBuildingTreemap = false
         treemapPreparationProgress = nil
         self.presentationMetrics = presentationMetrics
@@ -488,11 +502,14 @@ final class ScanSession: ObservableObject {
         if builtUsingPhysicalSize != settings.usePhysicalSize {
             rebuildForSizeMode(rootItem: rootItem, usePhysicalSize: settings.usePhysicalSize)
         }
+        startPendingRescanIfNeeded()
     }
 
-    private func beginTreeUpdate() {
+    private func beginTreeUpdate() -> ScanSessionWorkOperation {
+        let operation: ScanSessionWorkOperation = rescanCoordinator.beginTreeUpdate()
         isUpdatingTree = true
         failure = nil
+        return operation
     }
 
     private func finishPresentationUpdate(id: UUID, metrics: TreemapPresentationMetrics?) {
@@ -510,8 +527,12 @@ final class ScanSession: ObservableObject {
         rootItem: DiskItem,
         presentationMetrics: TreemapPresentationMetrics,
         selectionPath: String,
-        builtUsingPhysicalSize: Bool
+        builtUsingPhysicalSize: Bool,
+        operation: ScanSessionWorkOperation
     ) {
+        guard rescanCoordinator.finish(operation) else {
+            return
+        }
         let counts: (files: Int, folders: Int) = rootItem.scanCounts(includeSelf: false)
         preferredSelection = rootItem.item(atPath: selectionPath, allowAncestors: true) ?? rootItem
         self.presentationMetrics = presentationMetrics
@@ -526,6 +547,7 @@ final class ScanSession: ObservableObject {
         if builtUsingPhysicalSize != settings.usePhysicalSize {
             rebuildForSizeMode(rootItem: rootItem, usePhysicalSize: settings.usePhysicalSize)
         }
+        startPendingRescanIfNeeded()
     }
 
     private func rebuildForSizeMode(rootItem: DiskItem, usePhysicalSize: Bool) {
@@ -595,20 +617,27 @@ final class ScanSession: ObservableObject {
         )
     }
 
-    private func finishTreeUpdateCancellation() {
+    private func finishTreeUpdateCancellation(for operation: ScanSessionWorkOperation) {
+        guard rescanCoordinator.finish(operation) else {
+            return
+        }
         isUpdatingTree = false
         treeUpdateTask = nil
-        restartIfRequested()
+        startPendingRescanIfNeeded()
     }
 
-    private func finishTreeUpdateFailure(_ error: Error, operation: ScanSessionOperation) {
+    private func finishTreeUpdateFailure(
+        _ error: Error,
+        operation: ScanSessionOperation,
+        workOperation: ScanSessionWorkOperation
+    ) {
+        guard rescanCoordinator.finish(workOperation) else {
+            return
+        }
         isUpdatingTree = false
         treeUpdateTask = nil
         failure = ScanSessionFailure(error: error, operation: operation)
-        if restartsAfterCancellation {
-            restartIfRequested()
-            return
-        }
+        startPendingRescanIfNeeded()
     }
 
     nonisolated private static func nearestExistingPath(from path: String, stoppingAt rootPath: String) -> String {
@@ -635,16 +664,22 @@ final class ScanSession: ObservableObject {
         return source.replacingBookmarkData(refreshedBookmarkData)
     }
 
-    private func finishCancellation() {
+    private func finishCancellation(for operation: ScanSessionWorkOperation) {
+        guard rescanCoordinator.finish(operation) else {
+            return
+        }
         isBuildingTreemap = false
         treemapPreparationProgress = nil
         state = .cancelled
         completedAt = Date()
         scanTask = nil
-        restartIfRequested()
+        startPendingRescanIfNeeded()
     }
 
-    private func finishFailure(_ error: Error) {
+    private func finishFailure(_ error: Error, for operation: ScanSessionWorkOperation) {
+        guard rescanCoordinator.finish(operation) else {
+            return
+        }
         isBuildingTreemap = false
         treemapPreparationProgress = nil
         state = .failed
@@ -654,26 +689,78 @@ final class ScanSession: ObservableObject {
             error: error,
             operation: .scan(itemName: source.displayName)
         )
-        if restartsAfterCancellation {
-            restartIfRequested()
-            return
-        }
+        startPendingRescanIfNeeded()
     }
 
-    private func applyTreemapPreparationProgress(_ progress: Double) {
-        guard isBuildingTreemap else {
+    private func beginTreemapPreparation(for operation: ScanSessionWorkOperation) {
+        guard rescanCoordinator.activeOperation == operation else {
+            return
+        }
+        isBuildingTreemap = true
+        treemapPreparationProgress = 0
+    }
+
+    private func applyTreemapPreparationProgress(
+        _ progress: Double,
+        for operation: ScanSessionWorkOperation
+    ) {
+        guard isBuildingTreemap,
+              rescanCoordinator.activeOperation == operation else {
             return
         }
         treemapPreparationProgress = min(max(progress, 0), 1)
     }
 
-    private func restartIfRequested() {
-        guard restartsAfterCancellation else {
+    private func startPendingRescanIfNeeded() {
+        guard rescanCoordinator.consumePendingRescan() else {
             return
         }
-
-        restartsAfterCancellation = false
         startScan(preservingFailure: true)
+    }
+}
+
+enum ScanSessionWorkOperation: Equatable {
+    case scan(UUID)
+    case treeUpdate(UUID)
+}
+
+struct ScanSessionRescanCoordinator {
+    private(set) var activeOperation: ScanSessionWorkOperation?
+    private var hasPendingRescan: Bool = false
+
+    mutating func beginScan() -> ScanSessionWorkOperation {
+        begin(.scan(UUID()))
+    }
+
+    mutating func beginTreeUpdate() -> ScanSessionWorkOperation {
+        begin(.treeUpdate(UUID()))
+    }
+
+    mutating func requestRescan() -> ScanSessionWorkOperation? {
+        guard let activeOperation else {
+            return nil
+        }
+        hasPendingRescan = true
+        return activeOperation
+    }
+
+    mutating func finish(_ operation: ScanSessionWorkOperation) -> Bool {
+        guard activeOperation == operation else {
+            return false
+        }
+        activeOperation = nil
+        return true
+    }
+
+    mutating func consumePendingRescan() -> Bool {
+        defer { hasPendingRescan = false }
+        return hasPendingRescan
+    }
+
+    private mutating func begin(_ operation: ScanSessionWorkOperation) -> ScanSessionWorkOperation {
+        precondition(activeOperation == nil)
+        activeOperation = operation
+        return operation
     }
 }
 
