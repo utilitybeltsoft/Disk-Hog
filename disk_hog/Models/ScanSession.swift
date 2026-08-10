@@ -33,12 +33,17 @@ final class ScanSession: ObservableObject {
     private(set) var source: ScanSource
 
     private var settings: DiskScanSettings
+    private let scanWorker: any ScanSessionScanning
     private let taskCoordinator: ScanSessionTaskCoordinator = ScanSessionTaskCoordinator()
     private var rescanCoordinator: ScanSessionRescanCoordinator = ScanSessionRescanCoordinator()
 
-    init(source: ScanSource) {
+    init(
+        source: ScanSource,
+        scanWorker: any ScanSessionScanning = DiskInventoryZScanSessionWorker()
+    ) {
         self.source = source
         self.settings = source.scanSettings ?? .diskInventoryZDefault
+        self.scanWorker = scanWorker
         self.state = .ready
         self.startedAt = nil
         self.completedAt = nil
@@ -134,67 +139,46 @@ final class ScanSession: ObservableObject {
 
         let source: ScanSource = source
         let settings: DiskScanSettings = settings
-        let progressStream: AsyncStream<DiskScanProgress>
-        let progressContinuation: AsyncStream<DiskScanProgress>.Continuation
-
-        (progressStream, progressContinuation) = AsyncStream.makeStream(of: DiskScanProgress.self)
-
-        let progressTask: Task<Void, Never> = Task { [weak self] in
-            for await progress: DiskScanProgress in progressStream {
-                self?.applyProgress(progress, for: operation)
-            }
-        }
-
-        _ = taskCoordinator.start(.scan, operationID: operation.id) { _ in Task.detached(priority: .userInitiated) { [weak self] in
+        let scanWorker: any ScanSessionScanning = scanWorker
+        let sessionReference: ScanSessionWeakReference = ScanSessionWeakReference(self)
+        _ = taskCoordinator.start(.scan, operationID: operation.id) { _ in Task.detached(priority: .userInitiated) { [sessionReference] in
             do {
-                let source: ScanSource = try Self.refreshingStaleBookmark(in: source)
-                await MainActor.run { [weak self] in
-                    self?.source = source
-                }
-                let scanner: DiskInventoryZScanner = DiskInventoryZScanner()
-                let rootItem: DiskItem = try await scanner.scan(
+                let result: ScanSessionScanResult = try await scanWorker.scan(
                     source: source,
-                    settings: settings
-                ) { progress in
-                    progressContinuation.yield(progress)
-                }
-
-                progressContinuation.finish()
-                await progressTask.value
-                try Task.checkCancellation()
-                await MainActor.run { [weak self] in
-                    self?.beginTreemapPreparation(for: operation)
-                }
-                let presentationMetrics: TreemapPresentationMetrics = TreemapPresentationMetrics(
-                    rootItem: rootItem,
-                    usePhysicalSize: settings.usePhysicalSize,
-                    sharesKindColors: KindColorPreferences.sharesColors
-                ) { progress in
-                    Task { @MainActor [weak self] in
-                        self?.applyTreemapPreparationProgress(progress, for: operation)
+                    settings: settings,
+                    progress: { progress in
+                        await MainActor.run {
+                            sessionReference.value?.applyProgress(progress, for: operation)
+                        }
+                    },
+                    willBuildTreemap: {
+                        await MainActor.run {
+                            sessionReference.value?.beginTreemapPreparation(for: operation)
+                        }
+                    },
+                    treemapProgress: { progress in
+                        await MainActor.run {
+                            sessionReference.value?.applyTreemapPreparationProgress(progress, for: operation)
+                        }
                     }
-                }
-                try Task.checkCancellation()
+                )
 
-                await MainActor.run { [weak self] in
-                    self?.finishScan(
-                        rootItem: rootItem,
-                        presentationMetrics: presentationMetrics,
-                        builtUsingPhysicalSize: settings.usePhysicalSize,
+                await MainActor.run {
+                    sessionReference.value?.source = result.source
+                    sessionReference.value?.finishScan(
+                        rootItem: result.rootItem,
+                        presentationMetrics: result.presentationMetrics,
+                        builtUsingPhysicalSize: result.builtUsingPhysicalSize,
                         operation: operation
                     )
                 }
             } catch is CancellationError {
-                progressContinuation.finish()
-                await progressTask.value
-                await MainActor.run { [weak self] in
-                    self?.finishCancellation(for: operation)
+                await MainActor.run {
+                    sessionReference.value?.finishCancellation(for: operation)
                 }
             } catch {
-                progressContinuation.finish()
-                await progressTask.value
-                await MainActor.run { [weak self] in
-                    self?.finishFailure(error, for: operation)
+                await MainActor.run {
+                    sessionReference.value?.finishFailure(error, for: operation)
                 }
             }
         } }
@@ -707,6 +691,14 @@ final class ScanSession: ObservableObject {
             return
         }
         startScan(preservingFailure: true)
+    }
+}
+
+nonisolated final class ScanSessionWeakReference: @unchecked Sendable {
+    weak var value: ScanSession?
+
+    init(_ value: ScanSession) {
+        self.value = value
     }
 }
 
