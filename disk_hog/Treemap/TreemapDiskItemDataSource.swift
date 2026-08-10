@@ -136,12 +136,11 @@ nonisolated final class TreemapDiskItemColorTable: @unchecked Sendable {
     init(orderedKinds: [String], sharesKindColors: Bool = false) {
         var colorsByKind: [String: NSColor] = [:]
         if sharesKindColors {
-            let colorIndexes: [String: Int] = SharedKindColorRegistry.shared.colorIndexes(
-                for: orderedKinds
-            )
             for kindName: String in orderedKinds {
                 colorsByKind[kindName] = Self.color(
-                    from: TreemapPalettePlan.rawColor(at: colorIndexes[kindName] ?? 0)
+                    from: TreemapPalettePlan.rawColor(
+                        at: SharedKindColorRegistry.colorIndex(for: kindName)
+                    )
                 )
             }
         } else {
@@ -183,29 +182,15 @@ nonisolated final class TreemapDiskItemColorTable: @unchecked Sendable {
     }
 }
 
-nonisolated final class SharedKindColorRegistry: @unchecked Sendable {
-    static let shared: SharedKindColorRegistry = SharedKindColorRegistry()
-
-    private let lock: NSLock = NSLock()
-    private var colorIndexByKind: [String: Int] = [:]
-
-    func colorIndexes(for orderedKinds: [String]) -> [String: Int] {
-        lock.lock()
-        defer { lock.unlock() }
-
-        for kindName: String in orderedKinds where colorIndexByKind[kindName] == nil {
-            colorIndexByKind[kindName] = colorIndexByKind.count
+nonisolated enum SharedKindColorRegistry {
+    /// Uses a fixed hash rather than Swift's randomized `Hasher`, so the same
+    /// kind keeps its color across scans and application launches.
+    static func colorIndex(for kindName: String) -> Int {
+        var hash: UInt64 = 14_695_981_039_346_656_037
+        for byte: UInt8 in kindName.precomposedStringWithCanonicalMapping.utf8 {
+            hash ^= UInt64(byte)
+            hash &*= 1_099_511_628_211
         }
-        return Dictionary(
-            uniqueKeysWithValues: orderedKinds.compactMap { kindName in
-                colorIndexByKind[kindName].map { (kindName, $0) }
-            }
-        )
-    }
-
-    func resetForTesting() {
-        lock.lock()
-        colorIndexByKind = [:]
-        lock.unlock()
+        return Int(hash % UInt64(TreemapPalettePlan.sharedColorCount))
     }
 }

@@ -98,6 +98,8 @@ nonisolated struct TreemapPalettePlan: Sendable {
         return predefinedColors[index]
     }
 
+    static let sharedColorCount: Int = predefinedColors.count
+
     private static let predefinedColors: [TreemapRawColor] = [
         TreemapRawColor(red: 0, green: 0, blue: 1, alpha: 1),
         TreemapRawColor(red: 1, green: 0, blue: 0, alpha: 1),

@@ -1402,7 +1402,6 @@ struct TreemapDiskItemDataSourceTests {
     }
 
     @Test func sharedKindColorsRemainStableAcrossDifferentRankings() {
-        SharedKindColorRegistry.shared.resetForTesting()
         let firstTable: TreemapDiskItemColorTable = TreemapDiskItemColorTable(
             orderedKinds: ["Plain Text", "Image"],
             sharesKindColors: true
@@ -1414,6 +1413,16 @@ struct TreemapDiskItemDataSourceTests {
 
         #expect(colorComponents(firstTable.colorForKind("Plain Text")) == colorComponents(secondTable.colorForKind("Plain Text")))
         #expect(colorComponents(firstTable.colorForKind("Image")) == colorComponents(secondTable.colorForKind("Image")))
+    }
+
+    @Test func sharedKindColorIndexesAreStableAndBounded() {
+        let kindName: String = "Plain Text"
+
+        let firstIndex: Int = SharedKindColorRegistry.colorIndex(for: kindName)
+        let laterIndex: Int = SharedKindColorRegistry.colorIndex(for: kindName)
+
+        #expect(firstIndex == laterIndex)
+        #expect((0..<TreemapPalettePlan.sharedColorCount).contains(firstIndex))
     }
 
     @Test func independentKindColorsFollowEachWindowsRanking() {
