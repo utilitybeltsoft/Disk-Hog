@@ -1383,6 +1383,32 @@ struct DiskItemTests {
         #expect(frozenRoot.children.map(\.displayName) == ["10-large.bin", "2-small.bin", "1-same.bin"])
     }
 
+    @Test func builderAndTopLevelOrderingShareNumericCaseInsensitiveTieBreaks() {
+        let first: DiskItemBuilder = DiskItemBuilder(
+            url: URL(fileURLWithPath: "/scan/File 10.txt"),
+            allocatedSizeValue: 100,
+            logicalSizeValue: 100
+        )
+        let second: DiskItemBuilder = DiskItemBuilder(
+            url: URL(fileURLWithPath: "/scan/file 2.txt"),
+            allocatedSizeValue: 100,
+            logicalSizeValue: 100
+        )
+
+        #expect(DiskItemBuilderOrdering.areInOrder(first, second, usePhysicalSize: true))
+        #expect(DiskItemBuilderOrdering.areInOrder(
+            firstName: first.name,
+            firstAllocatedSize: first.allocatedSizeValue,
+            firstLogicalSize: first.logicalSizeValue,
+            firstIsSpecialItem: first.isSpecialItem,
+            secondName: second.name,
+            secondAllocatedSize: second.allocatedSizeValue,
+            secondLogicalSize: second.logicalSizeValue,
+            secondIsSpecialItem: second.isSpecialItem,
+            usePhysicalSize: true
+        ))
+    }
+
     @Test func recalculatingLogicalSizeSortsChildrenByLogicalSize() {
         let root: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan"),

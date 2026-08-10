@@ -124,13 +124,17 @@ nonisolated final class DiskInventoryZScanner {
         }
 
         topLevelResults.sort { first, second in
-            if first.isSpecialItem != second.isSpecialItem {
-                return !first.isSpecialItem
-            }
-            let firstSize: UInt64 = settings.usePhysicalSize ? first.allocatedSizeValue : first.logicalSizeValue
-            let secondSize: UInt64 = settings.usePhysicalSize ? second.allocatedSizeValue : second.logicalSizeValue
-            if firstSize != secondSize { return firstSize > secondSize }
-            return (first.name as NSString).compare(second.name, options: [.numeric, .caseInsensitive]) == .orderedDescending
+            DiskItemBuilderOrdering.areInOrder(
+                firstName: first.name,
+                firstAllocatedSize: first.allocatedSizeValue,
+                firstLogicalSize: first.logicalSizeValue,
+                firstIsSpecialItem: first.isSpecialItem,
+                secondName: second.name,
+                secondAllocatedSize: second.allocatedSizeValue,
+                secondLogicalSize: second.logicalSizeValue,
+                secondIsSpecialItem: second.isSpecialItem,
+                usePhysicalSize: settings.usePhysicalSize
+            )
         }
         rootBuilder.allocatedSizeValue = topLevelResults.reduce(0) { $0 + $1.allocatedSizeValue }
         rootBuilder.logicalSizeValue = topLevelResults.reduce(0) { $0 + $1.logicalSizeValue }
