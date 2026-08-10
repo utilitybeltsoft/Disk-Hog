@@ -443,6 +443,16 @@ struct InspectorWindowLayoutTests {
         #expect(migratedFrame == frame)
     }
 
+    @Test func formatsInspectorTitlesFromTheActiveSource() {
+        let source: ScanSource = ScanSource(path: "/Volumes/Test", displayName: "Test Volume")
+
+        #expect(
+            InspectorWindowTitleFormatter.title(context: nil, source: source)
+                == "Inspector - Test Volume"
+        )
+        #expect(InspectorWindowTitleFormatter.title(context: nil, source: nil) == "Inspector")
+    }
+
     @Test func scanItemContextMenuIncludesInspectorCommand() {
         let item: DiskItem = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan/file.txt"),

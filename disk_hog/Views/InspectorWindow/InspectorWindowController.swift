@@ -127,7 +127,7 @@ final class InspectorWindowController: NSObject, ObservableObject {
 
     private var windowHost: InspectorWindowHost?
     private let layoutCoordinator: InspectorWindowLayoutCoordinator = InspectorWindowLayoutCoordinator()
-    private var wasInspectorKeyBeforeApplicationDeactivation: Bool = false
+    private let placementCoordinator: InspectorWindowPlacementCoordinator = InspectorWindowPlacementCoordinator()
 
     var currentLayout: InspectorWindowLayout {
         layoutCoordinator.layout(for: currentContentSizeSlot)
@@ -208,8 +208,7 @@ final class InspectorWindowController: NSObject, ObservableObject {
         self.windowHost = windowHost
         updateWindowTitle()
         if needsInitialPlacement, let window: NSWindow = windowHost.window {
-            ApplicationWindowPlacementService.shared.register(window, role: .inspector)
-            ApplicationWindowPlacementService.shared.placeNewWindow(window)
+            placementCoordinator.placeInitially(window)
         }
         windowHost.window?.makeKeyAndOrderFront(nil)
         isVisible = true
@@ -225,36 +224,14 @@ final class InspectorWindowController: NSObject, ObservableObject {
     }
 
     func applicationWillResignActive() {
-        wasInspectorKeyBeforeApplicationDeactivation = windowHost?.window?.isKeyWindow == true
+        placementCoordinator.rememberKeyWindow(windowHost?.window)
     }
 
     func restoreWindowOrderingWhenApplicationBecomesActive() {
-        guard isVisible,
-              let window: NSWindow = windowHost?.window,
-              window.isVisible else {
-            return
-        }
-
-        if wasInspectorKeyBeforeApplicationDeactivation {
-            window.orderFront(nil)
-            return
-        }
-
-        let scanWindows: [NSWindow] = ApplicationWindowPlacementService.shared
-            .visibleWindows(withRole: .scan)
-        window.orderFront(nil)
-        let orderByWindowID: [ObjectIdentifier: Int] = Dictionary(
-            uniqueKeysWithValues: NSApp.orderedWindows.enumerated().map {
-                (ObjectIdentifier($0.element), $0.offset)
-            }
+        placementCoordinator.restoreOrdering(
+            isVisible: isVisible,
+            inspectorWindow: windowHost?.window
         )
-        let orderedScanWindows: [NSWindow] = scanWindows.sorted {
-            (orderByWindowID[ObjectIdentifier($0)] ?? Int.max)
-                < (orderByWindowID[ObjectIdentifier($1)] ?? Int.max)
-        }
-        for scanWindow: NSWindow in orderedScanWindows.reversed() {
-            scanWindow.orderFront(nil)
-        }
     }
 
     func scheduleInformationContentHeight(_ measuredHeight: CGFloat) {
@@ -324,7 +301,11 @@ final class InspectorWindowController: NSObject, ObservableObject {
               inspectorWindow.isVisible else {
             return
         }
-        ApplicationWindowPlacementService.shared.placeNewWindow(inspectorWindow)
+        placementCoordinator.arrangeBesideScanWindow(
+            inspectorWindow,
+            scanWindow: scanWindow,
+            session: session
+        )
     }
 
     private func makeWindowHost() -> InspectorWindowHost {
@@ -373,16 +354,13 @@ final class InspectorWindowController: NSObject, ObservableObject {
             return
         }
 
-        DispatchQueue.main.async { [weak self, weak context] in
+        placementCoordinator.scheduleInitialArrangement(for: context) { [weak self, weak context] scanWindow, session in
             guard let self,
                   let context,
-                  self.activeContext === context,
-                  let scanWindow: NSWindow = ScanWindowRegistry.shared.window(
-                    for: context.session.source
-                  ) else {
+                  self.activeContext === context else {
                 return
             }
-            self.arrangeBesideScanWindowIfNeeded(scanWindow, for: context.session)
+            self.arrangeBesideScanWindowIfNeeded(scanWindow, for: session)
         }
     }
 
@@ -391,13 +369,10 @@ final class InspectorWindowController: NSObject, ObservableObject {
             return
         }
 
-        if let context: InspectorWindowContext = activeContext {
-            window.title = String(localized: "Inspector - \(context.session.source.displayName)")
-        } else if let activeSource {
-            window.title = String(localized: "Inspector - \(activeSource.displayName)")
-        } else {
-            window.title = String(localized: "Inspector")
-        }
+        window.title = InspectorWindowTitleFormatter.title(
+            context: activeContext,
+            source: activeSource
+        )
     }
 
 }
