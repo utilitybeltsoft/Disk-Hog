@@ -785,6 +785,32 @@ struct SourceWindowViewModelTests {
     }
 }
 
+struct ZStatusFieldsViewTests {
+    @Test(
+        "Status timeline only ticks while scan UI has live progress",
+        arguments: [
+            (ScanSessionState.ready, false, false),
+            (.scanning, false, true),
+            (.complete, false, false),
+            (.cancelled, false, false),
+            (.failed, false, false),
+            (.complete, true, true)
+        ]
+    )
+    func statusTimelineTickingPolicy(
+        state: ScanSessionState,
+        isBuildingTreemap: Bool,
+        expected: Bool
+    ) {
+        #expect(
+            ZStatusTimelinePolicy.isTicking(
+                state: state,
+                isBuildingTreemap: isBuildingTreemap
+            ) == expected
+        )
+    }
+}
+
 @MainActor
 struct InspectorWindowLayoutTests {
     @Test func informationTabUsesPreferredSize() {

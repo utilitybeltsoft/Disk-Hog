@@ -6,43 +6,55 @@ struct ZStatusFieldsView: View {
     @Environment(\.hoveredScanItem) private var hoveredItem
 
     var body: some View {
-        TimelineView(.periodic(from: Date(), by: ScanWindowMetrics.timerRefreshInterval)) { context in
-            HStack(alignment: .top, spacing: ScanWindowMetrics.statusFieldControlSpacing) {
-                VStack(alignment: .leading, spacing: ScanWindowMetrics.statusFieldSpacing) {
-                    Text(selectedStatusLine)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .textSelection(.enabled)
-                    Text(hoverStatusLine ?? String(localized: "Hovering on:"))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .opacity(hoverStatusLine == nil ? 0 : 1)
-                        .accessibilityHidden(hoverStatusLine == nil)
-                        .textSelection(.enabled)
-                    Text(progressSummary(referenceDate: context.date))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .textSelection(.enabled)
-                    scanTotalsView(referenceDate: context.date)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+        ZStatusTimelineView(
+            isTicking: statusNeedsPeriodicUpdates,
+            content: statusBody(referenceDate:)
+        )
+    }
 
-                if session.state == .scanning {
-                    Button {
-                        session.cancel()
-                    } label: {
-                        Label("Cancel Scan", systemImage: "xmark.circle")
-                    }
-                    .controlSize(.small)
-                    .help("Cancel Scan")
-                }
+    private var statusNeedsPeriodicUpdates: Bool {
+        ZStatusTimelinePolicy.isTicking(
+            state: session.state,
+            isBuildingTreemap: session.isBuildingTreemap
+        )
+    }
+
+    private func statusBody(referenceDate: Date) -> some View {
+        HStack(alignment: .top, spacing: ScanWindowMetrics.statusFieldControlSpacing) {
+            VStack(alignment: .leading, spacing: ScanWindowMetrics.statusFieldSpacing) {
+                Text(selectedStatusLine)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .textSelection(.enabled)
+                Text(hoverStatusLine ?? String(localized: "Hovering on:"))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .opacity(hoverStatusLine == nil ? 0 : 1)
+                    .accessibilityHidden(hoverStatusLine == nil)
+                    .textSelection(.enabled)
+                Text(progressSummary(referenceDate: referenceDate))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .textSelection(.enabled)
+                scanTotalsView(referenceDate: referenceDate)
             }
-            .font(.system(size: ScanWindowMetrics.statusFieldFontSize))
-            .padding(.horizontal, ScanWindowMetrics.statusFieldHorizontalPadding)
-            .padding(.bottom, ScanWindowMetrics.statusFieldBottomPadding)
-            .frame(height: ScanWindowMetrics.statusFieldHeight, alignment: .topLeading)
             .frame(maxWidth: .infinity, alignment: .leading)
+
+            if session.state == .scanning {
+                Button {
+                    session.cancel()
+                } label: {
+                    Label("Cancel Scan", systemImage: "xmark.circle")
+                }
+                .controlSize(.small)
+                .help("Cancel Scan")
+            }
         }
+        .font(.system(size: ScanWindowMetrics.statusFieldFontSize))
+        .padding(.horizontal, ScanWindowMetrics.statusFieldHorizontalPadding)
+        .padding(.bottom, ScanWindowMetrics.statusFieldBottomPadding)
+        .frame(height: ScanWindowMetrics.statusFieldHeight, alignment: .topLeading)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var selectedStatusLine: String {
@@ -173,4 +185,25 @@ struct ZStatusFieldsView: View {
         formatter.zeroPadsFractionDigits = false
         return formatter
     }()
+}
+
+enum ZStatusTimelinePolicy {
+    static func isTicking(state: ScanSessionState, isBuildingTreemap: Bool) -> Bool {
+        state == .scanning || isBuildingTreemap
+    }
+}
+
+struct ZStatusTimelineView<Content: View>: View {
+    let isTicking: Bool
+    @ViewBuilder let content: (Date) -> Content
+
+    var body: some View {
+        if isTicking {
+            TimelineView(.periodic(from: Date(), by: ScanWindowMetrics.timerRefreshInterval)) { context in
+                content(context.date)
+            }
+        } else {
+            content(Date())
+        }
+    }
 }
