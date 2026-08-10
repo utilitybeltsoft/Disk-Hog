@@ -132,8 +132,11 @@ struct KindStatisticTableView: NSViewRepresentable {
         var activePane: Binding<ScanWindowPane?>
         var onShowSelectionList: (SelectionListFilter) -> Void
         weak var tableView: NSTableView?
+        private var rows: [KindStatisticRow]
         private var sortedRows: [KindStatisticRow] = []
         private var statisticsSignature: [KindStatisticSignature]
+        private var statisticsGeneration: Int = 0
+        private var sortedRowsGeneration: Int?
         private var appliedSortDescriptors: [NSSortDescriptor] = []
         private let selectionMutationGate: AppKitSelectionMutationGate = AppKitSelectionMutationGate()
         fileprivate var isSelectingContextMenuRow: Bool = false
@@ -149,20 +152,31 @@ struct KindStatisticTableView: NSViewRepresentable {
             self.activePane = activePane
             self.onShowSelectionList = onShowSelectionList
             self.statisticsSignature = Self.signature(for: statistics)
-            self.sortedRows = Self.makeRows(from: statistics)
+            self.rows = Self.makeRows(from: statistics)
+            self.sortedRows = rows
+            self.sortedRowsGeneration = statisticsGeneration
         }
 
         func updateStatisticsIfNeeded(_ statistics: [TreemapKindStatistic]) {
             let newSignature: [KindStatisticSignature] = Self.signature(for: statistics)
             let sortDescriptors: [NSSortDescriptor] = tableView?.sortDescriptors ?? []
-            guard statisticsSignature != newSignature || appliedSortDescriptors != sortDescriptors else {
-                return
+            var needsReload: Bool = false
+
+            if statisticsSignature != newSignature {
+                self.statistics = statistics
+                statisticsSignature = newSignature
+                rows = Self.makeRows(from: statistics)
+                statisticsGeneration += 1
+                needsReload = true
             }
 
-            self.statistics = statistics
-            statisticsSignature = newSignature
-            applySortDescriptors(sortDescriptors)
-            tableView?.reloadData()
+            if applySortDescriptorsIfNeeded(sortDescriptors) {
+                needsReload = true
+            }
+
+            if needsReload {
+                tableView?.reloadData()
+            }
         }
 
         @objc func showSelectionList(_ sender: Any?) {
@@ -239,7 +253,9 @@ struct KindStatisticTableView: NSViewRepresentable {
         }
 
         func tableView(_ tableView: NSTableView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {
-            applySortDescriptors(tableView.sortDescriptors)
+            guard applySortDescriptorsIfNeeded(tableView.sortDescriptors) else {
+                return
+            }
             tableView.reloadData()
             syncSelectionIfNeeded(scrollToSelection: false)
             if !sortedRows.isEmpty {
@@ -275,15 +291,29 @@ struct KindStatisticTableView: NSViewRepresentable {
         }
 
         func applySortDescriptors(_ sortDescriptors: [NSSortDescriptor]) {
+            _ = applySortDescriptorsIfNeeded(sortDescriptors)
+        }
+
+        @discardableResult
+        private func applySortDescriptorsIfNeeded(_ sortDescriptors: [NSSortDescriptor]) -> Bool {
+            guard appliedSortDescriptors != sortDescriptors || sortedRowsGeneration != statisticsGeneration else {
+                return false
+            }
+
             appliedSortDescriptors = sortDescriptors
+            sortedRowsGeneration = statisticsGeneration
             guard let sortDescriptor: NSSortDescriptor = sortDescriptors.first,
                   let key: String = sortDescriptor.key else {
-                sortedRows = Self.makeRows(from: statistics)
-                return
+                sortedRows = rows
+                return true
             }
 
             let ascending: Bool = sortDescriptor.ascending
-            let kindRows: [KindStatisticRow] = Self.makeRows(from: statistics).dropFirst().sorted { leftStatistic, rightStatistic in
+            guard let allKindsRow: KindStatisticRow = rows.first else {
+                sortedRows = []
+                return true
+            }
+            let kindRows: [KindStatisticRow] = rows.dropFirst().sorted { leftStatistic, rightStatistic in
                 switch key {
                 case KindSortKey.kindName:
                     let comparison: ComparisonResult = leftStatistic.kindName.localizedStandardCompare(rightStatistic.kindName)
@@ -294,7 +324,8 @@ struct KindStatisticTableView: NSViewRepresentable {
                     return ascending ? leftStatistic.size < rightStatistic.size : leftStatistic.size > rightStatistic.size
                 }
             }
-            sortedRows = [Self.allKindsRow(from: statistics)] + kindRows
+            sortedRows = [allKindsRow] + kindRows
+            return true
         }
 
         private static func signature(for statistics: [TreemapKindStatistic]) -> [KindStatisticSignature] {

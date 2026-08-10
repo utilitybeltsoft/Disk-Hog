@@ -1898,6 +1898,48 @@ struct KindStatisticTableViewTests {
         #expect(coordinator.numberOfRows(in: tableView) == 2)
         #expect(showSelectionListCount == 0)
     }
+
+    @Test func unchangedSortGenerationDoesNotReloadRowsOnSwiftUIUpdate() {
+        var selectedFilter: SelectionListFilter?
+        let statistics: [TreemapKindStatistic] = [
+            TreemapKindStatistic(
+                kindName: "Plain Text",
+                size: 4_096,
+                fileCount: 1,
+                color: .red
+            ),
+            TreemapKindStatistic(
+                kindName: "PNG image",
+                size: 8_192,
+                fileCount: 1,
+                color: .blue
+            )
+        ]
+        let coordinator: KindStatisticTableView.Coordinator = KindStatisticTableView.Coordinator(
+            statistics: statistics,
+            selectedFilter: Binding(
+                get: { selectedFilter },
+                set: { selectedFilter = $0 }
+            ),
+            activePane: .constant(nil),
+            onShowSelectionList: { _ in }
+        )
+        let tableView: ReloadCountingTableView = ReloadCountingTableView()
+        tableView.sortDescriptors = [
+            NSSortDescriptor(
+                key: "kindName",
+                ascending: true,
+                selector: #selector(NSString.localizedStandardCompare(_:))
+            )
+        ]
+        coordinator.tableView = tableView
+
+        coordinator.tableView(tableView, sortDescriptorsDidChange: [])
+        coordinator.updateStatisticsIfNeeded(statistics)
+
+        #expect(tableView.reloadCount == 1)
+        #expect(coordinator.numberOfRows(in: tableView) == 3)
+    }
 }
 
 private final class ReloadCountingTableView: NSTableView {
