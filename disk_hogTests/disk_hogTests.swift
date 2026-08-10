@@ -429,6 +429,80 @@ struct ScanSessionWorkerIntegrationTests {
         #expect(session.failure?.title.contains("file.txt") == true)
     }
 
+    @Test func deletesTreeItemFromInjectedWorker() async throws {
+        let originalRoot: DiskItem = Self.rootItem(fileSize: 12)
+        let deletedRoot: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan"),
+            allocatedSizeValue: 0,
+            logicalSizeValue: 0,
+            isDirectory: true,
+            children: []
+        )
+        let treeWorker: ImmediateTreeWorker = ImmediateTreeWorker(
+            refreshResult: .failure(.failed("unused refresh")),
+            deleteResult: .success(Self.treeResult(rootItem: deletedRoot, selectionPath: "/scan"))
+        )
+        let session: ScanSession = ScanSession(
+            source: ScanSource(path: "/scan", displayName: "scan"),
+            scanWorker: ImmediateScanWorker(result: .success(Self.scanResult(rootItem: originalRoot))),
+            treeWorker: treeWorker
+        )
+        session.startScan()
+        try await Self.waitUntil { session.state == .complete }
+        let item: DiskItem = try #require(session.rootItem?.item(atPath: "/scan/file.txt"))
+
+        session.delete(item, using: .moveToTrash)
+
+        try await Self.waitUntil { session.isUpdatingTree == false && session.scannedFileCount == 0 }
+        #expect(session.rootItem?.item(atPath: "/scan/file.txt") == nil)
+        #expect(session.preferredSelection?.path == "/scan")
+        #expect(session.failure == nil)
+    }
+
+    @Test func reportsDeleteFailureWithoutDroppingCompletedScan() async throws {
+        let rootItem: DiskItem = Self.rootItem(fileSize: 12)
+        let treeWorker: ImmediateTreeWorker = ImmediateTreeWorker(
+            refreshResult: .failure(.failed("unused refresh")),
+            deleteResult: .failure(.failed("delete failed"))
+        )
+        let session: ScanSession = ScanSession(
+            source: ScanSource(path: "/scan", displayName: "scan"),
+            scanWorker: ImmediateScanWorker(result: .success(Self.scanResult(rootItem: rootItem))),
+            treeWorker: treeWorker
+        )
+        session.startScan()
+        try await Self.waitUntil { session.state == .complete }
+        let item: DiskItem = try #require(session.rootItem?.item(atPath: "/scan/file.txt"))
+
+        session.delete(item, using: .moveToTrash)
+
+        try await Self.waitUntil { session.isUpdatingTree == false && session.failure != nil }
+        #expect(session.state == .complete)
+        #expect(session.rootItem?.item(atPath: "/scan/file.txt") != nil)
+        #expect(session.failure?.message == "delete failed")
+        #expect(session.failure?.title.contains("file.txt") == true)
+    }
+
+    @Test func pendingRescanRestartsAfterCancelledScanReportsFailure() async throws {
+        let rootItem: DiskItem = Self.rootItem(fileSize: 12)
+        let scanWorker: PendingRescanScanWorker = PendingRescanScanWorker(
+            firstErrorAfterCancellation: .failed("interrupted scan failed"),
+            restartResult: Self.scanResult(rootItem: rootItem)
+        )
+        let session: ScanSession = ScanSession(
+            source: ScanSource(path: "/scan", displayName: "scan"),
+            scanWorker: scanWorker
+        )
+
+        session.startScan()
+        session.rescanForPackageContentsPreference(!session.scanSettings.lookInsidePackages)
+
+        try await Self.waitUntil { session.state == .complete }
+        #expect(await scanWorker.callCount() == 2)
+        #expect(session.rootItem?.path == "/scan")
+        #expect(session.failure?.message == "interrupted scan failed")
+    }
+
     @Test func rebuildsPresentationMetricsFromInjectedWorker() async throws {
         let rootItem: DiskItem = Self.rootItem(fileSize: 12)
         let presentationWorker: ImmediatePresentationWorker = ImmediatePresentationWorker(
@@ -480,6 +554,39 @@ struct ScanSessionWorkerIntegrationTests {
         #expect(session.rootItem?.sizeValue(usePhysicalSize: false) == 5)
         #expect(session.preferredSelection?.path == "/scan")
         #expect(session.state == .complete)
+    }
+
+    @Test func ignoresStaleSizeModeRebuildResult() async throws {
+        let physicalRoot: DiskItem = Self.rootItem(allocatedSize: 12, logicalSize: 5)
+        let logicalRoot: DiskItem = Self.rootItem(allocatedSize: 12, logicalSize: 5)
+        let presentationWorker: DelayedSizeModePresentationWorker = DelayedSizeModePresentationWorker(
+            physicalRootItem: physicalRoot,
+            logicalRootItem: logicalRoot
+        )
+        let session: ScanSession = ScanSession(
+            source: ScanSource(
+                path: "/scan",
+                displayName: "scan",
+                scanSettings: DiskScanSettings(
+                    usePhysicalSize: true,
+                    lookInsidePackages: true,
+                    ignoreCreatorCode: false
+                )
+            ),
+            scanWorker: ImmediateScanWorker(result: .success(Self.scanResult(rootItem: physicalRoot))),
+            presentationWorker: presentationWorker
+        )
+        session.startScan()
+        try await Self.waitUntil { session.state == .complete }
+
+        session.updateSizeMode(false)
+        session.updateSizeMode(true)
+
+        try await Self.waitUntil { session.scannedByteCount == 12 }
+        try await Task.sleep(nanoseconds: 250_000_000)
+        #expect(session.scanSettings.usePhysicalSize)
+        #expect(session.scannedByteCount == 12)
+        #expect(session.rootItem?.sizeValue(usePhysicalSize: true) == 12)
     }
 
     static func rootItem(fileSize: UInt64) -> DiskItem {
@@ -659,6 +766,102 @@ private struct ImmediatePresentationWorker: ScanSessionPresenting {
             rootItem: sizeModeRootItem,
             presentationMetrics: presentationMetrics(
                 rootItem: sizeModeRootItem,
+                usePhysicalSize: usePhysicalSize,
+                sharesKindColors: sharesKindColors
+            ),
+            selectionPath: selectionPath,
+            usePhysicalSize: usePhysicalSize
+        )
+    }
+}
+
+private actor PendingRescanScanWorkerState {
+    private var count: Int = 0
+
+    func nextCallNumber() -> Int {
+        count += 1
+        return count
+    }
+
+    func callCount() -> Int {
+        count
+    }
+}
+
+private final class PendingRescanScanWorker: ScanSessionScanning, @unchecked Sendable {
+    private let state: PendingRescanScanWorkerState = PendingRescanScanWorkerState()
+    private let firstErrorAfterCancellation: TestScanSessionError
+    private let restartResult: ScanSessionScanResult
+
+    init(
+        firstErrorAfterCancellation: TestScanSessionError,
+        restartResult: ScanSessionScanResult
+    ) {
+        self.firstErrorAfterCancellation = firstErrorAfterCancellation
+        self.restartResult = restartResult
+    }
+
+    func callCount() async -> Int {
+        await state.callCount()
+    }
+
+    func scan(
+        source: ScanSource,
+        settings: DiskScanSettings,
+        progress: @escaping DiskInventoryZScanner.ProgressHandler,
+        willBuildTreemap: @escaping @Sendable () async -> Void,
+        treemapProgress: @escaping @Sendable (Double) async -> Void
+    ) async throws -> ScanSessionScanResult {
+        let callNumber: Int = await state.nextCallNumber()
+        guard callNumber == 1 else {
+            await progress(DiskScanProgress(
+                scannedFileCount: 1,
+                scannedFolderCount: 1,
+                scannedByteCount: 12,
+                currentPath: source.path
+            ))
+            await willBuildTreemap()
+            await treemapProgress(1)
+            return restartResult
+        }
+
+        while !Task.isCancelled {
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+        throw firstErrorAfterCancellation
+    }
+}
+
+private struct DelayedSizeModePresentationWorker: ScanSessionPresenting {
+    let physicalRootItem: DiskItem
+    let logicalRootItem: DiskItem
+
+    func presentationMetrics(
+        rootItem: DiskItem,
+        usePhysicalSize: Bool,
+        sharesKindColors: Bool
+    ) -> TreemapPresentationMetrics {
+        TreemapPresentationMetrics(
+            rootItem: rootItem,
+            usePhysicalSize: usePhysicalSize,
+            sharesKindColors: sharesKindColors
+        )
+    }
+
+    func sizeModeUpdate(
+        rootItem: DiskItem,
+        selectionPath: String,
+        usePhysicalSize: Bool,
+        sharesKindColors: Bool
+    ) -> ScanSessionSizeModeUpdateResult {
+        if !usePhysicalSize {
+            usleep(150_000)
+        }
+        let resultRootItem: DiskItem = usePhysicalSize ? physicalRootItem : logicalRootItem
+        return ScanSessionSizeModeUpdateResult(
+            rootItem: resultRootItem,
+            presentationMetrics: presentationMetrics(
+                rootItem: resultRootItem,
                 usePhysicalSize: usePhysicalSize,
                 sharesKindColors: sharesKindColors
             ),
