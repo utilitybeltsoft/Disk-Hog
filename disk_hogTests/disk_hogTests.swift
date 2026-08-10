@@ -418,6 +418,31 @@ struct InspectorWindowLayoutTests {
         #expect(InspectorWindowTab.diskUsage.inactiveDescription.contains("volume scan window"))
     }
 
+    @Test func migratesKnownLegacyInspectorFramesWithoutMovingTheirTopEdge() {
+        let frame: NSRect = NSRect(x: 100, y: 100, width: 740, height: 780)
+        let migratedFrame: NSRect = InspectorWindowFrameMigration.diskHogDefaults.migratedFrame(
+            frame,
+            restoredContentSize: NSSize(width: 720, height: 760),
+            tab: .information,
+            targetFrameSize: NSSize(width: 740, height: 740)
+        )
+
+        #expect(migratedFrame.size == NSSize(width: 740, height: 740))
+        #expect(migratedFrame.maxY == frame.maxY)
+    }
+
+    @Test func preservesCustomInspectorFramesDuringMigration() {
+        let frame: NSRect = NSRect(x: 100, y: 100, width: 810, height: 660)
+        let migratedFrame: NSRect = InspectorWindowFrameMigration.diskHogDefaults.migratedFrame(
+            frame,
+            restoredContentSize: NSSize(width: 790, height: 640),
+            tab: .information,
+            targetFrameSize: NSSize(width: 740, height: 740)
+        )
+
+        #expect(migratedFrame == frame)
+    }
+
     @Test func scanItemContextMenuIncludesInspectorCommand() {
         let item: DiskItem = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan/file.txt"),
