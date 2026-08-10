@@ -57,15 +57,18 @@ nonisolated final class PackedDiskItemSnapshot: @unchecked Sendable {
     let chunks: [PackedDiskItemChunk]
     let rootAddress: PackedDiskItemAddress
     private let rootChildren: [PackedDiskItemAddress]?
+    let childOverrides: [PackedDiskItemAddress: [PackedDiskItemAddress]]
 
     init(
         chunks: [PackedDiskItemChunk],
         rootAddress: PackedDiskItemAddress,
-        rootChildren: [PackedDiskItemAddress]? = nil
+        rootChildren: [PackedDiskItemAddress]? = nil,
+        childOverrides: [PackedDiskItemAddress: [PackedDiskItemAddress]] = [:]
     ) {
         self.chunks = chunks
         self.rootAddress = rootAddress
         self.rootChildren = rootChildren
+        self.childOverrides = childOverrides
     }
 
     func record(at address: PackedDiskItemAddress) -> PackedDiskItemRecord {
@@ -76,7 +79,14 @@ nonisolated final class PackedDiskItemSnapshot: @unchecked Sendable {
         chunks[address.chunkIndex].string(in: range)
     }
 
+    var hasExternalChildStorage: Bool {
+        rootChildren != nil || !childOverrides.isEmpty
+    }
+
     func children(of address: PackedDiskItemAddress) -> [PackedDiskItemAddress] {
+        if let overriddenChildren: [PackedDiskItemAddress] = childOverrides[address] {
+            return overriddenChildren
+        }
         if address == rootAddress, let rootChildren {
             return rootChildren
         }
@@ -89,11 +99,17 @@ nonisolated final class PackedDiskItemSnapshot: @unchecked Sendable {
     }
 
     func childCount(of address: PackedDiskItemAddress) -> Int {
+        if let overriddenChildren: [PackedDiskItemAddress] = childOverrides[address] {
+            return overriddenChildren.count
+        }
         if address == rootAddress, let rootChildren { return rootChildren.count }
         return record(at: address).childCount
     }
 
     func child(of address: PackedDiskItemAddress, at index: Int) -> PackedDiskItemAddress {
+        if let overriddenChildren: [PackedDiskItemAddress] = childOverrides[address] {
+            return overriddenChildren[index]
+        }
         if address == rootAddress, let rootChildren { return rootChildren[index] }
         let record: PackedDiskItemRecord = record(at: address)
         let childRecordIndex: Int = chunks[address.chunkIndex].childIndices[record.firstChild + index]

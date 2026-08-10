@@ -1550,6 +1550,70 @@ struct DiskItemTests {
         #expect(updatedRoot?.item(atPath: "/scan/folder/file.txt", allowAncestors: true)?.path == "/scan/folder")
     }
 
+    @Test func removingSubtreeReusesUntouchedPackedSubtrees() throws {
+        let rootBuilder: DiskItemBuilder = DiskItemBuilder(url: URL(fileURLWithPath: "/scan"), isDirectory: true)
+        let folderBuilder: DiskItemBuilder = DiskItemBuilder(url: URL(fileURLWithPath: "/scan/folder"), isDirectory: true)
+        folderBuilder.appendChild(DiskItemBuilder(
+            url: URL(fileURLWithPath: "/scan/folder/delete.txt"),
+            allocatedSizeValue: 10,
+            logicalSizeValue: 10
+        ))
+        let untouchedBuilder: DiskItemBuilder = DiskItemBuilder(url: URL(fileURLWithPath: "/scan/untouched"), isDirectory: true)
+        untouchedBuilder.appendChild(DiskItemBuilder(
+            url: URL(fileURLWithPath: "/scan/untouched/file.txt"),
+            allocatedSizeValue: 30,
+            logicalSizeValue: 30
+        ))
+        rootBuilder.appendChild(folderBuilder)
+        rootBuilder.appendChild(untouchedBuilder)
+        rootBuilder.recalculateSize(usePhysicalSize: true)
+        let root: DiskItem = rootBuilder.freeze()
+
+        let updatedRoot: DiskItem = try #require(DiskItemTreeEditor.removingSubtree(
+            from: root,
+            atPath: "/scan/folder/delete.txt",
+            usePhysicalSize: true
+        ))
+        let untouched: DiskItem = try #require(updatedRoot.item(atPath: "/scan/untouched/file.txt"))
+
+        #expect(updatedRoot.snapshot.chunks[0] === root.snapshot.chunks[0])
+        #expect(untouched.address.chunkIndex == 0)
+        #expect(updatedRoot.allocatedSizeValue == 30)
+    }
+
+    @Test func repeatedSubtreeEditsPreservePreviousPathOverrides() throws {
+        let rootBuilder: DiskItemBuilder = DiskItemBuilder(url: URL(fileURLWithPath: "/scan"), isDirectory: true)
+        let folderBuilder: DiskItemBuilder = DiskItemBuilder(url: URL(fileURLWithPath: "/scan/folder"), isDirectory: true)
+        folderBuilder.appendChild(DiskItemBuilder(
+            url: URL(fileURLWithPath: "/scan/folder/delete-first.txt"),
+            allocatedSizeValue: 10,
+            logicalSizeValue: 10
+        ))
+        folderBuilder.appendChild(DiskItemBuilder(
+            url: URL(fileURLWithPath: "/scan/folder/delete-second.txt"),
+            allocatedSizeValue: 20,
+            logicalSizeValue: 20
+        ))
+        rootBuilder.appendChild(folderBuilder)
+        rootBuilder.recalculateSize(usePhysicalSize: true)
+        let root: DiskItem = rootBuilder.freeze()
+
+        let firstEdit: DiskItem = try #require(DiskItemTreeEditor.removingSubtree(
+            from: root,
+            atPath: "/scan/folder/delete-first.txt",
+            usePhysicalSize: true
+        ))
+        let secondEdit: DiskItem = try #require(DiskItemTreeEditor.removingSubtree(
+            from: firstEdit,
+            atPath: "/scan/folder/delete-second.txt",
+            usePhysicalSize: true
+        ))
+
+        #expect(secondEdit.item(atPath: "/scan/folder/delete-first.txt") == nil)
+        #expect(secondEdit.item(atPath: "/scan/folder/delete-second.txt") == nil)
+        #expect(secondEdit.allocatedSizeValue == 0)
+    }
+
     @Test func replacingDeepSubtreeUsesIterativeEditor() throws {
         var currentPath: String = "/scan"
         let rootBuilder: DiskItemBuilder = DiskItemBuilder(
