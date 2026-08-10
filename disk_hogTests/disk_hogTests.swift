@@ -1704,7 +1704,7 @@ struct DiskItemTests {
         #expect(folder.descendantsMatchingAncestorPath(of: siblingWithPrefix).isEmpty)
     }
 
-    @Test func recalculatesRecursiveFolderSizesAndSortsLikeDiskInventoryZ() {
+    @Test func recalculatesRecursiveFolderSizesAndSortsLargestFirstThenNameAscending() {
         let root: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan"),
             isDirectory: true
@@ -1732,10 +1732,10 @@ struct DiskItemTests {
         let frozenRoot: DiskItem = root.freeze()
 
         #expect(frozenRoot.allocatedSizeValue == 1100)
-        #expect(frozenRoot.children.map(\.displayName) == ["10-large.bin", "2-small.bin", "1-same.bin"])
+        #expect(frozenRoot.children.map(\.displayName) == ["10-large.bin", "1-same.bin", "2-small.bin"])
     }
 
-    @Test func builderAndTopLevelOrderingShareNumericCaseInsensitiveTieBreaks() {
+    @Test func builderAndTopLevelOrderingShareAscendingNumericCaseInsensitiveTieBreaks() {
         let first: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan/File 10.txt"),
             allocatedSizeValue: 100,
@@ -1747,16 +1747,16 @@ struct DiskItemTests {
             logicalSizeValue: 100
         )
 
-        #expect(DiskItemBuilderOrdering.areInOrder(first, second, usePhysicalSize: true))
+        #expect(DiskItemBuilderOrdering.areInOrder(second, first, usePhysicalSize: true))
         #expect(DiskItemBuilderOrdering.areInOrder(
-            firstName: first.name,
-            firstAllocatedSize: first.allocatedSizeValue,
-            firstLogicalSize: first.logicalSizeValue,
-            firstIsSpecialItem: first.isSpecialItem,
-            secondName: second.name,
-            secondAllocatedSize: second.allocatedSizeValue,
-            secondLogicalSize: second.logicalSizeValue,
-            secondIsSpecialItem: second.isSpecialItem,
+            firstName: second.name,
+            firstAllocatedSize: second.allocatedSizeValue,
+            firstLogicalSize: second.logicalSizeValue,
+            firstIsSpecialItem: second.isSpecialItem,
+            secondName: first.name,
+            secondAllocatedSize: first.allocatedSizeValue,
+            secondLogicalSize: first.logicalSizeValue,
+            secondIsSpecialItem: first.isSpecialItem,
             usePhysicalSize: true
         ))
     }

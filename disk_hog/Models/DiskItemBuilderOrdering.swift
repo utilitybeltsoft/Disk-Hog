@@ -83,9 +83,17 @@ nonisolated enum DiskItemBuilderOrdering {
             return firstSize > secondSize ? .orderedDescending : .orderedAscending
         }
 
-        return (firstName as NSString).compare(
+        let nameComparison: ComparisonResult = (firstName as NSString).compare(
             secondName,
             options: [.numeric, .caseInsensitive]
         )
+        switch nameComparison {
+        case .orderedAscending:
+            return .orderedDescending
+        case .orderedDescending:
+            return .orderedAscending
+        case .orderedSame:
+            return .orderedSame
+        }
     }
 }
