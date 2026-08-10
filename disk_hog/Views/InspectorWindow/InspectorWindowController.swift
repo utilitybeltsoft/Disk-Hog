@@ -110,7 +110,7 @@ enum InspectorContentSizeSlot: Hashable {
 @MainActor
 final class InspectorWindowController: NSObject, ObservableObject {
     static let shared: InspectorWindowController = InspectorWindowController()
-    private static let frameAutosaveName: String = "DiskHogInspectorWindowV3"
+    static let frameAutosaveName: String = "DiskHogInspectorWindowV4"
     static let visibleScreenInset: CGFloat = 80
 
     @Published private(set) var activeContext: InspectorWindowContext?
@@ -315,9 +315,7 @@ final class InspectorWindowController: NSObject, ObservableObject {
         return InspectorWindowHost(
             contentSize: contentSize,
             minimumContentSize: layout.minimumContentSize,
-            selectedTab: selectedTab,
             frameAutosaveName: Self.frameAutosaveName,
-            frameMigration: .diskHogDefaults,
             contentView: InspectorWindowView(controller: self),
             onClose: { [weak self] in self?.isVisible = false }
         )
