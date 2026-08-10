@@ -66,8 +66,10 @@ nonisolated struct TreemapRawColor: Sendable {
 }
 
 nonisolated struct TreemapPalettePlan: Sendable {
-    private static let generatedGrayStep: Double = 0.05
-    private static let maximumGeneratedGrayComponent: Double = 0.9
+    private static let goldenRatioConjugate: Double = 0.618_033_988_749_895
+    private static let generatedSaturations: [Double] = [0.70, 0.85, 0.55]
+    private static let generatedBrightnesses: [Double] = [0.92, 0.76, 0.62]
+    private static let sharedGeneratedColorCount: Int = 512
 
     let orderedKinds: [String]
     private let rawColorsByKind: [String: TreemapRawColor]
@@ -89,16 +91,47 @@ nonisolated struct TreemapPalettePlan: Sendable {
 
     static func rawColor(at index: Int) -> TreemapRawColor {
         guard index < predefinedColors.count else {
-            let component: Double = min(
-                maximumGeneratedGrayComponent,
-                Double(index) * generatedGrayStep
-            )
-            return TreemapRawColor(red: component, green: component, blue: component, alpha: 1)
+            return generatedColor(at: index - predefinedColors.count)
         }
         return predefinedColors[index]
     }
 
-    static let sharedColorCount: Int = predefinedColors.count
+    static let sharedColorCount: Int = predefinedColors.count + sharedGeneratedColorCount
+
+    private static func generatedColor(at index: Int) -> TreemapRawColor {
+        let hue: Double = (Double(index) * goldenRatioConjugate)
+            .truncatingRemainder(dividingBy: 1)
+        let saturation: Double = generatedSaturations[index % generatedSaturations.count]
+        let brightnessIndex: Int = (index / generatedSaturations.count) % generatedBrightnesses.count
+        let brightness: Double = generatedBrightnesses[brightnessIndex]
+
+        return rawColor(hue: hue, saturation: saturation, brightness: brightness)
+    }
+
+    private static func rawColor(hue: Double, saturation: Double, brightness: Double) -> TreemapRawColor {
+        let scaledHue: Double = hue * 6
+        let sector: Int = Int(scaledHue.rounded(.down))
+        let fraction: Double = scaledHue - Double(sector)
+
+        let p: Double = brightness * (1 - saturation)
+        let q: Double = brightness * (1 - saturation * fraction)
+        let t: Double = brightness * (1 - saturation * (1 - fraction))
+
+        switch sector % 6 {
+        case 0:
+            return TreemapRawColor(red: brightness, green: t, blue: p, alpha: 1)
+        case 1:
+            return TreemapRawColor(red: q, green: brightness, blue: p, alpha: 1)
+        case 2:
+            return TreemapRawColor(red: p, green: brightness, blue: t, alpha: 1)
+        case 3:
+            return TreemapRawColor(red: p, green: q, blue: brightness, alpha: 1)
+        case 4:
+            return TreemapRawColor(red: t, green: p, blue: brightness, alpha: 1)
+        default:
+            return TreemapRawColor(red: brightness, green: p, blue: q, alpha: 1)
+        }
+    }
 
     private static let predefinedColors: [TreemapRawColor] = [
         TreemapRawColor(red: 0, green: 0, blue: 1, alpha: 1),

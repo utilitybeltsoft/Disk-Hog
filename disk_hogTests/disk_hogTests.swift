@@ -2597,6 +2597,27 @@ struct TreemapDiskItemDataSourceTests {
         #expect((0..<TreemapPalettePlan.sharedColorCount).contains(firstIndex))
     }
 
+    @Test func generatedKindColorsRemainDistinctPastCuratedPalette() {
+        let generatedColors: [TreemapRawColor] = (30..<90).map { index in
+            TreemapPalettePlan.rawColor(at: index)
+        }
+        let distinctColorKeys: Set<String> = Set(generatedColors.map(colorKey))
+        let grayscaleColors: [TreemapRawColor] = generatedColors.filter { color in
+            color.red == color.green && color.green == color.blue
+        }
+
+        #expect(distinctColorKeys.count == generatedColors.count)
+        #expect(grayscaleColors.isEmpty)
+    }
+
+    @Test func sharedKindColorRegistryCanUseGeneratedPaletteSlots() {
+        let sampledIndexes: Set<Int> = Set((0..<1_000).map { index in
+            SharedKindColorRegistry.colorIndex(for: "Kind \(index)")
+        })
+
+        #expect(sampledIndexes.contains { $0 >= 30 })
+    }
+
     @Test func independentKindColorsFollowEachWindowsRanking() {
         let firstTable: TreemapDiskItemColorTable = TreemapDiskItemColorTable(
             orderedKinds: ["Plain Text", "Image"]
@@ -2658,6 +2679,17 @@ struct TreemapDiskItemDataSourceTests {
             rgbColor.blueComponent,
             rgbColor.alphaComponent
         ]
+    }
+
+    private func colorKey(_ color: TreemapRawColor) -> String {
+        [
+            color.red,
+            color.green,
+            color.blue,
+            color.alpha
+        ]
+            .map { String(format: "%.6f", $0) }
+            .joined(separator: ",")
     }
 }
 
