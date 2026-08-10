@@ -4,6 +4,7 @@ struct ScanWindowView: View {
     @StateObject private var session: ScanSession
     @StateObject private var selectionCoordinator: ScanWindowSelectionCoordinator
     @StateObject private var inspectorContext: InspectorWindowContext
+    @StateObject private var commandContext: ScanWindowCommandContext
     @ObservedObject private var packageContentsPreference: PackageContentsPreferenceCoordinator = .shared
     @State private var hoveredItem: DiskItem?
     @State private var activePane: ScanWindowPane?
@@ -14,6 +15,12 @@ struct ScanWindowView: View {
         _selectionCoordinator = StateObject(wrappedValue: selectionCoordinator)
         _inspectorContext = StateObject(
             wrappedValue: InspectorWindowContext(
+                session: session,
+                selectionCoordinator: selectionCoordinator
+            )
+        )
+        _commandContext = StateObject(
+            wrappedValue: ScanWindowCommandContext(
                 session: session,
                 selectionCoordinator: selectionCoordinator
             )
@@ -79,7 +86,8 @@ struct ScanWindowView: View {
         }
         .onDisappear {
             session.cancel()
-            ScanWindowCommandState.shared.deactivate(if: session)
+            commandContext.deactivate()
+            ScanWindowCommandState.shared.deactivate(if: commandContext)
             InspectorWindowController.shared.deactivate(if: inspectorContext)
         }
         .onChange(of: session.rootItem?.id) {
@@ -109,17 +117,15 @@ struct ScanWindowView: View {
     }
 
     private func activateScanWindowCommandState() {
-        ScanWindowCommandState.shared.activate(
-            session: session,
-            selectionCoordinator: selectionCoordinator,
-            selectedItem: selectionCoordinator.selectedItem
-        )
+        commandContext.updateSelectedItem(selectionCoordinator.selectedItem)
+        commandContext.updateScanState()
+        ScanWindowCommandState.shared.activate(commandContext)
         InspectorWindowController.shared.activate(inspectorContext)
     }
 
     private func updateScanWindowCommandState() {
-        ScanWindowCommandState.shared.updateSelectedItem(selectionCoordinator.selectedItem, from: session)
-        ScanWindowCommandState.shared.updateScanState(from: session)
+        commandContext.updateSelectedItem(selectionCoordinator.selectedItem)
+        commandContext.updateScanState()
     }
 
     private var selectedItemBinding: Binding<DiskItem?> {
@@ -131,11 +137,9 @@ struct ScanWindowView: View {
     }
 
     private func activateScanWindowContext() {
-        ScanWindowCommandState.shared.activate(
-            session: session,
-            selectionCoordinator: selectionCoordinator,
-            selectedItem: selectionCoordinator.selectedItem
-        )
+        commandContext.updateSelectedItem(selectionCoordinator.selectedItem)
+        commandContext.updateScanState()
+        ScanWindowCommandState.shared.activate(commandContext)
         InspectorWindowController.shared.activate(inspectorContext)
     }
 

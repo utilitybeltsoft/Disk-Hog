@@ -99,6 +99,10 @@ struct ScanWindowCommandStateSelectionTests {
         let commandState: ScanWindowCommandState = ScanWindowCommandState()
         let session: ScanSession = ScanSession(source: ScanSource(path: "/scan", displayName: "scan"))
         let coordinator: ScanWindowSelectionCoordinator = ScanWindowSelectionCoordinator()
+        let commandContext: ScanWindowCommandContext = ScanWindowCommandContext(
+            session: session,
+            selectionCoordinator: coordinator
+        )
         var firstSelection: DiskItem? = DiskItem(
             url: URL(fileURLWithPath: "/scan/report.txt"),
             allocatedSizeValue: 8,
@@ -106,23 +110,55 @@ struct ScanWindowCommandStateSelectionTests {
         )
         weak let weakFirstSelection: DiskItem? = firstSelection
 
-        commandState.activate(
-            session: session,
-            selectionCoordinator: coordinator,
-            selectedItem: firstSelection
-        )
+        commandContext.updateSelectedItem(firstSelection)
+        commandState.activate(commandContext)
 
         let replacement: DiskItem = DiskItem(
             snapshot: firstSelection!.snapshot,
             address: firstSelection!.address
         )
         coordinator.setSelectedItem(replacement)
+        commandContext.updateSelectedItem(replacement)
         firstSelection = nil
 
-        #expect(weakFirstSelection != nil)
+        #expect(weakFirstSelection == nil)
         #expect(commandState.commandSelectedItem?.id == replacement.id)
         #expect(commandState.canOpenSelectedItem)
         #expect(commandState.canRevealSelectedItem)
+    }
+
+    @Test func routesMenuEnablementThroughActiveWindowContext() {
+        let commandState: ScanWindowCommandState = ScanWindowCommandState()
+        let firstSession: ScanSession = ScanSession(source: ScanSource(path: "/first", displayName: "first"))
+        let secondSession: ScanSession = ScanSession(source: ScanSource(path: "/second", displayName: "second"))
+        let firstContext: ScanWindowCommandContext = ScanWindowCommandContext(
+            session: firstSession,
+            selectionCoordinator: ScanWindowSelectionCoordinator()
+        )
+        let secondContext: ScanWindowCommandContext = ScanWindowCommandContext(
+            session: secondSession,
+            selectionCoordinator: ScanWindowSelectionCoordinator()
+        )
+        let firstItem: DiskItem = DiskItem(url: URL(fileURLWithPath: "/first/file.txt"))
+        let secondItem: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/second/free"),
+            itemType: .freeSpace
+        )
+
+        firstContext.updateSelectedItem(firstItem)
+        secondContext.updateSelectedItem(secondItem)
+
+        commandState.activate(firstContext)
+        #expect(commandState.commandSelectedItem?.path == "/first/file.txt")
+        #expect(commandState.canOpenSelectedItem)
+
+        commandState.activate(secondContext)
+        #expect(commandState.commandSelectedItem?.itemType == .freeSpace)
+        #expect(commandState.canOpenSelectedItem == false)
+
+        firstContext.updateSelectedItem(firstItem)
+        #expect(commandState.commandSelectedItem?.itemType == .freeSpace)
+        #expect(commandState.canOpenSelectedItem == false)
     }
 }
 

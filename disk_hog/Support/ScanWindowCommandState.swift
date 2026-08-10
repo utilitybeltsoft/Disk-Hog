@@ -3,9 +3,7 @@ import Combine
 import Foundation
 
 @MainActor
-final class ScanWindowCommandState: ObservableObject {
-    static let shared: ScanWindowCommandState = ScanWindowCommandState()
-
+final class ScanWindowCommandContext: ObservableObject {
     @Published var canOpenSelectedItem: Bool = false
     @Published var canRevealSelectedItem: Bool = false
     @Published var canSelectParentFolder: Bool = false
@@ -17,37 +15,42 @@ final class ScanWindowCommandState: ObservableObject {
     @Published var canCopyMatchingFile: Bool = false
     #endif
 
-    private weak var activeSession: ScanSession?
+    private weak var session: ScanSession?
     // DiskItem instances are short-lived flyweights over immutable packed storage.
     // Keep the command target alive independently of the selection view's instance.
     private var selectedItem: DiskItem?
     private weak var selectionCoordinator: ScanWindowSelectionCoordinator?
 
-    init() {}
+    init(session: ScanSession, selectionCoordinator: ScanWindowSelectionCoordinator) {
+        self.session = session
+        self.selectionCoordinator = selectionCoordinator
+    }
 
     var commandSelectedItem: DiskItem? {
         selectedItem
     }
 
-    func activate(
-        session: ScanSession,
-        selectionCoordinator: ScanWindowSelectionCoordinator,
-        selectedItem: DiskItem?
-    ) {
-        activeSession = session
-        self.selectionCoordinator = selectionCoordinator
+    func updateSelectedItem(_ selectedItem: DiskItem?) {
         updateSelectedItemAvailability(selectedItem)
-        updateScanState(from: session)
     }
 
-    func deactivate(if session: ScanSession? = nil) {
-        if let session, activeSession !== session {
+    func updateScanState() {
+        guard let session: ScanSession else {
+            canToggleFreeSpace = false
+            canToggleOtherSpace = false
+            showsFreeSpace = false
+            showsOtherSpace = false
+            #if FILE_MATCHING_DIAGNOSTICS
+            canCopyMatchingFile = false
+            #endif
             return
         }
 
-        activeSession = nil
+        updateScanState(from: session)
+    }
+
+    func deactivate() {
         selectedItem = nil
-        selectionCoordinator = nil
         setIfChanged(\.canOpenSelectedItem, to: false)
         setIfChanged(\.canRevealSelectedItem, to: false)
         setIfChanged(\.canSelectParentFolder, to: false)
@@ -60,19 +63,7 @@ final class ScanWindowCommandState: ObservableObject {
         #endif
     }
 
-    func updateSelectedItem(_ item: DiskItem?, from session: ScanSession) {
-        guard activeSession === session else {
-            return
-        }
-
-        updateSelectedItemAvailability(item)
-    }
-
-    func updateScanState(from session: ScanSession) {
-        guard activeSession === session else {
-            return
-        }
-
+    private func updateScanState(from session: ScanSession) {
         canToggleFreeSpace = session.canToggleFreeSpace
         canToggleOtherSpace = session.canToggleOtherSpace
         showsFreeSpace = session.showsFreeSpace
@@ -100,8 +91,8 @@ final class ScanWindowCommandState: ObservableObject {
 
     func selectParentFolder() {
         guard canSelectParentFolder,
-              let activeSession: ScanSession,
-              let rootItem: DiskItem = activeSession.rootItem,
+              let session: ScanSession,
+              let rootItem: DiskItem = session.rootItem,
               let selectedItem: DiskItem,
               let parent: DiskItem = rootItem.descendantsMatchingAncestorPath(of: selectedItem).dropLast().last else {
             return
@@ -112,19 +103,19 @@ final class ScanWindowCommandState: ObservableObject {
     }
 
     func toggleFreeSpace() {
-        guard let activeSession: ScanSession else {
+        guard let session: ScanSession else {
             return
         }
-        activeSession.toggleFreeSpace()
-        updateScanState(from: activeSession)
+        session.toggleFreeSpace()
+        updateScanState(from: session)
     }
 
     func toggleOtherSpace() {
-        guard let activeSession: ScanSession else {
+        guard let session: ScanSession else {
             return
         }
-        activeSession.toggleOtherSpace()
-        updateScanState(from: activeSession)
+        session.toggleOtherSpace()
+        updateScanState(from: session)
     }
 
     private func updateSelectedItemAvailability(_ item: DiskItem?) {
@@ -132,8 +123,8 @@ final class ScanWindowCommandState: ObservableObject {
         let canActOnItem: Bool = item?.isSpecialItem == false
         canOpenSelectedItem = canActOnItem
         canRevealSelectedItem = canActOnItem
-        if let activeSession: ScanSession,
-           let rootItem: DiskItem = activeSession.rootItem,
+        if let session: ScanSession,
+           let rootItem: DiskItem = session.rootItem,
            let item: DiskItem {
             canSelectParentFolder = rootItem.descendantsMatchingAncestorPath(of: item).count > 1
         } else {
@@ -141,7 +132,7 @@ final class ScanWindowCommandState: ObservableObject {
         }
     }
 
-    private func setIfChanged(_ keyPath: ReferenceWritableKeyPath<ScanWindowCommandState, Bool>, to value: Bool) {
+    private func setIfChanged(_ keyPath: ReferenceWritableKeyPath<ScanWindowCommandContext, Bool>, to value: Bool) {
         guard self[keyPath: keyPath] != value else {
             return
         }
@@ -154,10 +145,83 @@ final class ScanWindowCommandState: ObservableObject {
             return
         }
 
-        activeSession?.exportTreemapInputDiagnostics()
-        if let activeSession: ScanSession {
-            updateScanState(from: activeSession)
+        session?.exportTreemapInputDiagnostics()
+        if let session: ScanSession {
+            updateScanState(from: session)
         }
+    }
+    #endif
+}
+
+@MainActor
+final class ScanWindowCommandState: ObservableObject {
+    static let shared: ScanWindowCommandState = ScanWindowCommandState()
+
+    private weak var activeContext: ScanWindowCommandContext?
+    private var activeContextCancellable: AnyCancellable?
+
+    init() {}
+
+    var canOpenSelectedItem: Bool { activeContext?.canOpenSelectedItem ?? false }
+    var canRevealSelectedItem: Bool { activeContext?.canRevealSelectedItem ?? false }
+    var canSelectParentFolder: Bool { activeContext?.canSelectParentFolder ?? false }
+    var canToggleFreeSpace: Bool { activeContext?.canToggleFreeSpace ?? false }
+    var canToggleOtherSpace: Bool { activeContext?.canToggleOtherSpace ?? false }
+    var showsFreeSpace: Bool { activeContext?.showsFreeSpace ?? false }
+    var showsOtherSpace: Bool { activeContext?.showsOtherSpace ?? false }
+    #if FILE_MATCHING_DIAGNOSTICS
+    var canCopyMatchingFile: Bool { activeContext?.canCopyMatchingFile ?? false }
+    #endif
+
+    var commandSelectedItem: DiskItem? {
+        activeContext?.commandSelectedItem
+    }
+
+    func activate(_ context: ScanWindowCommandContext) {
+        guard activeContext !== context else {
+            return
+        }
+
+        activeContext = context
+        activeContextCancellable = context.objectWillChange.sink { [weak self] _ in
+            self?.objectWillChange.send()
+        }
+        objectWillChange.send()
+    }
+
+    func deactivate(if context: ScanWindowCommandContext? = nil) {
+        if let context, activeContext !== context {
+            return
+        }
+
+        activeContext = nil
+        activeContextCancellable = nil
+        objectWillChange.send()
+    }
+
+    func openSelectedItem() {
+        activeContext?.openSelectedItem()
+    }
+
+    func revealSelectedItemInFinder() {
+        activeContext?.revealSelectedItemInFinder()
+    }
+
+    func selectParentFolder() {
+        activeContext?.selectParentFolder()
+    }
+
+    func toggleFreeSpace() {
+        activeContext?.toggleFreeSpace()
+    }
+
+    func toggleOtherSpace() {
+        activeContext?.toggleOtherSpace()
+    }
+
+    #if FILE_MATCHING_DIAGNOSTICS
+    func copyMatchingFile() {
+        activeContext?.copyMatchingFile()
     }
     #endif
 }
