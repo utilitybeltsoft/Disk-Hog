@@ -22,6 +22,8 @@ struct SourceVolumeFilter: Equatable {
 
 @MainActor
 final class SourceWindowViewModel: ObservableObject {
+    typealias SourceLoader = @Sendable () async -> [ScanSource]
+
     @Published private(set) var sources: [ScanSource]
     @Published var selectedSourceID: ScanSource.ID? {
         didSet {
@@ -32,11 +34,20 @@ final class SourceWindowViewModel: ObservableObject {
         }
     }
     @Published private(set) var filter: SourceVolumeFilter
+    private let sourceLoader: SourceLoader
+    private var refreshGeneration: Int = 0
+    private var refreshTask: Task<Void, Never>?
+
+    nonisolated static func defaultSourceLoader() async -> [ScanSource] {
+        await Task.detached(priority: .utility) {
+            ScanSourceProvider.mountedVolumes()
+        }.value
+    }
 
     convenience init() {
         let defaults: UserDefaults = .standard
         self.init(
-            sources: ScanSourceProvider.mountedVolumes(),
+            sources: [],
             filter: SourceVolumeFilter(
                 includesExternalVolumes: defaults.bool(
                     forKey: SourceWindowPreferences.showExternalVolumesKey
@@ -47,20 +58,28 @@ final class SourceWindowViewModel: ObservableObject {
                 includesDiskImages: defaults.bool(
                     forKey: SourceWindowPreferences.showDiskImagesKey
                 )
-            )
+            ),
+            sourceLoader: Self.defaultSourceLoader
         )
+        refresh()
     }
 
     init(sources: [ScanSource]) {
         self.sources = sources
-        filter = SourceVolumeFilter()
-        selectedSourceID = nil
+        self.filter = SourceVolumeFilter()
+        self.selectedSourceID = nil
+        self.sourceLoader = Self.defaultSourceLoader
     }
 
-    init(sources: [ScanSource], filter: SourceVolumeFilter) {
+    init(
+        sources: [ScanSource],
+        filter: SourceVolumeFilter,
+        sourceLoader: @escaping SourceLoader = SourceWindowViewModel.defaultSourceLoader
+    ) {
         self.sources = sources
         self.filter = filter
         selectedSourceID = nil
+        self.sourceLoader = sourceLoader
     }
 
     var filteredSources: [ScanSource] {
@@ -101,8 +120,28 @@ final class SourceWindowViewModel: ObservableObject {
         reconcileSelection()
     }
 
-    func refresh() {
-        sources = ScanSourceProvider.mountedVolumes()
+    @discardableResult
+    func refresh() -> Task<Void, Never> {
+        refreshGeneration += 1
+        let generation: Int = refreshGeneration
+        let sourceLoader: SourceLoader = sourceLoader
+        let task: Task<Void, Never> = Task { [weak self] in
+            let loadedSources: [ScanSource] = await sourceLoader()
+            guard !Task.isCancelled else {
+                return
+            }
+            self?.installLoadedSources(loadedSources, generation: generation)
+        }
+        refreshTask?.cancel()
+        refreshTask = task
+        return task
+    }
+
+    private func installLoadedSources(_ loadedSources: [ScanSource], generation: Int) {
+        guard generation == refreshGeneration else {
+            return
+        }
+        sources = loadedSources
         reconcileSelection()
     }
 

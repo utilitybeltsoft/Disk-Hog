@@ -108,8 +108,11 @@ struct SourceWindowView: View {
     }
 
     private func refreshSources() {
-        viewModel.refresh()
-        InspectorWindowController.shared.activate(source: viewModel.selectedSource)
+        let refreshTask: Task<Void, Never> = viewModel.refresh()
+        Task { @MainActor in
+            await refreshTask.value
+            InspectorWindowController.shared.activate(source: viewModel.selectedSource)
+        }
     }
 
     private func chooseFolder() {

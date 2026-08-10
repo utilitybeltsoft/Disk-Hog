@@ -179,7 +179,7 @@ nonisolated struct ScanSourceBookmarkResolution: Sendable {
     let refreshedBookmarkData: Data?
 }
 
-enum ScanSourceProvider {
+nonisolated enum ScanSourceProvider {
     static func mountedVolumes() -> [ScanSource] {
         let keys: [URLResourceKey] = [
             .volumeNameKey,

@@ -748,6 +748,41 @@ struct SourceWindowViewModelTests {
         #expect(changeCount == 0)
         _ = cancellable
     }
+
+    @Test func asyncRefreshIgnoresStaleResults() async {
+        let loader: ControllableSourceLoader = ControllableSourceLoader()
+        let viewModel: SourceWindowViewModel = SourceWindowViewModel(
+            sources: [],
+            filter: SourceVolumeFilter(
+                includesExternalVolumes: true,
+                includesNetworkVolumes: true,
+                includesDiskImages: true
+            ),
+            sourceLoader: {
+                await loader.load()
+            }
+        )
+        let staleTask: Task<Void, Never> = viewModel.refresh()
+        let latestTask: Task<Void, Never> = viewModel.refresh()
+
+        await loader.waitForPendingLoadCount(2)
+        await loader.finishLoad(
+            id: 2,
+            with: [
+                ScanSource(path: "/Volumes/New", displayName: "New", isLocalVolume: true)
+            ]
+        )
+        await latestTask.value
+        await loader.finishLoad(
+            id: 1,
+            with: [
+                ScanSource(path: "/Volumes/Old", displayName: "Old", isLocalVolume: true)
+            ]
+        )
+        await staleTask.value
+
+        #expect(viewModel.sources.map(\.displayName) == ["New"])
+    }
 }
 
 @MainActor
@@ -1948,6 +1983,45 @@ private final class ReloadCountingTableView: NSTableView {
     override func reloadData() {
         reloadCount += 1
         super.reloadData()
+    }
+}
+
+private actor ControllableSourceLoader {
+    private var nextID: Int = 0
+    private var continuations: [Int: CheckedContinuation<[ScanSource], Never>] = [:]
+    private var waiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
+
+    func load() async -> [ScanSource] {
+        await withCheckedContinuation { continuation in
+            nextID += 1
+            continuations[nextID] = continuation
+            resumeSatisfiedWaiters()
+        }
+    }
+
+    func waitForPendingLoadCount(_ count: Int) async {
+        guard continuations.count < count else {
+            return
+        }
+        await withCheckedContinuation { continuation in
+            waiters.append((count, continuation))
+        }
+    }
+
+    func finishLoad(id: Int, with sources: [ScanSource]) {
+        continuations.removeValue(forKey: id)?.resume(returning: sources)
+    }
+
+    private func resumeSatisfiedWaiters() {
+        var remainingWaiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
+        for waiter in waiters {
+            if continuations.count >= waiter.count {
+                waiter.continuation.resume()
+            } else {
+                remainingWaiters.append(waiter)
+            }
+        }
+        waiters = remainingWaiters
     }
 }
 
