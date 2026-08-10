@@ -1498,6 +1498,42 @@ private final class TreemapProgressRecorder: @unchecked Sendable {
 @MainActor
 struct TreemapViewRendererTests {
 
+    @Test func zeroWeightChildBeforeSizedSiblingProducesFiniteLayout() {
+        let rootBuilder: DiskItemBuilder = DiskItemBuilder(
+            url: URL(fileURLWithPath: "/scan"),
+            isDirectory: true
+        )
+        let zeroWeightChild: DiskItemBuilder = DiskItemBuilder(
+            url: URL(fileURLWithPath: "/scan/empty"),
+            allocatedSizeValue: 0,
+            logicalSizeValue: 0,
+            kindName: "Empty"
+        )
+        let sizedChild: DiskItemBuilder = DiskItemBuilder(
+            url: URL(fileURLWithPath: "/scan/file.bin"),
+            allocatedSizeValue: 100,
+            logicalSizeValue: 100,
+            kindName: "Binary"
+        )
+        rootBuilder.appendChild(zeroWeightChild)
+        rootBuilder.appendChild(sizedChild)
+        let root: DiskItem = rootBuilder.freeze()
+        let sizedItem: DiskItem = root.child(at: 1)
+        let renderer: TreemapViewRenderer = TreemapViewRenderer(
+            dataSource: TreemapDiskItemDataSource(rootItem: root)
+        )
+
+        renderer.reloadData()
+        renderer.calcLayout(NSRect(x: 0, y: 0, width: 100, height: 100))
+
+        #expect(renderer.selectItem(byRenderedItem: sizedItem))
+        let rect: NSRect = renderer.itemRect(by: renderer.selectedCellID)
+        #expect(rect.width.isFinite)
+        #expect(rect.height.isFinite)
+        #expect(rect.width > 0)
+        #expect(rect.height > 0)
+    }
+
     @Test func bitmapCacheRebuildsForBackingScaleAndColorSpace() throws {
         let root: DiskItem = DiskItem(
             url: URL(fileURLWithPath: "/scan/file.bin"),

@@ -278,7 +278,12 @@ final class TreemapItemRenderer {
         while index < childCount {
             let childSize: Double = Double(children[index].weight)
             if childSize == 0 {
-                assert(index > startChildIndex)
+                if index == startChildIndex {
+                    // Do not rely on size ordering for progress. A zero-weight
+                    // child has no drawable area, but still needs a finite row.
+                    childWidths.append(1)
+                    return RowCalculation(rowHeight: 0, childsUsed: 1)
+                }
                 break
             }
             sizeUsed += childSize
