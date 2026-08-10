@@ -7,9 +7,7 @@ struct SourceWindowView: View {
     @AppStorage(SourceWindowPreferences.showNetworkVolumesKey) private var showNetworkVolumes: Bool = false
     @AppStorage(SourceWindowPreferences.showDiskImagesKey) private var showDiskImages: Bool = false
     @ObservedObject private var packageContentsPreference: PackageContentsPreferenceCoordinator = .shared
-    @ObservedObject private var kindColorPreference: KindColorPreferenceCoordinator = .shared
-    @ObservedObject private var sizeModePreference: SizeModePreferenceCoordinator = .shared
-    @AppStorage(DiskScanSettingsDefaultsKeys.ignoreCreatorCode) private var ignoreCreatorCode: Bool = false
+    @ObservedObject private var scanPreferences: ScanPreferences = .shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: Metrics.outerSpacing) {
@@ -34,14 +32,17 @@ struct SourceWindowView: View {
                     get: { packageContentsPreference.showPackageContents },
                     set: { packageContentsPreference.requestChange(to: $0) }
                 ),
-                ignoreCreatorCode: $ignoreCreatorCode,
+                ignoreCreatorCode: Binding(
+                    get: { scanPreferences.ignoreCreatorCode },
+                    set: { scanPreferences.setIgnoreCreatorCode($0) }
+                ),
                 showPhysicalFileSize: Binding(
-                    get: { sizeModePreference.usesPhysicalSize },
-                    set: { sizeModePreference.setUsesPhysicalSize($0) }
+                    get: { scanPreferences.usesPhysicalSize },
+                    set: { scanPreferences.setUsesPhysicalSize($0) }
                 ),
                 shareKindColors: Binding(
-                    get: { kindColorPreference.sharesColors },
-                    set: { kindColorPreference.setSharesColors($0) }
+                    get: { scanPreferences.sharesKindColors },
+                    set: { scanPreferences.setSharesKindColors($0) }
                 ),
                 canScanSelectedVolume: viewModel.selectedSource?.canScan == true,
                 onRefresh: refreshSources,
@@ -84,9 +85,9 @@ struct SourceWindowView: View {
 
     private var currentScanSettings: DiskScanSettings {
         DiskScanSettings(
-            usePhysicalSize: sizeModePreference.usesPhysicalSize,
+            usePhysicalSize: scanPreferences.usesPhysicalSize,
             lookInsidePackages: packageContentsPreference.showPackageContents,
-            ignoreCreatorCode: ignoreCreatorCode
+            ignoreCreatorCode: scanPreferences.ignoreCreatorCode
         )
     }
 

@@ -64,7 +64,7 @@ nonisolated struct DiskInventoryZScanSessionTreeWorker: ScanSessionTreeUpdating 
             presentationMetrics: TreemapPresentationMetrics(
                 rootItem: updatedRoot,
                 usePhysicalSize: settings.usePhysicalSize,
-                sharesKindColors: KindColorPreferences.sharesColors
+                sharesKindColors: ScanPreferenceDefaults.sharesKindColors
             ),
             selectionPath: item.path,
             builtUsingPhysicalSize: settings.usePhysicalSize
@@ -105,7 +105,7 @@ nonisolated struct DiskInventoryZScanSessionTreeWorker: ScanSessionTreeUpdating 
             presentationMetrics: TreemapPresentationMetrics(
                 rootItem: updatedRoot,
                 usePhysicalSize: settings.usePhysicalSize,
-                sharesKindColors: KindColorPreferences.sharesColors
+                sharesKindColors: ScanPreferenceDefaults.sharesKindColors
             ),
             selectionPath: item.url.deletingLastPathComponent().path,
             builtUsingPhysicalSize: settings.usePhysicalSize

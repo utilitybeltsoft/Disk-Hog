@@ -498,7 +498,7 @@ final class ScanSession: ObservableObject {
                 rootItem: rootItem,
                 selectionPath: selectionPath,
                 usePhysicalSize: usePhysicalSize,
-                sharesKindColors: KindColorPreferences.sharesColors
+                sharesKindColors: ScanPreferenceDefaults.sharesKindColors
             )
             guard !Task.isCancelled else {
                 await MainActor.run { [weak self] in

@@ -39,7 +39,7 @@ nonisolated struct DiskInventoryZScanSessionWorker: ScanSessionScanning {
         let presentationMetrics: TreemapPresentationMetrics = TreemapPresentationMetrics(
             rootItem: rootItem,
             usePhysicalSize: settings.usePhysicalSize,
-            sharesKindColors: KindColorPreferences.sharesColors
+            sharesKindColors: ScanPreferenceDefaults.sharesKindColors
         ) { progress in
             Task {
                 await treemapProgress(progress)

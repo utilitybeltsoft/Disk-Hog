@@ -89,8 +89,7 @@ private struct DiskHogCommands: Commands {
     @ObservedObject private var scanWindowCommandState: ScanWindowCommandState = .shared
     @ObservedObject private var inspectorWindowController: InspectorWindowController = .shared
     @ObservedObject private var packageContentsPreference: PackageContentsPreferenceCoordinator = .shared
-    @ObservedObject private var sizeModePreference: SizeModePreferenceCoordinator = .shared
-    @AppStorage(DiskScanSettingsDefaultsKeys.ignoreCreatorCode) private var ignoreCreatorCode: Bool = false
+    @ObservedObject private var scanPreferences: ScanPreferences = .shared
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
@@ -172,12 +171,12 @@ private struct DiskHogCommands: Commands {
                 )
             )
 
-            Button(sizeModePreference.usesPhysicalSize ? "Show Logical File Size" : "Show Physical File Size") {
-                sizeModePreference.setUsesPhysicalSize(!sizeModePreference.usesPhysicalSize)
+            Button(scanPreferences.usesPhysicalSize ? "Show Logical File Size" : "Show Physical File Size") {
+                scanPreferences.setUsesPhysicalSize(!scanPreferences.usesPhysicalSize)
             }
 
-            Button(ignoreCreatorCode ? "Respect Creator Code" : "Ignore Creator Code") {
-                ignoreCreatorCode.toggle()
+            Button(scanPreferences.ignoreCreatorCode ? "Respect Creator Code" : "Ignore Creator Code") {
+                scanPreferences.setIgnoreCreatorCode(!scanPreferences.ignoreCreatorCode)
             }
         }
 

@@ -510,7 +510,7 @@ struct ScanSessionWorkerIntegrationTests {
         TreemapPresentationMetrics(
             rootItem: rootItem,
             usePhysicalSize: true,
-            sharesKindColors: KindColorPreferences.sharesColors
+            sharesKindColors: ScanPreferenceDefaults.sharesKindColors
         )
     }
 
