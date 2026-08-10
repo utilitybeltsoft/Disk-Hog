@@ -1,6 +1,16 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Document": {"localizations":{"de":{"stringUnit":{"state":"translated","value":"Dokument"}},"es":{"stringUnit":{"state":"translated","value":"Documento"}},"fr":{"stringUnit":{"state":"translated","value":"Document"}},"it":{"stringUnit":{"state":"translated","value":"Documento"}}}},
+    "Unix executable": {"localizations":{"de":{"stringUnit":{"state":"translated","value":"Unix-Programm"}},"es":{"stringUnit":{"state":"translated","value":"ejecutable Unix"}},"fr":{"stringUnit":{"state":"translated","value":"exécutable Unix"}},"it":{"stringUnit":{"state":"translated","value":"eseguibile Unix"}}}},
+    "data": {"localizations":{"de":{"stringUnit":{"state":"translated","value":"Daten"}},"es":{"stringUnit":{"state":"translated","value":"datos"}},"fr":{"stringUnit":{"state":"translated","value":"données"}},"it":{"stringUnit":{"state":"translated","value":"dati"}}}},
+    "elapsed time %@": {"localizations":{"de":{"stringUnit":{"state":"translated","value":"verstrichene Zeit %1$@"}},"es":{"stringUnit":{"state":"translated","value":"tiempo transcurrido %1$@"}},"fr":{"stringUnit":{"state":"translated","value":"temps écoulé %1$@"}},"it":{"stringUnit":{"state":"translated","value":"tempo trascorso %1$@"}}}},
+    "files": {"localizations":{"de":{"stringUnit":{"state":"translated","value":"Dateien"}},"es":{"stringUnit":{"state":"translated","value":"archivos"}},"fr":{"stringUnit":{"state":"translated","value":"fichiers"}},"it":{"stringUnit":{"state":"translated","value":"file"}}}},
+    "folder": {"localizations":{"de":{"stringUnit":{"state":"translated","value":"Ordner"}},"es":{"stringUnit":{"state":"translated","value":"carpeta"}},"fr":{"stringUnit":{"state":"translated","value":"dossier"}},"it":{"stringUnit":{"state":"translated","value":"cartella"}}}},
+    "folders": {"localizations":{"de":{"stringUnit":{"state":"translated","value":"Ordner"}},"es":{"stringUnit":{"state":"translated","value":"carpetas"}},"fr":{"stringUnit":{"state":"translated","value":"dossiers"}},"it":{"stringUnit":{"state":"translated","value":"cartelle"}}}},
+    "items": {"localizations":{"de":{"stringUnit":{"state":"translated","value":"Elemente"}},"es":{"stringUnit":{"state":"translated","value":"elementos"}},"fr":{"stringUnit":{"state":"translated","value":"éléments"}},"it":{"stringUnit":{"state":"translated","value":"elementi"}}}},
+    "symbolic link": {"localizations":{"de":{"stringUnit":{"state":"translated","value":"symbolischer Link"}},"es":{"stringUnit":{"state":"translated","value":"enlace simbólico"}},"fr":{"stringUnit":{"state":"translated","value":"lien symbolique"}},"it":{"stringUnit":{"state":"translated","value":"collegamento simbolico"}}}},
+    "text": {"localizations":{"de":{"stringUnit":{"state":"translated","value":"Text"}},"es":{"stringUnit":{"state":"translated","value":"texto"}},"fr":{"stringUnit":{"state":"translated","value":"texte"}},"it":{"stringUnit":{"state":"translated","value":"testo"}}}},
     "\"%@\" cannot be moved to the Trash.": {
       "localizations": {
         "de": {

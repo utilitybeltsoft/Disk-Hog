@@ -1704,6 +1704,14 @@ struct TreemapCushionRendererTests {
 
 struct DiskInventoryZScannerTests {
 
+    @Test(
+        "Localizes common fallback kind names",
+        arguments: ["Document", "text", "folder", "symbolic link", "data", "Unix executable"]
+    )
+    func localizesCommonFallbackKindNames(_ kindName: String) {
+        #expect(DiskItemBuilderFactory.localizedFallbackKindName(kindName) == kindName)
+    }
+
     @Test func concurrentScansKeepHardlinkDedupStateIsolated() async throws {
         let firstRootURL: URL = try Self.makeHardlinkFixture(named: "first")
         let secondRootURL: URL = try Self.makeHardlinkFixture(named: "second")

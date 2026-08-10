@@ -109,17 +109,17 @@ struct ZStatusFieldsView: View {
         )
         return HStack(spacing: ScanWindowMetrics.statusProgressColumnSpacing) {
             countField(
-                "items",
+                String(localized: "items"),
                 count: session.scannedItemCount,
                 width: ScanWindowMetrics.statusProgressItemColumnWidth
             )
             countField(
-                "folders",
+                String(localized: "folders"),
                 count: session.scannedFolderCount,
                 width: ScanWindowMetrics.statusProgressFolderColumnWidth
             )
             countField(
-                "files",
+                String(localized: "files"),
                 count: session.scannedFileCount,
                 width: ScanWindowMetrics.statusProgressFileColumnWidth
             )
@@ -128,7 +128,7 @@ struct ZStatusFieldsView: View {
                 width: ScanWindowMetrics.statusProgressSizeColumnWidth
             )
             progressColumn(
-                "elapsed time \(elapsedTime)",
+                String(localized: "elapsed time \(elapsedTime)"),
                 width: ScanWindowMetrics.statusProgressElapsedColumnWidth
             )
         }

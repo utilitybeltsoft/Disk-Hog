@@ -78,17 +78,36 @@ nonisolated final class DiskItemBuilderFactory {
         isDirectory: Bool,
         isSymbolicLink: Bool
     ) -> String? {
-        if isSymbolicLink { return "symbolic link" }
+        if isSymbolicLink { return localizedFallbackKindName("symbolic link") }
         let extensionKey: String = url.pathExtension.lowercased()
-        if isDirectory { return directoryKindByExtension[extensionKey] ?? "folder" }
+        if isDirectory { return localizedFallbackKindName(directoryKindByExtension[extensionKey] ?? "folder") }
         if extensionKey.isEmpty { return executableFallbackKind(for: url, values: values) }
-        return fileKindByExtension[extensionKey] ?? "Document"
+        return localizedFallbackKindName(fileKindByExtension[extensionKey] ?? "Document")
     }
 
     private static func executableFallbackKind(for url: URL, values: URLResourceValues?) -> String {
         let isExecutable: Bool? = values?.isExecutable
             ?? ((try? url.resourceValues(forKeys: [.isExecutableKey]))?.isExecutable)
-        return isExecutable == true ? "Unix executable" : "data"
+        return localizedFallbackKindName(isExecutable == true ? "Unix executable" : "data")
+    }
+
+    static func localizedFallbackKindName(_ kindName: String) -> String {
+        switch kindName {
+        case "Document":
+            return String(localized: "Document")
+        case "text":
+            return String(localized: "text")
+        case "folder":
+            return String(localized: "folder")
+        case "symbolic link":
+            return String(localized: "symbolic link")
+        case "data":
+            return String(localized: "data")
+        case "Unix executable":
+            return String(localized: "Unix executable")
+        default:
+            return kindName
+        }
     }
 
     private static let directoryKindByExtension: [String: String] = [

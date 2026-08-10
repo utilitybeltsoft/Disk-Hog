@@ -37,7 +37,7 @@ struct KindStatisticTableView: NSViewRepresentable {
         tableView.dataSource = context.coordinator
         let menu: NSMenu = NSMenu()
         let showSelectionListItem: NSMenuItem = NSMenuItem(
-            title: "Show Files in Selection List",
+            title: String(localized: "Show Files in Selection List"),
             action: #selector(Coordinator.showSelectionList(_:)),
             keyEquivalent: ""
         )
