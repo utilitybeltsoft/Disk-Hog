@@ -255,6 +255,20 @@ struct ScanSessionRescanCoordinatorTests {
 }
 
 @MainActor
+struct ScanSessionTaskCoordinatorTests {
+    @Test func replacementMakesOnlyTheNewestOperationCurrent() {
+        let coordinator: ScanSessionTaskCoordinator = ScanSessionTaskCoordinator()
+        let firstID: UUID = coordinator.start(.scan) { _ in Task {} }
+        let secondID: UUID = coordinator.start(.scan) { _ in Task {} }
+
+        #expect(coordinator.isCurrent(.scan, operationID: firstID) == false)
+        #expect(coordinator.isCurrent(.scan, operationID: secondID))
+        #expect(coordinator.finish(.scan, operationID: firstID) == false)
+        #expect(coordinator.finish(.scan, operationID: secondID))
+    }
+}
+
+@MainActor
 struct ScanSessionPackageContentsSynchronizationTests {
     @Test func reportsWhetherExistingResultsMatchCurrentPreference() {
         let source: ScanSource = ScanSource(
