@@ -376,7 +376,7 @@ private final class SelectionListNameCellView: NSTableCellView {
     }
 
     func configure(row: SelectionListRow) {
-        iconView.image = NSWorkspace.shared.icon(forFile: row.item.path)
+        iconView.image = DiskItemIconCache.shared.icon(for: row.item)
         label.stringValue = row.name
     }
 

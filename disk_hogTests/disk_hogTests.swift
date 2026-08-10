@@ -12,6 +12,24 @@ import SwiftUI
 import Testing
 @testable import disk_hog
 
+@MainActor
+struct DiskItemIconCacheTests {
+    @Test func reusesLoadedIconsForTheSamePath() {
+        var loadedPaths: [String] = []
+        let expectedPath: String = "/scan/file.txt"
+        let cache: DiskItemIconCache = DiskItemIconCache(loadIcon: { path in
+            loadedPaths.append(path)
+            return NSImage(size: NSSize(width: 16, height: 16))
+        })
+
+        let firstIcon: NSImage = cache.icon(forFile: expectedPath)
+        let secondIcon: NSImage = cache.icon(forFile: expectedPath)
+
+        #expect(firstIcon === secondIcon)
+        #expect(loadedPaths == [expectedPath])
+    }
+}
+
 struct ScanSessionFailureTests {
     @Test func givesPermissionRecoveryAdvice() {
         let failure: ScanSessionFailure = ScanSessionFailure(

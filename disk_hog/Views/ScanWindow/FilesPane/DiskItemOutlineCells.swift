@@ -15,7 +15,7 @@ final class DiskItemNameCellView: NSTableCellView {
     }
 
     func configure(item: DiskItem) {
-        iconImageView.image = NSWorkspace.shared.icon(forFile: item.path)
+        iconImageView.image = DiskItemIconCache.shared.icon(for: item)
         titleTextField.stringValue = item.displayName
     }
 
