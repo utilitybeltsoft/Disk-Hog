@@ -1850,6 +1850,33 @@ struct DiskInventoryZScannerTests {
         #expect(DiskItemBuilderFactory.localizedFallbackKindName(kindName) == kindName)
     }
 
+    @Test func itemFactorySafelySharesItsKindCacheAcrossTasks() async throws {
+        let rootURL: URL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("disk-hog-factory-cache-\(UUID().uuidString)", isDirectory: true)
+        let fileURL: URL = rootURL.appendingPathComponent("sample.txt")
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+        try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
+        try "sample".write(to: fileURL, atomically: true, encoding: .utf8)
+
+        let factory: DiskItemBuilderFactory = DiskItemBuilderFactory()
+        let kindNames: [String?] = await withTaskGroup(of: String?.self, returning: [String?].self) { taskGroup in
+            for _ in 0..<32 {
+                taskGroup.addTask {
+                    factory.makeItem(url: fileURL, values: nil).kindName
+                }
+            }
+
+            var collectedKindNames: [String?] = []
+            for await kindName: String? in taskGroup {
+                collectedKindNames.append(kindName)
+            }
+            return collectedKindNames
+        }
+
+        #expect(kindNames.allSatisfy { $0 == kindNames.first })
+        #expect(kindNames.first != nil)
+    }
+
     @Test func concurrentScansKeepHardlinkDedupStateIsolated() async throws {
         let firstRootURL: URL = try Self.makeHardlinkFixture(named: "first")
         let secondRootURL: URL = try Self.makeHardlinkFixture(named: "second")

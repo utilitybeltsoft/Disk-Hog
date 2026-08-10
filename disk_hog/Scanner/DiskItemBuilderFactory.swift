@@ -1,7 +1,8 @@
 import Foundation
 import UniformTypeIdentifiers
 
-nonisolated final class DiskItemBuilderFactory {
+nonisolated final class DiskItemBuilderFactory: @unchecked Sendable {
+    private let kindNameLock: NSLock = NSLock()
     private var kindNameByTypeIdentifier: [String: String] = [:]
 
     func makeItem(url: URL, values: URLResourceValues?) -> DiskItemBuilder {
@@ -53,7 +54,9 @@ nonisolated final class DiskItemBuilderFactory {
                 isSymbolicLink: isSymbolicLink
             )
         }
-        if let cachedKindName: String = kindNameByTypeIdentifier[typeIdentifier] {
+        if let cachedKindName: String = kindNameLock.withLock({
+            kindNameByTypeIdentifier[typeIdentifier]
+        }) {
             return cachedKindName
         }
 
@@ -62,7 +65,9 @@ nonisolated final class DiskItemBuilderFactory {
             resolvedKindName = (try? url.resourceValues(forKeys: [.localizedTypeDescriptionKey]))?.localizedTypeDescription
         }
         if let resolvedKindName: String = resolvedKindName {
-            kindNameByTypeIdentifier[typeIdentifier] = resolvedKindName
+            kindNameLock.withLock {
+                kindNameByTypeIdentifier[typeIdentifier] = resolvedKindName
+            }
         }
         return resolvedKindName ?? Self.fallbackKindName(
             for: url,
