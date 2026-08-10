@@ -2022,6 +2022,40 @@ struct DiskItemTests {
         #expect(updatedRoot.item(atPath: oldFilePath) == nil)
         #expect(updatedRoot.item(atPath: currentPath + "/new.txt")?.allocatedSizeValue == 25)
     }
+
+    @Test func removingOneItemFromLargeFlatTreeRebuildsOnlyTheEditedPath() throws {
+        let itemCount: Int = 100_000
+        let rootBuilder: DiskItemBuilder = DiskItemBuilder(
+            url: URL(fileURLWithPath: "/scan"),
+            isDirectory: true
+        )
+        for index: Int in 0..<itemCount {
+            rootBuilder.appendChild(
+                DiskItemBuilder(
+                    url: URL(fileURLWithPath: "/scan/file-\(index).bin"),
+                    allocatedSizeValue: 1,
+                    logicalSizeValue: 1,
+                    kindName: "Binary"
+                ),
+                updateSize: false
+            )
+        }
+        rootBuilder.recalculateSize(usePhysicalSize: true)
+        let root: DiskItem = rootBuilder.freeze()
+
+        let updatedRoot: DiskItem = try #require(DiskItemTreeEditor.removingSubtree(
+            from: root,
+            atPath: "/scan/file-50000.bin",
+            usePhysicalSize: true
+        ))
+
+        #expect(updatedRoot.childCount == itemCount - 1)
+        #expect(updatedRoot.allocatedSizeValue == UInt64(itemCount - 1))
+        #expect(updatedRoot.item(atPath: "/scan/file-50000.bin") == nil)
+        #expect(updatedRoot.item(atPath: "/scan/file-49999.bin")?.address.chunkIndex == 0)
+        #expect(updatedRoot.item(atPath: "/scan/file-50001.bin")?.address.chunkIndex == 0)
+        #expect(updatedRoot.snapshot.chunks.count == root.snapshot.chunks.count + 1)
+    }
 }
 
 struct SelectionListPipelineTests {
@@ -2394,6 +2428,38 @@ struct TreemapDiskItemDataSourceTests {
 
         #expect(aggregates["Deep File"]?.fileCount == 1)
         #expect(aggregates["Deep File"]?.size == 42)
+    }
+
+    @Test func kindAggregationHandlesLargeFlatTrees() {
+        let itemCount: Int = 100_000
+        let rootBuilder: DiskItemBuilder = DiskItemBuilder(
+            url: URL(fileURLWithPath: "/scan"),
+            isDirectory: true
+        )
+        for index: Int in 0..<itemCount {
+            let kindName: String = index.isMultiple(of: 2) ? "Even Binary" : "Odd Binary"
+            rootBuilder.appendChild(
+                DiskItemBuilder(
+                    url: URL(fileURLWithPath: "/scan/file-\(index).bin"),
+                    allocatedSizeValue: 1,
+                    logicalSizeValue: 1,
+                    kindName: kindName
+                ),
+                updateSize: false
+            )
+        }
+        rootBuilder.recalculateSize(usePhysicalSize: true)
+
+        let aggregates: [String: TreemapKindAggregate] = TreemapKindCatalog.aggregates(
+            from: rootBuilder.freeze(),
+            usePhysicalSize: true,
+            folderKindName: "Folder"
+        )
+
+        #expect(aggregates["Even Binary"]?.fileCount == itemCount / 2)
+        #expect(aggregates["Odd Binary"]?.fileCount == itemCount / 2)
+        #expect(aggregates["Even Binary"]?.size == UInt64(itemCount / 2))
+        #expect(aggregates["Odd Binary"]?.size == UInt64(itemCount / 2))
     }
 
     @Test func weightUsesSelectedPhysicalOrLogicalSizeMode() {
