@@ -73,9 +73,13 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
 
     private let initialGeometryApplier: ScanWindowInitialGeometryApplier = ScanWindowInitialGeometryApplier()
 
-    init(source: ScanSource) {
+    convenience init(source: ScanSource) {
+        self.init(source: source, session: ScanSession(source: source))
+    }
+
+    init(source: ScanSource, session: ScanSession) {
         self.source = source
-        session = ScanSession(source: source)
+        self.session = session
         let window: NSWindow = NSWindow(
             contentRect: NSRect(
                 origin: .zero,

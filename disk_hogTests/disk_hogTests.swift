@@ -181,7 +181,17 @@ struct ApplicationStateRestorationTests {
 
     @Test func scanWindowIsMarkedNonRestorableWhenRegistered() {
         let source: ScanSource = ScanSource(path: "/scan", displayName: "scan")
-        let controller: ScanWindowController = ScanWindowController(source: source)
+        let controller: ScanWindowController = ScanWindowController(
+            source: source,
+            session: ScanSession(
+                source: source,
+                scanWorker: ImmediateScanWorker(result: .success(
+                    ScanSessionWorkerIntegrationTests.scanResult(
+                        rootItem: ScanSessionWorkerIntegrationTests.rootItem(fileSize: 1)
+                    )
+                ))
+            )
+        )
         guard let window: NSWindow = controller.window else {
             Issue.record("The scan window controller did not create a window.")
             return
@@ -198,7 +208,17 @@ struct ApplicationStateRestorationTests {
 struct ScanWindowControllerTests {
     @Test func registersAndUnregistersItsOwnedWindow() {
         let source: ScanSource = ScanSource(path: "/scan", displayName: "Scan")
-        let controller: ScanWindowController = ScanWindowController(source: source)
+        let controller: ScanWindowController = ScanWindowController(
+            source: source,
+            session: ScanSession(
+                source: source,
+                scanWorker: ImmediateScanWorker(result: .success(
+                    ScanSessionWorkerIntegrationTests.scanResult(
+                        rootItem: ScanSessionWorkerIntegrationTests.rootItem(fileSize: 1)
+                    )
+                ))
+            )
+        )
         guard let window: NSWindow = controller.window else {
             Issue.record("The scan window controller did not create a window.")
             return
@@ -408,7 +428,7 @@ struct ScanSessionWorkerIntegrationTests {
         #expect(session.state == .complete)
     }
 
-    private static func rootItem(fileSize: UInt64) -> DiskItem {
+    static func rootItem(fileSize: UInt64) -> DiskItem {
         rootItem(allocatedSize: fileSize, logicalSize: fileSize)
     }
 
@@ -428,7 +448,7 @@ struct ScanSessionWorkerIntegrationTests {
         )
     }
 
-    private static func scanResult(rootItem: DiskItem) -> ScanSessionScanResult {
+    static func scanResult(rootItem: DiskItem) -> ScanSessionScanResult {
         ScanSessionScanResult(
             source: ScanSource(path: "/scan", displayName: "scan"),
             rootItem: rootItem,
