@@ -413,6 +413,26 @@ struct InspectorWindowLayoutTests {
         #expect(DiskUsageLayoutMetrics.bottomPadding == 20)
     }
 
+    @Test func diskUsageLayoutUsesASeparateSlotForVolumeScans() {
+        let layoutCoordinator: InspectorWindowLayoutCoordinator = InspectorWindowLayoutCoordinator()
+        let source: ScanSource = ScanSource(
+            path: "/Volumes/Test",
+            displayName: "Test",
+            totalCapacity: 1_000,
+            availableCapacity: 250,
+            isLocalVolume: true,
+            isInternalVolume: false
+        )
+        let session: ScanSession = ScanSession(source: source)
+        let context: InspectorWindowContext = InspectorWindowContext(
+            session: session,
+            selectionCoordinator: ScanWindowSelectionCoordinator()
+        )
+
+        #expect(layoutCoordinator.slot(for: .diskUsage, context: nil) == .compactDiskUsage)
+        #expect(layoutCoordinator.slot(for: .diskUsage, context: context) == .fullDiskUsage)
+    }
+
     @Test func inactiveDiskUsagePaneRequestsVolumeSelection() {
         #expect(InspectorWindowTab.diskUsage.inactiveTitle == "No Volume Selected")
         #expect(InspectorWindowTab.diskUsage.inactiveDescription.contains("volume scan window"))
@@ -544,6 +564,33 @@ struct InspectorWindowLayoutTests {
         #expect(changeCount == 1)
         controller.deactivate()
         _ = cancellable
+    }
+
+    @Test func inspectorControllerRoutesVolumeContextsToTheFullDiskUsageLayout() {
+        let source: ScanSource = ScanSource(
+            path: "/Volumes/Test",
+            displayName: "Test",
+            totalCapacity: 1_000,
+            availableCapacity: 250,
+            isLocalVolume: true,
+            isInternalVolume: false
+        )
+        let session: ScanSession = ScanSession(source: source)
+        let context: InspectorWindowContext = InspectorWindowContext(
+            session: session,
+            selectionCoordinator: ScanWindowSelectionCoordinator()
+        )
+        let controller: InspectorWindowController = .shared
+        controller.activate(context)
+        controller.selectedTab = .diskUsage
+
+        #expect(
+            controller.currentLayout.preferredContentSize
+                == InspectorWindowTab.diskUsage.layout.preferredContentSize
+        )
+
+        controller.selectedTab = .information
+        controller.deactivate(if: context)
     }
 
     @Test func sourceDiskUsageUsesVolumeCapacityWithoutScanResults() throws {
