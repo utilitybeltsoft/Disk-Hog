@@ -1,16 +1,286 @@
 {
   "sourceLanguage": "en",
   "strings": {
-    "Document": {"localizations":{"de":{"stringUnit":{"state":"translated","value":"Dokument"}},"es":{"stringUnit":{"state":"translated","value":"Documento"}},"fr":{"stringUnit":{"state":"translated","value":"Document"}},"it":{"stringUnit":{"state":"translated","value":"Documento"}}}},
-    "Unix executable": {"localizations":{"de":{"stringUnit":{"state":"translated","value":"Unix-Programm"}},"es":{"stringUnit":{"state":"translated","value":"ejecutable Unix"}},"fr":{"stringUnit":{"state":"translated","value":"exécutable Unix"}},"it":{"stringUnit":{"state":"translated","value":"eseguibile Unix"}}}},
-    "data": {"localizations":{"de":{"stringUnit":{"state":"translated","value":"Daten"}},"es":{"stringUnit":{"state":"translated","value":"datos"}},"fr":{"stringUnit":{"state":"translated","value":"données"}},"it":{"stringUnit":{"state":"translated","value":"dati"}}}},
-    "elapsed time %@": {"localizations":{"de":{"stringUnit":{"state":"translated","value":"verstrichene Zeit %1$@"}},"es":{"stringUnit":{"state":"translated","value":"tiempo transcurrido %1$@"}},"fr":{"stringUnit":{"state":"translated","value":"temps écoulé %1$@"}},"it":{"stringUnit":{"state":"translated","value":"tempo trascorso %1$@"}}}},
-    "files": {"localizations":{"de":{"stringUnit":{"state":"translated","value":"Dateien"}},"es":{"stringUnit":{"state":"translated","value":"archivos"}},"fr":{"stringUnit":{"state":"translated","value":"fichiers"}},"it":{"stringUnit":{"state":"translated","value":"file"}}}},
-    "folder": {"localizations":{"de":{"stringUnit":{"state":"translated","value":"Ordner"}},"es":{"stringUnit":{"state":"translated","value":"carpeta"}},"fr":{"stringUnit":{"state":"translated","value":"dossier"}},"it":{"stringUnit":{"state":"translated","value":"cartella"}}}},
-    "folders": {"localizations":{"de":{"stringUnit":{"state":"translated","value":"Ordner"}},"es":{"stringUnit":{"state":"translated","value":"carpetas"}},"fr":{"stringUnit":{"state":"translated","value":"dossiers"}},"it":{"stringUnit":{"state":"translated","value":"cartelle"}}}},
-    "items": {"localizations":{"de":{"stringUnit":{"state":"translated","value":"Elemente"}},"es":{"stringUnit":{"state":"translated","value":"elementos"}},"fr":{"stringUnit":{"state":"translated","value":"éléments"}},"it":{"stringUnit":{"state":"translated","value":"elementi"}}}},
-    "symbolic link": {"localizations":{"de":{"stringUnit":{"state":"translated","value":"symbolischer Link"}},"es":{"stringUnit":{"state":"translated","value":"enlace simbólico"}},"fr":{"stringUnit":{"state":"translated","value":"lien symbolique"}},"it":{"stringUnit":{"state":"translated","value":"collegamento simbolico"}}}},
-    "text": {"localizations":{"de":{"stringUnit":{"state":"translated","value":"Text"}},"es":{"stringUnit":{"state":"translated","value":"texto"}},"fr":{"stringUnit":{"state":"translated","value":"texte"}},"it":{"stringUnit":{"state":"translated","value":"testo"}}}},
+    "Document": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dokument"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Documento"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Document"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Documento"
+          }
+        }
+      }
+    },
+    "Unix executable": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unix-Programm"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ejecutable Unix"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "exécutable Unix"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "eseguibile Unix"
+          }
+        }
+      }
+    },
+    "data": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Daten"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "datos"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "données"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "dati"
+          }
+        }
+      }
+    },
+    "elapsed time %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "verstrichene Zeit %1$@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "tiempo transcurrido %1$@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "temps écoulé %1$@"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "tempo trascorso %1$@"
+          }
+        }
+      }
+    },
+    "files": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dateien"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "archivos"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "fichiers"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "file"
+          }
+        }
+      }
+    },
+    "folder": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ordner"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "carpeta"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "dossier"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cartella"
+          }
+        }
+      }
+    },
+    "folders": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ordner"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "carpetas"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "dossiers"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cartelle"
+          }
+        }
+      }
+    },
+    "items": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elemente"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "elementos"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "éléments"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "elementi"
+          }
+        }
+      }
+    },
+    "symbolic link": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "symbolischer Link"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "enlace simbólico"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "lien symbolique"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "collegamento simbolico"
+          }
+        }
+      }
+    },
+    "text": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Text"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "texto"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "texte"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "testo"
+          }
+        }
+      }
+    },
     "\"%@\" cannot be moved to the Trash.": {
       "localizations": {
         "de": {
@@ -6897,6 +7167,370 @@
           "stringUnit": {
             "state": "translated",
             "value": "spazio occupato da altri file e cartelle"
+          }
+        }
+      }
+    },
+    "scan": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "scannen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "escanear"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "analyser"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "scansionare"
+          }
+        }
+      }
+    },
+    "refresh": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "aktualisieren"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "actualizar"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "actualiser"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "aggiornare"
+          }
+        }
+      }
+    },
+    "move to the Trash": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "in den Papierkorb verschieben"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "mover a la Papelera"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "déplacer vers la corbeille"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "spostare nel Cestino"
+          }
+        }
+      }
+    },
+    "delete": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "löschen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "eliminar"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "supprimer"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "eliminare"
+          }
+        }
+      }
+    },
+    "Check the item's permissions, or choose a folder that Disk Hog is allowed to access.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prüfen Sie die Berechtigungen des Objekts, oder wählen Sie einen Ordner, auf den Disk Hog zugreifen darf."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compruebe los permisos del elemento o elija una carpeta a la que Disk Hog tenga acceso."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vérifiez les autorisations de l’élément ou choisissez un dossier auquel Disk Hog peut accéder."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Controlla i permessi dell’elemento oppure scegli una cartella a cui Disk Hog può accedere."
+          }
+        }
+      }
+    },
+    "Choose a writable volume, or make the change in Finder if it is available there.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wählen Sie ein beschreibbares Volume, oder nehmen Sie die Änderung im Finder vor, falls sie dort verfügbar ist."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elija un volumen con permiso de escritura o haga el cambio en Finder si está disponible allí."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choisissez un volume accessible en écriture ou effectuez la modification dans le Finder si elle y est disponible."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scegli un volume scrivibile oppure apporta la modifica nel Finder, se disponibile."
+          }
+        }
+      }
+    },
+    "The item is no longer available at the expected location.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Objekt ist am erwarteten Ort nicht mehr verfügbar."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El elemento ya no está disponible en la ubicación esperada."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’élément n’est plus disponible à l’emplacement attendu."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’elemento non è più disponibile nella posizione prevista."
+          }
+        }
+      }
+    },
+    "Refresh the enclosing folder or scan it again.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktualisieren Sie den übergeordneten Ordner oder scannen Sie ihn erneut."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualice la carpeta contenedora o vuelva a escanearla."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualisez le dossier parent ou analysez-le à nouveau."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aggiorna la cartella che lo contiene oppure scansionala di nuovo."
+          }
+        }
+      }
+    },
+    "The item may be in use, locked, or protected by macOS.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Objekt wird möglicherweise verwendet, ist gesperrt oder durch macOS geschützt."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Es posible que el elemento esté en uso, bloqueado o protegido por macOS."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’élément est peut-être utilisé, verrouillé ou protégé par macOS."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’elemento potrebbe essere in uso, bloccato o protetto da macOS."
+          }
+        }
+      }
+    },
+    "Close apps that may be using it, then try again. If it is protected, use Finder or change its permissions first.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schließen Sie Apps, die es möglicherweise verwenden, und versuchen Sie es erneut. Wenn es geschützt ist, verwenden Sie zuerst den Finder oder ändern Sie die Berechtigungen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cierre las apps que puedan estar usándolo y vuelva a intentarlo. Si está protegido, use Finder o cambie primero sus permisos."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fermez les apps susceptibles de l’utiliser, puis réessayez. S’il est protégé, utilisez le Finder ou modifiez d’abord ses autorisations."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chiudi le app che potrebbero usarlo, poi riprova. Se è protetto, usa il Finder o modifica prima i permessi."
+          }
+        }
+      }
+    },
+    "Try again. If the problem continues, check that the volume is available and that Disk Hog has access to it.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Versuchen Sie es erneut. Wenn das Problem weiterhin besteht, prüfen Sie, ob das Volume verfügbar ist und Disk Hog darauf zugreifen darf."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vuelva a intentarlo. Si el problema continúa, compruebe que el volumen esté disponible y que Disk Hog tenga acceso."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Réessayez. Si le problème persiste, vérifiez que le volume est disponible et que Disk Hog y a accès."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Riprova. Se il problema continua, verifica che il volume sia disponibile e che Disk Hog possa accedervi."
+          }
+        }
+      }
+    },
+    "OK": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
+          }
+        }
+      }
+    },
+    "Scan failed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scan fehlgeschlagen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escaneo fallido"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Échec de l’analyse"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scansione non riuscita"
           }
         }
       }
