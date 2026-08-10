@@ -12,9 +12,12 @@ final class ScanSessionTaskCoordinator {
     private var tasks: [Kind: Task<Void, Never>] = [:]
     private var operationIDs: [Kind: UUID] = [:]
 
-    func start(_ kind: Kind, makeTask: (UUID) -> Task<Void, Never>) -> UUID {
+    func start(
+        _ kind: Kind,
+        operationID: UUID = UUID(),
+        makeTask: (UUID) -> Task<Void, Never>
+    ) -> UUID {
         tasks[kind]?.cancel()
-        let operationID: UUID = UUID()
         operationIDs[kind] = operationID
         tasks[kind] = makeTask(operationID)
         return operationID
