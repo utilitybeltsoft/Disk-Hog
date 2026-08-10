@@ -77,7 +77,7 @@ struct ScanWindowView: View {
         .frame(minWidth: ScanWindowMetrics.windowMinimumWidth, minHeight: ScanWindowMetrics.windowMinimumHeight)
         .background(Color(nsColor: .windowBackgroundColor))
         .background(ScanWindowKeyObservationView {
-            activateScanWindowCommandState()
+            activateScanWindowContext()
         })
         .onAppear {
             session.startScan()
@@ -114,13 +114,6 @@ struct ScanWindowView: View {
             updateScanWindowCommandState()
         }
         #endif
-    }
-
-    private func activateScanWindowCommandState() {
-        commandContext.updateSelectedItem(selectionCoordinator.selectedItem)
-        commandContext.updateScanState()
-        ScanWindowCommandState.shared.activate(commandContext)
-        InspectorWindowController.shared.activate(inspectorContext)
     }
 
     private func updateScanWindowCommandState() {
