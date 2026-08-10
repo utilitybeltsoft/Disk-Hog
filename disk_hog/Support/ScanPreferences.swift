@@ -23,13 +23,6 @@ nonisolated enum ScanPreferenceDefaults {
         bool(forKey: sharesKindColorsKey, defaultValue: true)
     }
 
-    static var ignoreCreatorCode: Bool {
-        bool(
-            forKey: DiskScanSettingsDefaultsKeys.ignoreCreatorCode,
-            defaultValue: DiskScanSettings.diskInventoryZDefault.ignoreCreatorCode
-        )
-    }
-
     private static func bool(forKey key: String, defaultValue: Bool) -> Bool {
         guard UserDefaults.standard.object(forKey: key) != nil else {
             return defaultValue
@@ -45,7 +38,6 @@ final class ScanPreferences: ObservableObject {
     @Published private(set) var usesPhysicalSize: Bool
     @Published private(set) var showPackageContents: Bool
     @Published private(set) var sharesKindColors: Bool
-    @Published private(set) var ignoreCreatorCode: Bool
 
     private var pendingShowPackageContents: Bool?
 
@@ -53,7 +45,6 @@ final class ScanPreferences: ObservableObject {
         usesPhysicalSize = ScanPreferenceDefaults.usesPhysicalSize
         showPackageContents = ScanPreferenceDefaults.showPackageContents
         sharesKindColors = ScanPreferenceDefaults.sharesKindColors
-        ignoreCreatorCode = ScanPreferenceDefaults.ignoreCreatorCode
     }
 
     func requestShowPackageContentsChange(to newValue: Bool) {
@@ -101,23 +92,10 @@ final class ScanPreferences: ObservableObject {
         ScanWindowRegistry.shared.rebuildPresentationMetricsForColorPreference(newValue)
     }
 
-    func setIgnoreCreatorCode(_ newValue: Bool) {
-        guard newValue != ignoreCreatorCode else {
-            return
-        }
-
-        ignoreCreatorCode = newValue
-        UserDefaults.standard.set(
-            newValue,
-            forKey: DiskScanSettingsDefaultsKeys.ignoreCreatorCode
-        )
-    }
-
     var scanSettings: DiskScanSettings {
         DiskScanSettings(
             usePhysicalSize: usesPhysicalSize,
-            lookInsidePackages: showPackageContents,
-            ignoreCreatorCode: ignoreCreatorCode
+            lookInsidePackages: showPackageContents
         )
     }
 

@@ -31,10 +31,6 @@ struct SourceWindowView: View {
                     get: { scanPreferences.showPackageContents },
                     set: { scanPreferences.requestShowPackageContentsChange(to: $0) }
                 ),
-                ignoreCreatorCode: Binding(
-                    get: { scanPreferences.ignoreCreatorCode },
-                    set: { scanPreferences.setIgnoreCreatorCode($0) }
-                ),
                 showPhysicalFileSize: Binding(
                     get: { scanPreferences.usesPhysicalSize },
                     set: { scanPreferences.setUsesPhysicalSize($0) }
@@ -85,8 +81,7 @@ struct SourceWindowView: View {
     private var currentScanSettings: DiskScanSettings {
         DiskScanSettings(
             usePhysicalSize: scanPreferences.usesPhysicalSize,
-            lookInsidePackages: scanPreferences.showPackageContents,
-            ignoreCreatorCode: scanPreferences.ignoreCreatorCode
+            lookInsidePackages: scanPreferences.showPackageContents
         )
     }
 

@@ -26,7 +26,6 @@ struct VolumeFilterView: View {
 
 struct SourceWindowActionBar: View {
     @Binding var showPackageContents: Bool
-    @Binding var ignoreCreatorCode: Bool
     @Binding var showPhysicalFileSize: Bool
     @Binding var shareKindColors: Bool
     let canScanSelectedVolume: Bool
@@ -46,7 +45,6 @@ struct SourceWindowActionBar: View {
             .popover(isPresented: $showsScanSettings) {
                 ScanSettingsPopoverView(
                     showPackageContents: $showPackageContents,
-                    ignoreCreatorCode: $ignoreCreatorCode,
                     showPhysicalFileSize: $showPhysicalFileSize,
                     shareKindColors: $shareKindColors
                 )
@@ -90,7 +88,6 @@ private struct SourceWindowButtonLabel: View {
 
 private struct ScanSettingsPopoverView: View {
     @Binding var showPackageContents: Bool
-    @Binding var ignoreCreatorCode: Bool
     @Binding var showPhysicalFileSize: Bool
     @Binding var shareKindColors: Bool
 
@@ -102,11 +99,6 @@ private struct ScanSettingsPopoverView: View {
                 isOn: $showPackageContents
             )
             ScanSettingsRowView(
-                title: "Ignore Creator Code",
-                description: "If set, e.g. PDF files opened by the Finder with Acrobat or Preview are regarded to have the same kind.",
-                isOn: $ignoreCreatorCode
-            )
-            ScanSettingsRowView(
                 title: "Show Physical File Size",
                 description: "The physical size is the space that a file occupies on a drive. Many applications show the logical size, which is the size of a file's content.",
                 isOn: $showPhysicalFileSize
@@ -116,7 +108,7 @@ private struct ScanSettingsPopoverView: View {
                 description: "Use the same color for a file kind in every scan window. Turn this off to color each window by its own largest kinds.",
                 isOn: $shareKindColors
             )
-            Text("Package-content changes can rescan open windows. Size and color changes update open windows. Creator-code changes apply to the next volume or folder you open.")
+            Text("Package-content changes can rescan open windows. Size and color changes update open windows.")
                 .font(.system(size: Metrics.standardFontSize))
                 .foregroundStyle(.tertiary)
                 .fixedSize(horizontal: false, vertical: true)

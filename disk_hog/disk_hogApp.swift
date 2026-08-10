@@ -173,10 +173,6 @@ private struct DiskHogCommands: Commands {
             Button(scanPreferences.usesPhysicalSize ? "Show Logical File Size" : "Show Physical File Size") {
                 scanPreferences.setUsesPhysicalSize(!scanPreferences.usesPhysicalSize)
             }
-
-            Button(scanPreferences.ignoreCreatorCode ? "Respect Creator Code" : "Ignore Creator Code") {
-                scanPreferences.setIgnoreCreatorCode(!scanPreferences.ignoreCreatorCode)
-            }
         }
 
         CommandGroup(before: .windowList) {

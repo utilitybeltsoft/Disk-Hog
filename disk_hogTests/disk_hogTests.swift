@@ -623,8 +623,7 @@ struct ScanSessionWorkerIntegrationTests {
                 displayName: "scan",
                 scanSettings: DiskScanSettings(
                     usePhysicalSize: true,
-                    lookInsidePackages: true,
-                    ignoreCreatorCode: false
+                    lookInsidePackages: true
                 )
             ),
             scanWorker: ImmediateScanWorker(result: .success(Self.scanResult(rootItem: originalRoot))),
@@ -654,8 +653,7 @@ struct ScanSessionWorkerIntegrationTests {
                 displayName: "scan",
                 scanSettings: DiskScanSettings(
                     usePhysicalSize: true,
-                    lookInsidePackages: true,
-                    ignoreCreatorCode: false
+                    lookInsidePackages: true
                 )
             ),
             scanWorker: ImmediateScanWorker(result: .success(Self.scanResult(rootItem: physicalRoot))),
@@ -747,8 +745,7 @@ struct ScanSessionPackageContentsSynchronizationTests {
             displayName: "scan",
             scanSettings: DiskScanSettings(
                 usePhysicalSize: true,
-                lookInsidePackages: false,
-                ignoreCreatorCode: false
+                lookInsidePackages: false
             )
         )
         let session: ScanSession = ScanSession(source: source)
@@ -3215,8 +3212,7 @@ struct DiskInventoryZScannerTests {
             source: ScanSource(path: rootURL.path, displayName: rootURL.lastPathComponent),
             settings: DiskScanSettings(
                 usePhysicalSize: false,
-                lookInsidePackages: false,
-                ignoreCreatorCode: false
+                lookInsidePackages: false
             )
         )
 
@@ -3233,8 +3229,7 @@ struct DiskInventoryZScannerTests {
             source: ScanSource(path: rootURL.path, displayName: rootURL.lastPathComponent),
             settings: DiskScanSettings(
                 usePhysicalSize: false,
-                lookInsidePackages: false,
-                ignoreCreatorCode: true
+                lookInsidePackages: false
             )
         )
         let package: DiskItem? = root.children.first { $0.name == "Example.app" }
@@ -3262,8 +3257,7 @@ struct DiskInventoryZScannerTests {
             from: ScanSource(path: rootURL.path, displayName: rootURL.lastPathComponent),
             settings: DiskScanSettings(
                 usePhysicalSize: true,
-                lookInsidePackages: false,
-                ignoreCreatorCode: true
+                lookInsidePackages: false
             )
         )
 

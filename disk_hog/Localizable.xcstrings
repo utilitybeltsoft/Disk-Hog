@@ -3139,62 +3139,6 @@
         }
       }
     },
-    "If set, e.g. PDF files opened by the Finder with Acrobat or Preview are regarded to have the same kind.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Wenn festgelegt, werden beispielsweise PDF-Dateien, die vom Finder mit Acrobat oder Vorschau geöffnet wurden, als vom gleichen Typ betrachtet."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Si está configurado, por ejemplo, se considera que los archivos PDF abiertos por el Finder con Acrobat o Preview son del mismo tipo."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Si cette option est définie, par exemple, les fichiers PDF ouverts par le Finder avec Acrobat ou Aperçu sont considérés comme ayant le même type."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Se impostato, ad esempio, i file PDF aperti dal Finder con Acrobat o Anteprima vengono considerati dello stesso tipo."
-          }
-        }
-      }
-    },
-    "Ignore Creator Code": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Erstellercode ignorieren"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ignorar el código del creador"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ignorer le code du créateur"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ignora il codice creatore"
-          }
-        }
-      }
-    },
     "Immutable": {
       "localizations": {
         "de": {
@@ -4371,34 +4315,6 @@
         }
       }
     },
-    "Package-content changes can rescan open windows. Size and color changes update open windows. Creator-code changes apply to the next volume or folder you open.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Durch Änderungen des Paketinhalts können geöffnete Fenster erneut gescannt werden. Größen- und Farbänderungen aktualisieren geöffnete Fenster. Änderungen am Erstellercode gelten für das nächste Volume oder den nächsten Ordner, den Sie öffnen."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Los cambios en el contenido del paquete pueden volver a escanear las ventanas abiertas. Los cambios de tamaño y color actualizan las ventanas abiertas. Los cambios en el código de creador se aplican al siguiente volumen o carpeta que abra."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Les modifications du contenu du package peuvent réanalyser les fenêtres ouvertes. Les changements de taille et de couleur mettent à jour les fenêtres ouvertes. Les modifications du code du créateur s'appliquent au prochain volume ou dossier que vous ouvrez."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Le modifiche al contenuto del pacchetto possono eseguire nuovamente la scansione delle finestre aperte. Le modifiche alle dimensioni e al colore aggiornano le finestre aperte. Le modifiche al codice creatore si applicano al volume o alla cartella successiva che apri."
-          }
-        }
-      }
-    },
     "Path": {
       "localizations": {
         "de": {
@@ -5207,34 +5123,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "ID risorsa"
-          }
-        }
-      }
-    },
-    "Respect Creator Code": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Respektieren Sie den Erstellercode"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Respetar el código de creador"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Respecter le code du créateur"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rispetta il codice del creatore"
           }
         }
       }
@@ -7531,6 +7419,34 @@
           "stringUnit": {
             "state": "translated",
             "value": "Scansione non riuscita"
+          }
+        }
+      }
+    },
+    "Package-content changes can rescan open windows. Size and color changes update open windows.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Änderungen am Paketinhalt können offene Fenster erneut scannen. Änderungen an Größe und Farbe aktualisieren offene Fenster."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los cambios en el contenido de paquetes pueden volver a escanear las ventanas abiertas. Los cambios de tamaño y color actualizan las ventanas abiertas."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les modifications du contenu des paquets peuvent relancer l’analyse des fenêtres ouvertes. Les modifications de taille et de couleur mettent à jour les fenêtres ouvertes."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le modifiche al contenuto dei pacchetti possono eseguire nuovamente la scansione delle finestre aperte. Le modifiche a dimensioni e colori aggiornano le finestre aperte."
           }
         }
       }

@@ -119,8 +119,7 @@ nonisolated enum TreemapInputDiagnostics {
             "showFreeSpace": false,
             "showOtherSpace": false,
             "showPackageContents": settings.lookInsidePackages,
-            "showPhysicalFileSize": settings.usePhysicalSize,
-            "ignoreCreatorCode": settings.ignoreCreatorCode
+            "showPhysicalFileSize": settings.usePhysicalSize
         ]
     }
 
