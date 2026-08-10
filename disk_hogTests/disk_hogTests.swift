@@ -1307,6 +1307,20 @@ struct TreemapDiskItemDataSourceTests {
         #expect(logicalDataSource.weight(of: root) == 12)
     }
 
+    @Test func omitsUnavailableSpecialSpaceItemsFromTreeChildren() {
+        let root: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan"),
+            isDirectory: true
+        )
+        let dataSource: TreemapDiskItemDataSource = TreemapDiskItemDataSource(
+            rootItem: root,
+            showFreeSpace: true,
+            showOtherSpace: true
+        )
+
+        #expect(dataSource.numberOfChildren(of: root) == root.childCount)
+    }
+
     @Test func kindStatisticsUseSelectedPhysicalOrLogicalSizeMode() {
         let rootBuilder: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan"),

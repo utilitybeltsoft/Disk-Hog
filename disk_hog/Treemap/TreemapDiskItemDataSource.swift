@@ -29,14 +29,11 @@ nonisolated final class TreemapDiskItemDataSource: @unchecked Sendable {
 
     func child(_ index: Int, of item: DiskItem) -> DiskItem {
         if item == rootItem && index >= item.childCount {
-            if (index - item.childCount) == 0 {
-                return (showOtherSpace ? otherSpaceItem : freeSpaceItem) ?? item
-            } else {
-                return freeSpaceItem ?? item
-            }
-        } else {
-            return item.child(at: index)
+            let specialItemIndex: Int = index - item.childCount
+            precondition(specialItems.indices.contains(specialItemIndex))
+            return specialItems[specialItemIndex]
         }
+        return item.child(at: index)
     }
 
     func isNode(_ item: DiskItem) -> Bool {
@@ -46,12 +43,7 @@ nonisolated final class TreemapDiskItemDataSource: @unchecked Sendable {
     func numberOfChildren(of item: DiskItem) -> Int {
         var childCount: Int = item.childCount
         if item == rootItem {
-            if showFreeSpace {
-                childCount += 1
-            }
-            if showOtherSpace {
-                childCount += 1
-            }
+            childCount += specialItems.count
         }
         return childCount
     }
@@ -77,6 +69,17 @@ nonisolated final class TreemapDiskItemDataSource: @unchecked Sendable {
 
     func shouldSelect(_ item: DiskItem) -> Bool {
         !item.isSpecialItem
+    }
+
+    private var specialItems: [DiskItem] {
+        var items: [DiskItem] = []
+        if showOtherSpace, let otherSpaceItem {
+            items.append(otherSpaceItem)
+        }
+        if showFreeSpace, let freeSpaceItem {
+            items.append(freeSpaceItem)
+        }
+        return items
     }
 }
 
