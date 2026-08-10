@@ -197,33 +197,22 @@ struct ApplicationStateRestorationTests {
 }
 
 @MainActor
-struct WindowCloseDelegateProxyTests {
-    @Test func retainsDisplacedDelegateUntilRestored() {
-        let window: NSWindow = NSWindow()
-        var delegate: WindowDelegateTestDouble? = WindowDelegateTestDouble()
-        weak let weakDelegate: WindowDelegateTestDouble? = delegate
-        window.delegate = delegate
+struct ScanWindowControllerTests {
+    @Test func registersAndUnregistersItsOwnedWindow() {
+        let source: ScanSource = ScanSource(path: "/scan", displayName: "Scan")
+        let controller: ScanWindowController = ScanWindowController(source: source)
+        guard let window: NSWindow = controller.window else {
+            Issue.record("The scan window controller did not create a window.")
+            return
+        }
 
-        let proxy: WindowCloseDelegateProxy = WindowCloseDelegateProxy { _ in true }
-        proxy.install(on: window)
-        delegate = nil
+        #expect(ScanWindowRegistry.shared.window(for: source) === window)
 
-        #expect(weakDelegate != nil)
-        #expect(window.delegate === proxy)
-        var forwardingTarget: AnyObject? = proxy.forwardingTarget(
-            for: #selector(WindowDelegateTestDouble.sentinel)
-        ) as AnyObject?
-        #expect(
-            forwardingTarget === weakDelegate
+        controller.windowWillClose(
+            Notification(name: NSWindow.willCloseNotification, object: window)
         )
 
-        forwardingTarget = nil
-        proxy.restore()
-        #expect(
-            proxy.forwardingTarget(
-                for: #selector(WindowDelegateTestDouble.sentinel)
-            ) == nil
-        )
+        #expect(ScanWindowRegistry.shared.window(for: source) == nil)
     }
 }
 
@@ -2154,10 +2143,6 @@ struct DiskInventoryZScannerTests {
             count + hardlinkDuplicateCount(in: child)
         }
     }
-}
-
-private final class WindowDelegateTestDouble: NSObject, NSWindowDelegate {
-    @objc func sentinel() {}
 }
 
 private actor ProgressRecorder {

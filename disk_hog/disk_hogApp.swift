@@ -12,19 +12,9 @@ struct DiskHogApp: App {
     @NSApplicationDelegateAdaptor(DiskHogApplicationDelegate.self) private var appDelegate
 
     var body: some Scene {
-        WindowGroup("Choose Source to Scan", id: WindowIDs.sourceWindow) {
-            ContentView()
+        Settings {
+            EmptyView()
         }
-        .defaultSize(width: SourceWindowDefaultSize.width, height: SourceWindowDefaultSize.height)
-
-        WindowGroup("Disk Hog", for: ScanSource.self) { source in
-            if let source: ScanSource = source.wrappedValue {
-                ScanWindowView(source: source)
-            } else {
-                SourceWindowView()
-            }
-        }
-        .defaultSize(width: ScanWindowDefaults.width, height: ScanWindowDefaults.height)
         .commands {
             DiskHogCommands()
         }
@@ -40,6 +30,7 @@ final class DiskHogApplicationDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        SourceWindowController.shared.show()
         // Cold NSOpenPanel creation can block its ViewBridge service inside a click.
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
             SourceFolderChooser.prepare()
@@ -199,18 +190,4 @@ private struct DiskHogCommands: Commands {
             Divider()
         }
     }
-}
-
-private enum WindowIDs {
-    static let sourceWindow: String = "sourceWindow"
-}
-
-private enum SourceWindowDefaultSize {
-    static let width: CGFloat = SourceWindowMetrics.windowMinimumWidth
-    static let height: CGFloat = SourceWindowMetrics.windowMinimumHeight
-}
-
-private enum ScanWindowDefaults {
-    static let width: CGFloat = ScanWindowGeometry.defaultWidth
-    static let height: CGFloat = ScanWindowGeometry.defaultHeight
 }

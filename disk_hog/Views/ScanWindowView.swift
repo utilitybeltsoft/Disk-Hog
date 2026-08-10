@@ -8,8 +8,7 @@ struct ScanWindowView: View {
     @State private var hoveredItem: DiskItem?
     @State private var activePane: ScanWindowPane?
 
-    init(source: ScanSource) {
-        let session: ScanSession = ScanSession(source: source)
+    init(session: ScanSession) {
         let selectionCoordinator: ScanWindowSelectionCoordinator = ScanWindowSelectionCoordinator()
         _session = StateObject(wrappedValue: session)
         _selectionCoordinator = StateObject(wrappedValue: selectionCoordinator)
@@ -70,7 +69,6 @@ struct ScanWindowView: View {
         }
         .frame(minWidth: ScanWindowMetrics.windowMinimumWidth, minHeight: ScanWindowMetrics.windowMinimumHeight)
         .background(Color(nsColor: .windowBackgroundColor))
-        .background(ScanWindowRegistrationView(session: session, source: session.source))
         .background(ScanWindowKeyObservationView {
             activateScanWindowCommandState()
         })

@@ -2,7 +2,6 @@ import AppKit
 import SwiftUI
 
 struct SourceWindowView: View {
-    @Environment(\.openWindow) private var openWindow
     @StateObject private var viewModel: SourceWindowViewModel = SourceWindowViewModel()
     @AppStorage(SourceWindowPreferences.showExternalVolumesKey) private var showExternalVolumes: Bool = false
     @AppStorage(SourceWindowPreferences.showNetworkVolumesKey) private var showNetworkVolumes: Bool = false
@@ -53,7 +52,6 @@ struct SourceWindowView: View {
             .padding(.bottom, Metrics.windowPadding)
         }
         .frame(minWidth: Metrics.windowMinimumWidth, minHeight: Metrics.windowMinimumHeight)
-        .background(SourceWindowCloseRegistrationView())
         .background(ScanWindowKeyObservationView {
             ScanWindowCommandState.shared.deactivate()
             InspectorWindowController.shared.activate(source: viewModel.selectedSource)
@@ -138,11 +136,7 @@ struct SourceWindowView: View {
         }
 
         let scanSource: ScanSource = source.applyingScanSettings(currentScanSettings)
-        if ScanWindowRegistry.shared.activateWindow(for: scanSource) {
-            return
-        }
-
-        openWindow(value: scanSource)
+        ScanWindowControllerRegistry.shared.show(source: scanSource)
     }
 }
 
