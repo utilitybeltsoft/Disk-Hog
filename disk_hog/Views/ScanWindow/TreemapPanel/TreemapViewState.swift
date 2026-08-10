@@ -124,15 +124,18 @@ final class TreemapViewState {
 
     private func syncSelectionToRenderer() {
         guard let item: DiskItem = selectedItem,
-              let rootItem: DiskItem = rootItem,
-              rootItem.descendantsMatchingAncestorPath(of: item).isEmpty == false else {
+              let rootItem: DiskItem = rootItem else {
             renderer?.selectItem(by: nil)
             return
         }
 
-        if renderer?.selectItem(byRenderedItem: item) == false {
-            renderer?.selectItem(byPathToItem: rootItem.descendantsMatchingAncestorPath(of: item))
+        let selectionPath: [DiskItem] = rootItem.descendantsMatchingAncestorPath(of: item)
+        guard selectionPath.isEmpty == false else {
+            renderer?.selectItem(by: nil)
+            return
         }
+
+        _ = renderer?.selectRenderedItem(byPathToItem: selectionPath)
     }
 }
 

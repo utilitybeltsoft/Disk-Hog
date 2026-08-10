@@ -75,21 +75,25 @@ final class TreemapViewRenderer {
     }
 
     func selectItem(byPathToItem path: [DiskItem]) {
+        _ = selectRenderedItem(byPathToItem: path)
+    }
+
+    func selectRenderedItem(byPathToItem path: [DiskItem]) -> Bool {
         assert(path.count > 0, "path must contain at least 1 component")
         let rendererToSelect: TreemapItemRenderer? = findTreemapItem(byPathToDataItem: path)
-        if rendererToSelect != nil {
-            selectItem(by: rendererToSelect)
+        guard let rendererToSelect else {
+            return false
         }
+        selectItem(by: rendererToSelect)
+        return true
     }
 
     func selectItem(byRenderedItem item: DiskItem) -> Bool {
         let path: [DiskItem] = rootItem.descendantsMatchingAncestorPath(of: item)
-        guard path.isEmpty == false,
-              let renderer: TreemapItemRenderer = findTreemapItem(byPathToDataItem: path) else {
+        guard path.isEmpty == false else {
             return false
         }
-        selectItem(by: renderer)
-        return true
+        return selectRenderedItem(byPathToItem: path)
     }
 
     func itemRect(by cellID: TreemapItemRenderer?) -> NSRect {
