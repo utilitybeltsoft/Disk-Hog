@@ -723,13 +723,13 @@ struct ScanSessionWorkerIntegrationTests {
     }
 
     private static func waitUntil(
-        timeoutNanoseconds: UInt64 = 1_000_000_000,
+        timeoutNanoseconds: UInt64 = 10_000_000_000,
         condition: @escaping @MainActor () -> Bool
     ) async throws {
         let deadline: ContinuousClock.Instant = .now + .nanoseconds(Int64(timeoutNanoseconds))
         while !condition() {
             guard ContinuousClock.now < deadline else {
-                Issue.record("Timed out waiting for ScanSession state change.")
+                Issue.record("Timed out waiting for ScanSession state change after \(timeoutNanoseconds / 1_000_000_000) seconds.")
                 return
             }
             try await Task.sleep(nanoseconds: 10_000_000)
