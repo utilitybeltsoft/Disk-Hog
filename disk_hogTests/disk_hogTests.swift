@@ -1777,6 +1777,60 @@ struct SelectionListTableViewTests {
     }
 }
 
+@MainActor
+struct KindStatisticTableViewTests {
+    @Test func unchangedStatisticsDoNotReloadRows() {
+        var selectedFilter: SelectionListFilter?
+        var showSelectionListCount: Int = 0
+        let statistics: [TreemapKindStatistic] = [
+            TreemapKindStatistic(
+                kindName: "Plain Text",
+                size: 4_096,
+                fileCount: 1,
+                color: .red
+            )
+        ]
+        let coordinator: KindStatisticTableView.Coordinator = KindStatisticTableView.Coordinator(
+            statistics: statistics,
+            selectedFilter: Binding(
+                get: { selectedFilter },
+                set: { selectedFilter = $0 }
+            ),
+            activePane: .constant(nil),
+            onShowSelectionList: { _ in showSelectionListCount += 1 }
+        )
+        let tableView: ReloadCountingTableView = ReloadCountingTableView()
+        coordinator.tableView = tableView
+
+        coordinator.updateStatisticsIfNeeded(statistics)
+
+        #expect(tableView.reloadCount == 0)
+        #expect(coordinator.numberOfRows(in: tableView) == 2)
+
+        coordinator.updateStatisticsIfNeeded([
+            TreemapKindStatistic(
+                kindName: "Plain Text",
+                size: 8_192,
+                fileCount: 2,
+                color: .red
+            )
+        ])
+
+        #expect(tableView.reloadCount == 1)
+        #expect(coordinator.numberOfRows(in: tableView) == 2)
+        #expect(showSelectionListCount == 0)
+    }
+}
+
+private final class ReloadCountingTableView: NSTableView {
+    private(set) var reloadCount: Int = 0
+
+    override func reloadData() {
+        reloadCount += 1
+        super.reloadData()
+    }
+}
+
 struct TreemapDiskItemDataSourceTests {
 
     @Test func kindAggregationHandlesDeepDirectoryTreesIteratively() {

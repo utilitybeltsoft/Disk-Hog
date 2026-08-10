@@ -138,8 +138,32 @@ struct SelectionListTableView: NSViewRepresentable {
         private var rows: [SelectionListRow] = []
         private var rowIndexByID: [DiskItemID: Int] = [:]
         private var resultGeneration: Int?
-        private var isApplyingSelection: Bool = false
+        private let selectionMutationGate: AppKitSelectionMutationGate = AppKitSelectionMutationGate()
         private var isApplyingSortDescriptors: Bool = false
+        private static let sortBridge: AppKitSortDescriptorBridge<SelectionListSortField> = AppKitSortDescriptorBridge(
+            keyForField: { field in
+                switch field {
+                case .name:
+                    SelectionListSortKey.name
+                case .path:
+                    SelectionListSortKey.path
+                case .size:
+                    SelectionListSortKey.size
+                }
+            },
+            fieldForKey: { key in
+                switch key {
+                case SelectionListSortKey.name:
+                    .name
+                case SelectionListSortKey.path:
+                    .path
+                case SelectionListSortKey.size:
+                    .size
+                default:
+                    nil
+                }
+            }
+        )
 
         init(
             selectedItemID: Binding<DiskItemID?>,
@@ -222,7 +246,7 @@ struct SelectionListTableView: NSViewRepresentable {
         }
 
         func tableViewSelectionDidChange(_ notification: Notification) {
-            guard !isApplyingSelection,
+            guard !selectionMutationGate.isApplyingSelection,
                   let tableView,
                   rows.indices.contains(tableView.selectedRow) else {
                 return
@@ -239,7 +263,7 @@ struct SelectionListTableView: NSViewRepresentable {
         ) {
             guard !isApplyingSortDescriptors,
                   let descriptor: NSSortDescriptor = tableView.sortDescriptors.first,
-                  let field: SelectionListSortField = Self.sortField(for: descriptor) else {
+                  let field: SelectionListSortField = Self.sortBridge.field(for: descriptor) else {
                 return
             }
 
@@ -259,9 +283,9 @@ struct SelectionListTableView: NSViewRepresentable {
             guard let selectedItemID: DiskItemID = selectedItemID.wrappedValue,
                   let selectedRow: Int = rowIndexByID[selectedItemID] else {
                 if tableView.selectedRow >= 0 {
-                    isApplyingSelection = true
-                    tableView.deselectAll(nil)
-                    isApplyingSelection = false
+                    selectionMutationGate.perform {
+                        tableView.deselectAll(nil)
+                    }
                 }
                 return
             }
@@ -270,13 +294,13 @@ struct SelectionListTableView: NSViewRepresentable {
                 return
             }
 
-            isApplyingSelection = true
-            tableView.selectRowIndexes(
-                IndexSet(integer: selectedRow),
-                byExtendingSelection: false
-            )
-            tableView.scrollRowToVisible(selectedRow)
-            isApplyingSelection = false
+            selectionMutationGate.perform {
+                tableView.selectRowIndexes(
+                    IndexSet(integer: selectedRow),
+                    byExtendingSelection: false
+                )
+                tableView.scrollRowToVisible(selectedRow)
+            }
         }
 
         func syncSortDescriptors() {
@@ -286,21 +310,18 @@ struct SelectionListTableView: NSViewRepresentable {
             }
 
             let currentDescriptor: NSSortDescriptor? = tableView.sortDescriptors.first
-            let currentField: SelectionListSortField?
-            if let currentDescriptor {
-                currentField = Self.sortField(for: currentDescriptor)
-            } else {
-                currentField = nil
-            }
-            if currentField == descriptor.field,
-               currentDescriptor?.ascending == descriptor.isAscending {
+            if Self.sortBridge.descriptor(
+                currentDescriptor,
+                matches: descriptor.field,
+                ascending: descriptor.isAscending
+            ) {
                 return
             }
 
             isApplyingSortDescriptors = true
             tableView.sortDescriptors = [
-                NSSortDescriptor(
-                    key: Self.sortKey(for: descriptor.field),
+                Self.sortBridge.descriptor(
+                    for: descriptor.field,
                     ascending: descriptor.isAscending
                 )
             ]
@@ -312,11 +333,9 @@ struct SelectionListTableView: NSViewRepresentable {
             tableView: NSTableView
         ) -> SelectionListNameCellView {
             let identifier: NSUserInterfaceItemIdentifier = SelectionListCellID.name
-            let cell: SelectionListNameCellView = tableView.makeView(
-                withIdentifier: identifier,
-                owner: self
-            ) as? SelectionListNameCellView ?? SelectionListNameCellView()
-            cell.identifier = identifier
+            let cell: SelectionListNameCellView = tableView.reusableView(withIdentifier: identifier, owner: self) {
+                SelectionListNameCellView()
+            }
             cell.configure(row: row)
             return cell
         }
@@ -328,11 +347,9 @@ struct SelectionListTableView: NSViewRepresentable {
             lineBreakMode: NSLineBreakMode,
             tableView: NSTableView
         ) -> SelectionListTextCellView {
-            let cell: SelectionListTextCellView = tableView.makeView(
-                withIdentifier: identifier,
-                owner: self
-            ) as? SelectionListTextCellView ?? SelectionListTextCellView()
-            cell.identifier = identifier
+            let cell: SelectionListTextCellView = tableView.reusableView(withIdentifier: identifier, owner: self) {
+                SelectionListTextCellView()
+            }
             cell.configure(
                 string: string,
                 alignment: alignment,
@@ -341,31 +358,6 @@ struct SelectionListTableView: NSViewRepresentable {
             return cell
         }
 
-        private static func sortField(
-            for descriptor: NSSortDescriptor
-        ) -> SelectionListSortField? {
-            switch descriptor.key {
-            case SelectionListSortKey.name:
-                .name
-            case SelectionListSortKey.path:
-                .path
-            case SelectionListSortKey.size:
-                .size
-            default:
-                nil
-            }
-        }
-
-        private static func sortKey(for field: SelectionListSortField) -> String {
-            switch field {
-            case .name:
-                SelectionListSortKey.name
-            case .path:
-                SelectionListSortKey.path
-            case .size:
-                SelectionListSortKey.size
-            }
-        }
     }
 }
 

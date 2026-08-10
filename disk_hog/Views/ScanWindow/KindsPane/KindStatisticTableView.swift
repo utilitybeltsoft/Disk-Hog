@@ -9,6 +9,20 @@ private struct KindStatisticRow {
     let color: NSColor?
 }
 
+private struct KindStatisticSignature: Equatable {
+    let kindName: String
+    let size: UInt64
+    let fileCount: Int
+    let colorHash: Int
+
+    init(_ statistic: TreemapKindStatistic) {
+        kindName = statistic.kindName
+        size = statistic.size
+        fileCount = statistic.fileCount
+        colorHash = statistic.color.hash
+    }
+}
+
 struct KindStatisticTableView: NSViewRepresentable {
     let statistics: [TreemapKindStatistic]
     let selectedFilter: Binding<SelectionListFilter?>
@@ -108,8 +122,7 @@ struct KindStatisticTableView: NSViewRepresentable {
         context.coordinator.selectedFilter = selectedFilter
         context.coordinator.activePane = activePane
         context.coordinator.onShowSelectionList = onShowSelectionList
-        context.coordinator.applySortDescriptors(context.coordinator.tableView?.sortDescriptors ?? [])
-        context.coordinator.tableView?.reloadData()
+        context.coordinator.updateStatisticsIfNeeded(statistics)
         context.coordinator.syncSelectionIfNeeded()
     }
 
@@ -120,7 +133,9 @@ struct KindStatisticTableView: NSViewRepresentable {
         var onShowSelectionList: (SelectionListFilter) -> Void
         weak var tableView: NSTableView?
         private var sortedRows: [KindStatisticRow] = []
-        private var isApplyingSelection: Bool = false
+        private var statisticsSignature: [KindStatisticSignature]
+        private var appliedSortDescriptors: [NSSortDescriptor] = []
+        private let selectionMutationGate: AppKitSelectionMutationGate = AppKitSelectionMutationGate()
         fileprivate var isSelectingContextMenuRow: Bool = false
 
         init(
@@ -133,7 +148,21 @@ struct KindStatisticTableView: NSViewRepresentable {
             self.selectedFilter = selectedFilter
             self.activePane = activePane
             self.onShowSelectionList = onShowSelectionList
+            self.statisticsSignature = Self.signature(for: statistics)
             self.sortedRows = Self.makeRows(from: statistics)
+        }
+
+        func updateStatisticsIfNeeded(_ statistics: [TreemapKindStatistic]) {
+            let newSignature: [KindStatisticSignature] = Self.signature(for: statistics)
+            let sortDescriptors: [NSSortDescriptor] = tableView?.sortDescriptors ?? []
+            guard statisticsSignature != newSignature || appliedSortDescriptors != sortDescriptors else {
+                return
+            }
+
+            self.statistics = statistics
+            statisticsSignature = newSignature
+            applySortDescriptors(sortDescriptors)
+            tableView?.reloadData()
         }
 
         @objc func showSelectionList(_ sender: Any?) {
@@ -190,7 +219,7 @@ struct KindStatisticTableView: NSViewRepresentable {
         }
 
         func tableViewSelectionDidChange(_ notification: Notification) {
-            guard !isApplyingSelection,
+            guard !selectionMutationGate.isApplyingSelection,
                   let tableView: NSTableView = tableView else {
                 return
             }
@@ -227,9 +256,9 @@ struct KindStatisticTableView: NSViewRepresentable {
                   let selectedRow: Int = sortedRows.firstIndex(where: { statistic in
                       statistic.filter == selectedFilter
                   }) else {
-                isApplyingSelection = true
-                tableView.deselectAll(nil)
-                isApplyingSelection = false
+                selectionMutationGate.perform {
+                    tableView.deselectAll(nil)
+                }
                 return
             }
 
@@ -237,15 +266,16 @@ struct KindStatisticTableView: NSViewRepresentable {
                 return
             }
 
-            isApplyingSelection = true
-            tableView.selectRowIndexes(IndexSet(integer: selectedRow), byExtendingSelection: false)
-            if scrollToSelection {
-                tableView.scrollRowToVisible(selectedRow)
+            selectionMutationGate.perform {
+                tableView.selectRowIndexes(IndexSet(integer: selectedRow), byExtendingSelection: false)
+                if scrollToSelection {
+                    tableView.scrollRowToVisible(selectedRow)
+                }
             }
-            isApplyingSelection = false
         }
 
         func applySortDescriptors(_ sortDescriptors: [NSSortDescriptor]) {
+            appliedSortDescriptors = sortDescriptors
             guard let sortDescriptor: NSSortDescriptor = sortDescriptors.first,
                   let key: String = sortDescriptor.key else {
                 sortedRows = Self.makeRows(from: statistics)
@@ -267,10 +297,13 @@ struct KindStatisticTableView: NSViewRepresentable {
             sortedRows = [Self.allKindsRow(from: statistics)] + kindRows
         }
 
+        private static func signature(for statistics: [TreemapKindStatistic]) -> [KindStatisticSignature] {
+            statistics.map { KindStatisticSignature($0) }
+        }
+
         private func colorCell(for statistic: KindStatisticRow, tableView: NSTableView) -> NSTableCellView {
             let identifier: NSUserInterfaceItemIdentifier = KindCellID.color
-            let cell: KindColorCellView = tableView.makeView(withIdentifier: identifier, owner: self) as? KindColorCellView ?? KindColorCellView()
-            cell.identifier = identifier
+            let cell: KindColorCellView = tableView.reusableView(withIdentifier: identifier, owner: self) { KindColorCellView() }
             cell.configure(color: statistic.color ?? .clear)
             return cell
         }
@@ -303,8 +336,7 @@ struct KindStatisticTableView: NSViewRepresentable {
             identifier: NSUserInterfaceItemIdentifier,
             tableView: NSTableView
         ) -> NSTableCellView {
-            let cell: KindTextCellView = tableView.makeView(withIdentifier: identifier, owner: self) as? KindTextCellView ?? KindTextCellView()
-            cell.identifier = identifier
+            let cell: KindTextCellView = tableView.reusableView(withIdentifier: identifier, owner: self) { KindTextCellView() }
             cell.configure(string: string, alignment: alignment)
             return cell
         }
@@ -321,7 +353,9 @@ extension KindStatisticTableView.Coordinator: NSMenuDelegate {
         let row: Int = tableView.row(at: tableView.convert(event.locationInWindow, from: nil))
         if row >= 0 {
             isSelectingContextMenuRow = true
-            tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+            selectionMutationGate.perform {
+                tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+            }
             isSelectingContextMenuRow = false
         }
         menu.items.first?.isEnabled = row >= 0

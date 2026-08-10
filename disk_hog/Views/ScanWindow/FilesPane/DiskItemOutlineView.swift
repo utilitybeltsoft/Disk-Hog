@@ -94,7 +94,7 @@ struct DiskItemOutlineView: NSViewRepresentable {
         // a flyweight, so keep one wrapper per packed address for this outline's
         // current snapshot.
         private var canonicalItems: [DiskItemID: DiskItem] = [:]
-        private var isApplyingSelection: Bool = false
+        private let selectionMutationGate: AppKitSelectionMutationGate = AppKitSelectionMutationGate()
         private var selectionCancellable: AnyCancellable?
 
         init(
@@ -170,9 +170,9 @@ struct DiskItemOutlineView: NSViewRepresentable {
             }
 
             guard let item: DiskItem = canonicalItem(matching: item) else {
-                isApplyingSelection = true
-                outlineView.deselectAll(nil)
-                isApplyingSelection = false
+                selectionMutationGate.perform {
+                    outlineView.deselectAll(nil)
+                }
                 return
             }
 
@@ -183,16 +183,16 @@ struct DiskItemOutlineView: NSViewRepresentable {
             expandAncestors(of: item)
             let row: Int = outlineView.row(forItem: item)
             guard row >= 0 else {
-                isApplyingSelection = true
-                outlineView.deselectAll(nil)
-                isApplyingSelection = false
+                selectionMutationGate.perform {
+                    outlineView.deselectAll(nil)
+                }
                 return
             }
 
-            isApplyingSelection = true
-            outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
-            outlineView.scrollRowToVisible(row)
-            isApplyingSelection = false
+            selectionMutationGate.perform {
+                outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+                outlineView.scrollRowToVisible(row)
+            }
         }
 
         func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
@@ -205,8 +205,8 @@ struct DiskItemOutlineView: NSViewRepresentable {
 
         func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any {
             guard let item: DiskItem = item as? DiskItem else {
-            return canonicalItem(rootItem!)
-        }
+                return canonicalItem(rootItem!)
+            }
 
             return canonicalItem(item.child(at: index))
         }
@@ -233,7 +233,7 @@ struct DiskItemOutlineView: NSViewRepresentable {
         }
 
         func outlineViewSelectionDidChange(_ notification: Notification) {
-            guard !isApplyingSelection,
+            guard !selectionMutationGate.isApplyingSelection,
                   let outlineView: NSOutlineView = outlineView else {
                 return
             }
@@ -320,16 +320,14 @@ struct DiskItemOutlineView: NSViewRepresentable {
 
         private func nameCell(for item: DiskItem, outlineView: NSOutlineView) -> NSTableCellView {
             let identifier: NSUserInterfaceItemIdentifier = DiskItemOutlineCellID.name
-            let cell: DiskItemNameCellView = outlineView.makeView(withIdentifier: identifier, owner: self) as? DiskItemNameCellView ?? DiskItemNameCellView()
-            cell.identifier = identifier
+            let cell: DiskItemNameCellView = outlineView.reusableView(withIdentifier: identifier, owner: self) { DiskItemNameCellView() }
             cell.configure(item: item)
             return cell
         }
 
         private func sizeCell(for item: DiskItem, outlineView: NSOutlineView) -> NSTableCellView {
             let identifier: NSUserInterfaceItemIdentifier = DiskItemOutlineCellID.size
-            let cell: DiskItemSizeCellView = outlineView.makeView(withIdentifier: identifier, owner: self) as? DiskItemSizeCellView ?? DiskItemSizeCellView()
-            cell.identifier = identifier
+            let cell: DiskItemSizeCellView = outlineView.reusableView(withIdentifier: identifier, owner: self) { DiskItemSizeCellView() }
             cell.configure(item: item, usePhysicalSize: usePhysicalSize)
             return cell
         }
@@ -357,9 +355,9 @@ extension DiskItemOutlineView.Coordinator: NSMenuDelegate {
             let row: Int = outlineView.row(at: point)
             if row >= 0, let item: DiskItem = outlineView.item(atRow: row) as? DiskItem {
                 activePane.wrappedValue = .files
-                isApplyingSelection = true
-                outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
-                isApplyingSelection = false
+                selectionMutationGate.perform {
+                    outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+                }
                 selectionCoordinator.setSelectedItem(item)
                 return item
             }
