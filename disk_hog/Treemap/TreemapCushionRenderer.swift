@@ -51,16 +51,15 @@ final class TreemapCushionRenderer {
         surface[1] -= hf
     }
 
-    func renderCushion(in bitmap: NSBitmapImageRep) {
-        renderCushionGeneric(in: bitmap)
+    func renderCushion(in bitmap: NSBitmapImageRep, backingScaleFactor: CGFloat = 1) {
+        renderCushionGeneric(in: bitmap, backingScaleFactor: backingScaleFactor)
     }
 
-    func renderCushionGeneric(in bitmap: NSBitmapImageRep) {
+    func renderCushionGeneric(in bitmap: NSBitmapImageRep, backingScaleFactor: CGFloat = 1) {
+        precondition(backingScaleFactor > 0)
         let rect: NSRect = self.rect
         let surface: [CGFloat] = self.surface
         let baseColor: NSColor = self.color
-        assert(rect.maxY <= CGFloat(bitmap.pixelsHigh))
-        assert(rect.maxX <= CGFloat(bitmap.pixelsWide))
         assert(bitmap.bitsPerSample == 8)
         assert(!bitmap.hasAlpha)
         let ambientLight: Double = 0.15
@@ -77,15 +76,19 @@ final class TreemapCushionRenderer {
         let baseBlue: CGFloat = baseColor.blueComponent
         let pixels: UnsafeMutablePointer<UInt8> = bitmap.bitmapData!
         let bytesPerRow: Int = bitmap.bytesPerRow
-        let yStart: Int = Int(rect.minY)
-        let yEnd: Int = Int(rect.maxY)
-        let xStart: Int = Int(rect.minX)
-        let xEnd: Int = Int(rect.maxX)
+        let yStart: Int = Int((rect.minY * backingScaleFactor).rounded(.down))
+        let yEnd: Int = Int((rect.maxY * backingScaleFactor).rounded(.up))
+        let xStart: Int = Int((rect.minX * backingScaleFactor).rounded(.down))
+        let xEnd: Int = Int((rect.maxX * backingScaleFactor).rounded(.up))
+        assert(yStart >= 0 && yEnd <= bitmap.pixelsHigh)
+        assert(xStart >= 0 && xEnd <= bitmap.pixelsWide)
         for y: Int in yStart..<yEnd {
             let rowStart: UnsafeMutablePointer<UInt8> = pixels + y * bytesPerRow
-            let normalY: Double = -(2 * Double(surface[1]) * (Double(y) + 0.5) + Double(surface[3]))
+            let pointY: Double = (Double(y) + 0.5) / Double(backingScaleFactor)
+            let normalY: Double = -(2 * Double(surface[1]) * pointY + Double(surface[3]))
             for x: Int in xStart..<xEnd {
-                let normalX: Double = -(2 * Double(surface[0]) * (Double(x) + 0.5) + Double(surface[2]))
+                let pointX: Double = (Double(x) + 0.5) / Double(backingScaleFactor)
+                let normalX: Double = -(2 * Double(surface[0]) * pointX + Double(surface[2]))
                 let cosine: Double = (normalX * normalizedLightX + normalY * normalizedLightY + normalizedLightZ) / sqrt(normalX * normalX + normalY * normalY + 1.0)
                 var brightness: Double = brightnessLight * cosine
                 brightness = brightness < 0 ? ambientLight : (brightness + ambientLight)

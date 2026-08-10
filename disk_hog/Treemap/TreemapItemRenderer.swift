@@ -49,8 +49,13 @@ final class TreemapItemRenderer {
         }
     }
 
-    func drawCushion(in bitmap: NSBitmapImageRep) {
-        drawCushion(in: bitmap, parentCushion: nil, cushionHeightFactor: 0.5)
+    func drawCushion(in bitmap: NSBitmapImageRep, backingScaleFactor: CGFloat) {
+        drawCushion(
+            in: bitmap,
+            backingScaleFactor: backingScaleFactor,
+            parentCushion: nil,
+            cushionHeightFactor: 0.5
+        )
     }
 
     var isLeaf: Bool {
@@ -170,7 +175,7 @@ final class TreemapItemRenderer {
         return nil
     }
 
-    private func drawCushion(in bitmap: NSBitmapImageRep, parentCushion: TreemapCushionRenderer?, cushionHeightFactor heightFactor: CGFloat) {
+    private func drawCushion(in bitmap: NSBitmapImageRep, backingScaleFactor: CGFloat, parentCushion: TreemapCushionRenderer?, cushionHeightFactor heightFactor: CGFloat) {
         if rectValue.height < 1 || rectValue.width < 1 {
             return
         }
@@ -180,10 +185,15 @@ final class TreemapItemRenderer {
         }
         if isLeaf {
             dataSource?.prepareRenderer(self, for: renderedItem)
-            cushionRenderer.renderCushion(in: bitmap)
+            cushionRenderer.renderCushion(in: bitmap, backingScaleFactor: backingScaleFactor)
         } else {
             for childRenderer: TreemapItemRenderer in childEnumerator {
-                childRenderer.drawCushion(in: bitmap, parentCushion: cushionRenderer, cushionHeightFactor: heightFactor * Self.cushionScaleFactor)
+                childRenderer.drawCushion(
+                    in: bitmap,
+                    backingScaleFactor: backingScaleFactor,
+                    parentCushion: cushionRenderer,
+                    cushionHeightFactor: heightFactor * Self.cushionScaleFactor
+                )
             }
         }
     }

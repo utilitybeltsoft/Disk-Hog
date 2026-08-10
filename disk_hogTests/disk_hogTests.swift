@@ -94,7 +94,7 @@ struct ScanWindowCommandStateSelectionTests {
 
 @MainActor
 struct DiskItemOutlineIdentityTests {
-    @Test func returnsCanonicalItemsAndFindsTheirRows() {
+    @Test func returnsCanonicalItemsAndFindsTheirRows() throws {
         let child: DiskItem = DiskItem(
             url: URL(fileURLWithPath: "/scan/child.txt"),
             allocatedSizeValue: 8,
@@ -1415,6 +1415,35 @@ private final class TreemapProgressRecorder: @unchecked Sendable {
 @MainActor
 struct TreemapViewRendererTests {
 
+    @Test func bitmapCacheRebuildsForBackingScaleAndColorSpace() throws {
+        let root: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/file.bin"),
+            allocatedSizeValue: 100,
+            logicalSizeValue: 100
+        )
+        let renderer: TreemapViewRenderer = TreemapViewRenderer(
+            dataSource: TreemapDiskItemDataSource(rootItem: root)
+        )
+        renderer.reloadData()
+        renderer.calcLayout(NSRect(x: 0, y: 0, width: 50, height: 40))
+
+        let standardScale: NSBitmapImageRep = try #require(
+            renderer.drawInCache(size: NSSize(width: 50, height: 40), scale: 1, colorSpace: .genericRGB)
+        )
+        let retinaScale: NSBitmapImageRep = try #require(
+            renderer.drawInCache(size: NSSize(width: 50, height: 40), scale: 2, colorSpace: .genericRGB)
+        )
+        let displayP3: NSBitmapImageRep = try #require(
+            renderer.drawInCache(size: NSSize(width: 50, height: 40), scale: 2, colorSpace: .displayP3)
+        )
+
+        #expect(retinaScale !== standardScale)
+        #expect(retinaScale.pixelsWide == 100)
+        #expect(retinaScale.pixelsHigh == 80)
+        #expect(displayP3 !== retinaScale)
+        #expect(displayP3.colorSpace.isEqual(NSColorSpace.displayP3))
+    }
+
     @Test func renderedItemSelectionWorksImmediatelyAfterReload() {
         let rootBuilder: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan"),
@@ -1625,7 +1654,25 @@ struct TreemapViewRendererTests {
     }
 }
 
+@MainActor
 struct TreemapCushionRendererTests {
+
+    @Test func fillsTheFullPixelAreaOfARetinaBitmap() throws {
+        let bitmap: NSBitmapImageRep = NSBitmapImageRep.treemapImageRepCompatible(
+            withBounds: NSRect(x: 0, y: 0, width: 100, height: 100),
+            backingScaleFactor: 2,
+            colorSpace: .genericRGB
+        )
+        let renderer: TreemapCushionRenderer = TreemapCushionRenderer(
+            rect: NSRect(x: 0, y: 0, width: 100, height: 100)
+        )
+        renderer.setColor(NSColor.red)
+        renderer.renderCushion(in: bitmap, backingScaleFactor: 2)
+
+        let bytes: UnsafeMutablePointer<UInt8> = try #require(bitmap.bitmapData)
+        let pixelOutsidePointSpace: UnsafeMutablePointer<UInt8> = bytes + 150 * bitmap.bytesPerRow + 150 * 3
+        #expect(pixelOutsidePointSpace[0] > 0)
+    }
 
     @Test func colorNormalizationRedistributesOverflowAcrossRemainingChannels() {
         var red: CGFloat = 1.4

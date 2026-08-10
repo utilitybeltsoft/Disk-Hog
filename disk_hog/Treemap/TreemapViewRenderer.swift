@@ -7,6 +7,9 @@ final class TreemapViewRenderer {
     private var selectedRenderer: TreemapItemRenderer?
     private var touchedRenderer: TreemapItemRenderer?
     private var cachedContent: NSBitmapImageRep?
+    private var cachedSize: NSSize?
+    private var cachedScale: CGFloat?
+    private var cachedColorSpace: NSColorSpace?
     private let rootItem: DiskItem
 
     init(dataSource: TreemapDiskItemDataSource) {
@@ -126,12 +129,15 @@ final class TreemapViewRenderer {
     }
 
     func drawInCache(size: NSSize, scale: CGFloat = 1, colorSpace: NSColorSpace? = nil) -> NSBitmapImageRep? {
-        if cachedContent != nil {
+        if let cachedContent,
+           cachedSize == size,
+           cachedScale == scale,
+           colorSpacesMatch(cachedColorSpace, colorSpace) {
             return cachedContent
         }
         allocContentCache(size: size, scale: scale, colorSpace: colorSpace)
         if rootItemRenderer != nil {
-            rootItemRenderer?.drawCushion(in: cachedContent!)
+            rootItemRenderer?.drawCushion(in: cachedContent!, backingScaleFactor: scale)
         }
         return cachedContent
     }
@@ -141,13 +147,28 @@ final class TreemapViewRenderer {
     }
 
     private func allocContentCache(size: NSSize, scale: CGFloat, colorSpace: NSColorSpace?) {
-        cachedContent = nil
+        deallocContentCache()
         cachedContent = NSBitmapImageRep.treemapImageRepCompatible(withBounds: NSRect(origin: .zero, size: size), backingScaleFactor: scale, colorSpace: colorSpace)
+        cachedSize = size
+        cachedScale = scale
+        cachedColorSpace = colorSpace
     }
 
     private func deallocContentCache() {
-        if cachedContent != nil {
-            cachedContent = nil
+        cachedContent = nil
+        cachedSize = nil
+        cachedScale = nil
+        cachedColorSpace = nil
+    }
+
+    private func colorSpacesMatch(_ first: NSColorSpace?, _ second: NSColorSpace?) -> Bool {
+        switch (first, second) {
+        case (nil, nil):
+            true
+        case let (first?, second?):
+            first.isEqual(second)
+        default:
+            false
         }
     }
 

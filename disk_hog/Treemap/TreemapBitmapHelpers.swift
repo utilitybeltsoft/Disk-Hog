@@ -5,7 +5,10 @@ extension NSBitmapImageRep {
         let viewBounds: NSRect = bounds
         let sizePoints: NSSize = viewBounds.size
         let sizePixel: NSSize = NSSize(width: sizePoints.width * scale, height: sizePoints.height * scale)
-        var imgRep: NSBitmapImageRep = NSBitmapImageRep(treemapRGBBitmapWithWidth: Int(sizePixel.width), height: Int(sizePixel.height))
+        var imgRep: NSBitmapImageRep = NSBitmapImageRep(
+            treemapRGBBitmapWithWidth: Int(sizePixel.width.rounded(.up)),
+            height: Int(sizePixel.height.rounded(.up))
+        )
         imgRep.size = sizePoints
         if colorSpace != nil {
             let colorSpace: NSColorSpace = colorSpace!
