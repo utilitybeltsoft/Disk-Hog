@@ -2,6 +2,7 @@
 import AppKit
 #endif
 import Combine
+import Darwin
 import Foundation
 
 @MainActor
@@ -24,7 +25,7 @@ final class ScanSession: ObservableObject {
     @Published private(set) var isBuildingTreemap: Bool
     @Published private(set) var treemapPreparationProgress: Double?
     @Published private(set) var isPackageContentsSettingOutOfSync: Bool
-    @Published private(set) var errorMessage: String?
+    @Published private(set) var failure: ScanSessionFailure?
     #if FILE_MATCHING_DIAGNOSTICS
     @Published private(set) var diagnosticsExportState: DiagnosticsExportState
     #endif
@@ -59,7 +60,7 @@ final class ScanSession: ObservableObject {
         self.isBuildingTreemap = false
         self.treemapPreparationProgress = nil
         self.isPackageContentsSettingOutOfSync = false
-        self.errorMessage = nil
+        self.failure = nil
         #if FILE_MATCHING_DIAGNOSTICS
         self.diagnosticsExportState = .idle
         #endif
@@ -96,6 +97,14 @@ final class ScanSession: ObservableObject {
     }
 
     func startScan() {
+        startScan(preservingFailure: false)
+    }
+
+    func dismissFailure() {
+        failure = nil
+    }
+
+    private func startScan(preservingFailure: Bool) {
         guard state != .scanning else {
             return
         }
@@ -119,7 +128,9 @@ final class ScanSession: ObservableObject {
         isUpdatingTree = false
         isBuildingTreemap = false
         treemapPreparationProgress = nil
-        errorMessage = nil
+        if !preservingFailure {
+            failure = nil
+        }
 
         let source: ScanSource = source
         let settings: DiskScanSettings = settings
@@ -276,7 +287,12 @@ final class ScanSession: ObservableObject {
             } catch is CancellationError {
                 await MainActor.run { self.finishTreeUpdateCancellation() }
             } catch {
-                await MainActor.run { self.finishTreeUpdateFailure(error) }
+                await MainActor.run {
+                    self.finishTreeUpdateFailure(
+                        error,
+                        operation: .refresh(itemName: item.displayName)
+                    )
+                }
             }
         }
     }
@@ -332,7 +348,15 @@ final class ScanSession: ObservableObject {
             } catch is CancellationError {
                 await MainActor.run { self.finishTreeUpdateCancellation() }
             } catch {
-                await MainActor.run { self.finishTreeUpdateFailure(error) }
+                await MainActor.run {
+                    self.finishTreeUpdateFailure(
+                        error,
+                        operation: .deletion(
+                            itemName: item.displayName,
+                            method: deletionMethod
+                        )
+                    )
+                }
             }
         }
     }
@@ -451,7 +475,7 @@ final class ScanSession: ObservableObject {
 
     private func beginTreeUpdate() {
         isUpdatingTree = true
-        errorMessage = nil
+        failure = nil
     }
 
     private func finishTreeUpdate(
@@ -548,14 +572,14 @@ final class ScanSession: ObservableObject {
         restartIfRequested()
     }
 
-    private func finishTreeUpdateFailure(_ error: Error) {
+    private func finishTreeUpdateFailure(_ error: Error, operation: ScanSessionOperation) {
         isUpdatingTree = false
         treeUpdateTask = nil
+        failure = ScanSessionFailure(error: error, operation: operation)
         if restartsAfterCancellation {
             restartIfRequested()
             return
         }
-        errorMessage = error.localizedDescription
     }
 
     nonisolated private static func nearestExistingPath(from path: String, stoppingAt rootPath: String) -> String {
@@ -589,11 +613,14 @@ final class ScanSession: ObservableObject {
         state = .failed
         completedAt = Date()
         scanTask = nil
+        failure = ScanSessionFailure(
+            error: error,
+            operation: .scan(itemName: source.displayName)
+        )
         if restartsAfterCancellation {
             restartIfRequested()
             return
         }
-        errorMessage = error.localizedDescription
     }
 
     private func applyTreemapPreparationProgress(_ progress: Double) {
@@ -609,7 +636,7 @@ final class ScanSession: ObservableObject {
         }
 
         restartsAfterCancellation = false
-        startScan()
+        startScan(preservingFailure: true)
     }
 }
 
@@ -633,6 +660,112 @@ enum ScanSessionState: Hashable {
         case .failed:
             return String(localized: "Failed")
         }
+    }
+}
+
+enum ScanSessionOperation: Equatable {
+    case scan(itemName: String)
+    case refresh(itemName: String)
+    case deletion(itemName: String, method: DiskItemDeletionMethod)
+
+    var itemName: String {
+        switch self {
+        case .scan(let itemName), .refresh(let itemName), .deletion(let itemName, _):
+            return itemName
+        }
+    }
+
+    var action: String {
+        switch self {
+        case .scan:
+            return String(localized: "scan")
+        case .refresh:
+            return String(localized: "refresh")
+        case .deletion(_, .moveToTrash):
+            return String(localized: "move to the Trash")
+        case .deletion(_, .deletePermanently):
+            return String(localized: "delete")
+        }
+    }
+}
+
+struct ScanSessionFailure: Identifiable, Equatable {
+    let id: UUID
+    let title: String
+    let message: String
+    let recoverySuggestion: String
+
+    init(error: Error, operation: ScanSessionOperation) {
+        self.id = UUID()
+        self.title = String(localized: "Couldn't \(operation.action) \"\(operation.itemName)\".")
+
+        switch Self.category(for: error) {
+        case .permissionDenied:
+            self.message = String(localized: "Disk Hog does not have permission to \(operation.action) this item.")
+            self.recoverySuggestion = String(localized: "Check the item's permissions, or choose a folder that Disk Hog is allowed to access.")
+        case .readOnlyVolume:
+            self.message = String(localized: "This volume is read-only, so Disk Hog cannot \(operation.action) this item.")
+            self.recoverySuggestion = String(localized: "Choose a writable volume, or make the change in Finder if it is available there.")
+        case .itemUnavailable:
+            self.message = String(localized: "The item is no longer available at the expected location.")
+            self.recoverySuggestion = String(localized: "Refresh the enclosing folder or scan it again.")
+        case .busyOrProtected:
+            self.message = String(localized: "The item may be in use, locked, or protected by macOS.")
+            self.recoverySuggestion = String(localized: "Close apps that may be using it, then try again. If it is protected, use Finder or change its permissions first.")
+        case .other:
+            self.message = error.localizedDescription
+            self.recoverySuggestion = String(localized: "Try again. If the problem continues, check that the volume is available and that Disk Hog has access to it.")
+        }
+    }
+
+    var statusMessage: String {
+        title
+    }
+
+    private enum Category {
+        case permissionDenied
+        case readOnlyVolume
+        case itemUnavailable
+        case busyOrProtected
+        case other
+    }
+
+    private static func category(for error: Error) -> Category {
+        let errors: [NSError] = errorChain(startingAt: error as NSError)
+
+        if errors.contains(where: { $0.domain == NSPOSIXErrorDomain && $0.code == Int(EROFS) })
+            || errors.contains(where: { $0.domain == NSCocoaErrorDomain && $0.code == NSFileWriteVolumeReadOnlyError }) {
+            return .readOnlyVolume
+        }
+        if errors.contains(where: { $0.domain == NSPOSIXErrorDomain && ($0.code == Int(EACCES) || $0.code == Int(EPERM)) })
+            || errors.contains(where: {
+                $0.domain == NSCocoaErrorDomain
+                    && ($0.code == NSFileReadNoPermissionError || $0.code == NSFileWriteNoPermissionError)
+            }) {
+            return .permissionDenied
+        }
+        if errors.contains(where: { $0.domain == NSPOSIXErrorDomain && $0.code == Int(ENOENT) })
+            || errors.contains(where: {
+                $0.domain == NSCocoaErrorDomain
+                    && ($0.code == NSFileNoSuchFileError || $0.code == NSFileReadNoSuchFileError)
+            }) {
+            return .itemUnavailable
+        }
+        if errors.contains(where: { $0.domain == NSPOSIXErrorDomain && $0.code == Int(EBUSY) }) {
+            return .busyOrProtected
+        }
+        return .other
+    }
+
+    private static func errorChain(startingAt error: NSError) -> [NSError] {
+        var errors: [NSError] = [error]
+        var currentError: NSError? = error
+        while let underlyingError: NSError = currentError?.userInfo[NSUnderlyingErrorKey] as? NSError,
+              !errors.contains(where: { $0 === underlyingError }) {
+            errors.append(underlyingError)
+            currentError = underlyingError
+        }
+        return errors
     }
 }
 

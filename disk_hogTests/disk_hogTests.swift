@@ -6,10 +6,58 @@
 
 import AppKit
 import Combine
+import Darwin
 import Foundation
 import SwiftUI
 import Testing
 @testable import disk_hog
+
+struct ScanSessionFailureTests {
+    @Test func givesPermissionRecoveryAdvice() {
+        let failure: ScanSessionFailure = ScanSessionFailure(
+            error: NSError(domain: NSPOSIXErrorDomain, code: Int(EACCES)),
+            operation: .deletion(itemName: "Locked File", method: .moveToTrash)
+        )
+
+        #expect(failure.title.contains("Locked File"))
+        #expect(failure.message.contains("permission"))
+        #expect(failure.recoverySuggestion.contains("permissions"))
+    }
+
+    @Test func givesReadOnlyVolumeRecoveryAdvice() {
+        let failure: ScanSessionFailure = ScanSessionFailure(
+            error: NSError(domain: NSPOSIXErrorDomain, code: Int(EROFS)),
+            operation: .deletion(itemName: "Archive", method: .deletePermanently)
+        )
+
+        #expect(failure.message.contains("read-only"))
+        #expect(failure.recoverySuggestion.contains("writable volume"))
+    }
+
+    @Test func givesMissingItemRecoveryAdvice() {
+        let failure: ScanSessionFailure = ScanSessionFailure(
+            error: NSError(domain: NSPOSIXErrorDomain, code: Int(ENOENT)),
+            operation: .refresh(itemName: "Missing Folder")
+        )
+
+        #expect(failure.message.contains("no longer available"))
+        #expect(failure.recoverySuggestion.contains("Refresh"))
+    }
+
+    @Test func preservesUnknownSystemDetail() {
+        let failure: ScanSessionFailure = ScanSessionFailure(
+            error: NSError(
+                domain: "TestFailure",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "The test operation failed."]
+            ),
+            operation: .scan(itemName: "Test Volume")
+        )
+
+        #expect(failure.message == "The test operation failed.")
+        #expect(failure.recoverySuggestion.contains("Try again"))
+    }
+}
 
 @MainActor
 struct ApplicationStateRestorationTests {

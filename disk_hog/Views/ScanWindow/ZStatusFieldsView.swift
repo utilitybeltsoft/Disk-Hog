@@ -81,7 +81,9 @@ struct ZStatusFieldsView: View {
             }
 
             return String(localized: "Scan complete")
-        case .ready, .scanning, .cancelled, .failed:
+        case .failed:
+            return session.failure?.statusMessage ?? String(localized: "Scan failed")
+        case .ready, .scanning, .cancelled:
             return session.isBuildingTreemap
                 ? preparingTreemapStatus(referenceDate: referenceDate)
                 : session.state.title
