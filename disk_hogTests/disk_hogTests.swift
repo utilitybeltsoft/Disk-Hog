@@ -2753,10 +2753,10 @@ struct TreemapViewRendererTests {
             allocatedSizeValue: 100,
             logicalSizeValue: 100
         )
-        let renderer: TreemapViewRenderer = TreemapViewRenderer(
-            dataSource: TreemapDiskItemDataSource(rootItem: root)
-        )
+        let dataSource: TreemapDiskItemDataSource = TreemapDiskItemDataSource(rootItem: root)
+        let renderer: TreemapViewRenderer = TreemapViewRenderer(dataSource: dataSource)
         renderer.reloadData()
+        #expect(renderer.rootCellID != nil)
         renderer.calcLayout(NSRect(x: 0, y: 0, width: 50, height: 40))
 
         let standardScale: NSBitmapImageRep = try #require(
@@ -2783,11 +2783,11 @@ struct TreemapViewRendererTests {
             logicalSizeValue: 100,
             kindName: "Binary"
         )
-        let renderer: TreemapViewRenderer = TreemapViewRenderer(
-            dataSource: TreemapDiskItemDataSource(rootItem: root)
-        )
+        let dataSource: TreemapDiskItemDataSource = TreemapDiskItemDataSource(rootItem: root)
+        let renderer: TreemapViewRenderer = TreemapViewRenderer(dataSource: dataSource)
 
         renderer.reloadData()
+        #expect(renderer.rootCellID != nil)
         renderer.calcLayout(NSRect(x: 0, y: 0, width: 100, height: 100))
         let bitmap: NSBitmapImageRep = try #require(
             renderer.drawInCache(size: NSSize(width: 100, height: 100), scale: 2, colorSpace: .genericRGB)
