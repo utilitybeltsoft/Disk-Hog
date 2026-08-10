@@ -30,7 +30,7 @@ final class ScanSession: ObservableObject {
     @Published private(set) var diagnosticsExportState: DiagnosticsExportState
     #endif
 
-    let source: ScanSource
+    private(set) var source: ScanSource
 
     private var settings: DiskScanSettings
     private var scanTask: Task<Void, Never>?
@@ -147,6 +147,10 @@ final class ScanSession: ObservableObject {
 
         scanTask = Task.detached(priority: .userInitiated) {
             do {
+                let source: ScanSource = try Self.refreshingStaleBookmark(in: source)
+                await MainActor.run {
+                    self.source = source
+                }
                 let scanner: DiskInventoryZScanner = DiskInventoryZScanner()
                 let rootItem: DiskItem = try await scanner.scan(
                     source: source,
@@ -250,6 +254,10 @@ final class ScanSession: ObservableObject {
 
         treeUpdateTask = Task.detached(priority: .userInitiated) {
             do {
+                let source: ScanSource = try Self.refreshingStaleBookmark(in: source)
+                await MainActor.run {
+                    self.source = source
+                }
                 let refreshPath: String = Self.nearestExistingPath(from: item.path, stoppingAt: currentRoot.path)
                 let scanner: DiskInventoryZScanner = DiskInventoryZScanner()
                 let updatedRoot: DiskItem
@@ -313,6 +321,10 @@ final class ScanSession: ObservableObject {
 
         treeUpdateTask = Task.detached(priority: .userInitiated) {
             do {
+                let source: ScanSource = try Self.refreshingStaleBookmark(in: source)
+                await MainActor.run {
+                    self.source = source
+                }
                 let rootURL: URL = try source.resolvedURL()
                 let didStartSecurityScopedAccess: Bool = rootURL.startAccessingSecurityScopedResource()
                 defer { if didStartSecurityScopedAccess { rootURL.stopAccessingSecurityScopedResource() } }
@@ -596,6 +608,14 @@ final class ScanSession: ObservableObject {
             candidateURL = parentURL
         }
         return candidateURL.path
+    }
+
+    nonisolated private static func refreshingStaleBookmark(in source: ScanSource) throws -> ScanSource {
+        let resolution: ScanSourceBookmarkResolution = try source.resolvingBookmark()
+        guard let refreshedBookmarkData: Data = resolution.refreshedBookmarkData else {
+            return source
+        }
+        return source.replacingBookmarkData(refreshedBookmarkData)
     }
 
     private func finishCancellation() {

@@ -59,6 +59,40 @@ struct ScanSessionFailureTests {
     }
 }
 
+struct ScanSourceBookmarkTests {
+    @Test func refreshesBookmarkDataWhenResolutionIsStale() throws {
+        let originalBookmark: Data = Data([1])
+        let refreshedBookmark: Data = Data([2])
+        let url: URL = URL(fileURLWithPath: "/scan")
+
+        let resolution: ScanSourceBookmarkResolution = try ScanSource.bookmarkResolution(
+            for: originalBookmark,
+            resolving: { _ in (url, true) },
+            creating: { _ in refreshedBookmark }
+        )
+
+        #expect(resolution.url == url)
+        #expect(resolution.refreshedBookmarkData == refreshedBookmark)
+    }
+
+    @Test func leavesCurrentBookmarkDataUnchanged() throws {
+        let originalBookmark: Data = Data([1])
+        var didCreateBookmark: Bool = false
+
+        let resolution: ScanSourceBookmarkResolution = try ScanSource.bookmarkResolution(
+            for: originalBookmark,
+            resolving: { _ in (URL(fileURLWithPath: "/scan"), false) },
+            creating: { _ in
+                didCreateBookmark = true
+                return Data([2])
+            }
+        )
+
+        #expect(resolution.refreshedBookmarkData == nil)
+        #expect(didCreateBookmark == false)
+    }
+}
+
 @MainActor
 struct ScanWindowCommandStateSelectionTests {
     @Test func retainsCommandTargetWhenSelectionReplacesAnEqualFlyweight() {

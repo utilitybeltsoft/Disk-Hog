@@ -24,7 +24,7 @@ struct ScanSource: Codable, Hashable, Identifiable {
     let scanDisabledReason: String?
     let scanSettings: DiskScanSettings?
 
-    init(
+    nonisolated init(
         path: String,
         displayName: String,
         bookmarkData: Data? = nil,
@@ -94,17 +94,64 @@ struct ScanSource: Codable, Hashable, Identifiable {
         return .externalVolume
     }
 
-    nonisolated func resolvedURL() throws -> URL {
+    nonisolated func resolvingBookmark() throws -> ScanSourceBookmarkResolution {
         guard let bookmarkData: Data = bookmarkData else {
-            return url
+            return ScanSourceBookmarkResolution(url: url, refreshedBookmarkData: nil)
         }
 
-        var isStale: Bool = false
-        return try URL(
-            resolvingBookmarkData: bookmarkData,
-            options: [.withSecurityScope],
-            relativeTo: nil,
-            bookmarkDataIsStale: &isStale
+        return try Self.bookmarkResolution(
+            for: bookmarkData,
+            resolving: { bookmarkData in
+                var isStale: Bool = false
+                let resolvedURL: URL = try URL(
+                    resolvingBookmarkData: bookmarkData,
+                    options: [.withSecurityScope],
+                    relativeTo: nil,
+                    bookmarkDataIsStale: &isStale
+                )
+                return (resolvedURL, isStale)
+            },
+            creating: { resolvedURL in
+                try resolvedURL.bookmarkData(
+                    options: [.withSecurityScope],
+                    includingResourceValuesForKeys: nil,
+                    relativeTo: nil
+                )
+            }
+        )
+    }
+
+    nonisolated func resolvedURL() throws -> URL {
+        try resolvingBookmark().url
+    }
+
+    nonisolated func replacingBookmarkData(_ bookmarkData: Data) -> ScanSource {
+        ScanSource(
+            path: path,
+            displayName: displayName,
+            bookmarkData: bookmarkData,
+            volumeFormat: volumeFormat,
+            totalCapacity: totalCapacity,
+            availableCapacity: availableCapacity,
+            isLocalVolume: isLocalVolume,
+            isRemovableVolume: isRemovableVolume,
+            isEjectableVolume: isEjectableVolume,
+            isInternalVolume: isInternalVolume,
+            isDiskImageVolume: isDiskImageVolume,
+            scanDisabledReason: scanDisabledReason,
+            scanSettings: scanSettings
+        )
+    }
+
+    nonisolated static func bookmarkResolution(
+        for bookmarkData: Data,
+        resolving: (Data) throws -> (url: URL, isStale: Bool),
+        creating: (URL) throws -> Data
+    ) throws -> ScanSourceBookmarkResolution {
+        let result: (url: URL, isStale: Bool) = try resolving(bookmarkData)
+        return ScanSourceBookmarkResolution(
+            url: result.url,
+            refreshedBookmarkData: result.isStale ? try creating(result.url) : nil
         )
     }
 
@@ -125,6 +172,11 @@ struct ScanSource: Codable, Hashable, Identifiable {
             scanSettings: settings
         )
     }
+}
+
+nonisolated struct ScanSourceBookmarkResolution: Sendable {
+    let url: URL
+    let refreshedBookmarkData: Data?
 }
 
 enum ScanSourceProvider {
