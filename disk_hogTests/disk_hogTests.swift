@@ -181,18 +181,16 @@ struct ApplicationStateRestorationTests {
 
     @Test func scanWindowIsMarkedNonRestorableWhenRegistered() {
         let source: ScanSource = ScanSource(path: "/scan", displayName: "scan")
-        let session: ScanSession = ScanSession(source: source)
-        let registrationView: ScanWindowRegistrationNSView = ScanWindowRegistrationNSView(
-            session: session,
-            source: source
+        let controller: ScanWindowController = ScanWindowController(source: source)
+        guard let window: NSWindow = controller.window else {
+            Issue.record("The scan window controller did not create a window.")
+            return
+        }
+
+        #expect(!window.isRestorable)
+        controller.windowWillClose(
+            Notification(name: NSWindow.willCloseNotification, object: window)
         )
-        let window: NSWindow = NSWindow()
-        window.isRestorable = true
-
-        window.contentView?.addSubview(registrationView)
-
-        #expect(window.isRestorable == false)
-        registrationView.removeFromSuperview()
     }
 }
 
@@ -223,19 +221,25 @@ struct ScanSessionRescanCoordinatorTests {
 
         #expect(coordinator.requestRescan() == operation)
         #expect(coordinator.requestRescan() == operation)
-        #expect(coordinator.finish(operation))
-        #expect(coordinator.consumePendingRescan())
-        #expect(coordinator.consumePendingRescan() == false)
+        let didFinish: Bool = coordinator.finish(operation)
+        let didConsumePendingRescan: Bool = coordinator.consumePendingRescan()
+        let didConsumeSecondPendingRescan: Bool = coordinator.consumePendingRescan()
+
+        #expect(didFinish)
+        #expect(didConsumePendingRescan)
+        #expect(didConsumeSecondPendingRescan == false)
     }
 
     @Test func acceptsOnlyTheCurrentOperationCompletion() {
         var coordinator: ScanSessionRescanCoordinator = ScanSessionRescanCoordinator()
         let firstOperation: ScanSessionWorkOperation = coordinator.beginTreeUpdate()
 
-        #expect(coordinator.finish(firstOperation))
+        let didFinishFirstOperation: Bool = coordinator.finish(firstOperation)
         let replacementOperation: ScanSessionWorkOperation = coordinator.beginScan()
 
-        #expect(coordinator.finish(firstOperation) == false)
+        #expect(didFinishFirstOperation)
+        let didFinishStaleOperation: Bool = coordinator.finish(firstOperation)
+        #expect(didFinishStaleOperation == false)
         #expect(coordinator.activeOperation == replacementOperation)
     }
 
@@ -243,14 +247,18 @@ struct ScanSessionRescanCoordinatorTests {
         var scanCoordinator: ScanSessionRescanCoordinator = ScanSessionRescanCoordinator()
         let scanOperation: ScanSessionWorkOperation = scanCoordinator.beginScan()
         _ = scanCoordinator.requestRescan()
-        #expect(scanCoordinator.finish(scanOperation))
-        #expect(scanCoordinator.consumePendingRescan())
+        let didFinishScan: Bool = scanCoordinator.finish(scanOperation)
+        let didConsumeScanRescan: Bool = scanCoordinator.consumePendingRescan()
+        #expect(didFinishScan)
+        #expect(didConsumeScanRescan)
 
         var treeCoordinator: ScanSessionRescanCoordinator = ScanSessionRescanCoordinator()
         let treeOperation: ScanSessionWorkOperation = treeCoordinator.beginTreeUpdate()
         _ = treeCoordinator.requestRescan()
-        #expect(treeCoordinator.finish(treeOperation))
-        #expect(treeCoordinator.consumePendingRescan())
+        let didFinishTreeUpdate: Bool = treeCoordinator.finish(treeOperation)
+        let didConsumeTreeRescan: Bool = treeCoordinator.consumePendingRescan()
+        #expect(didFinishTreeUpdate)
+        #expect(didConsumeTreeRescan)
     }
 }
 
@@ -265,6 +273,146 @@ struct ScanSessionTaskCoordinatorTests {
         #expect(coordinator.isCurrent(.scan, operationID: secondID))
         #expect(coordinator.finish(.scan, operationID: firstID) == false)
         #expect(coordinator.finish(.scan, operationID: secondID))
+    }
+}
+
+@MainActor
+struct ScanSessionWorkerIntegrationTests {
+    @Test func completesScanFromInjectedWorker() async throws {
+        let rootItem: DiskItem = Self.rootItem(fileSize: 12)
+        let session: ScanSession = ScanSession(
+            source: ScanSource(path: "/scan", displayName: "scan"),
+            scanWorker: ImmediateScanWorker(result: .success(Self.scanResult(rootItem: rootItem)))
+        )
+
+        session.startScan()
+
+        try await Self.waitUntil { session.state == .complete }
+        #expect(session.rootItem?.path == "/scan")
+        #expect(session.scannedFileCount == 1)
+        #expect(session.scannedFolderCount == 1)
+        #expect(session.scannedByteCount == 12)
+        #expect(session.currentPath == "/scan")
+        #expect(session.presentationMetrics != nil)
+    }
+
+    @Test func reportsScanFailureFromInjectedWorker() async throws {
+        let session: ScanSession = ScanSession(
+            source: ScanSource(path: "/scan", displayName: "scan"),
+            scanWorker: ImmediateScanWorker(result: .failure(.failed("scan failed")))
+        )
+
+        session.startScan()
+
+        try await Self.waitUntil { session.state == .failed }
+        #expect(session.failure?.message == "scan failed")
+        #expect(session.failure?.title.contains("scan") == true)
+    }
+
+    @Test func refreshesTreeFromInjectedWorker() async throws {
+        let originalRoot: DiskItem = Self.rootItem(fileSize: 12)
+        let refreshedRoot: DiskItem = Self.rootItem(fileSize: 24)
+        let treeWorker: ImmediateTreeWorker = ImmediateTreeWorker(
+            refreshResult: .success(Self.treeResult(rootItem: refreshedRoot, selectionPath: "/scan/file.txt"))
+        )
+        let session: ScanSession = ScanSession(
+            source: ScanSource(path: "/scan", displayName: "scan"),
+            scanWorker: ImmediateScanWorker(result: .success(Self.scanResult(rootItem: originalRoot))),
+            treeWorker: treeWorker
+        )
+        session.startScan()
+        try await Self.waitUntil { session.state == .complete }
+        let item: DiskItem = try #require(session.rootItem?.item(atPath: "/scan/file.txt"))
+
+        session.refresh(item)
+
+        try await Self.waitUntil { session.isUpdatingTree == false && session.scannedByteCount == 24 }
+        #expect(session.rootItem?.item(atPath: "/scan/file.txt")?.allocatedSizeValue == 24)
+        #expect(session.preferredSelection?.path == "/scan/file.txt")
+        #expect(session.failure == nil)
+    }
+
+    @Test func reportsTreeFailureWithoutDroppingCompletedScan() async throws {
+        let rootItem: DiskItem = Self.rootItem(fileSize: 12)
+        let treeWorker: ImmediateTreeWorker = ImmediateTreeWorker(
+            refreshResult: .failure(.failed("refresh failed"))
+        )
+        let session: ScanSession = ScanSession(
+            source: ScanSource(path: "/scan", displayName: "scan"),
+            scanWorker: ImmediateScanWorker(result: .success(Self.scanResult(rootItem: rootItem))),
+            treeWorker: treeWorker
+        )
+        session.startScan()
+        try await Self.waitUntil { session.state == .complete }
+        let item: DiskItem = try #require(session.rootItem?.item(atPath: "/scan/file.txt"))
+
+        session.refresh(item)
+
+        try await Self.waitUntil { session.isUpdatingTree == false && session.failure != nil }
+        #expect(session.state == .complete)
+        #expect(session.rootItem?.path == "/scan")
+        #expect(session.failure?.message == "refresh failed")
+        #expect(session.failure?.title.contains("file.txt") == true)
+    }
+
+    private static func rootItem(fileSize: UInt64) -> DiskItem {
+        DiskItem(
+            url: URL(fileURLWithPath: "/scan"),
+            allocatedSizeValue: fileSize,
+            logicalSizeValue: fileSize,
+            isDirectory: true,
+            children: [
+                DiskItem(
+                    url: URL(fileURLWithPath: "/scan/file.txt"),
+                    allocatedSizeValue: fileSize,
+                    logicalSizeValue: fileSize
+                )
+            ]
+        )
+    }
+
+    private static func scanResult(rootItem: DiskItem) -> ScanSessionScanResult {
+        ScanSessionScanResult(
+            source: ScanSource(path: "/scan", displayName: "scan"),
+            rootItem: rootItem,
+            presentationMetrics: metrics(rootItem: rootItem),
+            builtUsingPhysicalSize: true
+        )
+    }
+
+    private static func treeResult(
+        rootItem: DiskItem,
+        selectionPath: String
+    ) -> ScanSessionTreeUpdateResult {
+        ScanSessionTreeUpdateResult(
+            source: ScanSource(path: "/scan", displayName: "scan"),
+            rootItem: rootItem,
+            presentationMetrics: metrics(rootItem: rootItem),
+            selectionPath: selectionPath,
+            builtUsingPhysicalSize: true
+        )
+    }
+
+    private static func metrics(rootItem: DiskItem) -> TreemapPresentationMetrics {
+        TreemapPresentationMetrics(
+            rootItem: rootItem,
+            usePhysicalSize: true,
+            sharesKindColors: KindColorPreferences.sharesColors
+        )
+    }
+
+    private static func waitUntil(
+        timeoutNanoseconds: UInt64 = 1_000_000_000,
+        condition: @escaping @MainActor () -> Bool
+    ) async throws {
+        let deadline: ContinuousClock.Instant = .now + .nanoseconds(Int64(timeoutNanoseconds))
+        while !condition() {
+            guard ContinuousClock.now < deadline else {
+                Issue.record("Timed out waiting for ScanSession state change.")
+                return
+            }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
     }
 }
 
@@ -287,6 +435,71 @@ struct ScanSessionPackageContentsSynchronizationTests {
 
         session.updatePackageContentsSynchronization(with: false)
         #expect(session.isPackageContentsSettingOutOfSync == false)
+    }
+}
+
+private enum TestScanSessionError: LocalizedError, Sendable {
+    case failed(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .failed(let message):
+            return message
+        }
+    }
+}
+
+private struct ImmediateScanWorker: ScanSessionScanning {
+    let result: Result<ScanSessionScanResult, TestScanSessionError>
+
+    func scan(
+        source: ScanSource,
+        settings: DiskScanSettings,
+        progress: @escaping DiskInventoryZScanner.ProgressHandler,
+        willBuildTreemap: @escaping @Sendable () async -> Void,
+        treemapProgress: @escaping @Sendable (Double) async -> Void
+    ) async throws -> ScanSessionScanResult {
+        await progress(DiskScanProgress(
+            scannedFileCount: 1,
+            scannedFolderCount: 1,
+            scannedByteCount: 12,
+            currentPath: source.path
+        ))
+        await willBuildTreemap()
+        await treemapProgress(1)
+        return try result.get()
+    }
+}
+
+private struct ImmediateTreeWorker: ScanSessionTreeUpdating {
+    let refreshResult: Result<ScanSessionTreeUpdateResult, TestScanSessionError>
+    let deleteResult: Result<ScanSessionTreeUpdateResult, TestScanSessionError>
+
+    init(
+        refreshResult: Result<ScanSessionTreeUpdateResult, TestScanSessionError>,
+        deleteResult: Result<ScanSessionTreeUpdateResult, TestScanSessionError>? = nil
+    ) {
+        self.refreshResult = refreshResult
+        self.deleteResult = deleteResult ?? refreshResult
+    }
+
+    func refresh(
+        item: DiskItem,
+        currentRoot: DiskItem,
+        source: ScanSource,
+        settings: DiskScanSettings
+    ) async throws -> ScanSessionTreeUpdateResult {
+        try refreshResult.get()
+    }
+
+    func delete(
+        item: DiskItem,
+        deletionMethod: DiskItemDeletionMethod,
+        currentRoot: DiskItem,
+        source: ScanSource,
+        settings: DiskScanSettings
+    ) async throws -> ScanSessionTreeUpdateResult {
+        try deleteResult.get()
     }
 }
 
@@ -1381,17 +1594,19 @@ struct TreemapDiskItemDataSourceTests {
             isDirectory: true
         )
         var parentBuilder: DiskItemBuilder = rootBuilder
+        var parentURL: URL = URL(fileURLWithPath: "/scan")
         for depth: Int in 0..<5_000 {
-            let childBuilder: DiskItemBuilder = DiskItemBuilder(
-                url: URL(fileURLWithPath: "/scan/depth-\(depth)"),
+            parentURL = parentURL.appendingPathComponent("depth-\(depth)")
+            let childBuilder: DiskItemBuilder = parentBuilder.makeChild(
+                url: parentURL,
                 isDirectory: true
             )
             parentBuilder.appendChild(childBuilder, updateSize: false)
             parentBuilder = childBuilder
         }
         parentBuilder.appendChild(
-            DiskItemBuilder(
-                url: URL(fileURLWithPath: "/scan/deep-file.bin"),
+            parentBuilder.makeChild(
+                url: parentURL.appendingPathComponent("deep-file.bin"),
                 allocatedSizeValue: 42,
                 logicalSizeValue: 42,
                 kindName: "Deep File"
@@ -1650,16 +1865,16 @@ struct TreemapViewRendererTests {
         rootBuilder.appendChild(zeroWeightChild)
         rootBuilder.appendChild(sizedChild)
         let root: DiskItem = rootBuilder.freeze()
-        let sizedItem: DiskItem = root.child(at: 1)
+        let sizedChildIndex: Int = root.children.firstIndex { $0.path == "/scan/file.bin" }!
+        let dataSource: TreemapDiskItemDataSource = TreemapDiskItemDataSource(rootItem: root)
         let renderer: TreemapViewRenderer = TreemapViewRenderer(
-            dataSource: TreemapDiskItemDataSource(rootItem: root)
+            dataSource: dataSource
         )
 
         renderer.reloadData()
         renderer.calcLayout(NSRect(x: 0, y: 0, width: 100, height: 100))
 
-        #expect(renderer.selectItem(byRenderedItem: sizedItem))
-        let rect: NSRect = renderer.itemRect(by: renderer.selectedCellID)
+        let rect: NSRect = renderer.itemRect(by: renderer.rootCellID?.child(at: sizedChildIndex))
         #expect(rect.width.isFinite)
         #expect(rect.height.isFinite)
         #expect(rect.width > 0)

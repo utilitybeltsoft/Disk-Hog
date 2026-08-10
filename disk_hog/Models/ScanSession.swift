@@ -34,16 +34,19 @@ final class ScanSession: ObservableObject {
 
     private var settings: DiskScanSettings
     private let scanWorker: any ScanSessionScanning
+    private let treeWorker: any ScanSessionTreeUpdating
     private let taskCoordinator: ScanSessionTaskCoordinator = ScanSessionTaskCoordinator()
     private var rescanCoordinator: ScanSessionRescanCoordinator = ScanSessionRescanCoordinator()
 
     init(
         source: ScanSource,
-        scanWorker: any ScanSessionScanning = DiskInventoryZScanSessionWorker()
+        scanWorker: any ScanSessionScanning = DiskInventoryZScanSessionWorker(),
+        treeWorker: any ScanSessionTreeUpdating = DiskInventoryZScanSessionTreeWorker()
     ) {
         self.source = source
         self.settings = source.scanSettings ?? .diskInventoryZDefault
         self.scanWorker = scanWorker
+        self.treeWorker = treeWorker
         self.state = .ready
         self.startedAt = nil
         self.completedAt = nil
@@ -236,54 +239,32 @@ final class ScanSession: ObservableObject {
         let operation: ScanSessionWorkOperation = beginTreeUpdate()
         let source: ScanSource = source
         let settings: DiskScanSettings = settings
-        let requestedSelectionPath: String = item.path
+        let treeWorker: any ScanSessionTreeUpdating = treeWorker
+        let sessionReference: ScanSessionWeakReference = ScanSessionWeakReference(self)
 
-        _ = taskCoordinator.start(.treeUpdate, operationID: operation.id) { _ in Task.detached(priority: .userInitiated) { [weak self] in
+        _ = taskCoordinator.start(.treeUpdate, operationID: operation.id) { _ in Task.detached(priority: .userInitiated) { [sessionReference] in
             do {
-                let source: ScanSource = try Self.refreshingStaleBookmark(in: source)
-                await MainActor.run { [weak self] in
-                    self?.source = source
-                }
-                let refreshPath: String = Self.nearestExistingPath(from: item.path, stoppingAt: currentRoot.path)
-                let scanner: DiskInventoryZScanner = DiskInventoryZScanner()
-                let updatedRoot: DiskItem
-                if refreshPath == currentRoot.path {
-                    updatedRoot = try await scanner.scan(source: source, settings: settings)
-                } else {
-                    let refreshedItem: DiskItem = try await scanner.scanItem(
-                        at: URL(fileURLWithPath: refreshPath),
-                        from: source,
-                        settings: settings
-                    )
-                    guard let replacementRoot: DiskItem = currentRoot.replacingSubtree(
-                        atPath: refreshPath,
-                        with: refreshedItem,
-                        usePhysicalSize: settings.usePhysicalSize
-                    ) else {
-                        throw DiskScannerError.traversalInconsistency("The refreshed item was no longer present in the scan tree.")
-                    }
-                    updatedRoot = replacementRoot
-                }
-
-                let metrics: TreemapPresentationMetrics = TreemapPresentationMetrics(
-                    rootItem: updatedRoot,
-                    usePhysicalSize: settings.usePhysicalSize,
-                    sharesKindColors: KindColorPreferences.sharesColors
+                let result: ScanSessionTreeUpdateResult = try await treeWorker.refresh(
+                    item: item,
+                    currentRoot: currentRoot,
+                    source: source,
+                    settings: settings
                 )
-                await MainActor.run { [weak self] in
-                    self?.finishTreeUpdate(
-                        rootItem: updatedRoot,
-                        presentationMetrics: metrics,
-                        selectionPath: requestedSelectionPath,
-                        builtUsingPhysicalSize: settings.usePhysicalSize,
+                await MainActor.run {
+                    sessionReference.value?.source = result.source
+                    sessionReference.value?.finishTreeUpdate(
+                        rootItem: result.rootItem,
+                        presentationMetrics: result.presentationMetrics,
+                        selectionPath: result.selectionPath,
+                        builtUsingPhysicalSize: result.builtUsingPhysicalSize,
                         operation: operation
                     )
                 }
             } catch is CancellationError {
-                await MainActor.run { [weak self] in self?.finishTreeUpdateCancellation(for: operation) }
+                await MainActor.run { sessionReference.value?.finishTreeUpdateCancellation(for: operation) }
             } catch {
-                await MainActor.run { [weak self] in
-                    self?.finishTreeUpdateFailure(
+                await MainActor.run {
+                    sessionReference.value?.finishTreeUpdateFailure(
                         error,
                         operation: .refresh(itemName: item.displayName),
                         workOperation: operation
@@ -305,52 +286,33 @@ final class ScanSession: ObservableObject {
         let operation: ScanSessionWorkOperation = beginTreeUpdate()
         let source: ScanSource = source
         let settings: DiskScanSettings = settings
-        let parentPath: String = item.url.deletingLastPathComponent().path
+        let treeWorker: any ScanSessionTreeUpdating = treeWorker
+        let sessionReference: ScanSessionWeakReference = ScanSessionWeakReference(self)
 
-        _ = taskCoordinator.start(.treeUpdate, operationID: operation.id) { _ in Task.detached(priority: .userInitiated) { [weak self] in
+        _ = taskCoordinator.start(.treeUpdate, operationID: operation.id) { _ in Task.detached(priority: .userInitiated) { [sessionReference] in
             do {
-                let source: ScanSource = try Self.refreshingStaleBookmark(in: source)
-                await MainActor.run { [weak self] in
-                    self?.source = source
-                }
-                let rootURL: URL = try source.resolvedURL()
-                let didStartSecurityScopedAccess: Bool = rootURL.startAccessingSecurityScopedResource()
-                defer { if didStartSecurityScopedAccess { rootURL.stopAccessingSecurityScopedResource() } }
-
-                switch deletionMethod {
-                case .deletePermanently:
-                    try FileManager.default.removeItem(at: item.url)
-                case .moveToTrash:
-                    var resultingURL: NSURL?
-                    try FileManager.default.trashItem(at: item.url, resultingItemURL: &resultingURL)
-                }
-                try Task.checkCancellation()
-
-                guard let updatedRoot: DiskItem = currentRoot.removingSubtree(
-                    atPath: item.path,
-                    usePhysicalSize: settings.usePhysicalSize
-                ) else {
-                    throw DiskScannerError.traversalInconsistency("The trashed item was no longer present in the scan tree.")
-                }
-                let metrics: TreemapPresentationMetrics = TreemapPresentationMetrics(
-                    rootItem: updatedRoot,
-                    usePhysicalSize: settings.usePhysicalSize,
-                    sharesKindColors: KindColorPreferences.sharesColors
+                let result: ScanSessionTreeUpdateResult = try await treeWorker.delete(
+                    item: item,
+                    deletionMethod: deletionMethod,
+                    currentRoot: currentRoot,
+                    source: source,
+                    settings: settings
                 )
-                await MainActor.run { [weak self] in
-                    self?.finishTreeUpdate(
-                        rootItem: updatedRoot,
-                        presentationMetrics: metrics,
-                        selectionPath: parentPath,
-                        builtUsingPhysicalSize: settings.usePhysicalSize,
+                await MainActor.run {
+                    sessionReference.value?.source = result.source
+                    sessionReference.value?.finishTreeUpdate(
+                        rootItem: result.rootItem,
+                        presentationMetrics: result.presentationMetrics,
+                        selectionPath: result.selectionPath,
+                        builtUsingPhysicalSize: result.builtUsingPhysicalSize,
                         operation: operation
                     )
                 }
             } catch is CancellationError {
-                await MainActor.run { [weak self] in self?.finishTreeUpdateCancellation(for: operation) }
+                await MainActor.run { sessionReference.value?.finishTreeUpdateCancellation(for: operation) }
             } catch {
-                await MainActor.run { [weak self] in
-                    self?.finishTreeUpdateFailure(
+                await MainActor.run {
+                    sessionReference.value?.finishTreeUpdateFailure(
                         error,
                         operation: .deletion(
                             itemName: item.displayName,
@@ -615,30 +577,6 @@ final class ScanSession: ObservableObject {
         startPendingRescanIfNeeded()
     }
 
-    nonisolated private static func nearestExistingPath(from path: String, stoppingAt rootPath: String) -> String {
-        var candidateURL: URL = URL(fileURLWithPath: path).standardizedFileURL
-        let standardizedRootPath: String = URL(fileURLWithPath: rootPath).standardizedFileURL.path
-        while !FileManager.default.fileExists(atPath: candidateURL.path) {
-            guard candidateURL.path != standardizedRootPath else {
-                return standardizedRootPath
-            }
-            let parentURL: URL = candidateURL.deletingLastPathComponent()
-            guard parentURL.path != candidateURL.path else {
-                return standardizedRootPath
-            }
-            candidateURL = parentURL
-        }
-        return candidateURL.path
-    }
-
-    nonisolated private static func refreshingStaleBookmark(in source: ScanSource) throws -> ScanSource {
-        let resolution: ScanSourceBookmarkResolution = try source.resolvingBookmark()
-        guard let refreshedBookmarkData: Data = resolution.refreshedBookmarkData else {
-            return source
-        }
-        return source.replacingBookmarkData(refreshedBookmarkData)
-    }
-
     private func finishCancellation(for operation: ScanSessionWorkOperation) {
         guard taskCoordinator.finish(.scan, operationID: operation.id),
               rescanCoordinator.finish(operation) else {
@@ -702,7 +640,7 @@ nonisolated final class ScanSessionWeakReference: @unchecked Sendable {
     }
 }
 
-enum ScanSessionWorkOperation: Equatable {
+nonisolated enum ScanSessionWorkOperation: Equatable, Sendable {
     case scan(UUID)
     case treeUpdate(UUID)
 }
@@ -716,7 +654,7 @@ extension ScanSessionWorkOperation {
     }
 }
 
-struct ScanSessionRescanCoordinator {
+nonisolated struct ScanSessionRescanCoordinator {
     private(set) var activeOperation: ScanSessionWorkOperation?
     private var hasPendingRescan: Bool = false
 
