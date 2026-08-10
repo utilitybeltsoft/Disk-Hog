@@ -42,15 +42,12 @@ struct KindsPaneView: View {
     }
 
     private func updateKindStatistics() {
-        guard let rootItem: DiskItem = session.rootItem else {
+        guard session.rootItem != nil else {
             kindStatistics = []
             return
         }
 
-        kindStatistics = session.presentationMetrics?.kindStatistics ?? TreemapDiskItemDataSource.kindStatistics(
-            for: rootItem,
-            usePhysicalSize: session.scanSettings.usePhysicalSize
-        )
+        kindStatistics = session.presentationMetrics?.kindStatistics ?? []
         updateSelectedKindName()
     }
 
