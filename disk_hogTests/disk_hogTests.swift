@@ -239,6 +239,53 @@ struct DiskItemOutlineIdentityTests {
         #expect(firstChild === secondChild)
         #expect(outlineView.row(forItem: firstChild) >= 0)
     }
+
+    @Test func syncSelectionFindsEqualFlyweightFromAnotherPane() throws {
+        let file: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/folder/file.txt"),
+            allocatedSizeValue: 8,
+            logicalSizeValue: 8
+        )
+        let folder: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/folder"),
+            isDirectory: true,
+            children: [file]
+        )
+        let root: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan"),
+            isDirectory: true,
+            children: [folder]
+        )
+        let coordinator: DiskItemOutlineView.Coordinator = DiskItemOutlineView.Coordinator(
+            session: ScanSession(source: ScanSource(path: "/scan", displayName: "scan")),
+            usePhysicalSize: true,
+            selectionCoordinator: ScanWindowSelectionCoordinator(),
+            activePane: Binding<ScanWindowPane?>.constant(nil)
+        )
+        let outlineView: NSOutlineView = NSOutlineView()
+        let column: NSTableColumn = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("Name"))
+        outlineView.addTableColumn(column)
+        outlineView.outlineTableColumn = column
+        outlineView.dataSource = coordinator
+        coordinator.outlineView = outlineView
+        coordinator.reload(rootItem: root)
+        let suppliedRoot: DiskItem = try #require(outlineView.item(atRow: 0) as? DiskItem)
+        let suppliedFolder: DiskItem = try #require(
+            coordinator.outlineView(outlineView, child: 0, ofItem: suppliedRoot) as? DiskItem
+        )
+        let equalButDistinctFile: DiskItem = DiskItem(
+            snapshot: file.snapshot,
+            address: file.address
+        )
+
+        coordinator.syncSelectionIfNeeded(equalButDistinctFile)
+
+        #expect(outlineView.isItemExpanded(suppliedFolder))
+        #expect(outlineView.selectedRow >= 0)
+        let selectedItem: DiskItem = try #require(outlineView.item(atRow: outlineView.selectedRow) as? DiskItem)
+        #expect(selectedItem.path == "/scan/folder/file.txt")
+        #expect(selectedItem !== equalButDistinctFile)
+    }
 }
 
 @MainActor
