@@ -88,7 +88,6 @@ private struct DiskHogCommands: Commands {
     @ObservedObject private var commandState: SourceWindowCommandState = .shared
     @ObservedObject private var scanWindowCommandState: ScanWindowCommandState = .shared
     @ObservedObject private var inspectorWindowController: InspectorWindowController = .shared
-    @ObservedObject private var packageContentsPreference: PackageContentsPreferenceCoordinator = .shared
     @ObservedObject private var scanPreferences: ScanPreferences = .shared
 
     var body: some Commands {
@@ -166,8 +165,8 @@ private struct DiskHogCommands: Commands {
             Toggle(
                 "Show Package Contents",
                 isOn: Binding(
-                    get: { packageContentsPreference.showPackageContents },
-                    set: { packageContentsPreference.requestChange(to: $0) }
+                    get: { scanPreferences.showPackageContents },
+                    set: { scanPreferences.requestShowPackageContentsChange(to: $0) }
                 )
             )
 

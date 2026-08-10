@@ -6,7 +6,6 @@ struct SourceWindowView: View {
     @AppStorage(SourceWindowPreferences.showExternalVolumesKey) private var showExternalVolumes: Bool = false
     @AppStorage(SourceWindowPreferences.showNetworkVolumesKey) private var showNetworkVolumes: Bool = false
     @AppStorage(SourceWindowPreferences.showDiskImagesKey) private var showDiskImages: Bool = false
-    @ObservedObject private var packageContentsPreference: PackageContentsPreferenceCoordinator = .shared
     @ObservedObject private var scanPreferences: ScanPreferences = .shared
 
     var body: some View {
@@ -29,8 +28,8 @@ struct SourceWindowView: View {
 
             SourceWindowActionBar(
                 showPackageContents: Binding(
-                    get: { packageContentsPreference.showPackageContents },
-                    set: { packageContentsPreference.requestChange(to: $0) }
+                    get: { scanPreferences.showPackageContents },
+                    set: { scanPreferences.requestShowPackageContentsChange(to: $0) }
                 ),
                 ignoreCreatorCode: Binding(
                     get: { scanPreferences.ignoreCreatorCode },
@@ -86,7 +85,7 @@ struct SourceWindowView: View {
     private var currentScanSettings: DiskScanSettings {
         DiskScanSettings(
             usePhysicalSize: scanPreferences.usesPhysicalSize,
-            lookInsidePackages: packageContentsPreference.showPackageContents,
+            lookInsidePackages: scanPreferences.showPackageContents,
             ignoreCreatorCode: scanPreferences.ignoreCreatorCode
         )
     }

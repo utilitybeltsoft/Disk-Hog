@@ -5,7 +5,7 @@ struct ScanWindowView: View {
     @StateObject private var selectionCoordinator: ScanWindowSelectionCoordinator
     @StateObject private var inspectorContext: InspectorWindowContext
     @StateObject private var commandContext: ScanWindowCommandContext
-    @ObservedObject private var packageContentsPreference: PackageContentsPreferenceCoordinator = .shared
+    @ObservedObject private var scanPreferences: ScanPreferences = .shared
     @State private var hoveredItem: DiskItem?
     @State private var activePane: ScanWindowPane?
 
@@ -158,7 +158,7 @@ struct ScanWindowView: View {
             )
             Spacer()
             Button {
-                packageContentsPreference.rescan(session)
+                scanPreferences.rescanForPackageContentsPreference(session)
             } label: {
                 Label("Rescan This Window", systemImage: "arrow.clockwise")
             }
