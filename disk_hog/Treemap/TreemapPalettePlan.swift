@@ -19,15 +19,29 @@ nonisolated enum TreemapKindCatalog {
         let totalItemCount: Int = max(counts.files + counts.folders, 1)
         var visitedItemCount: Int = 0
         progress?(0)
-        collect(
-            from: rootItem,
-            usePhysicalSize: usePhysicalSize,
-            folderKindName: folderKindName,
-            into: &aggregatesByKind,
-            visitedItemCount: &visitedItemCount,
-            totalItemCount: totalItemCount,
-            progress: progress
-        )
+        var pendingItems: [DiskItem] = [rootItem]
+        while let item: DiskItem = pendingItems.popLast() {
+            visitedItemCount += 1
+            if visitedItemCount.isMultiple(of: progressUpdateStride)
+                || visitedItemCount == totalItemCount {
+                progress?(min(Double(visitedItemCount) / Double(totalItemCount), 1))
+            }
+
+            if item.isFolder && !item.isPackage {
+                pendingItems.append(contentsOf: item.children)
+                continue
+            }
+
+            let kindName: String = item.resolvedKindName(folderName: folderKindName)
+            guard !kindName.isEmpty else {
+                continue
+            }
+
+            var aggregate: TreemapKindAggregate = aggregatesByKind[kindName] ?? TreemapKindAggregate()
+            aggregate.size += item.sizeValue(usePhysicalSize: usePhysicalSize)
+            aggregate.fileCount += 1
+            aggregatesByKind[kindName] = aggregate
+        }
         return aggregatesByKind
     }
 
@@ -42,46 +56,6 @@ nonisolated enum TreemapKindCatalog {
         }
     }
 
-    private static func collect(
-        from item: DiskItem,
-        usePhysicalSize: Bool,
-        folderKindName: String,
-        into aggregatesByKind: inout [String: TreemapKindAggregate],
-        visitedItemCount: inout Int,
-        totalItemCount: Int,
-        progress: (@Sendable (Double) -> Void)?
-    ) {
-        visitedItemCount += 1
-        if visitedItemCount.isMultiple(of: progressUpdateStride)
-            || visitedItemCount == totalItemCount {
-            progress?(min(Double(visitedItemCount) / Double(totalItemCount), 1))
-        }
-
-        if item.isFolder && !item.isPackage {
-            for child: DiskItem in item.children {
-                collect(
-                    from: child,
-                    usePhysicalSize: usePhysicalSize,
-                    folderKindName: folderKindName,
-                    into: &aggregatesByKind,
-                    visitedItemCount: &visitedItemCount,
-                    totalItemCount: totalItemCount,
-                    progress: progress
-                )
-            }
-            return
-        }
-
-        let kindName: String = item.resolvedKindName(folderName: folderKindName)
-        guard !kindName.isEmpty else {
-            return
-        }
-
-        var aggregate: TreemapKindAggregate = aggregatesByKind[kindName] ?? TreemapKindAggregate()
-        aggregate.size += item.sizeValue(usePhysicalSize: usePhysicalSize)
-        aggregate.fileCount += 1
-        aggregatesByKind[kindName] = aggregate
-    }
 }
 
 nonisolated struct TreemapRawColor: Sendable {

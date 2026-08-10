@@ -1252,6 +1252,41 @@ struct SelectionListTableViewTests {
 
 struct TreemapDiskItemDataSourceTests {
 
+    @Test func kindAggregationHandlesDeepDirectoryTreesIteratively() {
+        let rootBuilder: DiskItemBuilder = DiskItemBuilder(
+            url: URL(fileURLWithPath: "/scan"),
+            isDirectory: true
+        )
+        var parentBuilder: DiskItemBuilder = rootBuilder
+        for depth: Int in 0..<5_000 {
+            let childBuilder: DiskItemBuilder = DiskItemBuilder(
+                url: URL(fileURLWithPath: "/scan/depth-\(depth)"),
+                isDirectory: true
+            )
+            parentBuilder.appendChild(childBuilder, updateSize: false)
+            parentBuilder = childBuilder
+        }
+        parentBuilder.appendChild(
+            DiskItemBuilder(
+                url: URL(fileURLWithPath: "/scan/deep-file.bin"),
+                allocatedSizeValue: 42,
+                logicalSizeValue: 42,
+                kindName: "Deep File"
+            ),
+            updateSize: false
+        )
+        rootBuilder.recalculateSize(usePhysicalSize: true)
+
+        let aggregates: [String: TreemapKindAggregate] = TreemapKindCatalog.aggregates(
+            from: rootBuilder.freeze(),
+            usePhysicalSize: true,
+            folderKindName: "Folder"
+        )
+
+        #expect(aggregates["Deep File"]?.fileCount == 1)
+        #expect(aggregates["Deep File"]?.size == 42)
+    }
+
     @Test func weightUsesSelectedPhysicalOrLogicalSizeMode() {
         let root: DiskItem = DiskItem(
             url: URL(fileURLWithPath: "/scan"),
