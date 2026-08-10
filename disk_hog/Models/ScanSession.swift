@@ -145,11 +145,11 @@ final class ScanSession: ObservableObject {
             }
         }
 
-        scanTask = Task.detached(priority: .userInitiated) {
+        scanTask = Task.detached(priority: .userInitiated) { [weak self] in
             do {
                 let source: ScanSource = try Self.refreshingStaleBookmark(in: source)
-                await MainActor.run {
-                    self.source = source
+                await MainActor.run { [weak self] in
+                    self?.source = source
                 }
                 let scanner: DiskInventoryZScanner = DiskInventoryZScanner()
                 let rootItem: DiskItem = try await scanner.scan(
@@ -162,9 +162,9 @@ final class ScanSession: ObservableObject {
                 progressContinuation.finish()
                 await progressTask.value
                 try Task.checkCancellation()
-                await MainActor.run {
-                    self.isBuildingTreemap = true
-                    self.treemapPreparationProgress = 0
+                await MainActor.run { [weak self] in
+                    self?.isBuildingTreemap = true
+                    self?.treemapPreparationProgress = 0
                 }
                 let presentationMetrics: TreemapPresentationMetrics = TreemapPresentationMetrics(
                     rootItem: rootItem,
@@ -177,8 +177,8 @@ final class ScanSession: ObservableObject {
                 }
                 try Task.checkCancellation()
 
-                await MainActor.run {
-                    self.finishScan(
+                await MainActor.run { [weak self] in
+                    self?.finishScan(
                         rootItem: rootItem,
                         presentationMetrics: presentationMetrics,
                         builtUsingPhysicalSize: settings.usePhysicalSize
@@ -187,14 +187,14 @@ final class ScanSession: ObservableObject {
             } catch is CancellationError {
                 progressContinuation.finish()
                 await progressTask.value
-                await MainActor.run {
-                    self.finishCancellation()
+                await MainActor.run { [weak self] in
+                    self?.finishCancellation()
                 }
             } catch {
                 progressContinuation.finish()
                 await progressTask.value
-                await MainActor.run {
-                    self.finishFailure(error)
+                await MainActor.run { [weak self] in
+                    self?.finishFailure(error)
                 }
             }
         }
@@ -252,11 +252,11 @@ final class ScanSession: ObservableObject {
         let settings: DiskScanSettings = settings
         let requestedSelectionPath: String = item.path
 
-        treeUpdateTask = Task.detached(priority: .userInitiated) {
+        treeUpdateTask = Task.detached(priority: .userInitiated) { [weak self] in
             do {
                 let source: ScanSource = try Self.refreshingStaleBookmark(in: source)
-                await MainActor.run {
-                    self.source = source
+                await MainActor.run { [weak self] in
+                    self?.source = source
                 }
                 let refreshPath: String = Self.nearestExistingPath(from: item.path, stoppingAt: currentRoot.path)
                 let scanner: DiskInventoryZScanner = DiskInventoryZScanner()
@@ -284,8 +284,8 @@ final class ScanSession: ObservableObject {
                     usePhysicalSize: settings.usePhysicalSize,
                     sharesKindColors: KindColorPreferences.sharesColors
                 )
-                await MainActor.run {
-                    self.finishTreeUpdate(
+                await MainActor.run { [weak self] in
+                    self?.finishTreeUpdate(
                         rootItem: updatedRoot,
                         presentationMetrics: metrics,
                         selectionPath: requestedSelectionPath,
@@ -293,10 +293,10 @@ final class ScanSession: ObservableObject {
                     )
                 }
             } catch is CancellationError {
-                await MainActor.run { self.finishTreeUpdateCancellation() }
+                await MainActor.run { [weak self] in self?.finishTreeUpdateCancellation() }
             } catch {
-                await MainActor.run {
-                    self.finishTreeUpdateFailure(
+                await MainActor.run { [weak self] in
+                    self?.finishTreeUpdateFailure(
                         error,
                         operation: .refresh(itemName: item.displayName)
                     )
@@ -319,11 +319,11 @@ final class ScanSession: ObservableObject {
         let settings: DiskScanSettings = settings
         let parentPath: String = item.url.deletingLastPathComponent().path
 
-        treeUpdateTask = Task.detached(priority: .userInitiated) {
+        treeUpdateTask = Task.detached(priority: .userInitiated) { [weak self] in
             do {
                 let source: ScanSource = try Self.refreshingStaleBookmark(in: source)
-                await MainActor.run {
-                    self.source = source
+                await MainActor.run { [weak self] in
+                    self?.source = source
                 }
                 let rootURL: URL = try source.resolvedURL()
                 let didStartSecurityScopedAccess: Bool = rootURL.startAccessingSecurityScopedResource()
@@ -349,8 +349,8 @@ final class ScanSession: ObservableObject {
                     usePhysicalSize: settings.usePhysicalSize,
                     sharesKindColors: KindColorPreferences.sharesColors
                 )
-                await MainActor.run {
-                    self.finishTreeUpdate(
+                await MainActor.run { [weak self] in
+                    self?.finishTreeUpdate(
                         rootItem: updatedRoot,
                         presentationMetrics: metrics,
                         selectionPath: parentPath,
@@ -358,10 +358,10 @@ final class ScanSession: ObservableObject {
                     )
                 }
             } catch is CancellationError {
-                await MainActor.run { self.finishTreeUpdateCancellation() }
+                await MainActor.run { [weak self] in self?.finishTreeUpdateCancellation() }
             } catch {
-                await MainActor.run {
-                    self.finishTreeUpdateFailure(
+                await MainActor.run { [weak self] in
+                    self?.finishTreeUpdateFailure(
                         error,
                         operation: .deletion(
                             itemName: item.displayName,
@@ -381,7 +381,7 @@ final class ScanSession: ObservableObject {
 
         presentationUpdateTask?.cancel()
         let usePhysicalSize: Bool = settings.usePhysicalSize
-        presentationUpdateTask = Task.detached(priority: .userInitiated) {
+        presentationUpdateTask = Task.detached(priority: .userInitiated) { [weak self] in
             let metrics: TreemapPresentationMetrics = TreemapPresentationMetrics(
                 rootItem: rootItem,
                 usePhysicalSize: usePhysicalSize,
@@ -390,9 +390,9 @@ final class ScanSession: ObservableObject {
             guard !Task.isCancelled else {
                 return
             }
-            await MainActor.run {
-                self.presentationMetrics = metrics
-                self.presentationUpdateTask = nil
+            await MainActor.run { [weak self] in
+                self?.presentationMetrics = metrics
+                self?.presentationUpdateTask = nil
             }
         }
     }
@@ -430,22 +430,22 @@ final class ScanSession: ObservableObject {
         let settings: DiskScanSettings = settings
         diagnosticsExportState = .writing(TreemapInputDiagnostics.defaultOutputURL.path)
 
-        Task.detached(priority: .utility) {
+        Task.detached(priority: .utility) { [weak self] in
             do {
                 let outputURL: URL = try TreemapInputDiagnostics.writeJSONLinesReport(
                     root: rootItem,
                     settings: settings
                 )
-                await MainActor.run {
+                await MainActor.run { [weak self] in
                     let pasteboard: NSPasteboard = .general
                     pasteboard.clearContents()
                     pasteboard.writeObjects([outputURL as NSURL])
                     pasteboard.setString(outputURL.path, forType: .string)
-                    self.diagnosticsExportState = .written(outputURL.path)
+                    self?.diagnosticsExportState = .written(outputURL.path)
                 }
             } catch {
-                await MainActor.run {
-                    self.diagnosticsExportState = .failed(String(describing: error))
+                await MainActor.run { [weak self] in
+                    self?.diagnosticsExportState = .failed(String(describing: error))
                     NSSound.beep()
                 }
             }
@@ -515,7 +515,7 @@ final class ScanSession: ObservableObject {
     private func rebuildForSizeMode(rootItem: DiskItem, usePhysicalSize: Bool) {
         sizeModeUpdateTask?.cancel()
         let selectionPath: String = preferredSelection?.path ?? rootItem.path
-        sizeModeUpdateTask = Task.detached(priority: .userInitiated) {
+        sizeModeUpdateTask = Task.detached(priority: .userInitiated) { [weak self] in
             let reorderedRoot: DiskItem = rootItem.reordered(usePhysicalSize: usePhysicalSize)
             guard !Task.isCancelled else {
                 return
@@ -528,8 +528,9 @@ final class ScanSession: ObservableObject {
             guard !Task.isCancelled else {
                 return
             }
-            await MainActor.run {
-                guard self.settings.usePhysicalSize == usePhysicalSize else {
+            await MainActor.run { [weak self] in
+                guard let self,
+                      self.settings.usePhysicalSize == usePhysicalSize else {
                     return
                 }
                 self.preferredSelection = reorderedRoot.item(
