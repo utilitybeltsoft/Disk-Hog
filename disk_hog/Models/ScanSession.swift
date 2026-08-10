@@ -36,6 +36,7 @@ final class ScanSession: ObservableObject {
     private var scanTask: Task<Void, Never>?
     private var treeUpdateTask: Task<Void, Never>?
     private var presentationUpdateTask: Task<Void, Never>?
+    private var presentationUpdateID: UUID?
     private var sizeModeUpdateTask: Task<Void, Never>?
     private var restartsAfterCancellation: Bool = false
 
@@ -381,6 +382,8 @@ final class ScanSession: ObservableObject {
 
         presentationUpdateTask?.cancel()
         let usePhysicalSize: Bool = settings.usePhysicalSize
+        let updateID: UUID = UUID()
+        presentationUpdateID = updateID
         presentationUpdateTask = Task.detached(priority: .userInitiated) { [weak self] in
             let metrics: TreemapPresentationMetrics = TreemapPresentationMetrics(
                 rootItem: rootItem,
@@ -388,11 +391,13 @@ final class ScanSession: ObservableObject {
                 sharesKindColors: sharesKindColors
             )
             guard !Task.isCancelled else {
+                await MainActor.run { [weak self] in
+                    self?.finishPresentationUpdate(id: updateID, metrics: nil)
+                }
                 return
             }
             await MainActor.run { [weak self] in
-                self?.presentationMetrics = metrics
-                self?.presentationUpdateTask = nil
+                self?.finishPresentationUpdate(id: updateID, metrics: metrics)
             }
         }
     }
@@ -488,6 +493,17 @@ final class ScanSession: ObservableObject {
     private func beginTreeUpdate() {
         isUpdatingTree = true
         failure = nil
+    }
+
+    private func finishPresentationUpdate(id: UUID, metrics: TreemapPresentationMetrics?) {
+        guard presentationUpdateID == id else {
+            return
+        }
+        if let metrics {
+            presentationMetrics = metrics
+        }
+        presentationUpdateTask = nil
+        presentationUpdateID = nil
     }
 
     private func finishTreeUpdate(
