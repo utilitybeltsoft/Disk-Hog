@@ -6,39 +6,28 @@ nonisolated final class DiskInventoryZScanner {
     typealias ResourceValuesProvider = @Sendable (URL, Set<URLResourceKey>) throws -> URLResourceValues
 
     private let directoryTraversal: DiskDirectoryTraversal
-    private let hardlinkDeduplicator: HardlinkDeduplicator
-    private let itemFactory: DiskItemBuilderFactory
+    private let hardlinkDeduplicator: any HardlinkDeduplicating
+    private let itemFactory: any DiskItemBuilding
+    private let packageSizer: any OpaquePackageSizing
     private let recursiveResourceValuesProvider: ResourceValuesProvider
 
     init(
         recursiveResourceValuesProvider: @escaping ResourceValuesProvider = { url, keys in
             try url.resourceValues(forKeys: keys)
-        }
+        },
+        hardlinkDeduplicator: any HardlinkDeduplicating = HardlinkDeduplicator(),
+        itemFactory: any DiskItemBuilding = DiskItemBuilderFactory(),
+        packageSizer: any OpaquePackageSizing = FileSystemOpaquePackageSizer()
     ) {
-        let hardlinkDeduplicator: HardlinkDeduplicator = HardlinkDeduplicator()
-        let itemFactory: DiskItemBuilderFactory = DiskItemBuilderFactory()
         self.recursiveResourceValuesProvider = recursiveResourceValuesProvider
         self.hardlinkDeduplicator = hardlinkDeduplicator
         self.itemFactory = itemFactory
+        self.packageSizer = packageSizer
         self.directoryTraversal = DiskDirectoryTraversal(
             resourceValuesProvider: recursiveResourceValuesProvider,
             hardlinkDeduplicator: hardlinkDeduplicator,
-            itemFactory: itemFactory
-        )
-    }
-
-    private init(
-        recursiveResourceValuesProvider: @escaping ResourceValuesProvider,
-        hardlinkDeduplicator: HardlinkDeduplicator = HardlinkDeduplicator()
-    ) {
-        let itemFactory: DiskItemBuilderFactory = DiskItemBuilderFactory()
-        self.recursiveResourceValuesProvider = recursiveResourceValuesProvider
-        self.hardlinkDeduplicator = hardlinkDeduplicator
-        self.itemFactory = itemFactory
-        self.directoryTraversal = DiskDirectoryTraversal(
-            resourceValuesProvider: recursiveResourceValuesProvider,
-            hardlinkDeduplicator: hardlinkDeduplicator,
-            itemFactory: itemFactory
+            itemFactory: itemFactory,
+            packageSizer: packageSizer
         )
     }
 
@@ -100,14 +89,18 @@ nonisolated final class DiskInventoryZScanner {
             for workItem: TopLevelScanWorkItem in topLevelWorkItems {
                 let settings: DiskScanSettings = settings
                 let recursiveResourceValuesProvider: ResourceValuesProvider = recursiveResourceValuesProvider
-                let hardlinkDeduplicator: HardlinkDeduplicator = hardlinkDeduplicator
+                let hardlinkDeduplicator: any HardlinkDeduplicating = hardlinkDeduplicator
+                let itemFactory: any DiskItemBuilding = itemFactory
+                let packageSizer: any OpaquePackageSizing = packageSizer
                 let progressAggregator: ScanProgressAggregator = progressAggregator
                 let progressHandler: ProgressHandler? = progressHandler
 
                 taskGroup.addTask {
                     let scanner: DiskInventoryZScanner = DiskInventoryZScanner(
                         recursiveResourceValuesProvider: recursiveResourceValuesProvider,
-                        hardlinkDeduplicator: hardlinkDeduplicator
+                        hardlinkDeduplicator: hardlinkDeduplicator,
+                        itemFactory: itemFactory,
+                        packageSizer: packageSizer
                     )
                     return try await scanner.scanTopLevelWorkItem(
                         workItem,
@@ -183,7 +176,7 @@ nonisolated final class DiskInventoryZScanner {
                 progressHandler: nil
             )
         } else if item.isDirectory && item.isPackage && !settings.lookInsidePackages {
-            let packageSize: OpaquePackageSize = try OpaquePackageSizer.size(of: item.url)
+            let packageSize: OpaquePackageSize = try packageSizer.size(of: item.url)
             item.setOpaquePackageSize(allocated: packageSize.allocated, logical: packageSize.logical)
         } else if !item.isDirectory {
             hardlinkDeduplicator.markDuplicateIfNeeded(item: item, values: values)
@@ -218,7 +211,7 @@ nonisolated final class DiskInventoryZScanner {
                 }
             }
         } else if workItem.isDirectory && workItem.isPackage && !settings.lookInsidePackages {
-            let packageSize: OpaquePackageSize = try OpaquePackageSizer.size(of: workItem.item.url)
+            let packageSize: OpaquePackageSize = try packageSizer.size(of: workItem.item.url)
             workItem.item.setOpaquePackageSize(
                 allocated: packageSize.allocated,
                 logical: packageSize.logical

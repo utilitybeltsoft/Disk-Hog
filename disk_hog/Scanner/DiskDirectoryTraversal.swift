@@ -1,18 +1,21 @@
 import Foundation
 
 nonisolated final class DiskDirectoryTraversal {
-    private let hardlinkDeduplicator: HardlinkDeduplicator
-    private let itemFactory: DiskItemBuilderFactory
+    private let hardlinkDeduplicator: any HardlinkDeduplicating
+    private let itemFactory: any DiskItemBuilding
+    private let packageSizer: any OpaquePackageSizing
     private let resourceValuesProvider: DiskInventoryZScanner.ResourceValuesProvider
 
     init(
         resourceValuesProvider: @escaping DiskInventoryZScanner.ResourceValuesProvider,
-        hardlinkDeduplicator: HardlinkDeduplicator,
-        itemFactory: DiskItemBuilderFactory
+        hardlinkDeduplicator: any HardlinkDeduplicating,
+        itemFactory: any DiskItemBuilding,
+        packageSizer: any OpaquePackageSizing
     ) {
         self.resourceValuesProvider = resourceValuesProvider
         self.hardlinkDeduplicator = hardlinkDeduplicator
         self.itemFactory = itemFactory
+        self.packageSizer = packageSizer
     }
 
     func loadChildren(
@@ -117,7 +120,7 @@ nonisolated final class DiskDirectoryTraversal {
                 directoryEnumerator.skipDescendants()
             } else if (currentValues.isPackage ?? false) && !settings.lookInsidePackages {
                 directoryEnumerator.skipDescendants()
-                let packageSize: OpaquePackageSize = try OpaquePackageSizer.size(of: currentURL)
+                let packageSize: OpaquePackageSize = try packageSizer.size(of: currentURL)
                 currentItem.setOpaquePackageSize(
                     allocated: packageSize.allocated,
                     logical: packageSize.logical

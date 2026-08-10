@@ -2628,6 +2628,76 @@ struct DiskInventoryZScannerTests {
         #expect(package?.allocatedSizeValue != package?.logicalSizeValue)
     }
 
+    @Test func opaquePackageSizingCanBeSubstitutedForSingleItemScans() async throws {
+        let rootURL: URL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("disk-hog-package-sizer-substitution-\(UUID().uuidString)", isDirectory: true)
+        let packageURL: URL = rootURL.appendingPathComponent("Example.app", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+        try FileManager.default.createDirectory(at: packageURL, withIntermediateDirectories: true)
+        let packageSizer: FixedOpaquePackageSizer = FixedOpaquePackageSizer(
+            size: OpaquePackageSize(allocated: 123_456, logical: 654_321)
+        )
+        let scanner: DiskInventoryZScanner = DiskInventoryZScanner(
+            packageSizer: packageSizer
+        )
+
+        let package: DiskItem = try await scanner.scanItem(
+            at: packageURL,
+            from: ScanSource(path: rootURL.path, displayName: rootURL.lastPathComponent),
+            settings: DiskScanSettings(
+                usePhysicalSize: true,
+                lookInsidePackages: false,
+                ignoreCreatorCode: true
+            )
+        )
+
+        #expect(package.allocatedSizeValue == 123_456)
+        #expect(package.logicalSizeValue == 654_321)
+        #expect(packageSizer.sizedURLs == [packageURL])
+    }
+
+    @Test func itemBuilderCanBeSubstitutedForKindNaming() async throws {
+        let rootURL: URL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("disk-hog-item-factory-substitution-\(UUID().uuidString)", isDirectory: true)
+        let itemURL: URL = rootURL.appendingPathComponent("unknown.custom")
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+        try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
+        try Data(repeating: 0x11, count: 8).write(to: itemURL)
+        let scanner: DiskInventoryZScanner = DiskInventoryZScanner(
+            itemFactory: FixedKindItemFactory(kindName: "Injected Kind")
+        )
+
+        let item: DiskItem = try await scanner.scanItem(
+            at: itemURL,
+            from: ScanSource(path: rootURL.path, displayName: rootURL.lastPathComponent)
+        )
+
+        #expect(item.kindName == "Injected Kind")
+    }
+
+    @Test func hardlinkDeduplicatorCanBeSubstituted() async throws {
+        let rootURL: URL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("disk-hog-hardlink-dedup-substitution-\(UUID().uuidString)", isDirectory: true)
+        let itemURL: URL = rootURL.appendingPathComponent("duplicate.dat")
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+        try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
+        try Data(repeating: 0x22, count: 8).write(to: itemURL)
+        let hardlinkDeduplicator: AlwaysDuplicateHardlinkDeduplicator = AlwaysDuplicateHardlinkDeduplicator()
+        let scanner: DiskInventoryZScanner = DiskInventoryZScanner(
+            hardlinkDeduplicator: hardlinkDeduplicator
+        )
+
+        let item: DiskItem = try await scanner.scanItem(
+            at: itemURL,
+            from: ScanSource(path: rootURL.path, displayName: rootURL.lastPathComponent)
+        )
+
+        #expect(item.isHardlinkDuplicate)
+        #expect(item.allocatedSizeValue == 0)
+        #expect(item.logicalSizeValue == 0)
+        #expect(hardlinkDeduplicator.didReset)
+    }
+
     private static func makeHardlinkFixture(named name: String) throws -> URL {
         let rootURL: URL = FileManager.default.temporaryDirectory
             .appendingPathComponent("disk-hog-\(name)-\(UUID().uuidString)", isDirectory: true)
@@ -2737,6 +2807,85 @@ struct DiskInventoryZScannerTests {
         return item.children.reduce(currentCount) { count, child in
             count + hardlinkDuplicateCount(in: child)
         }
+    }
+
+}
+
+private final class FixedOpaquePackageSizer: @unchecked Sendable, OpaquePackageSizing {
+    private let lock: NSLock = NSLock()
+    private let size: OpaquePackageSize
+    private var lockedSizedURLs: [URL] = []
+
+    var sizedURLs: [URL] {
+        lock.withLock {
+            lockedSizedURLs
+        }
+    }
+
+    init(size: OpaquePackageSize) {
+        self.size = size
+    }
+
+    func size(of url: URL) throws -> OpaquePackageSize {
+        lock.withLock {
+            lockedSizedURLs.append(url)
+        }
+        return size
+    }
+}
+
+private final class FixedKindItemFactory: @unchecked Sendable, DiskItemBuilding {
+    private let kindName: String
+
+    init(kindName: String) {
+        self.kindName = kindName
+    }
+
+    func makeItem(url: URL, values: URLResourceValues?) -> DiskItemBuilder {
+        DiskItemBuilder(
+            url: url,
+            name: values?.name ?? url.lastPathComponent,
+            allocatedSizeValue: UInt64(values?.totalFileAllocatedSize ?? 0),
+            logicalSizeValue: UInt64(values?.fileSize ?? 0),
+            kindName: kindName,
+            isDirectory: values?.isDirectory ?? url.hasDirectoryPath,
+            isPackage: values?.isPackage ?? false,
+            isAliasOrSymbolicLink: values?.isSymbolicLink ?? false
+        )
+    }
+
+    func makeItem(url: URL, values: URLResourceValues?, in arenaOwner: DiskItemBuilder) -> DiskItemBuilder {
+        arenaOwner.makeChild(
+            url: url,
+            name: values?.name ?? url.lastPathComponent,
+            allocatedSizeValue: UInt64(values?.totalFileAllocatedSize ?? 0),
+            logicalSizeValue: UInt64(values?.fileSize ?? 0),
+            kindName: kindName,
+            isDirectory: values?.isDirectory ?? url.hasDirectoryPath,
+            isPackage: values?.isPackage ?? false,
+            isAliasOrSymbolicLink: values?.isSymbolicLink ?? false
+        )
+    }
+}
+
+private final class AlwaysDuplicateHardlinkDeduplicator: @unchecked Sendable, HardlinkDeduplicating {
+    private let lock: NSLock = NSLock()
+    private var lockedDidReset: Bool = false
+
+    var didReset: Bool {
+        lock.withLock {
+            lockedDidReset
+        }
+    }
+
+    func reset() {
+        lock.withLock {
+            lockedDidReset = true
+        }
+    }
+
+    func markDuplicateIfNeeded(item: DiskItemBuilder, values: URLResourceValues) {
+        item.isHardlinkDuplicate = true
     }
 }
 

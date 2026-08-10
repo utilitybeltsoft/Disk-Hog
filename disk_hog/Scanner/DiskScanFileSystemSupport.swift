@@ -54,8 +54,12 @@ nonisolated struct OpaquePackageSize: Sendable {
     var logical: UInt64 = 0
 }
 
-nonisolated enum OpaquePackageSizer {
-    static func size(of url: URL) throws -> OpaquePackageSize {
+nonisolated protocol OpaquePackageSizing: Sendable {
+    func size(of url: URL) throws -> OpaquePackageSize
+}
+
+nonisolated struct FileSystemOpaquePackageSizer: OpaquePackageSizing {
+    func size(of url: URL) throws -> OpaquePackageSize {
         var packageSize: OpaquePackageSize = OpaquePackageSize()
         guard let enumerator: FileManager.DirectoryEnumerator = FileManager.default.enumerator(
             at: url,
@@ -85,6 +89,11 @@ nonisolated enum OpaquePackageSizer {
 // Hardlink byte ownership is intentionally first-claimer-wins across parallel
 // subtree scans. Grand totals remain deterministic, but per-folder attribution
 // for multiply-linked files can vary with task scheduling.
+nonisolated protocol HardlinkDeduplicating: Sendable {
+    func reset()
+    func markDuplicateIfNeeded(item: DiskItemBuilder, values: URLResourceValues)
+}
+
 nonisolated final class HardlinkDeduplicator: @unchecked Sendable {
     private let lock: NSLock = NSLock()
     private let seenFileIdentifiers: NSMutableSet = NSMutableSet()
@@ -115,3 +124,5 @@ nonisolated final class HardlinkDeduplicator: @unchecked Sendable {
         }
     }
 }
+
+extension HardlinkDeduplicator: HardlinkDeduplicating {}
