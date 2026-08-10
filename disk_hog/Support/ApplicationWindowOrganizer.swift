@@ -8,8 +8,6 @@ enum ManagedApplicationWindowRole: Equatable {
 
 struct ManagedWindowPlacementPlan: Equatable {
     let targetFrame: NSRect
-    let movedObstacleIndex: Int?
-    let movedObstacleFrame: NSRect?
 }
 
 @MainActor
@@ -62,11 +60,6 @@ final class ApplicationWindowPlacementService {
             obstacleFrames: obstacles.map(\.frame),
             visibleFrame: screen.visibleFrame
         )
-        if let movedIndex: Int = plan.movedObstacleIndex,
-           obstacles.indices.contains(movedIndex),
-           let movedFrame: NSRect = plan.movedObstacleFrame {
-            obstacles[movedIndex].setFrame(movedFrame, display: true, animate: false)
-        }
         targetWindow.setFrame(plan.targetFrame, display: true, animate: false)
     }
 
@@ -89,45 +82,7 @@ final class ApplicationWindowPlacementService {
                 movementDistance(from: fittedTarget, to: $0)
                     < movementDistance(from: fittedTarget, to: $1)
             }) {
-            return ManagedWindowPlacementPlan(
-                targetFrame: clearFrame,
-                movedObstacleIndex: nil,
-                movedObstacleFrame: nil
-            )
-        }
-
-        var bestRearrangement: (
-            targetFrame: NSRect,
-            obstacleIndex: Int,
-            obstacleFrame: NSRect,
-            movement: CGFloat
-        )?
-        for (index, obstacleFrame) in obstacleFrames.enumerated() {
-            let otherObstacles: [NSRect] = obstacleFrames.enumerated().compactMap {
-                $0.offset == index ? nil : $0.element
-            }
-            for pair in pairedFrames(
-                target: fittedTarget,
-                obstacle: obstacleFrame,
-                usableFrame: usableFrame
-            ) {
-                guard overlapArea(of: pair.target, with: otherObstacles) == 0,
-                      overlapArea(of: pair.obstacle, with: otherObstacles) == 0 else {
-                    continue
-                }
-                let movement: CGFloat = movementDistance(from: fittedTarget, to: pair.target)
-                    + movementDistance(from: obstacleFrame, to: pair.obstacle)
-                if bestRearrangement == nil || movement < bestRearrangement!.movement {
-                    bestRearrangement = (pair.target, index, pair.obstacle, movement)
-                }
-            }
-        }
-        if let bestRearrangement {
-            return ManagedWindowPlacementPlan(
-                targetFrame: bestRearrangement.targetFrame,
-                movedObstacleIndex: bestRearrangement.obstacleIndex,
-                movedObstacleFrame: bestRearrangement.obstacleFrame
-            )
+            return ManagedWindowPlacementPlan(targetFrame: clearFrame)
         }
 
         let leastOverlappingFrame: NSRect = targetCandidates.min {
@@ -139,11 +94,7 @@ final class ApplicationWindowPlacementService {
             return movementDistance(from: fittedTarget, to: $0)
                 < movementDistance(from: fittedTarget, to: $1)
         } ?? fittedTarget
-        return ManagedWindowPlacementPlan(
-            targetFrame: leastOverlappingFrame,
-            movedObstacleIndex: nil,
-            movedObstacleFrame: nil
-        )
+        return ManagedWindowPlacementPlan(targetFrame: leastOverlappingFrame)
     }
 
     private func removeReleasedWindows() {
@@ -190,94 +141,6 @@ final class ApplicationWindowPlacementService {
             }
         }
         return candidates
-    }
-
-    private static func pairedFrames(
-        target: NSRect,
-        obstacle: NSRect,
-        usableFrame: NSRect
-    ) -> [(target: NSRect, obstacle: NSRect)] {
-        var results: [(target: NSRect, obstacle: NSRect)] = []
-        let horizontalWidth: CGFloat = target.width + windowGap + obstacle.width
-        if horizontalWidth <= usableFrame.width {
-            let top: CGFloat = min(
-                max(max(target.maxY, obstacle.maxY), usableFrame.minY + max(target.height, obstacle.height)),
-                usableFrame.maxY
-            )
-            let groupX: CGFloat = min(
-                max(min(target.minX, obstacle.minX), usableFrame.minX),
-                usableFrame.maxX - horizontalWidth
-            )
-            results.append((
-                target: NSRect(
-                    x: groupX + obstacle.width + windowGap,
-                    y: top - target.height,
-                    width: target.width,
-                    height: target.height
-                ),
-                obstacle: NSRect(
-                    x: groupX,
-                    y: top - obstacle.height,
-                    width: obstacle.width,
-                    height: obstacle.height
-                )
-            ))
-            results.append((
-                target: NSRect(
-                    x: groupX,
-                    y: top - target.height,
-                    width: target.width,
-                    height: target.height
-                ),
-                obstacle: NSRect(
-                    x: groupX + target.width + windowGap,
-                    y: top - obstacle.height,
-                    width: obstacle.width,
-                    height: obstacle.height
-                )
-            ))
-        }
-
-        let verticalHeight: CGFloat = target.height + windowGap + obstacle.height
-        if verticalHeight <= usableFrame.height {
-            let left: CGFloat = min(
-                max(min(target.minX, obstacle.minX), usableFrame.minX),
-                usableFrame.maxX - max(target.width, obstacle.width)
-            )
-            let groupY: CGFloat = min(
-                max(min(target.minY, obstacle.minY), usableFrame.minY),
-                usableFrame.maxY - verticalHeight
-            )
-            results.append((
-                target: NSRect(
-                    x: left,
-                    y: groupY + obstacle.height + windowGap,
-                    width: target.width,
-                    height: target.height
-                ),
-                obstacle: NSRect(
-                    x: left,
-                    y: groupY,
-                    width: obstacle.width,
-                    height: obstacle.height
-                )
-            ))
-            results.append((
-                target: NSRect(
-                    x: left,
-                    y: groupY,
-                    width: target.width,
-                    height: target.height
-                ),
-                obstacle: NSRect(
-                    x: left,
-                    y: groupY + target.height + windowGap,
-                    width: obstacle.width,
-                    height: obstacle.height
-                )
-            ))
-        }
-        return results
     }
 
     private static func fitted(_ frame: NSRect, within bounds: NSRect) -> NSRect {

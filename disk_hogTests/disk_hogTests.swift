@@ -1162,11 +1162,10 @@ struct ApplicationWindowPlacementServiceTests {
         )
 
         #expect(plan.targetFrame.intersects(sourceFrame) == false)
-        #expect(plan.movedObstacleIndex == nil)
         #expect(visibleFrame.contains(plan.targetFrame))
     }
 
-    @Test func movesOneExistingWindowWhenThatAvoidsOtherwiseUnavoidableOverlap() throws {
+    @Test func leavesExistingWindowsAloneWhenOverlapCannotBeAvoided() {
         let visibleFrame: NSRect = NSRect(x: 0, y: 0, width: 1_000, height: 700)
         let sourceFrame: NSRect = NSRect(x: 300, y: 100, width: 300, height: 500)
         let scanFrame: NSRect = NSRect(x: 100, y: 100, width: 600, height: 500)
@@ -1176,12 +1175,9 @@ struct ApplicationWindowPlacementServiceTests {
             obstacleFrames: [sourceFrame],
             visibleFrame: visibleFrame
         )
-        let movedSourceFrame: NSRect = try #require(plan.movedObstacleFrame)
 
-        #expect(plan.movedObstacleIndex == 0)
-        #expect(plan.targetFrame.intersects(movedSourceFrame) == false)
+        #expect(plan.targetFrame.intersects(sourceFrame))
         #expect(visibleFrame.contains(plan.targetFrame))
-        #expect(visibleFrame.contains(movedSourceFrame))
     }
 }
 
