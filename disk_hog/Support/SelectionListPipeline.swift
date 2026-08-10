@@ -144,7 +144,11 @@ nonisolated enum SelectionListPipeline {
         let descriptors: [SelectionListSortDescriptor] = sortDescriptors.isEmpty
             ? [SelectionListSortDescriptor(field: .size, isAscending: false)]
             : sortDescriptors
-        try cancellableStableSort(&filteredRows, descriptors: descriptors)
+        try Task.checkCancellation()
+        filteredRows.sort {
+            orderedBefore($0, $1, descriptors: descriptors)
+        }
+        try Task.checkCancellation()
         var rowIndexByID: [DiskItemID: Int] = [:]
         rowIndexByID.reserveCapacity(filteredRows.count)
         for (index, row) in filteredRows.enumerated() {
@@ -159,63 +163,7 @@ nonisolated enum SelectionListPipeline {
         )
     }
 
-    private static func cancellableStableSort(
-        _ rows: inout [SelectionListRow],
-        descriptors: [SelectionListSortDescriptor]
-    ) throws {
-        guard rows.count > 1 else {
-            try Task.checkCancellation()
-            return
-        }
-
-        var source: [SelectionListRow] = rows
-        var destination: [SelectionListRow] = rows
-        var width: Int = 1
-
-        while width < source.count {
-            try Task.checkCancellation()
-            var lowerBound: Int = 0
-            var writtenCount: Int = 0
-
-            while lowerBound < source.count {
-                let middle: Int = min(lowerBound + width, source.count)
-                let upperBound: Int = min(lowerBound + (width * 2), source.count)
-                var leftIndex: Int = lowerBound
-                var rightIndex: Int = middle
-                var destinationIndex: Int = lowerBound
-
-                while leftIndex < middle || rightIndex < upperBound {
-                    writtenCount += 1
-                    if writtenCount.isMultiple(of: cancellationInterval) {
-                        try Task.checkCancellation()
-                    }
-
-                    if rightIndex >= upperBound
-                        || (leftIndex < middle
-                            && orderedBeforeOrEqual(
-                                source[leftIndex],
-                                source[rightIndex],
-                                descriptors: descriptors
-                            )) {
-                        destination[destinationIndex] = source[leftIndex]
-                        leftIndex += 1
-                    } else {
-                        destination[destinationIndex] = source[rightIndex]
-                        rightIndex += 1
-                    }
-                    destinationIndex += 1
-                }
-                lowerBound = upperBound
-            }
-
-            swap(&source, &destination)
-            width *= 2
-        }
-
-        rows = source
-    }
-
-    private static func orderedBeforeOrEqual(
+    private static func orderedBefore(
         _ lhs: SelectionListRow,
         _ rhs: SelectionListRow,
         descriptors: [SelectionListSortDescriptor]
@@ -239,7 +187,7 @@ nonisolated enum SelectionListPipeline {
                 : comparison == .orderedDescending
         }
 
-        return lhs.fullPath.localizedStandardCompare(rhs.fullPath) != .orderedDescending
+        return lhs.fullPath.localizedStandardCompare(rhs.fullPath) == .orderedAscending
     }
 }
 
