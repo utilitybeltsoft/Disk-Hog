@@ -173,41 +173,8 @@ nonisolated final class DiskItem: Identifiable, Hashable, Sendable, DiskItemTree
 
     private var record: PackedDiskItemRecord { snapshot.record(at: address) }
 
-    var children: [DiskItem] { itemChildren }
     var childCount: Int { snapshot.childCount(of: address) }
-    var itemType: DiskItemType { record.itemType }
-    var allocatedSizeValue: UInt64 { record.allocatedSizeValue }
-    var logicalSizeValue: UInt64 { record.logicalSizeValue }
-    var kindName: String? { snapshot.string(record.kindName, at: address) }
-    var isDirectory: Bool { record.isDirectory }
-    var isPackage: Bool { record.isPackage }
-    var isAliasOrSymbolicLink: Bool { record.isAliasOrSymbolicLink }
-    var isHardlinkDuplicate: Bool { record.isHardlinkDuplicate }
-    var isSpecialItem: Bool { record.itemType != .fileOrFolder }
-    var isFolder: Bool { record.isDirectory && !record.isAliasOrSymbolicLink }
-    var displayName: String {
-        switch record.itemType {
-        case .fileOrFolder:
-            return snapshot.string(record.displayName, at: address)
-                ?? snapshot.string(record.fileSystemName, at: address)
-                ?? ""
-        case .otherSpace: return String(localized: "space occupied by other files and folders")
-        case .freeSpace: return String(localized: "free space on drive")
-        }
-    }
-    var name: String {
-        switch record.itemType {
-        case .fileOrFolder: return snapshot.string(record.fileSystemName, at: address) ?? ""
-        case .otherSpace, .freeSpace: return displayName
-        }
-    }
-    var path: String { isSpecialItem ? "" : snapshot.string(record.path, at: address) ?? "" }
-    var url: URL { URL(fileURLWithPath: snapshot.string(record.path, at: address) ?? "") }
     var isRoot: Bool { record.isRoot }
-
-    func sizeValue(usePhysicalSize: Bool) -> UInt64 {
-        usePhysicalSize ? record.allocatedSizeValue : record.logicalSizeValue
-    }
 
     func child(at index: Int) -> DiskItem {
         DiskItem(snapshot: snapshot, address: snapshot.child(of: address, at: index))
