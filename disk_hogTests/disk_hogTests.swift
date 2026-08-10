@@ -93,6 +93,50 @@ struct ScanWindowCommandStateSelectionTests {
 }
 
 @MainActor
+struct DiskItemOutlineIdentityTests {
+    @Test func returnsCanonicalItemsAndFindsTheirRows() {
+        let child: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/child.txt"),
+            allocatedSizeValue: 8,
+            logicalSizeValue: 8
+        )
+        let root: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan"),
+            isDirectory: true,
+            children: [child]
+        )
+        let session: ScanSession = ScanSession(source: ScanSource(path: "/scan", displayName: "scan"))
+        let coordinator: DiskItemOutlineView.Coordinator = DiskItemOutlineView.Coordinator(
+            session: session,
+            usePhysicalSize: true,
+            selectionCoordinator: ScanWindowSelectionCoordinator(),
+            activePane: Binding<ScanWindowPane?>.constant(nil)
+        )
+        let outlineView: NSOutlineView = NSOutlineView()
+        let column: NSTableColumn = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("Name"))
+        outlineView.addTableColumn(column)
+        outlineView.outlineTableColumn = column
+        outlineView.dataSource = coordinator
+        coordinator.outlineView = outlineView
+        coordinator.reload(rootItem: root)
+
+        let suppliedRoot: DiskItem = try #require(
+            coordinator.outlineView(outlineView, child: 0, ofItem: nil) as? DiskItem
+        )
+        outlineView.expandItem(suppliedRoot)
+        let firstChild: DiskItem = try #require(
+            coordinator.outlineView(outlineView, child: 0, ofItem: suppliedRoot) as? DiskItem
+        )
+        let secondChild: DiskItem = try #require(
+            coordinator.outlineView(outlineView, child: 0, ofItem: suppliedRoot) as? DiskItem
+        )
+
+        #expect(firstChild === secondChild)
+        #expect(outlineView.row(forItem: firstChild) >= 0)
+    }
+}
+
+@MainActor
 struct ApplicationStateRestorationTests {
     @Test func applicationDoesNotSaveOrRestoreWindowState() {
         let delegate: DiskHogApplicationDelegate = DiskHogApplicationDelegate()

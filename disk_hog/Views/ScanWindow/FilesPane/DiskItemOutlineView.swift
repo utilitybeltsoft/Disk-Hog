@@ -90,6 +90,10 @@ struct DiskItemOutlineView: NSViewRepresentable {
         let contextMenu: NSMenu = NSMenu()
         private let contextMenuActionTarget: DiskItemContextMenuActionTarget
         private var rootItem: DiskItem?
+        // NSOutlineView identifies items by Objective-C object identity. DiskItem is
+        // a flyweight, so keep one wrapper per packed address for this outline's
+        // current snapshot.
+        private var canonicalItems: [DiskItemID: DiskItem] = [:]
         private var isApplyingSelection: Bool = false
         private var selectionCancellable: AnyCancellable?
 
@@ -124,13 +128,14 @@ struct DiskItemOutlineView: NSViewRepresentable {
 
         func reload(rootItem: DiskItem?) {
             let expandedPaths: [String] = expandedItemPaths()
-            self.rootItem = rootItem
+            canonicalItems.removeAll(keepingCapacity: true)
+            self.rootItem = rootItem.map(canonicalItem)
             outlineView?.reloadData()
             if let rootItem: DiskItem = rootItem {
-                outlineView?.expandItem(rootItem)
+                outlineView?.expandItem(canonicalItem(rootItem))
                 for path: String in expandedPaths {
                     if let expandedItem: DiskItem = rootItem.item(atPath: path) {
-                        outlineView?.expandItem(expandedItem)
+                        outlineView?.expandItem(canonicalItem(expandedItem))
                     }
                 }
             }
@@ -164,7 +169,7 @@ struct DiskItemOutlineView: NSViewRepresentable {
                 return
             }
 
-            guard let item: DiskItem = item else {
+            guard let item: DiskItem = canonicalItem(matching: item) else {
                 isApplyingSelection = true
                 outlineView.deselectAll(nil)
                 isApplyingSelection = false
@@ -200,10 +205,10 @@ struct DiskItemOutlineView: NSViewRepresentable {
 
         func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any {
             guard let item: DiskItem = item as? DiskItem else {
-                return rootItem!
-            }
+            return canonicalItem(rootItem!)
+        }
 
-            return item.child(at: index)
+            return canonicalItem(item.child(at: index))
         }
 
         func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool {
@@ -284,8 +289,33 @@ struct DiskItemOutlineView: NSViewRepresentable {
 
             let ancestors: [DiskItem] = rootItem.descendantsMatchingAncestorPath(of: item).dropLast()
             for ancestor: DiskItem in ancestors {
-                outlineView?.expandItem(ancestor)
+                outlineView?.expandItem(canonicalItem(ancestor))
             }
+        }
+
+        private func canonicalItem(_ item: DiskItem) -> DiskItem {
+            if let existingItem: DiskItem = canonicalItems[item.id] {
+                return existingItem
+            }
+
+            canonicalItems[item.id] = item
+            return item
+        }
+
+        private func canonicalItem(matching item: DiskItem?) -> DiskItem? {
+            guard let item else {
+                return nil
+            }
+            if let existingItem: DiskItem = canonicalItems[item.id] {
+                return existingItem
+            }
+            guard let rootItem else {
+                return nil
+            }
+            if rootItem.snapshot === item.snapshot {
+                return canonicalItem(item)
+            }
+            return rootItem.item(atPath: item.path).map(canonicalItem)
         }
 
         private func nameCell(for item: DiskItem, outlineView: NSOutlineView) -> NSTableCellView {
