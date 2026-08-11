@@ -8,6 +8,7 @@ final class SelectionListDataStore: ObservableObject {
     private(set) var rowsByID: [DiskItemID: SelectionListRow] = [:]
     private(set) var queryResult: SelectionListQueryResult = .empty
     @Published private(set) var resultGeneration: Int = 0
+    private var snapshotCacheKey: SelectionListSnapshotCacheKey?
 
     var resultCount: Int {
         queryResult.rows.count
@@ -17,18 +18,30 @@ final class SelectionListDataStore: ObservableObject {
         rows = []
         rowsByID = [:]
         queryResult = .empty
+        snapshotCacheKey = nil
         resultGeneration += 1
     }
 
-    func install(_ snapshot: SelectionListSnapshot) {
+    func hasSnapshot(for cacheKey: SelectionListSnapshotCacheKey) -> Bool {
+        snapshotCacheKey == cacheKey
+    }
+
+    func install(_ snapshot: SelectionListSnapshot, cacheKey: SelectionListSnapshotCacheKey) {
         rows = snapshot.rows
         rowsByID = snapshot.rowsByID
+        snapshotCacheKey = cacheKey
     }
 
     func publish(_ result: SelectionListQueryResult) {
         queryResult = result
         resultGeneration += 1
     }
+}
+
+struct SelectionListSnapshotCacheKey: Hashable {
+    let rootID: DiskItemID
+    let filter: SelectionListFilter
+    let usesPhysicalSize: Bool
 }
 
 struct SelectionListTableView: NSViewRepresentable {

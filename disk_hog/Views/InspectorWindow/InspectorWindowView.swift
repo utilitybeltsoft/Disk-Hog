@@ -132,7 +132,8 @@ private struct InspectorWindowContentView: View {
                 SelectionListView(
                     session: context.session,
                     selectionCoordinator: context.selectionCoordinator,
-                    selectionFilter: $context.selectionListFilter
+                    selectionFilter: $context.selectionListFilter,
+                    dataStore: context.selectionListDataStore
                 )
             case .cleanupQueue:
                 CleanupQueueView()
@@ -397,7 +398,7 @@ private struct SelectionListView: View {
     @ObservedObject var session: ScanSession
     @ObservedObject var selectionCoordinator: ScanWindowSelectionCoordinator
     @Binding var selectionFilter: SelectionListFilter?
-    @StateObject private var dataStore: SelectionListDataStore = SelectionListDataStore()
+    @ObservedObject var dataStore: SelectionListDataStore
     @State private var rowsGeneration: Int = 0
     @State private var selectedItemID: DiskItemID?
     @State private var selectedItemIDs: Set<DiskItemID> = []
@@ -490,11 +491,24 @@ private struct SelectionListView: View {
         .task(id: SelectionListTaskID(rootID: session.rootItem?.id, filter: selectionFilter)) {
             guard let rootItem: DiskItem = session.rootItem,
                   let selectionFilter else {
-                dataStore.reset()
-                rowsGeneration += 1
                 isLoading = false
                 isQuerying = false
                 hasCompletedInitialQuery = false
+                return
+            }
+
+            let cacheKey: SelectionListSnapshotCacheKey = SelectionListSnapshotCacheKey(
+                rootID: rootItem.id,
+                filter: selectionFilter,
+                usesPhysicalSize: session.scanSettings.usePhysicalSize
+            )
+            if dataStore.hasSnapshot(for: cacheKey) {
+                rowsGeneration = dataStore.resultGeneration
+                isLoading = false
+                isQuerying = false
+                hasCompletedInitialQuery = true
+                let selectedItem: DiskItem? = selectionCoordinator.selectedItem
+                selectedItemID = selectedItem.flatMap { dataStore.rowsByID[$0.id] }?.id
                 return
             }
 
@@ -520,7 +534,7 @@ private struct SelectionListView: View {
                 return
             }
             guard !Task.isCancelled else { return }
-            dataStore.install(snapshot)
+            dataStore.install(snapshot, cacheKey: cacheKey)
             rowsGeneration += 1
             isLoading = false
             let selectedItem: DiskItem? = selectionCoordinator.selectedItem
