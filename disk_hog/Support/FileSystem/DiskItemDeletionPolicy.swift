@@ -55,6 +55,16 @@ nonisolated enum DiskItemDeletionPolicy {
 
 @MainActor
 enum DiskItemDeletionCoordinator {
+    static func requestQueueing(
+        of item: DiskItem,
+        from session: ScanSession?
+    ) {
+        guard let session else {
+            return
+        }
+        _ = CleanupQueueStore.shared.enqueue(item, from: session)
+    }
+
     static func requestDeletion(
         of item: DiskItem,
         from session: ScanSession?,

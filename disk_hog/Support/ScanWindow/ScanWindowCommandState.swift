@@ -302,10 +302,9 @@ final class DiskItemContextMenuActionTarget: NSObject {
             return
         }
 
-        DiskItemDeletionCoordinator.requestDeletion(
+        DiskItemDeletionCoordinator.requestQueueing(
             of: payload.item,
-            from: session,
-            presentingWindow: NSApp.keyWindow
+            from: session
         )
     }
 
@@ -404,7 +403,7 @@ enum DiskItemContextMenuBuilder {
         menu.addItem(.separator())
 
         let trashItem: NSMenuItem = NSMenuItem(
-            title: String(localized: "Move To Trash"),
+            title: String(localized: "Add to Cleanup Queue"),
             action: #selector(DiskItemContextMenuActionTarget.trashMenuItem(_:)),
             keyEquivalent: ""
         )

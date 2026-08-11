@@ -3559,6 +3559,34 @@
         }
       }
     },
+    "Add to Cleanup Queue": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zur Bereinigungswarteschlange hinzufügen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Añadir a la cola de limpieza"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajouter à la file de nettoyage"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aggiungi alla coda di pulizia"
+          }
+        }
+      }
+    },
     "Name": {
       "localizations": {
         "de": {
