@@ -425,7 +425,7 @@ struct ScanSessionWorkerIntegrationTests {
 
         session.startScan()
 
-        try await Self.waitUntil { session.state == .complete }
+        try await Self.waitUntil(observing: session) { session.state == .complete }
         #expect(session.rootItem?.path == "/scan")
         #expect(session.scannedFileCount == 1)
         #expect(session.scannedFolderCount == 1)
@@ -442,7 +442,7 @@ struct ScanSessionWorkerIntegrationTests {
 
         session.startScan()
 
-        try await Self.waitUntil { session.state == .failed }
+        try await Self.waitUntil(observing: session) { session.state == .failed }
         #expect(session.failure?.message == "scan failed")
         #expect(session.failure?.title.contains("scan") == true)
     }
@@ -455,7 +455,7 @@ struct ScanSessionWorkerIntegrationTests {
 
         session.startScan()
 
-        try await Self.waitUntil { session.state == .failed }
+        try await Self.waitUntil(observing: session) { session.state == .failed }
         let alertBinding: Binding<ScanSessionFailureAlertPresentation?> =
             ScanSessionFailureAlertBinding.binding(for: session)
         let alertPresentation: ScanSessionFailureAlertPresentation = try #require(alertBinding.wrappedValue)
@@ -480,12 +480,12 @@ struct ScanSessionWorkerIntegrationTests {
             treeWorker: treeWorker
         )
         session.startScan()
-        try await Self.waitUntil { session.state == .complete }
+        try await Self.waitUntil(observing: session) { session.state == .complete }
         let item: DiskItem = try #require(session.rootItem?.item(atPath: "/scan/file.txt"))
 
         session.refresh(item)
 
-        try await Self.waitUntil { session.isUpdatingTree == false && session.scannedByteCount == 24 }
+        try await Self.waitUntil(observing: session) { session.isUpdatingTree == false && session.scannedByteCount == 24 }
         #expect(session.rootItem?.item(atPath: "/scan/file.txt")?.allocatedSizeValue == 24)
         #expect(session.preferredSelection?.path == "/scan/file.txt")
         #expect(session.failure == nil)
@@ -502,12 +502,12 @@ struct ScanSessionWorkerIntegrationTests {
             treeWorker: treeWorker
         )
         session.startScan()
-        try await Self.waitUntil { session.state == .complete }
+        try await Self.waitUntil(observing: session) { session.state == .complete }
         let item: DiskItem = try #require(session.rootItem?.item(atPath: "/scan/file.txt"))
 
         session.refresh(item)
 
-        try await Self.waitUntil { session.isUpdatingTree == false && session.failure != nil }
+        try await Self.waitUntil(observing: session) { session.isUpdatingTree == false && session.failure != nil }
         #expect(session.state == .complete)
         #expect(session.rootItem?.path == "/scan")
         #expect(session.failure?.message == "refresh failed")
@@ -533,12 +533,12 @@ struct ScanSessionWorkerIntegrationTests {
             treeWorker: treeWorker
         )
         session.startScan()
-        try await Self.waitUntil { session.state == .complete }
+        try await Self.waitUntil(observing: session) { session.state == .complete }
         let item: DiskItem = try #require(session.rootItem?.item(atPath: "/scan/file.txt"))
 
         session.delete(item, using: .moveToTrash)
 
-        try await Self.waitUntil { session.isUpdatingTree == false && session.scannedFileCount == 0 }
+        try await Self.waitUntil(observing: session) { session.isUpdatingTree == false && session.scannedFileCount == 0 }
         #expect(session.rootItem?.item(atPath: "/scan/file.txt") == nil)
         #expect(session.preferredSelection?.path == "/scan")
         #expect(session.failure == nil)
@@ -556,12 +556,12 @@ struct ScanSessionWorkerIntegrationTests {
             treeWorker: treeWorker
         )
         session.startScan()
-        try await Self.waitUntil { session.state == .complete }
+        try await Self.waitUntil(observing: session) { session.state == .complete }
         let item: DiskItem = try #require(session.rootItem?.item(atPath: "/scan/file.txt"))
 
         session.delete(item, using: .moveToTrash)
 
-        try await Self.waitUntil { session.isUpdatingTree == false && session.failure != nil }
+        try await Self.waitUntil(observing: session) { session.isUpdatingTree == false && session.failure != nil }
         #expect(session.state == .complete)
         #expect(session.rootItem?.item(atPath: "/scan/file.txt") != nil)
         #expect(session.failure?.message == "delete failed")
@@ -582,7 +582,7 @@ struct ScanSessionWorkerIntegrationTests {
         session.startScan()
         session.rescanForPackageContentsPreference(!session.scanSettings.lookInsidePackages)
 
-        try await Self.waitUntil { session.state == .complete }
+        try await Self.waitUntil(observing: session) { session.state == .complete }
         #expect(await scanWorker.callCount() == 2)
         #expect(session.rootItem?.path == "/scan")
         #expect(session.failure?.message == "interrupted scan failed")
@@ -599,12 +599,12 @@ struct ScanSessionWorkerIntegrationTests {
             presentationWorker: presentationWorker
         )
         session.startScan()
-        try await Self.waitUntil { session.state == .complete }
+        try await Self.waitUntil(observing: session) { session.state == .complete }
         let originalMetricsID: ObjectIdentifier? = session.presentationMetrics.map(ObjectIdentifier.init)
 
         session.rebuildPresentationMetrics(sharesKindColors: false)
 
-        try await Self.waitUntil {
+        try await Self.waitUntil(observing: session) {
             session.presentationMetrics.map(ObjectIdentifier.init) != originalMetricsID
         }
         #expect(session.presentationMetrics != nil)
@@ -630,11 +630,11 @@ struct ScanSessionWorkerIntegrationTests {
             presentationWorker: presentationWorker
         )
         session.startScan()
-        try await Self.waitUntil { session.state == .complete }
+        try await Self.waitUntil(observing: session) { session.state == .complete }
 
         session.updateSizeMode(false)
 
-        try await Self.waitUntil { session.scannedByteCount == 5 }
+        try await Self.waitUntil(observing: session) { session.scannedByteCount == 5 }
         #expect(session.rootItem?.sizeValue(usePhysicalSize: false) == 5)
         #expect(session.preferredSelection?.path == "/scan")
         #expect(session.state == .complete)
@@ -660,12 +660,12 @@ struct ScanSessionWorkerIntegrationTests {
             presentationWorker: presentationWorker
         )
         session.startScan()
-        try await Self.waitUntil { session.state == .complete }
+        try await Self.waitUntil(observing: session) { session.state == .complete }
 
         session.updateSizeMode(false)
         session.updateSizeMode(true)
 
-        try await Self.waitUntil { session.scannedByteCount == 12 }
+        try await Self.waitUntil(observing: session) { session.scannedByteCount == 12 }
         try await Task.sleep(nanoseconds: 250_000_000)
         #expect(session.scanSettings.usePhysicalSize)
         #expect(session.scannedByteCount == 12)
@@ -708,7 +708,7 @@ struct ScanSessionWorkerIntegrationTests {
         #expect(session.rootItem == nil)
         #expect(session.scannedByteCount == 0)
 
-        try await Self.waitUntil { session.state == .complete }
+        try await Self.waitUntil(observing: session) { session.state == .complete }
         #expect(session.rootItem?.allocatedSizeValue == 30)
         #expect(session.scannedByteCount == 30)
     }
@@ -763,17 +763,68 @@ struct ScanSessionWorkerIntegrationTests {
         )
     }
 
+    private struct ScanSessionWaitTimeout: Error {}
+
+    private final class ScanSessionWaiter {
+        private var didResume: Bool = false
+        private let continuation: CheckedContinuation<Void, Error>
+
+        var cancellable: AnyCancellable?
+        var timeoutTask: Task<Void, Never>?
+
+        init(continuation: CheckedContinuation<Void, Error>) {
+            self.continuation = continuation
+        }
+
+        func succeed() {
+            finish(with: .success(()))
+        }
+
+        func fail(_ error: Error) {
+            finish(with: .failure(error))
+        }
+
+        private func finish(with result: Result<Void, Error>) {
+            guard !didResume else { return }
+            didResume = true
+            cancellable?.cancel()
+            timeoutTask?.cancel()
+            continuation.resume(with: result)
+        }
+    }
+
     private static func waitUntil(
+        observing session: ScanSession,
         timeoutNanoseconds: UInt64 = 10_000_000_000,
         condition: @escaping @MainActor () -> Bool
     ) async throws {
-        let deadline: ContinuousClock.Instant = .now + .nanoseconds(Int64(timeoutNanoseconds))
-        while !condition() {
-            guard ContinuousClock.now < deadline else {
-                Issue.record("Timed out waiting for ScanSession state change after \(timeoutNanoseconds / 1_000_000_000) seconds.")
-                return
+        guard !condition() else { return }
+
+        do {
+            try await withCheckedThrowingContinuation { continuation in
+                let waiter: ScanSessionWaiter = ScanSessionWaiter(continuation: continuation)
+                waiter.cancellable = session.objectWillChange.sink {
+                    Task { @MainActor in
+                        await Task.yield()
+                        if condition() {
+                            waiter.succeed()
+                        }
+                    }
+                }
+                waiter.timeoutTask = Task {
+                    do {
+                        try await Task.sleep(nanoseconds: timeoutNanoseconds)
+                    } catch {
+                        return
+                    }
+                    await MainActor.run {
+                        waiter.fail(ScanSessionWaitTimeout())
+                    }
+                }
             }
-            try await Task.sleep(nanoseconds: 10_000_000)
+        } catch let error as ScanSessionWaitTimeout {
+            Issue.record("Timed out waiting for ScanSession state change after \(timeoutNanoseconds / 1_000_000_000) seconds.")
+            throw error
         }
     }
 }
