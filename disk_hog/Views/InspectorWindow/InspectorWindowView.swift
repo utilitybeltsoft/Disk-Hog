@@ -505,7 +505,11 @@ private struct SelectionListView: View {
             )
             if dataStore.hasSnapshot(for: cacheKey) {
                 suppressesCachedQueryProgress = true
-                rowsGeneration = dataStore.resultGeneration
+                if dataStore.hasPublishedResult {
+                    rowsGeneration = dataStore.resultGeneration
+                } else {
+                    rowsGeneration += 1
+                }
                 isLoading = false
                 isQuerying = false
                 hasCompletedInitialQuery = true

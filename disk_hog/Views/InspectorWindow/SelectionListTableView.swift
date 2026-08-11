@@ -9,6 +9,7 @@ final class SelectionListDataStore: ObservableObject {
     private(set) var queryResult: SelectionListQueryResult = .empty
     @Published private(set) var resultGeneration: Int = 0
     private var snapshotCacheKey: SelectionListSnapshotCacheKey?
+    private(set) var hasPublishedResult: Bool = false
 
     var resultCount: Int {
         queryResult.rows.count
@@ -19,6 +20,7 @@ final class SelectionListDataStore: ObservableObject {
         rowsByID = [:]
         queryResult = .empty
         snapshotCacheKey = nil
+        hasPublishedResult = false
         resultGeneration += 1
     }
 
@@ -30,10 +32,12 @@ final class SelectionListDataStore: ObservableObject {
         rows = snapshot.rows
         rowsByID = snapshot.rowsByID
         snapshotCacheKey = cacheKey
+        hasPublishedResult = false
     }
 
     func publish(_ result: SelectionListQueryResult) {
         queryResult = result
+        hasPublishedResult = true
         resultGeneration += 1
     }
 }
