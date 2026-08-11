@@ -2561,14 +2561,23 @@ struct SelectionListPipelineTests {
 @MainActor
 struct SelectionListTableViewTests {
     @Test func unchangedResultGenerationDoesNotReloadRows() {
+        let session: ScanSession = ScanSession(
+            source: ScanSource(path: "/scan", displayName: "scan")
+        )
         var selectedItemID: DiskItemID?
+        var selectedItemIDs: Set<DiskItemID> = []
         var sortDescriptors: [SelectionListSortDescriptor] = [
             SelectionListSortDescriptor(field: .size, isAscending: false)
         ]
         let coordinator: SelectionListTableView.Coordinator = SelectionListTableView.Coordinator(
+            session: session,
             selectedItemID: Binding(
                 get: { selectedItemID },
                 set: { selectedItemID = $0 }
+            ),
+            selectedItemIDs: Binding(
+                get: { selectedItemIDs },
+                set: { selectedItemIDs = $0 }
             ),
             sortDescriptors: Binding(
                 get: { sortDescriptors },
@@ -3054,6 +3063,40 @@ private final class TreemapProgressRecorder: @unchecked Sendable {
 
 @MainActor
 struct TreemapViewRendererTests {
+
+    @Test func selectingPackageDescendantFailsWithoutCrashingWhenPackageIsTreemapLeaf() {
+        let packageFile: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/App.app/Contents/file.txt"),
+            allocatedSizeValue: 10,
+            logicalSizeValue: 10,
+            isRoot: false
+        )
+        let package: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/App.app"),
+            isDirectory: true,
+            isPackage: true,
+            children: [packageFile],
+            isRoot: false
+        )
+        let sibling: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/sibling.txt"),
+            allocatedSizeValue: 10,
+            logicalSizeValue: 10,
+            isRoot: false
+        )
+        let root: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan"),
+            isDirectory: true,
+            children: [package, sibling]
+        )
+        let renderer: TreemapViewRenderer = TreemapViewRenderer(
+            dataSource: TreemapDiskItemDataSource(rootItem: root)
+        )
+
+        renderer.reloadData()
+
+        #expect(renderer.selectItem(byRenderedItem: root.child(at: 0).child(at: 0)) == false)
+    }
 
     @Test func zeroWeightChildBeforeSizedSiblingProducesFiniteLayout() {
         let rootBuilder: DiskItemBuilder = DiskItemBuilder(

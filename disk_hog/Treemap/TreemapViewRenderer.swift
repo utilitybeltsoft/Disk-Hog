@@ -276,6 +276,9 @@ final class TreemapViewRenderer {
         var parent: TreemapItemRenderer = rootItemRenderer!
         var child: TreemapItemRenderer? = rootItemRenderer
         for dataItem: DiskItem in path.dropFirst() {
+            guard !parent.isLeaf else {
+                return nil
+            }
             child = parent.childEnumerator.first { renderer in
                 renderer.item == dataItem
             }
