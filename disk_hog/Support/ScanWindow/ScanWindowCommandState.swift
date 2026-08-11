@@ -30,6 +30,10 @@ final class ScanWindowCommandContext: ObservableObject {
         selectedItem
     }
 
+    var actionSession: ScanSession? {
+        session
+    }
+
     func updateSelectedItem(_ selectedItem: DiskItem?) {
         updateSelectedItemAvailability(selectedItem)
     }
@@ -177,6 +181,26 @@ final class ScanWindowCommandState: ObservableObject {
         activeContext?.commandSelectedItem
     }
 
+    var canToggleSelectedItemInCleanupQueue: Bool {
+        guard let item: DiskItem = commandSelectedItem,
+              item.isSpecialItem == false,
+              let session: ScanSession = activeContext?.actionSession,
+              session.isUpdatingTree == false,
+              DiskItemDeletionPolicy.canDelete(item) else {
+            return false
+        }
+        return CleanupQueueStore.shared.isDirectlyQueued(item)
+            || CleanupQueueStore.shared.contains(item) == false
+    }
+
+    var selectedItemCleanupQueueCommandTitle: String {
+        guard let item: DiskItem = commandSelectedItem,
+              CleanupQueueStore.shared.isDirectlyQueued(item) else {
+            return String(localized: "Add to Cleanup Queue")
+        }
+        return String(localized: "Already Queued for Finder Trash: Undo")
+    }
+
     func activate(_ context: ScanWindowCommandContext) {
         guard activeContext !== context else {
             return
@@ -212,6 +236,20 @@ final class ScanWindowCommandState: ObservableObject {
 
     func selectParentFolder() {
         activeContext?.selectParentFolder()
+    }
+
+    func toggleSelectedItemInCleanupQueue() {
+        guard canToggleSelectedItemInCleanupQueue,
+              let item: DiskItem = commandSelectedItem,
+              let session: ScanSession = activeContext?.actionSession else {
+            return
+        }
+
+        if CleanupQueueStore.shared.isDirectlyQueued(item) {
+            DiskItemDeletionCoordinator.requestQueueUndo(of: item)
+        } else {
+            DiskItemDeletionCoordinator.requestQueueing(of: item, from: session)
+        }
     }
 
     func toggleFreeSpace() {

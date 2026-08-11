@@ -87,10 +87,13 @@ final class DiskHogApplicationDelegate: NSObject, NSApplicationDelegate {
 private struct DiskHogCommands: Commands {
     @ObservedObject private var commandState: SourceWindowCommandState = .shared
     @ObservedObject private var scanWindowCommandState: ScanWindowCommandState = .shared
+    @ObservedObject private var cleanupQueueStore: CleanupQueueStore = .shared
     @ObservedObject private var inspectorWindowController: InspectorWindowController = .shared
     @ObservedObject private var scanPreferences: ScanPreferences = .shared
 
     var body: some Commands {
+        let _ = cleanupQueueStore.items
+
         CommandGroup(replacing: .newItem) {
             Button("Choose Folder to Scan") {
                 NotificationCenter.default.post(name: .sourceWindowChooseFolderToScan, object: nil)
@@ -114,6 +117,12 @@ private struct DiskHogCommands: Commands {
                 ScanWindowCommandState.shared.revealSelectedItemInFinder()
             }
             .disabled(scanWindowCommandState.canRevealSelectedItem == false)
+
+            Button(scanWindowCommandState.selectedItemCleanupQueueCommandTitle) {
+                ScanWindowCommandState.shared.toggleSelectedItemInCleanupQueue()
+            }
+            .keyboardShortcut("t", modifiers: .command)
+            .disabled(scanWindowCommandState.canToggleSelectedItemInCleanupQueue == false)
         }
 
         #if FILE_MATCHING_DIAGNOSTICS
