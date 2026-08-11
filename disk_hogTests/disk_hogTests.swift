@@ -2561,17 +2561,21 @@ struct SelectionListPipelineTests {
 @MainActor
 struct SelectionListTableViewTests {
     @Test func completedListIsRebuiltOnlyWhenItsInputsChange() {
+        let root: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan"),
+            isDirectory: true
+        )
         let filter: SelectionListFilter = .kind("PNG image")
         let dataStore: SelectionListDataStore = SelectionListDataStore()
 
-        dataStore.beginRebuild(filter: filter, usesPhysicalSize: true)
-        #expect(dataStore.requiresRebuild(filter: filter, usesPhysicalSize: true))
+        dataStore.beginRebuild(rootID: root.id, filter: filter, usesPhysicalSize: true)
+        #expect(dataStore.requiresRebuild(rootID: root.id, filter: filter, usesPhysicalSize: true))
 
         dataStore.publish(.empty)
 
-        #expect(dataStore.requiresRebuild(filter: filter, usesPhysicalSize: true) == false)
-        #expect(dataStore.requiresRebuild(filter: filter, usesPhysicalSize: false))
-        #expect(dataStore.requiresRebuild(filter: .all, usesPhysicalSize: true))
+        #expect(dataStore.requiresRebuild(rootID: root.id, filter: filter, usesPhysicalSize: true) == false)
+        #expect(dataStore.requiresRebuild(rootID: root.id, filter: filter, usesPhysicalSize: false))
+        #expect(dataStore.requiresRebuild(rootID: root.id, filter: .all, usesPhysicalSize: true))
     }
 
     @Test func unchangedResultGenerationDoesNotReloadRows() {
