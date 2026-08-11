@@ -37,6 +37,9 @@ final class ZStyleTreemapNSView: NSView {
         ) {
             needsDisplay = true
         }
+        state.renderer?.onCachedBitmapReady = { [weak self] in
+            self?.needsDisplay = true
+        }
     }
 
     func applySelectedItem(_ selectedItem: DiskItem?) {

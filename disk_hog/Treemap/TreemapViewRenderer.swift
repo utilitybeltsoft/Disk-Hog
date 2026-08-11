@@ -1,5 +1,13 @@
 import AppKit
 
+nonisolated final class TreemapViewRendererWeakReference: @unchecked Sendable {
+    weak var value: TreemapViewRenderer?
+
+    init(_ value: TreemapViewRenderer) {
+        self.value = value
+    }
+}
+
 @MainActor
 final class TreemapViewRenderer {
     private var rootItemRenderer: TreemapItemRenderer?
@@ -10,6 +18,8 @@ final class TreemapViewRenderer {
     private var cachedSize: NSSize?
     private var cachedScale: CGFloat?
     private var cachedColorSpace: NSColorSpace?
+    private var pendingBitmapRequestID: UUID?
+    var onCachedBitmapReady: (() -> Void)?
     private let rootItem: DiskItem
 
     init(dataSource: TreemapDiskItemDataSource) {
@@ -149,6 +159,43 @@ final class TreemapViewRenderer {
         return cachedContent
     }
 
+    func cachedImageOrRequestRendering(size: NSSize, scale: CGFloat = 1) -> NSBitmapImageRep? {
+        if let cachedContent,
+           cachedSize == size,
+           cachedScale == scale {
+            return cachedContent
+        }
+        guard pendingBitmapRequestID == nil,
+              let rootItemRenderer else {
+            return nil
+        }
+        let pixelsWide: Int = max(Int((size.width * scale).rounded(.up)), 1)
+        let pixelsHigh: Int = max(Int((size.height * scale).rounded(.up)), 1)
+        let snapshots: [TreemapCushionSnapshot] = rootItemRenderer.cushionSnapshots()
+        let requestID: UUID = UUID()
+        let rendererReference: TreemapViewRendererWeakReference = TreemapViewRendererWeakReference(self)
+        pendingBitmapRequestID = requestID
+        Task.detached(priority: .userInitiated) {
+            let pixels: Data = TreemapBitmapRasterizer.render(
+                snapshots: snapshots,
+                pixelsWide: pixelsWide,
+                pixelsHigh: pixelsHigh,
+                scale: Double(scale)
+            )
+            await MainActor.run {
+                rendererReference.value?.installRenderedBitmap(
+                    pixels,
+                    requestID: requestID,
+                    size: size,
+                    scale: scale,
+                    pixelsWide: pixelsWide,
+                    pixelsHigh: pixelsHigh
+                )
+            }
+        }
+        return nil
+    }
+
     var zoomingInProgress: Bool {
         false
     }
@@ -168,6 +215,39 @@ final class TreemapViewRenderer {
         cachedSize = nil
         cachedScale = nil
         cachedColorSpace = nil
+        pendingBitmapRequestID = nil
+    }
+
+    private func installRenderedBitmap(
+        _ pixels: Data,
+        requestID: UUID,
+        size: NSSize,
+        scale: CGFloat,
+        pixelsWide: Int,
+        pixelsHigh: Int
+    ) {
+        guard pendingBitmapRequestID == requestID,
+              let bitmap: NSBitmapImageRep = NSBitmapImageRep.treemapImageRepCompatible(
+                withBounds: NSRect(origin: .zero, size: size),
+                backingScaleFactor: scale,
+                colorSpace: nil
+              ),
+              bitmap.pixelsWide == pixelsWide,
+              bitmap.pixelsHigh == pixelsHigh,
+              let destination: UnsafeMutablePointer<UInt8> = bitmap.bitmapData else {
+            return
+        }
+        pixels.withUnsafeBytes { source in
+            guard let source: UnsafeRawBufferPointer = Optional(source),
+                  let sourceAddress: UnsafeRawPointer = source.baseAddress else { return }
+            memcpy(destination, sourceAddress, min(source.count, bitmap.bytesPerRow * bitmap.pixelsHigh))
+        }
+        cachedContent = bitmap
+        cachedSize = size
+        cachedScale = scale
+        cachedColorSpace = nil
+        pendingBitmapRequestID = nil
+        onCachedBitmapReady?()
     }
 
     private func colorSpacesMatch(_ first: NSColorSpace?, _ second: NSColorSpace?) -> Bool {

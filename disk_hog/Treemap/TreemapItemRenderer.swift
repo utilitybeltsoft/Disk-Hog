@@ -58,6 +58,12 @@ final class TreemapItemRenderer {
         )
     }
 
+    func cushionSnapshots() -> [TreemapCushionSnapshot] {
+        var snapshots: [TreemapCushionSnapshot] = []
+        appendCushionSnapshots(parentSurface: nil, heightFactor: 0.5, to: &snapshots)
+        return snapshots
+    }
+
     var isLeaf: Bool {
         guard let dataSource: TreemapDiskItemDataSource = dataSource else { return true }
         return !dataSource.isNode(renderedItem)
@@ -193,6 +199,41 @@ final class TreemapItemRenderer {
                     backingScaleFactor: backingScaleFactor,
                     parentCushion: cushionRenderer,
                     cushionHeightFactor: heightFactor * Self.cushionScaleFactor
+                )
+            }
+        }
+    }
+
+    private func appendCushionSnapshots(
+        parentSurface: [CGFloat]?,
+        heightFactor: CGFloat,
+        to snapshots: inout [TreemapCushionSnapshot]
+    ) {
+        guard rectValue.height >= 1, rectValue.width >= 1 else { return }
+        var surface: [CGFloat] = parentSurface ?? cushionRenderer.surfaceValues()
+        if parentSurface != nil {
+            let h4: CGFloat = 4 * heightFactor
+            surface[2] += (h4 / rectValue.width) * (rectValue.maxX + rectValue.minX)
+            surface[0] -= h4 / rectValue.width
+            surface[3] += (h4 / rectValue.height) * (rectValue.maxY + rectValue.minY)
+            surface[1] -= h4 / rectValue.height
+        }
+        if isLeaf {
+            cushionRenderer.setSurface(surface)
+            dataSource?.prepareRenderer(self, for: renderedItem)
+            let color: NSColor = cushionRenderer.color
+            snapshots.append(TreemapCushionSnapshot(
+                x: Double(rectValue.minX), y: Double(rectValue.minY),
+                width: Double(rectValue.width), height: Double(rectValue.height),
+                surface: surface.map(Double.init),
+                red: Double(color.redComponent), green: Double(color.greenComponent), blue: Double(color.blueComponent)
+            ))
+        } else {
+            for child: TreemapItemRenderer in childEnumerator {
+                child.appendCushionSnapshots(
+                    parentSurface: surface,
+                    heightFactor: heightFactor * Self.cushionScaleFactor,
+                    to: &snapshots
                 )
             }
         }

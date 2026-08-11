@@ -11,10 +11,9 @@ enum TreemapViewPainter {
         sourceRect: NSRect?,
         fraction: CGFloat
     ) -> Bool {
-        guard let imageRep: NSBitmapImageRep = renderer?.drawInCache(
+        guard let imageRep: NSBitmapImageRep = renderer?.cachedImageOrRequestRendering(
             size: canvasSize,
-            scale: backingScaleFactor,
-            colorSpace: colorSpace
+            scale: backingScaleFactor
         ) else {
             return false
         }
