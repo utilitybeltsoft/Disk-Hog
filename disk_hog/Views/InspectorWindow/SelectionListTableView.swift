@@ -30,10 +30,23 @@ final class SelectionListDataStore: ObservableObject {
         filter: SelectionListFilter,
         usesPhysicalSize: Bool
     ) -> Bool {
-        isDirty
-            || builtRootID != rootID
-            || builtFilter != filter
-            || builtUsesPhysicalSize != usesPhysicalSize
+        rebuildReason(
+            rootID: rootID,
+            filter: filter,
+            usesPhysicalSize: usesPhysicalSize
+        ) != nil
+    }
+
+    func rebuildReason(
+        rootID: DiskItemID,
+        filter: SelectionListFilter,
+        usesPhysicalSize: Bool
+    ) -> String? {
+        if isDirty { return "dirty" }
+        if builtRootID != rootID { return "scan tree changed" }
+        if builtFilter != filter { return "file kind changed" }
+        if builtUsesPhysicalSize != usesPhysicalSize { return "size mode changed" }
+        return nil
     }
 
     func beginRebuild(

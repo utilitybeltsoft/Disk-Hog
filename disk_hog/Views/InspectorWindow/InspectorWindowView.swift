@@ -504,11 +504,12 @@ private struct SelectionListView: View {
             }
 
             let usesPhysicalSize: Bool = session.scanSettings.usePhysicalSize
-            if !dataStore.requiresRebuild(
+            let rebuildReason: String? = dataStore.rebuildReason(
                 rootID: rootItem.id,
                 filter: selectionFilter,
                 usesPhysicalSize: usesPhysicalSize
-            ) {
+            )
+            guard let rebuildReason else {
                 isLoading = false
                 isQuerying = false
                 hasCompletedInitialQuery = true
@@ -516,6 +517,10 @@ private struct SelectionListView: View {
                 selectedItemID = selectedItem.flatMap { dataStore.rowsByID[$0.id] }?.id
                 return
             }
+
+            #if DEBUG
+            print("Selection List rebuild: \(rebuildReason)")
+            #endif
 
             isLoading = true
             hasCompletedInitialQuery = false
