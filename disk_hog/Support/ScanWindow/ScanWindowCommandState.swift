@@ -413,7 +413,7 @@ enum DiskItemContextMenuBuilder {
                 ? String(localized: "Already Queued for Finder Trash: Undo")
                 : String(localized: "Add to Cleanup Queue"),
             action: #selector(DiskItemContextMenuActionTarget.trashMenuItem(_:)),
-            keyEquivalent: ""
+            keyEquivalent: "t"
         )
         trashItem.target = actionTarget
         trashItem.representedObject = DiskItemContextMenuPayload(item: item)
