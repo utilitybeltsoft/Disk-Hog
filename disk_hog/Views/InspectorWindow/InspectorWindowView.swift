@@ -602,9 +602,6 @@ private struct SelectionListView: View {
             isQuerying = false
             hasCompletedInitialQuery = true
         }
-        .onChange(of: session.rootItem?.id) {
-            dataStore.markDirty()
-        }
     }
 
     private var selectionStatus: String {
