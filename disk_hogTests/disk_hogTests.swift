@@ -672,6 +672,47 @@ struct ScanSessionWorkerIntegrationTests {
         #expect(session.rootItem?.sizeValue(usePhysicalSize: true) == 12)
     }
 
+    @Test func staleSizeModeRebuildCannotRestoreOldTreeDuringPendingRescan() async throws {
+        let oldRoot: DiskItem = Self.rootItem(allocatedSize: 12, logicalSize: 5)
+        let staleLogicalRoot: DiskItem = Self.rootItem(allocatedSize: 12, logicalSize: 99)
+        let newRoot: DiskItem = Self.rootItem(allocatedSize: 30, logicalSize: 30)
+        let scanWorker: PendingRescanStaleSizeModeScanWorker = PendingRescanStaleSizeModeScanWorker(
+            firstRootItem: oldRoot,
+            secondRootItem: newRoot
+        )
+        let presentationWorker: DelayedSizeModePresentationWorker = DelayedSizeModePresentationWorker(
+            physicalRootItem: oldRoot,
+            logicalRootItem: staleLogicalRoot
+        )
+        let session: ScanSession = ScanSession(
+            source: ScanSource(
+                path: "/scan",
+                displayName: "scan",
+                scanSettings: DiskScanSettings(
+                    usePhysicalSize: false,
+                    lookInsidePackages: true
+                )
+            ),
+            scanWorker: scanWorker,
+            presentationWorker: presentationWorker
+        )
+
+        session.startScan()
+        try await Task.sleep(nanoseconds: 10_000_000)
+        session.rescanForPackageContentsPreference(false)
+
+        try await Task.sleep(nanoseconds: 250_000_000)
+
+        #expect(await scanWorker.callCount() == 2)
+        #expect(session.state == .scanning)
+        #expect(session.rootItem == nil)
+        #expect(session.scannedByteCount == 0)
+
+        try await Self.waitUntil { session.state == .complete }
+        #expect(session.rootItem?.allocatedSizeValue == 30)
+        #expect(session.scannedByteCount == 30)
+    }
+
     static func rootItem(fileSize: UInt64) -> DiskItem {
         rootItem(allocatedSize: fileSize, logicalSize: fileSize)
     }
@@ -911,6 +952,69 @@ private final class PendingRescanScanWorker: ScanSessionScanning, @unchecked Sen
             try? await Task.sleep(nanoseconds: 10_000_000)
         }
         throw firstErrorAfterCancellation
+    }
+}
+
+private actor PendingRescanStaleSizeModeScanWorkerState {
+    private var count: Int = 0
+
+    func nextCallNumber() -> Int {
+        count += 1
+        return count
+    }
+
+    func callCount() -> Int {
+        count
+    }
+}
+
+private final class PendingRescanStaleSizeModeScanWorker: ScanSessionScanning, @unchecked Sendable {
+    private let state: PendingRescanStaleSizeModeScanWorkerState = PendingRescanStaleSizeModeScanWorkerState()
+    private let firstRootItem: DiskItem
+    private let secondRootItem: DiskItem
+
+    init(firstRootItem: DiskItem, secondRootItem: DiskItem) {
+        self.firstRootItem = firstRootItem
+        self.secondRootItem = secondRootItem
+    }
+
+    func callCount() async -> Int {
+        await state.callCount()
+    }
+
+    func scan(
+        source: ScanSource,
+        settings: DiskScanSettings,
+        progress: @escaping DiskInventoryZScanner.ProgressHandler,
+        willBuildTreemap: @escaping @Sendable () async -> Void,
+        treemapProgress: @escaping @Sendable (Double) async -> Void
+    ) async throws -> ScanSessionScanResult {
+        let callNumber: Int = await state.nextCallNumber()
+        let rootItem: DiskItem
+        let builtUsingPhysicalSize: Bool
+
+        if callNumber == 1 {
+            try? await Task.sleep(nanoseconds: 50_000_000)
+            rootItem = firstRootItem
+            builtUsingPhysicalSize = true
+        } else {
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            rootItem = secondRootItem
+            builtUsingPhysicalSize = settings.usePhysicalSize
+        }
+
+        await willBuildTreemap()
+        await treemapProgress(1)
+        return ScanSessionScanResult(
+            source: source,
+            rootItem: rootItem,
+            presentationMetrics: TreemapPresentationMetrics(
+                rootItem: rootItem,
+                usePhysicalSize: settings.usePhysicalSize,
+                sharesKindColors: ScanPreferenceDefaults.sharesKindColors
+            ),
+            builtUsingPhysicalSize: builtUsingPhysicalSize
+        )
     }
 }
 

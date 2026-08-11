@@ -119,6 +119,9 @@ final class ScanSession: ObservableObject {
 
         let operation: ScanSessionWorkOperation = rescanCoordinator.beginScan()
 
+        taskCoordinator.cancel(.presentationUpdate)
+        taskCoordinator.cancel(.sizeModeUpdate)
+
         let now: Date = Date()
 
         state = .scanning
@@ -455,7 +458,8 @@ final class ScanSession: ObservableObject {
     }
 
     private func finishPresentationUpdate(id: UUID, metrics: TreemapPresentationMetrics?) {
-        guard taskCoordinator.finish(.presentationUpdate, operationID: id) else {
+        guard taskCoordinator.finish(.presentationUpdate, operationID: id),
+              state == .complete else {
             return
         }
         if let metrics {
@@ -517,6 +521,7 @@ final class ScanSession: ObservableObject {
         result: ScanSessionSizeModeUpdateResult?
     ) {
         guard taskCoordinator.finish(.sizeModeUpdate, operationID: id),
+              state == .complete,
               let result,
               settings.usePhysicalSize == result.usePhysicalSize else {
             return
