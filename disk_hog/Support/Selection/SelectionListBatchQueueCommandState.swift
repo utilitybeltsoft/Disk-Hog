@@ -34,11 +34,6 @@ final class SelectionListBatchQueueCommandState: ObservableObject {
         isActive = true
     }
 
-    func updateItems(_ items: [DiskItem]) {
-        self.items = items
-        objectWillChange.send()
-    }
-
     func deactivate() {
         guard isActive else { return }
         session = nil

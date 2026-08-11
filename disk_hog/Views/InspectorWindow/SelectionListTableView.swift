@@ -276,7 +276,10 @@ struct SelectionListTableView: NSViewRepresentable {
                 rows.indices.contains(row) ? rows[row] : nil
             }
             selectedItemIDs.wrappedValue = Set(selectedRows.map(\.id))
-            SelectionListBatchQueueCommandState.shared.updateItems(selectedRows.map(\.item))
+            SelectionListBatchQueueCommandState.shared.activate(
+                session: session,
+                items: selectedRows.map(\.item)
+            )
             let primaryRow: Int = tableView.selectedRow
             guard rows.indices.contains(primaryRow) else {
                 selectedItemID.wrappedValue = nil
