@@ -27,7 +27,7 @@ struct CleanupQueueView: View {
                 Divider()
 
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Space reclaimed is an estimate. APFS snapshots, clones, and filesystem sharing can affect the actual free space.")
+                    Text("Estimated reclaimable space can differ from actual free space because of APFS snapshots, clones, and filesystem sharing.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -168,36 +168,23 @@ private struct CleanupQueueVolumeTotals: View {
     let items: [CleanupQueueItem]
 
     var body: some View {
-        HStack(spacing: 12) {
-            CleanupQueueTotal(label: "Queued", items: items, compact: true)
-            Divider()
-                .frame(height: 14)
-            CleanupQueueTotal(label: "Selected", items: items.filter(\.isSelected), compact: true)
+        HStack {
+            Text("Selected for Finder Trash")
+                .fontWeight(.semibold)
+            Spacer()
+            Text("\(selectedItems.count) items")
+            Text(ByteCountFormatter.string(fromByteCount: Int64(selectedBytes), countStyle: .file))
+                .monospacedDigit()
         }
         .font(.caption)
         .foregroundStyle(.secondary)
     }
-}
 
-private struct CleanupQueueTotal: View {
-    let label: LocalizedStringKey
-    let items: [CleanupQueueItem]
-    var compact: Bool = false
-
-    var body: some View {
-        HStack {
-            Text(label)
-                .fontWeight(.semibold)
-            if !compact {
-                Spacer()
-            }
-            Text("\(items.count) items")
-            Text(ByteCountFormatter.string(fromByteCount: Int64(totalBytes), countStyle: .file))
-                .monospacedDigit()
-        }
+    private var selectedItems: [CleanupQueueItem] {
+        items.filter(\.isSelected)
     }
 
-    private var totalBytes: UInt64 {
-        items.reduce(0) { $0 + $1.allocatedSize }
+    private var selectedBytes: UInt64 {
+        selectedItems.reduce(0) { $0 + $1.allocatedSize }
     }
 }
