@@ -152,14 +152,13 @@ private struct CleanupQueueVolumeSection: View {
                 .padding(.top, showsTopSeparator ? 8 : 12)
                 .padding(.bottom, 4)
 
+            CleanupQueueVolumeTotals(items: items)
+                .padding(.horizontal, 12)
+                .padding(.bottom, 6)
+
             ForEach(items) { item in
                 CleanupQueueRow(item: item)
             }
-
-            CleanupQueueVolumeTotals(items: items)
-                .padding(.horizontal, 12)
-                .padding(.top, 2)
-                .padding(.bottom, 10)
         }
     }
 }
