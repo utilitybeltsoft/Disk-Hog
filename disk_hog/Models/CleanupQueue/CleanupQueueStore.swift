@@ -86,4 +86,93 @@ final class CleanupQueueStore: ObservableObject {
         }
         items[index].isSelected = isSelected
     }
+
+    var selectedReadyItems: [CleanupQueueItem] {
+        items.filter { $0.isSelected && $0.status == .ready }
+    }
+
+    func moveSelectedItemsToFinderTrash() {
+        let selectedItems: [CleanupQueueItem] = selectedReadyItems
+        guard !selectedItems.isEmpty else {
+            return
+        }
+
+        for item: CleanupQueueItem in selectedItems {
+            updateStatus(.processing, for: item.id)
+        }
+
+        Task {
+            for item: CleanupQueueItem in selectedItems {
+                let result: Result<Void, Error> = await Task.detached(priority: .userInitiated) {
+                    try CleanupQueueStore.moveToFinderTrash(
+                        itemURL: item.itemURL,
+                        sourceBookmarkData: item.source.bookmarkData
+                    )
+                }.result
+
+                switch result {
+                case .success:
+                    remove(ids: [item.id])
+                    item.session.refresh(
+                        DiskItem(
+                            url: item.itemURL.deletingLastPathComponent(),
+                            isDirectory: true,
+                            isRoot: false
+                        )
+                    )
+                case .failure(let error):
+                    updateStatus(Self.status(for: error), for: item.id)
+                }
+            }
+        }
+    }
+
+    private func updateStatus(_ status: CleanupQueueItemStatus, for id: CleanupQueueItem.ID) {
+        guard let index: Int = items.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+        items[index].status = status
+    }
+
+    private nonisolated static func moveToFinderTrash(
+        itemURL: URL,
+        sourceBookmarkData: Data?
+    ) throws {
+        let sourceURL: URL?
+        if let sourceBookmarkData {
+            var isStale: Bool = false
+            sourceURL = try URL(
+                resolvingBookmarkData: sourceBookmarkData,
+                options: [.withSecurityScope],
+                relativeTo: nil,
+                bookmarkDataIsStale: &isStale
+            )
+        } else {
+            sourceURL = nil
+        }
+        let didStartAccessing: Bool = sourceURL?.startAccessingSecurityScopedResource() ?? false
+        defer {
+            if didStartAccessing {
+                sourceURL?.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        guard FileManager.default.fileExists(atPath: itemURL.path) else {
+            throw CocoaError(.fileNoSuchFile)
+        }
+        var resultingURL: NSURL?
+        try FileManager.default.trashItem(at: itemURL, resultingItemURL: &resultingURL)
+    }
+
+    private static func status(for error: Error) -> CleanupQueueItemStatus {
+        let cocoaError: CocoaError? = error as? CocoaError
+        switch cocoaError?.code {
+        case .fileNoSuchFile:
+            return .missing
+        case .fileReadNoPermission, .fileWriteNoPermission:
+            return .inaccessible
+        default:
+            return .failed(error.localizedDescription)
+        }
+    }
 }

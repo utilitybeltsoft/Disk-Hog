@@ -48,8 +48,10 @@ struct CleanupQueueView: View {
 
                     Spacer()
 
-                    Button("Move Selected to Finder Trash") {}
-                        .disabled(true)
+                    Button("Move Selected to Finder Trash") {
+                        store.moveSelectedItemsToFinderTrash()
+                    }
+                    .disabled(store.selectedReadyItems.isEmpty)
                 }
                 .padding(14)
             }
@@ -101,8 +103,31 @@ private struct CleanupQueueRow: View {
             Text(ByteCountFormatter.string(fromByteCount: Int64(item.allocatedSize), countStyle: .file))
                 .monospacedDigit()
                 .foregroundStyle(.secondary)
+
+            Text(statusTitle)
+                .font(.caption)
+                .foregroundStyle(statusColor)
         }
         .padding(.vertical, 2)
+    }
+
+    private var statusTitle: String {
+        switch item.status {
+        case .ready: String(localized: "Ready")
+        case .missing: String(localized: "Missing")
+        case .inaccessible: String(localized: "Unavailable")
+        case .cannotMoveToTrash: String(localized: "Cannot Move to Finder Trash")
+        case .processing: String(localized: "Moving")
+        case .failed: String(localized: "Failed")
+        }
+    }
+
+    private var statusColor: Color {
+        switch item.status {
+        case .ready: .secondary
+        case .processing: .accentColor
+        case .missing, .inaccessible, .cannotMoveToTrash, .failed: .red
+        }
     }
 }
 
