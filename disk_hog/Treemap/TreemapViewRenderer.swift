@@ -238,9 +238,16 @@ final class TreemapViewRenderer {
             return
         }
         pixels.withUnsafeBytes { source in
-            guard let source: UnsafeRawBufferPointer = Optional(source),
-                  let sourceAddress: UnsafeRawPointer = source.baseAddress else { return }
-            memcpy(destination, sourceAddress, min(source.count, bitmap.bytesPerRow * bitmap.pixelsHigh))
+            guard let sourceAddress: UnsafeRawPointer = source.baseAddress else { return }
+            let sourceBytesPerRow: Int = pixelsWide * 3
+            guard source.count == sourceBytesPerRow * pixelsHigh else { return }
+            for row: Int in 0..<pixelsHigh {
+                memcpy(
+                    destination.advanced(by: row * bitmap.bytesPerRow),
+                    sourceAddress.advanced(by: row * sourceBytesPerRow),
+                    sourceBytesPerRow
+                )
+            }
         }
         cachedContent = bitmap
         cachedSize = size
