@@ -1,20 +1,12 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "Estimated reclaimable space can differ from actual free space because of APFS snapshots, clones, and filesystem sharing." : {
+    "Already Queued for Finder Trash" : {
       "localizations" : {
-        "de" : { "stringUnit" : { "state" : "translated", "value" : "Der geschätzte zurückgewinnbare Speicher kann wegen APFS-Snapshots, Klonen und Dateisystemfreigaben vom tatsächlich freien Speicher abweichen." } },
-        "es" : { "stringUnit" : { "state" : "translated", "value" : "El espacio recuperable estimado puede diferir del espacio libre real debido a instantáneas de APFS, clones y uso compartido del sistema de archivos." } },
-        "fr" : { "stringUnit" : { "state" : "translated", "value" : "L’espace récupérable estimé peut différer de l’espace réellement libre en raison des instantanés APFS, des clones et du partage du système de fichiers." } },
-        "it" : { "stringUnit" : { "state" : "translated", "value" : "Lo spazio recuperabile stimato può differire dallo spazio effettivamente libero a causa di snapshot APFS, cloni e condivisione del file system." } }
-      }
-    },
-    "Selected for Finder Trash" : {
-      "localizations" : {
-        "de" : { "stringUnit" : { "state" : "translated", "value" : "Für den Finder-Papierkorb ausgewählt" } },
-        "es" : { "stringUnit" : { "state" : "translated", "value" : "Seleccionado para la Papelera del Finder" } },
-        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Sélectionné pour la corbeille du Finder" } },
-        "it" : { "stringUnit" : { "state" : "translated", "value" : "Selezionato per il Cestino del Finder" } }
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Bereits für den Finder-Papierkorb vorgemerkt" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Ya está en cola para la Papelera del Finder" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Déjà en attente pour la corbeille du Finder" } },
+        "it" : { "stringUnit" : { "state" : "translated", "value" : "Già in coda per il Cestino del Finder" } }
       }
     },
     "\"%@\" cannot be moved to the Trash." : {
@@ -2271,6 +2263,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "tempo trascorso %1$@"
+          }
+        }
+      }
+    },
+    "Estimated reclaimable space can differ from actual free space because of APFS snapshots, clones, and filesystem sharing." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der geschätzte zurückgewinnbare Speicher kann wegen APFS-Snapshots, Klonen und Dateisystemfreigaben vom tatsächlich freien Speicher abweichen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El espacio recuperable estimado puede diferir del espacio libre real debido a instantáneas de APFS, clones y uso compartido del sistema de archivos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’espace récupérable estimé peut différer de l’espace réellement libre en raison des instantanés APFS, des clones et du partage du système de fichiers."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lo spazio recuperabile stimato può differire dallo spazio effettivamente libero a causa di snapshot APFS, cloni e condivisione del file system."
           }
         }
       }
@@ -5161,6 +5181,7 @@
       }
     },
     "Queued" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -6532,6 +6553,34 @@
         }
       }
     },
+    "Selected for Finder Trash" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Für den Finder-Papierkorb ausgewählt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seleccionado para la Papelera del Finder"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sélectionné pour la corbeille du Finder"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Selezionato per il Cestino del Finder"
+          }
+        }
+      }
+    },
     "Selection List" : {
       "localizations" : {
         "de" : {
@@ -6925,6 +6974,7 @@
       }
     },
     "Space reclaimed is an estimate. APFS snapshots, clones, and filesystem sharing can affect the actual free space." : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {

@@ -65,7 +65,6 @@ enum DiskItemDeletionCoordinator {
         guard CleanupQueueStore.shared.enqueue(item, from: session) else {
             return
         }
-        InspectorWindowController.shared.show(tab: .cleanupQueue)
     }
 
     static func requestDeletion(

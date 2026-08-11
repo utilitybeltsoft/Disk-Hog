@@ -402,14 +402,19 @@ enum DiskItemContextMenuBuilder {
 
         menu.addItem(.separator())
 
+        let isAlreadyQueued: Bool = CleanupQueueStore.shared.contains(item)
         let trashItem: NSMenuItem = NSMenuItem(
-            title: String(localized: "Add to Cleanup Queue"),
+            title: isAlreadyQueued
+                ? String(localized: "Already Queued for Finder Trash")
+                : String(localized: "Add to Cleanup Queue"),
             action: #selector(DiskItemContextMenuActionTarget.trashMenuItem(_:)),
             keyEquivalent: ""
         )
         trashItem.target = actionTarget
         trashItem.representedObject = DiskItemContextMenuPayload(item: item)
-        trashItem.isEnabled = treeActionsEnabled && DiskItemDeletionPolicy.canDelete(item)
+        trashItem.isEnabled = treeActionsEnabled
+            && !isAlreadyQueued
+            && DiskItemDeletionPolicy.canDelete(item)
         menu.addItem(trashItem)
 
         menu.addItem(.separator())

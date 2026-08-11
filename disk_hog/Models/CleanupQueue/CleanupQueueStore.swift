@@ -42,10 +42,7 @@ final class CleanupQueueStore: ObservableObject {
         }
 
         let itemURL: URL = item.url.standardizedFileURL
-        guard !items.contains(where: { queuedItem in
-            queuedItem.itemURL == itemURL
-                || (queuedItem.isFolder && DiskItemDeletionPolicy.contains(itemURL, in: queuedItem.itemURL))
-        }) else {
+        guard !contains(item) else {
             return false
         }
 
@@ -70,6 +67,14 @@ final class CleanupQueueStore: ObservableObject {
             )
         )
         return true
+    }
+
+    func contains(_ item: DiskItem) -> Bool {
+        let itemURL: URL = item.url.standardizedFileURL
+        return items.contains { queuedItem in
+            queuedItem.itemURL == itemURL
+                || (queuedItem.isFolder && DiskItemDeletionPolicy.contains(itemURL, in: queuedItem.itemURL))
+        }
     }
 
     func remove(ids: Set<CleanupQueueItem.ID>) {
