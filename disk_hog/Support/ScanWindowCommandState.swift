@@ -193,6 +193,9 @@ final class ScanWindowCommandState: ObservableObject {
         if let context, activeContext !== context {
             return
         }
+        guard activeContext != nil else {
+            return
+        }
 
         activeContext = nil
         activeContextCancellable = nil
