@@ -2560,47 +2560,6 @@ struct SelectionListPipelineTests {
 
 @MainActor
 struct SelectionListTableViewTests {
-    @Test func snapshotCacheRequiresMatchingTreeKindAndSizeMode() throws {
-        let item: DiskItem = DiskItem(
-            url: URL(fileURLWithPath: "/scan/photo.png"),
-            allocatedSizeValue: 4_096,
-            logicalSizeValue: 1_024,
-            kindName: "PNG image",
-            isRoot: false
-        )
-        let root: DiskItem = DiskItem(
-            url: URL(fileURLWithPath: "/scan"),
-            isDirectory: true,
-            children: [item]
-        )
-        let filter: SelectionListFilter = .kind("PNG image")
-        let cacheKey: SelectionListSnapshotCacheKey = SelectionListSnapshotCacheKey(
-            rootID: root.id,
-            filter: filter,
-            usesPhysicalSize: true
-        )
-        let dataStore: SelectionListDataStore = SelectionListDataStore()
-        let snapshot: SelectionListSnapshot = try SelectionListPipeline.makeSnapshot(
-            rootItem: root,
-            filter: filter,
-            usePhysicalSize: true
-        )
-
-        dataStore.install(snapshot, cacheKey: cacheKey)
-
-        #expect(dataStore.hasSnapshot(for: cacheKey))
-        #expect(dataStore.hasSnapshot(for: SelectionListSnapshotCacheKey(
-            rootID: root.id,
-            filter: filter,
-            usesPhysicalSize: false
-        )) == false)
-        #expect(dataStore.hasSnapshot(for: SelectionListSnapshotCacheKey(
-            rootID: root.id,
-            filter: .all,
-            usesPhysicalSize: true
-        )) == false)
-    }
-
     @Test func unchangedResultGenerationDoesNotReloadRows() {
         let session: ScanSession = ScanSession(
             source: ScanSource(path: "/scan", displayName: "scan")

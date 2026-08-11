@@ -129,15 +129,19 @@ private struct InspectorWindowContentView: View {
             case .diskUsage:
                 DiskUsageView(session: context.session)
             case .selectionList:
-                SelectionListView(
-                    session: context.session,
-                    selectionCoordinator: context.selectionCoordinator,
-                    selectionFilter: $context.selectionListFilter,
-                    dataStore: context.selectionListDataStore
-                )
+                Color.clear
             case .cleanupQueue:
                 CleanupQueueView()
             }
+        }
+        .overlay {
+            SelectionListView(
+                session: context.session,
+                selectionCoordinator: context.selectionCoordinator,
+                selectionFilter: $context.selectionListFilter
+            )
+            .opacity(selectedTab == .selectionList ? 1 : 0)
+            .allowsHitTesting(selectedTab == .selectionList)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -398,13 +402,12 @@ private struct SelectionListView: View {
     @ObservedObject var session: ScanSession
     @ObservedObject var selectionCoordinator: ScanWindowSelectionCoordinator
     @Binding var selectionFilter: SelectionListFilter?
-    @ObservedObject var dataStore: SelectionListDataStore
+    @StateObject private var dataStore: SelectionListDataStore = SelectionListDataStore()
     @State private var rowsGeneration: Int = 0
     @State private var selectedItemID: DiskItemID?
     @State private var selectedItemIDs: Set<DiskItemID> = []
     @State private var isLoading: Bool = false
     @State private var isQuerying: Bool = false
-    @State private var suppressesCachedQueryProgress: Bool = false
     @State private var hasCompletedInitialQuery: Bool = false
     @State private var searchText: String = ""
     @State private var searchScope: SelectionListSearchScope = .all
@@ -498,26 +501,6 @@ private struct SelectionListView: View {
                 return
             }
 
-            let cacheKey: SelectionListSnapshotCacheKey = SelectionListSnapshotCacheKey(
-                rootID: rootItem.id,
-                filter: selectionFilter,
-                usesPhysicalSize: session.scanSettings.usePhysicalSize
-            )
-            if dataStore.hasSnapshot(for: cacheKey) {
-                suppressesCachedQueryProgress = true
-                if dataStore.hasPublishedResult {
-                    rowsGeneration = dataStore.resultGeneration
-                } else {
-                    rowsGeneration += 1
-                }
-                isLoading = false
-                isQuerying = false
-                hasCompletedInitialQuery = true
-                let selectedItem: DiskItem? = selectionCoordinator.selectedItem
-                selectedItemID = selectedItem.flatMap { dataStore.rowsByID[$0.id] }?.id
-                return
-            }
-
             isLoading = true
             hasCompletedInitialQuery = false
             dataStore.reset()
@@ -540,7 +523,7 @@ private struct SelectionListView: View {
                 return
             }
             guard !Task.isCancelled else { return }
-            dataStore.install(snapshot, cacheKey: cacheKey)
+            dataStore.install(snapshot)
             rowsGeneration += 1
             isLoading = false
             let selectedItem: DiskItem? = selectionCoordinator.selectedItem
@@ -555,11 +538,7 @@ private struct SelectionListView: View {
             )
         ) {
             guard selectionFilter != nil, !isLoading else { return }
-            guard hasCompletedInitialQuery || !hasCachedSnapshot else { return }
-            let suppressProgress: Bool = suppressesCachedQueryProgress
-            if !suppressProgress {
-                isQuerying = true
-            }
+            isQuerying = true
             let sourceRows: [SelectionListRow] = dataStore.rows
             let sourceGeneration: Int = rowsGeneration
             let query: String = searchText
@@ -594,7 +573,6 @@ private struct SelectionListView: View {
             guard !Task.isCancelled, rowsGeneration == sourceGeneration else { return }
             dataStore.publish(result)
             isQuerying = false
-            suppressesCachedQueryProgress = false
             hasCompletedInitialQuery = true
         }
     }
@@ -613,18 +591,6 @@ private struct SelectionListView: View {
         selectionFilter != nil
             && !hasCompletedInitialQuery
             && (isLoading || isQuerying)
-    }
-
-    private var hasCachedSnapshot: Bool {
-        guard let rootItem: DiskItem = session.rootItem,
-              let selectionFilter else {
-            return false
-        }
-        return dataStore.hasSnapshot(for: SelectionListSnapshotCacheKey(
-            rootID: rootItem.id,
-            filter: selectionFilter,
-            usesPhysicalSize: session.scanSettings.usePhysicalSize
-        ))
     }
 
     private var isUpdatingVisibleList: Bool {
