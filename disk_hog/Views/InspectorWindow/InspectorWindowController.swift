@@ -6,6 +6,7 @@ enum InspectorWindowTab: String, CaseIterable, Identifiable {
     case information
     case diskUsage
     case selectionList
+    case cleanupQueue
 
     var id: Self { self }
 
@@ -14,6 +15,7 @@ enum InspectorWindowTab: String, CaseIterable, Identifiable {
         case .information: String(localized: "Information")
         case .diskUsage: String(localized: "Disk Usage")
         case .selectionList: String(localized: "Selection List")
+        case .cleanupQueue: String(localized: "Cleanup Queue")
         }
     }
 
@@ -22,6 +24,7 @@ enum InspectorWindowTab: String, CaseIterable, Identifiable {
         case .information: "info.circle"
         case .diskUsage: "chart.pie"
         case .selectionList: "list.bullet.rectangle"
+        case .cleanupQueue: "trash"
         }
     }
 
@@ -29,6 +32,7 @@ enum InspectorWindowTab: String, CaseIterable, Identifiable {
         switch self {
         case .diskUsage: String(localized: "No Volume Selected")
         case .information, .selectionList: String(localized: "No Scan Window Active")
+        case .cleanupQueue: String(localized: "Cleanup Queue")
         }
     }
 
@@ -36,6 +40,7 @@ enum InspectorWindowTab: String, CaseIterable, Identifiable {
         switch self {
         case .diskUsage: "externaldrive"
         case .information, .selectionList: "macwindow"
+        case .cleanupQueue: "trash"
         }
     }
 
@@ -47,6 +52,8 @@ enum InspectorWindowTab: String, CaseIterable, Identifiable {
             String(localized: "Select a scan window to inspect its contents.")
         case .selectionList:
             String(localized: "Select a scan window to view its file selection list.")
+        case .cleanupQueue:
+            String(localized: "Add files or folders from a scan window to review them here before moving them to Finder Trash.")
         }
     }
 
@@ -66,6 +73,11 @@ enum InspectorWindowTab: String, CaseIterable, Identifiable {
             InspectorWindowLayout(
                 preferredContentSize: NSSize(width: 720, height: 440),
                 minimumContentSize: NSSize(width: 520, height: 320)
+            )
+        case .cleanupQueue:
+            InspectorWindowLayout(
+                preferredContentSize: NSSize(width: 780, height: 520),
+                minimumContentSize: NSSize(width: 600, height: 380)
             )
         }
     }
@@ -105,6 +117,7 @@ enum InspectorContentSizeSlot: Hashable {
     case compactDiskUsage
     case fullDiskUsage
     case selectionList
+    case cleanupQueue
 }
 
 @MainActor

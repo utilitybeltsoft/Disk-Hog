@@ -14,6 +14,8 @@ final class InspectorWindowLayoutCoordinator {
             context?.isVolumeScan == true ? .fullDiskUsage : .compactDiskUsage
         case .selectionList:
             .selectionList
+        case .cleanupQueue:
+            .cleanupQueue
         }
     }
 
@@ -27,6 +29,8 @@ final class InspectorWindowLayoutCoordinator {
             InspectorWindowTab.diskUsage.layout
         case .selectionList:
             InspectorWindowTab.selectionList.layout
+        case .cleanupQueue:
+            InspectorWindowTab.cleanupQueue.layout
         }
     }
 

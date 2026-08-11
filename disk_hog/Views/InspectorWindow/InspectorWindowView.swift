@@ -23,7 +23,9 @@ struct InspectorWindowView: View {
 
             Divider()
 
-            if let context: InspectorWindowContext = controller.activeContext {
+            if controller.selectedTab == .cleanupQueue {
+                CleanupQueueView()
+            } else if let context: InspectorWindowContext = controller.activeContext {
                 InspectorWindowContentView(
                     context: context,
                     selectedTab: controller.selectedTab
@@ -104,6 +106,8 @@ private struct SourceInspectorWindowContentView: View {
                     systemImage: "list.bullet.rectangle",
                     description: Text("Complete a scan before viewing a file selection list.")
                 )
+            case .cleanupQueue:
+                CleanupQueueView()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -130,6 +134,8 @@ private struct InspectorWindowContentView: View {
                     selectionCoordinator: context.selectionCoordinator,
                     selectionFilter: $context.selectionListFilter
                 )
+            case .cleanupQueue:
+                CleanupQueueView()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
