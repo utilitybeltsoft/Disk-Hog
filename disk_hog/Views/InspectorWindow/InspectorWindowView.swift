@@ -505,7 +505,6 @@ private struct SelectionListView: View {
 
             let usesPhysicalSize: Bool = session.scanSettings.usePhysicalSize
             if !dataStore.requiresRebuild(
-                rootID: rootItem.id,
                 filter: selectionFilter,
                 usesPhysicalSize: usesPhysicalSize
             ) {
@@ -520,7 +519,6 @@ private struct SelectionListView: View {
             isLoading = true
             hasCompletedInitialQuery = false
             dataStore.beginRebuild(
-                rootID: rootItem.id,
                 filter: selectionFilter,
                 usesPhysicalSize: usesPhysicalSize
             )
@@ -556,7 +554,7 @@ private struct SelectionListView: View {
                 sortDescriptors: sortDescriptors
             )
         ) {
-            guard let rootItem: DiskItem = session.rootItem,
+            guard session.rootItem != nil,
                   let selectionFilter,
                   !isLoading else {
                 return
@@ -567,7 +565,6 @@ private struct SelectionListView: View {
             let scope: SelectionListSearchScope = searchScope
             let descriptors: [SelectionListSortDescriptor] = sortDescriptors
             if !hasCompletedInitialQuery, !dataStore.requiresRebuild(
-                rootID: rootItem.id,
                 filter: selectionFilter,
                 usesPhysicalSize: session.scanSettings.usePhysicalSize
             ) {
@@ -604,6 +601,9 @@ private struct SelectionListView: View {
             dataStore.publish(result)
             isQuerying = false
             hasCompletedInitialQuery = true
+        }
+        .onChange(of: session.rootItem?.id) {
+            dataStore.markDirty()
         }
     }
 
