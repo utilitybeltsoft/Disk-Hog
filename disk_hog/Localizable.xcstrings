@@ -1,6 +1,14 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Loading Applications…" : {
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Programme werden geladen …" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Cargando aplicaciones…" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Chargement des applications…" } },
+        "it" : { "stringUnit" : { "state" : "translated", "value" : "Caricamento delle applicazioni…" } }
+      }
+    },
     "\"%@\" cannot be moved to the Trash." : {
       "localizations" : {
         "de" : {

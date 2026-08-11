@@ -259,6 +259,7 @@ final class DiskItemContextMenuPayload: NSObject {
 @MainActor
 final class DiskItemContextMenuActionTarget: NSObject {
     weak var session: ScanSession?
+    var openWithMenuController: OpenWithMenuController?
 
     init(session: ScanSession? = nil) {
         self.session = session
@@ -379,7 +380,12 @@ enum DiskItemContextMenuBuilder {
             action: nil,
             keyEquivalent: ""
         )
-        openWithItem.submenu = openWithSubmenu(for: item, actionTarget: actionTarget)
+        let openWithMenuController: OpenWithMenuController = OpenWithMenuController(
+            item: item,
+            actionTarget: actionTarget
+        )
+        actionTarget.openWithMenuController = openWithMenuController
+        openWithItem.submenu = openWithMenuController.makeMenu()
         menu.addItem(openWithItem)
 
         menu.addItem(.separator())
@@ -444,76 +450,4 @@ enum DiskItemContextMenuBuilder {
         menu.addItem(selectionListItem)
     }
 
-    private static func openWithSubmenu(
-        for item: DiskItem,
-        actionTarget: DiskItemContextMenuActionTarget
-    ) -> NSMenu {
-        let submenu: NSMenu = NSMenu(title: String(localized: "Open With"))
-        var addedApplicationURLs: Set<URL> = []
-
-        if let defaultApplicationURL: URL = NSWorkspace.shared.urlForApplication(toOpen: item.url) {
-            addOpenWithItem(
-                to: submenu,
-                title: displayName(forApplicationAt: defaultApplicationURL),
-                applicationURL: defaultApplicationURL,
-                item: item,
-                actionTarget: actionTarget
-            )
-            addedApplicationURLs.insert(defaultApplicationURL)
-            submenu.addItem(.separator())
-        }
-
-        let applicationURLs: [URL] = NSWorkspace.shared.urlsForApplications(toOpen: item.url)
-            .filter { addedApplicationURLs.contains($0) == false }
-            .sorted { displayName(forApplicationAt: $0).localizedStandardCompare(displayName(forApplicationAt: $1)) == .orderedAscending }
-
-        for applicationURL: URL in applicationURLs {
-            addOpenWithItem(
-                to: submenu,
-                title: displayName(forApplicationAt: applicationURL),
-                applicationURL: applicationURL,
-                item: item,
-                actionTarget: actionTarget
-            )
-        }
-
-        if submenu.items.isEmpty {
-            let unavailableItem: NSMenuItem = NSMenuItem(
-                title: String(localized: "No Applications Available"),
-                action: nil,
-                keyEquivalent: ""
-            )
-            unavailableItem.isEnabled = false
-            submenu.addItem(unavailableItem)
-        }
-
-        return submenu
-    }
-
-    private static func addOpenWithItem(
-        to menu: NSMenu,
-        title: String,
-        applicationURL: URL,
-        item: DiskItem,
-        actionTarget: DiskItemContextMenuActionTarget
-    ) {
-        let menuItem: NSMenuItem = NSMenuItem(
-            title: title,
-            action: #selector(DiskItemContextMenuActionTarget.openWithMenuItem(_:)),
-            keyEquivalent: ""
-        )
-        menuItem.target = actionTarget
-        menuItem.toolTip = applicationURL.path
-        menuItem.representedObject = DiskItemContextMenuPayload(item: item, applicationURL: applicationURL)
-
-        let icon: NSImage = NSWorkspace.shared.icon(forFile: applicationURL.path)
-        icon.size = NSSize(width: 16, height: 16)
-        menuItem.image = icon
-
-        menu.addItem(menuItem)
-    }
-
-    private static func displayName(forApplicationAt applicationURL: URL) -> String {
-        FileManager.default.displayName(atPath: applicationURL.path)
-    }
 }
