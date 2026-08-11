@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct CleanupQueueView: View {
     @ObservedObject private var store: CleanupQueueStore = .shared
@@ -55,6 +56,7 @@ struct CleanupQueueView: View {
                 .padding(14)
             }
         }
+        .onDrop(of: [UTType.fileURL], delegate: CleanupQueueDropDelegate())
     }
 
     private var selectedItems: [CleanupQueueItem] {
@@ -65,6 +67,28 @@ struct CleanupQueueView: View {
         Dictionary(grouping: store.items, by: \.volumeName)
             .map { (volumeName: $0.key, items: $0.value) }
             .sorted { $0.volumeName.localizedStandardCompare($1.volumeName) == .orderedAscending }
+    }
+}
+
+private struct CleanupQueueDropDelegate: DropDelegate {
+    func validateDrop(info: DropInfo) -> Bool {
+        info.hasItemsConforming(to: [UTType.fileURL])
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .copy)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        for provider: NSItemProvider in info.itemProviders(for: [UTType.fileURL]) {
+            _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                guard let url else { return }
+                Task { @MainActor in
+                    CleanupQueueStore.shared.enqueueDroppedItem(at: url)
+                }
+            }
+        }
+        return true
     }
 }
 

@@ -84,6 +84,18 @@ final class ScanWindowRegistry {
         }
     }
 
+    func queuedItem(at url: URL) -> (item: DiskItem, session: ScanSession)? {
+        let itemURL: URL = url.standardizedFileURL
+        for session: ScanSession in openSessions {
+            guard DiskItemDeletionPolicy.contains(itemURL, in: session.source.url),
+                  let item: DiskItem = session.rootItem?.item(atPath: itemURL.path) else {
+                continue
+            }
+            return (item, session)
+        }
+        return nil
+    }
+
     private var openSessions: [ScanSession] {
         windowsBySourceKey = windowsBySourceKey.filter { _, weakWindow in
             weakWindow.window != nil

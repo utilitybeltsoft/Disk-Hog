@@ -53,7 +53,7 @@ struct DiskItemOutlineView: NSViewRepresentable {
         outlineView.pasteboardItemProvider = { [weak contextCoordinator = context.coordinator] in
             contextCoordinator?.selectedItemForPasteboard()
         }
-        outlineView.setDraggingSourceOperationMask([], forLocal: true)
+        outlineView.setDraggingSourceOperationMask(.copy, forLocal: true)
         outlineView.setDraggingSourceOperationMask(.copy, forLocal: false)
 
         let scrollView: NSScrollView = NSScrollView()

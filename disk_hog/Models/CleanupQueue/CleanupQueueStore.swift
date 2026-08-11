@@ -95,6 +95,13 @@ final class CleanupQueueStore: ObservableObject {
         items.removeAll()
     }
 
+    func enqueueDroppedItem(at url: URL) {
+        guard let queuedItem: (item: DiskItem, session: ScanSession) = ScanWindowRegistry.shared.queuedItem(at: url) else {
+            return
+        }
+        _ = enqueue(queuedItem.item, from: queuedItem.session)
+    }
+
     func setSelected(_ isSelected: Bool, for id: CleanupQueueItem.ID) {
         guard let index: Int = items.firstIndex(where: { $0.id == id }) else {
             return
