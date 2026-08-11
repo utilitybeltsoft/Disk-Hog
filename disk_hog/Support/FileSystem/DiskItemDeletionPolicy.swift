@@ -55,6 +55,10 @@ nonisolated enum DiskItemDeletionPolicy {
 
 @MainActor
 enum DiskItemDeletionCoordinator {
+    static func requestQueueUndo(of item: DiskItem) {
+        CleanupQueueStore.shared.remove(item)
+    }
+
     static func requestQueueing(
         of item: DiskItem,
         from session: ScanSession?

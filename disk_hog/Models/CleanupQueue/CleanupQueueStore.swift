@@ -77,6 +77,16 @@ final class CleanupQueueStore: ObservableObject {
         }
     }
 
+    func isDirectlyQueued(_ item: DiskItem) -> Bool {
+        let itemURL: URL = item.url.standardizedFileURL
+        return items.contains { $0.itemURL == itemURL }
+    }
+
+    func remove(_ item: DiskItem) {
+        let itemURL: URL = item.url.standardizedFileURL
+        items.removeAll { $0.itemURL == itemURL }
+    }
+
     func remove(ids: Set<CleanupQueueItem.ID>) {
         items.removeAll { ids.contains($0.id) }
     }

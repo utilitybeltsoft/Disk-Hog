@@ -302,10 +302,14 @@ final class DiskItemContextMenuActionTarget: NSObject {
             return
         }
 
-        DiskItemDeletionCoordinator.requestQueueing(
-            of: payload.item,
-            from: session
-        )
+        if CleanupQueueStore.shared.isDirectlyQueued(payload.item) {
+            DiskItemDeletionCoordinator.requestQueueUndo(of: payload.item)
+        } else {
+            DiskItemDeletionCoordinator.requestQueueing(
+                of: payload.item,
+                from: session
+            )
+        }
     }
 
     @objc func showInSelectionListMenuItem(_ sender: NSMenuItem) {
@@ -402,10 +406,11 @@ enum DiskItemContextMenuBuilder {
 
         menu.addItem(.separator())
 
+        let isDirectlyQueued: Bool = CleanupQueueStore.shared.isDirectlyQueued(item)
         let isAlreadyQueued: Bool = CleanupQueueStore.shared.contains(item)
         let trashItem: NSMenuItem = NSMenuItem(
-            title: isAlreadyQueued
-                ? String(localized: "Already Queued for Finder Trash")
+            title: isDirectlyQueued
+                ? String(localized: "Already Queued for Finder Trash: Undo")
                 : String(localized: "Add to Cleanup Queue"),
             action: #selector(DiskItemContextMenuActionTarget.trashMenuItem(_:)),
             keyEquivalent: ""
@@ -413,7 +418,7 @@ enum DiskItemContextMenuBuilder {
         trashItem.target = actionTarget
         trashItem.representedObject = DiskItemContextMenuPayload(item: item)
         trashItem.isEnabled = treeActionsEnabled
-            && !isAlreadyQueued
+            && (!isAlreadyQueued || isDirectlyQueued)
             && DiskItemDeletionPolicy.canDelete(item)
         menu.addItem(trashItem)
 
