@@ -1,22 +1,6 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "Already Queued for Finder Trash: Undo" : {
-      "localizations" : {
-        "de" : { "stringUnit" : { "state" : "translated", "value" : "Bereits für den Finder-Papierkorb vorgemerkt: Rückgängig" } },
-        "es" : { "stringUnit" : { "state" : "translated", "value" : "Ya está en cola para la Papelera del Finder: Deshacer" } },
-        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Déjà en attente pour la corbeille du Finder : Annuler" } },
-        "it" : { "stringUnit" : { "state" : "translated", "value" : "Già in coda per il Cestino del Finder: Annulla" } }
-      }
-    },
-    "Already Queued for Finder Trash" : {
-      "localizations" : {
-        "de" : { "stringUnit" : { "state" : "translated", "value" : "Bereits für den Finder-Papierkorb vorgemerkt" } },
-        "es" : { "stringUnit" : { "state" : "translated", "value" : "Ya está en cola para la Papelera del Finder" } },
-        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Déjà en attente pour la corbeille du Finder" } },
-        "it" : { "stringUnit" : { "state" : "translated", "value" : "Già in coda per il Cestino del Finder" } }
-      }
-    },
     "\"%@\" cannot be moved to the Trash." : {
       "localizations" : {
         "de" : {
@@ -600,6 +584,63 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dati assegnati"
+          }
+        }
+      }
+    },
+    "Already Queued for Finder Trash" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bereits für den Finder-Papierkorb vorgemerkt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ya está en cola para la Papelera del Finder"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Déjà en attente pour la corbeille du Finder"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Già in coda per il Cestino del Finder"
+          }
+        }
+      }
+    },
+    "Already Queued for Finder Trash: Undo" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bereits für den Finder-Papierkorb vorgemerkt: Rückgängig"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ya está en cola para la Papelera del Finder: Deshacer"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Déjà en attente pour la corbeille du Finder : Annuler"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Già in coda per il Cestino del Finder: Annulla"
           }
         }
       }
