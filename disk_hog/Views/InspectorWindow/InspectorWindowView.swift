@@ -119,22 +119,23 @@ private struct InspectorWindowContentView: View {
     let selectedTab: InspectorWindowTab
 
     var body: some View {
-        Group {
-            switch selectedTab {
-            case .information:
-                FileInformationView(
-                    session: context.session,
-                    selectionCoordinator: context.selectionCoordinator
-                )
-            case .diskUsage:
-                DiskUsageView(session: context.session)
-            case .selectionList:
-                Color.clear
-            case .cleanupQueue:
-                CleanupQueueView()
+        ZStack {
+            Group {
+                switch selectedTab {
+                case .information:
+                    FileInformationView(
+                        session: context.session,
+                        selectionCoordinator: context.selectionCoordinator
+                    )
+                case .diskUsage:
+                    DiskUsageView(session: context.session)
+                case .selectionList:
+                    Color.clear
+                case .cleanupQueue:
+                    CleanupQueueView()
+                }
             }
-        }
-        .overlay {
+
             SelectionListView(
                 session: context.session,
                 selectionCoordinator: context.selectionCoordinator,
