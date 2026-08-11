@@ -643,9 +643,11 @@ struct ScanSessionWorkerIntegrationTests {
     @Test func ignoresStaleSizeModeRebuildResult() async throws {
         let physicalRoot: DiskItem = Self.rootItem(allocatedSize: 12, logicalSize: 5)
         let logicalRoot: DiskItem = Self.rootItem(allocatedSize: 12, logicalSize: 5)
+        let updateRecorder: SizeModeUpdateRecorder = SizeModeUpdateRecorder()
         let presentationWorker: DelayedSizeModePresentationWorker = DelayedSizeModePresentationWorker(
             physicalRootItem: physicalRoot,
-            logicalRootItem: logicalRoot
+            logicalRootItem: logicalRoot,
+            updateRecorder: updateRecorder
         )
         let session: ScanSession = ScanSession(
             source: ScanSource(
@@ -666,7 +668,7 @@ struct ScanSessionWorkerIntegrationTests {
         session.updateSizeMode(true)
 
         try await Self.waitUntil(observing: session) { session.scannedByteCount == 12 }
-        try await Task.sleep(nanoseconds: 250_000_000)
+        try await updateRecorder.waitUntilLogicalUpdateCount(isAtLeast: 1)
         #expect(session.scanSettings.usePhysicalSize)
         #expect(session.scannedByteCount == 12)
         #expect(session.rootItem?.sizeValue(usePhysicalSize: true) == 12)
@@ -1025,6 +1027,106 @@ private final class PendingRescanScanWorker: ScanSessionScanning, @unchecked Sen
 
 private struct ScanSessionWorkerWaitTimeout: Error {}
 
+private final class SizeModeUpdateRecorder: @unchecked Sendable {
+    private struct Waiter {
+        let id: UUID
+        let minimumCount: Int
+        let continuation: CheckedContinuation<Void, Error>
+    }
+
+    private let lock: NSLock = NSLock()
+    private var logicalUpdateCount: Int = 0
+    private var waiters: [Waiter] = []
+
+    func record(usePhysicalSize: Bool) {
+        guard !usePhysicalSize else {
+            return
+        }
+
+        let satisfiedWaiters: [Waiter]
+        lock.lock()
+        logicalUpdateCount += 1
+        satisfiedWaiters = waiters.filter { logicalUpdateCount >= $0.minimumCount }
+        waiters.removeAll { logicalUpdateCount >= $0.minimumCount }
+        lock.unlock()
+
+        for waiter in satisfiedWaiters {
+            waiter.continuation.resume()
+        }
+    }
+
+    func waitUntilLogicalUpdateCount(
+        isAtLeast minimumCount: Int,
+        timeoutNanoseconds: UInt64 = 10_000_000_000
+    ) async throws {
+        guard hasLogicalUpdateCount(atLeast: minimumCount) == false else {
+            return
+        }
+
+        let waiterID: UUID = UUID()
+        var timeoutTask: Task<Void, Never>?
+        try await withCheckedThrowingContinuation { continuation in
+            guard addWaiterIfNeeded(
+                id: waiterID,
+                minimumCount: minimumCount,
+                continuation: continuation
+            ) else {
+                continuation.resume()
+                return
+            }
+
+            timeoutTask = Task {
+                do {
+                    try await Task.sleep(nanoseconds: timeoutNanoseconds)
+                } catch {
+                    return
+                }
+                self.failWaiter(id: waiterID, error: ScanSessionWorkerWaitTimeout())
+            }
+        }
+        timeoutTask?.cancel()
+    }
+
+    private func hasLogicalUpdateCount(atLeast minimumCount: Int) -> Bool {
+        lock.lock()
+        let hasMinimumCount: Bool = logicalUpdateCount >= minimumCount
+        lock.unlock()
+        return hasMinimumCount
+    }
+
+    private func addWaiterIfNeeded(
+        id: UUID,
+        minimumCount: Int,
+        continuation: CheckedContinuation<Void, Error>
+    ) -> Bool {
+        lock.lock()
+        guard logicalUpdateCount < minimumCount else {
+            lock.unlock()
+            return false
+        }
+        waiters.append(Waiter(
+            id: id,
+            minimumCount: minimumCount,
+            continuation: continuation
+        ))
+        lock.unlock()
+        return true
+    }
+
+    private func failWaiter(id: UUID, error: Error) {
+        let waiter: Waiter?
+        lock.lock()
+        if let index: Array<Waiter>.Index = waiters.firstIndex(where: { $0.id == id }) {
+            waiter = waiters.remove(at: index)
+        } else {
+            waiter = nil
+        }
+        lock.unlock()
+
+        waiter?.continuation.resume(throwing: error)
+    }
+}
+
 private actor PendingRescanStaleSizeModeScanWorkerState {
     private struct CallCountWaiter {
         let id: UUID
@@ -1157,6 +1259,7 @@ private final class PendingRescanStaleSizeModeScanWorker: ScanSessionScanning, @
 private struct DelayedSizeModePresentationWorker: ScanSessionPresenting {
     let physicalRootItem: DiskItem
     let logicalRootItem: DiskItem
+    var updateRecorder: SizeModeUpdateRecorder?
 
     func presentationMetrics(
         rootItem: DiskItem,
@@ -1180,6 +1283,7 @@ private struct DelayedSizeModePresentationWorker: ScanSessionPresenting {
             usleep(150_000)
         }
         let resultRootItem: DiskItem = usePhysicalSize ? physicalRootItem : logicalRootItem
+        updateRecorder?.record(usePhysicalSize: usePhysicalSize)
         return ScanSessionSizeModeUpdateResult(
             rootItem: resultRootItem,
             presentationMetrics: presentationMetrics(
