@@ -1,14 +1,6 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "Loading Applications…" : {
-      "localizations" : {
-        "de" : { "stringUnit" : { "state" : "translated", "value" : "Programme werden geladen …" } },
-        "es" : { "stringUnit" : { "state" : "translated", "value" : "Cargando aplicaciones…" } },
-        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Chargement des applications…" } },
-        "it" : { "stringUnit" : { "state" : "translated", "value" : "Caricamento delle applicazioni…" } }
-      }
-    },
     "\"%@\" cannot be moved to the Trash." : {
       "localizations" : {
         "de" : {
@@ -371,6 +363,9 @@
           }
         }
       }
+    },
+    "Add %lld Items to Cleanup Queue" : {
+
     },
     "Add files or folders from a scan window to review them before moving them to Finder Trash." : {
       "localizations" : {
@@ -3776,6 +3771,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ultimo accesso"
+          }
+        }
+      }
+    },
+    "Loading Applications…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Programme werden geladen …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cargando aplicaciones…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chargement des applications…"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Caricamento delle applicazioni…"
           }
         }
       }
