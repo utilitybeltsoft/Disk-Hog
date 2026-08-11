@@ -81,12 +81,31 @@ final class TreemapCushionRenderer {
         let baseGreen: CGFloat = baseColor.greenComponent
         let baseBlue: CGFloat = baseColor.blueComponent
         let bytesPerRow: Int = bitmap.bytesPerRow
-        let yStart: Int = Int((rect.minY * backingScaleFactor).rounded(.down))
-        let yEnd: Int = Int((rect.maxY * backingScaleFactor).rounded(.up))
-        let xStart: Int = Int((rect.minX * backingScaleFactor).rounded(.down))
-        let xEnd: Int = Int((rect.maxX * backingScaleFactor).rounded(.up))
-        assert(yStart >= 0 && yEnd <= bitmap.pixelsHigh)
-        assert(xStart >= 0 && xEnd <= bitmap.pixelsWide)
+        let yStart: Int = Self.clampedPixelBoundary(
+            rect.minY,
+            scale: backingScaleFactor,
+            limit: bitmap.pixelsHigh,
+            roundingRule: .down
+        )
+        let yEnd: Int = max(yStart, Self.clampedPixelBoundary(
+            rect.maxY,
+            scale: backingScaleFactor,
+            limit: bitmap.pixelsHigh,
+            roundingRule: .up
+        ))
+        let xStart: Int = Self.clampedPixelBoundary(
+            rect.minX,
+            scale: backingScaleFactor,
+            limit: bitmap.pixelsWide,
+            roundingRule: .down
+        )
+        let xEnd: Int = max(xStart, Self.clampedPixelBoundary(
+            rect.maxX,
+            scale: backingScaleFactor,
+            limit: bitmap.pixelsWide,
+            roundingRule: .up
+        ))
+        guard yStart < yEnd, xStart < xEnd else { return }
         for y: Int in yStart..<yEnd {
             let rowStart: UnsafeMutablePointer<UInt8> = pixels + y * bytesPerRow
             let pointY: Double = (Double(y) + 0.5) / Double(backingScaleFactor)
@@ -109,6 +128,16 @@ final class TreemapCushionRenderer {
                 pixel[2] = UInt8(blue * 255)
             }
         }
+    }
+
+    private nonisolated static func clampedPixelBoundary(
+        _ pointBoundary: CGFloat,
+        scale: CGFloat,
+        limit: Int,
+        roundingRule: FloatingPointRoundingRule
+    ) -> Int {
+        let pixelBoundary: Int = Int((pointBoundary * scale).rounded(roundingRule))
+        return max(0, min(limit, pixelBoundary))
     }
 
     nonisolated static func normalizeColorRed(_ red: inout CGFloat, green: inout CGFloat, blue: inout CGFloat) {

@@ -3135,6 +3135,30 @@ struct TreemapCushionRendererTests {
         #expect(pixelOutsidePointSpace[0] > 0)
     }
 
+    @Test func clampsExpandedFractionalPointRectsToBitmapBounds() throws {
+        let fractionalBounds: NSRect = NSRect(x: 0, y: 0, width: 100.5, height: 100.5)
+        let bitmap: NSBitmapImageRep = try #require(NSBitmapImageRep.treemapImageRepCompatible(
+            withBounds: fractionalBounds,
+            backingScaleFactor: 2,
+            colorSpace: .genericRGB
+        ))
+        let renderer: TreemapCushionRenderer = TreemapCushionRenderer(
+            rect: NSIntegralRect(fractionalBounds)
+        )
+        renderer.setColor(NSColor.red)
+
+        #expect(bitmap.pixelsWide == 201)
+        #expect(bitmap.pixelsHigh == 201)
+
+        renderer.renderCushion(in: bitmap, backingScaleFactor: 2)
+
+        let bytes: UnsafeMutablePointer<UInt8> = try #require(bitmap.bitmapData)
+        let lastPixel: UnsafeMutablePointer<UInt8> = bytes
+            + (bitmap.pixelsHigh - 1) * bitmap.bytesPerRow
+            + (bitmap.pixelsWide - 1) * 3
+        #expect(lastPixel[0] > 0)
+    }
+
     @Test func rejectsInvalidBitmapScaleWithoutRendering() {
         let bitmap: NSBitmapImageRep? = NSBitmapImageRep.treemapImageRepCompatible(
             withBounds: NSRect(x: 0, y: 0, width: 100, height: 100),
