@@ -713,6 +713,23 @@ struct ScanSessionWorkerIntegrationTests {
         #expect(session.scannedByteCount == 30)
     }
 
+    @Test func scanWorkerCallCountWaitTimesOutCleanly() async throws {
+        let worker: PendingRescanStaleSizeModeScanWorker = PendingRescanStaleSizeModeScanWorker(
+            firstRootItem: Self.rootItem(fileSize: 12),
+            secondRootItem: Self.rootItem(fileSize: 30)
+        )
+
+        do {
+            try await worker.waitUntilCallCount(
+                isAtLeast: 1,
+                timeoutNanoseconds: 1_000_000
+            )
+            Issue.record("Expected call-count wait to time out.")
+        } catch is ScanSessionWorkerWaitTimeout {
+            return
+        }
+    }
+
     static func rootItem(fileSize: UInt64) -> DiskItem {
         rootItem(allocatedSize: fileSize, logicalSize: fileSize)
     }
@@ -1006,9 +1023,17 @@ private final class PendingRescanScanWorker: ScanSessionScanning, @unchecked Sen
     }
 }
 
+private struct ScanSessionWorkerWaitTimeout: Error {}
+
 private actor PendingRescanStaleSizeModeScanWorkerState {
+    private struct CallCountWaiter {
+        let id: UUID
+        let minimumCallCount: Int
+        let continuation: CheckedContinuation<Void, Error>
+    }
+
     private var count: Int = 0
-    private var waiters: [(minimumCallCount: Int, continuation: CheckedContinuation<Void, Never>)] = []
+    private var waiters: [CallCountWaiter] = []
 
     func nextCallNumber() -> Int {
         count += 1
@@ -1020,18 +1045,36 @@ private actor PendingRescanStaleSizeModeScanWorkerState {
         count
     }
 
-    func waitUntilCallCount(isAtLeast minimumCallCount: Int) async {
+    func waitUntilCallCount(
+        isAtLeast minimumCallCount: Int,
+        timeoutNanoseconds: UInt64
+    ) async throws {
         guard count < minimumCallCount else {
             return
         }
 
-        await withCheckedContinuation { continuation in
-            waiters.append((minimumCallCount, continuation))
+        let waiterID: UUID = UUID()
+        var timeoutTask: Task<Void, Never>?
+        try await withCheckedThrowingContinuation { continuation in
+            waiters.append(CallCountWaiter(
+                id: waiterID,
+                minimumCallCount: minimumCallCount,
+                continuation: continuation
+            ))
+            timeoutTask = Task {
+                do {
+                    try await Task.sleep(nanoseconds: timeoutNanoseconds)
+                } catch {
+                    return
+                }
+                self.failWaiter(id: waiterID, error: ScanSessionWorkerWaitTimeout())
+            }
         }
+        timeoutTask?.cancel()
     }
 
     private func resumeSatisfiedWaiters() {
-        var remainingWaiters: [(minimumCallCount: Int, continuation: CheckedContinuation<Void, Never>)] = []
+        var remainingWaiters: [CallCountWaiter] = []
         for waiter in waiters {
             if count >= waiter.minimumCallCount {
                 waiter.continuation.resume()
@@ -1041,9 +1084,15 @@ private actor PendingRescanStaleSizeModeScanWorkerState {
         }
         waiters = remainingWaiters
     }
-}
 
-private struct ScanSessionWorkerWaitTimeout: Error {}
+    private func failWaiter(id: UUID, error: Error) {
+        guard let index: Array<CallCountWaiter>.Index = waiters.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+        let waiter: CallCountWaiter = waiters.remove(at: index)
+        waiter.continuation.resume(throwing: error)
+    }
+}
 
 private final class PendingRescanStaleSizeModeScanWorker: ScanSessionScanning, @unchecked Sendable {
     private let state: PendingRescanStaleSizeModeScanWorkerState = PendingRescanStaleSizeModeScanWorkerState()
@@ -1063,18 +1112,10 @@ private final class PendingRescanStaleSizeModeScanWorker: ScanSessionScanning, @
         isAtLeast minimumCallCount: Int,
         timeoutNanoseconds: UInt64 = 10_000_000_000
     ) async throws {
-        try await withThrowingTaskGroup(of: Void.self) { group in
-            group.addTask {
-                await self.state.waitUntilCallCount(isAtLeast: minimumCallCount)
-            }
-            group.addTask {
-                try await Task.sleep(nanoseconds: timeoutNanoseconds)
-                throw ScanSessionWorkerWaitTimeout()
-            }
-
-            try await group.next()
-            group.cancelAll()
-        }
+        try await state.waitUntilCallCount(
+            isAtLeast: minimumCallCount,
+            timeoutNanoseconds: timeoutNanoseconds
+        )
     }
 
     func scan(
