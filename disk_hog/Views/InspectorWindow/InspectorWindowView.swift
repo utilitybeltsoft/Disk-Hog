@@ -404,6 +404,7 @@ private struct SelectionListView: View {
     @State private var selectedItemIDs: Set<DiskItemID> = []
     @State private var isLoading: Bool = false
     @State private var isQuerying: Bool = false
+    @State private var suppressesCachedQueryProgress: Bool = false
     @State private var hasCompletedInitialQuery: Bool = false
     @State private var searchText: String = ""
     @State private var searchScope: SelectionListSearchScope = .all
@@ -503,6 +504,7 @@ private struct SelectionListView: View {
                 usesPhysicalSize: session.scanSettings.usePhysicalSize
             )
             if dataStore.hasSnapshot(for: cacheKey) {
+                suppressesCachedQueryProgress = true
                 rowsGeneration = dataStore.resultGeneration
                 isLoading = false
                 isQuerying = false
@@ -549,7 +551,11 @@ private struct SelectionListView: View {
             )
         ) {
             guard selectionFilter != nil, !isLoading else { return }
-            isQuerying = true
+            guard hasCompletedInitialQuery || !hasCachedSnapshot else { return }
+            let suppressProgress: Bool = suppressesCachedQueryProgress
+            if !suppressProgress {
+                isQuerying = true
+            }
             let sourceRows: [SelectionListRow] = dataStore.rows
             let sourceGeneration: Int = rowsGeneration
             let query: String = searchText
@@ -584,6 +590,7 @@ private struct SelectionListView: View {
             guard !Task.isCancelled, rowsGeneration == sourceGeneration else { return }
             dataStore.publish(result)
             isQuerying = false
+            suppressesCachedQueryProgress = false
             hasCompletedInitialQuery = true
         }
     }
@@ -602,6 +609,18 @@ private struct SelectionListView: View {
         selectionFilter != nil
             && !hasCompletedInitialQuery
             && (isLoading || isQuerying)
+    }
+
+    private var hasCachedSnapshot: Bool {
+        guard let rootItem: DiskItem = session.rootItem,
+              let selectionFilter else {
+            return false
+        }
+        return dataStore.hasSnapshot(for: SelectionListSnapshotCacheKey(
+            rootID: rootItem.id,
+            filter: selectionFilter,
+            usesPhysicalSize: session.scanSettings.usePhysicalSize
+        ))
     }
 
     private var isUpdatingVisibleList: Bool {
