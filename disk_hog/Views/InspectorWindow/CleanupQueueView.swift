@@ -12,22 +12,21 @@ struct CleanupQueueView: View {
                     systemImage: "trash",
                     description: Text("Add files or folders from a scan window to review them before moving them to Finder Trash."))
             } else {
-                List {
-                    ForEach(groupedItems, id: \.volumeName) { group in
-                        Section(group.volumeName) {
-                            ForEach(group.items) { item in
-                                CleanupQueueRow(item: item)
-                            }
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(Array(groupedItems.enumerated()), id: \.element.volumeName) { index, group in
+                            CleanupQueueVolumeSection(
+                                volumeName: group.volumeName,
+                                items: group.items,
+                                showsTopSeparator: index > 0
+                            )
                         }
                     }
                 }
-                .listStyle(.inset)
 
                 Divider()
 
                 VStack(alignment: .leading, spacing: 8) {
-                    CleanupQueueTotal(label: "Queued", items: store.items)
-                    CleanupQueueTotal(label: "Selected", items: selectedItems)
                     Text("Space reclaimed is an estimate. APFS snapshots, clones, and filesystem sharing can affect the actual free space.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -108,7 +107,8 @@ private struct CleanupQueueRow: View {
                 .font(.caption)
                 .foregroundStyle(statusColor)
         }
-        .padding(.vertical, 2)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
     }
 
     private var statusTitle: String {
@@ -131,15 +131,66 @@ private struct CleanupQueueRow: View {
     }
 }
 
+private struct CleanupQueueVolumeSection: View {
+    let volumeName: String
+    let items: [CleanupQueueItem]
+    let showsTopSeparator: Bool
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if showsTopSeparator {
+                Divider()
+                    .padding(.top, 10)
+            }
+
+            Text(volumeName)
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 12)
+                .padding(.top, showsTopSeparator ? 8 : 12)
+                .padding(.bottom, 4)
+
+            ForEach(items) { item in
+                CleanupQueueRow(item: item)
+            }
+
+            CleanupQueueVolumeTotals(items: items)
+                .padding(.horizontal, 12)
+                .padding(.top, 2)
+                .padding(.bottom, 10)
+        }
+    }
+}
+
+private struct CleanupQueueVolumeTotals: View {
+    let items: [CleanupQueueItem]
+
+    var body: some View {
+        HStack(spacing: 12) {
+            CleanupQueueTotal(label: "Queued", items: items, compact: true)
+            Divider()
+                .frame(height: 14)
+            CleanupQueueTotal(label: "Selected", items: items.filter(\.isSelected), compact: true)
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+    }
+}
+
 private struct CleanupQueueTotal: View {
     let label: LocalizedStringKey
     let items: [CleanupQueueItem]
+    var compact: Bool = false
 
     var body: some View {
         HStack {
             Text(label)
                 .fontWeight(.semibold)
-            Spacer()
+            if !compact {
+                Spacer()
+            }
             Text("\(items.count) items")
             Text(ByteCountFormatter.string(fromByteCount: Int64(totalBytes), countStyle: .file))
                 .monospacedDigit()
