@@ -8,6 +8,10 @@ final class SelectionListDataStore: ObservableObject {
     private(set) var rowsByID: [DiskItemID: SelectionListRow] = [:]
     private(set) var queryResult: SelectionListQueryResult = .empty
     @Published private(set) var resultGeneration: Int = 0
+    private var builtRootID: DiskItemID?
+    private var builtFilter: SelectionListFilter?
+    private var builtUsesPhysicalSize: Bool?
+    private(set) var isDirty: Bool = true
 
     var resultCount: Int {
         queryResult.rows.count
@@ -17,7 +21,30 @@ final class SelectionListDataStore: ObservableObject {
         rows = []
         rowsByID = [:]
         queryResult = .empty
+        isDirty = true
         resultGeneration += 1
+    }
+
+    func requiresRebuild(
+        rootID: DiskItemID,
+        filter: SelectionListFilter,
+        usesPhysicalSize: Bool
+    ) -> Bool {
+        isDirty
+            || builtRootID != rootID
+            || builtFilter != filter
+            || builtUsesPhysicalSize != usesPhysicalSize
+    }
+
+    func beginRebuild(
+        rootID: DiskItemID,
+        filter: SelectionListFilter,
+        usesPhysicalSize: Bool
+    ) {
+        reset()
+        builtRootID = rootID
+        builtFilter = filter
+        builtUsesPhysicalSize = usesPhysicalSize
     }
 
     func install(_ snapshot: SelectionListSnapshot) {
@@ -27,6 +54,7 @@ final class SelectionListDataStore: ObservableObject {
 
     func publish(_ result: SelectionListQueryResult) {
         queryResult = result
+        isDirty = false
         resultGeneration += 1
     }
 }

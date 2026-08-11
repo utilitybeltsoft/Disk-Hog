@@ -7,6 +7,7 @@ final class InspectorWindowContext: ObservableObject {
     let selectionCoordinator: ScanWindowSelectionCoordinator
 
     @Published var selectionListFilter: SelectionListFilter?
+    let selectionListDataStore: SelectionListDataStore = SelectionListDataStore()
 
     private(set) var didAutomaticallyShowDiskUsage: Bool = false
 

@@ -138,7 +138,8 @@ private struct InspectorWindowContentView: View {
             SelectionListView(
                 session: context.session,
                 selectionCoordinator: context.selectionCoordinator,
-                selectionFilter: $context.selectionListFilter
+                selectionFilter: $context.selectionListFilter,
+                dataStore: context.selectionListDataStore
             )
             .opacity(selectedTab == .selectionList ? 1 : 0)
             .allowsHitTesting(selectedTab == .selectionList)
@@ -402,7 +403,7 @@ private struct SelectionListView: View {
     @ObservedObject var session: ScanSession
     @ObservedObject var selectionCoordinator: ScanWindowSelectionCoordinator
     @Binding var selectionFilter: SelectionListFilter?
-    @StateObject private var dataStore: SelectionListDataStore = SelectionListDataStore()
+    @ObservedObject var dataStore: SelectionListDataStore
     @State private var rowsGeneration: Int = 0
     @State private var selectedItemID: DiskItemID?
     @State private var selectedItemIDs: Set<DiskItemID> = []
@@ -501,16 +502,33 @@ private struct SelectionListView: View {
                 return
             }
 
+            let usesPhysicalSize: Bool = session.scanSettings.usePhysicalSize
+            if !dataStore.requiresRebuild(
+                rootID: rootItem.id,
+                filter: selectionFilter,
+                usesPhysicalSize: usesPhysicalSize
+            ) {
+                isLoading = false
+                isQuerying = false
+                hasCompletedInitialQuery = true
+                let selectedItem: DiskItem? = selectionCoordinator.selectedItem
+                selectedItemID = selectedItem.flatMap { dataStore.rowsByID[$0.id] }?.id
+                return
+            }
+
             isLoading = true
             hasCompletedInitialQuery = false
-            dataStore.reset()
+            dataStore.beginRebuild(
+                rootID: rootItem.id,
+                filter: selectionFilter,
+                usesPhysicalSize: usesPhysicalSize
+            )
             rowsGeneration += 1
-            let usePhysicalSize: Bool = session.scanSettings.usePhysicalSize
             let worker = Task.detached(priority: .utility) {
                 try SelectionListPipeline.makeSnapshot(
                     rootItem: rootItem,
                     filter: selectionFilter,
-                    usePhysicalSize: usePhysicalSize
+                    usePhysicalSize: usesPhysicalSize
                 )
             }
             let snapshot: SelectionListSnapshot
@@ -537,13 +555,24 @@ private struct SelectionListView: View {
                 sortDescriptors: sortDescriptors
             )
         ) {
-            guard selectionFilter != nil, !isLoading else { return }
-            isQuerying = true
+            guard let rootItem: DiskItem = session.rootItem,
+                  let selectionFilter,
+                  !isLoading else {
+                return
+            }
             let sourceRows: [SelectionListRow] = dataStore.rows
             let sourceGeneration: Int = rowsGeneration
             let query: String = searchText
             let scope: SelectionListSearchScope = searchScope
             let descriptors: [SelectionListSortDescriptor] = sortDescriptors
+            if !hasCompletedInitialQuery, !dataStore.requiresRebuild(
+                rootID: rootItem.id,
+                filter: selectionFilter,
+                usesPhysicalSize: session.scanSettings.usePhysicalSize
+            ) {
+                return
+            }
+            isQuerying = true
 
             if !query.isEmpty {
                 do {
