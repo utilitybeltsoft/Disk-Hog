@@ -59,7 +59,7 @@ final class DiskItemPasteboardOutlineView: NSOutlineView, DiskItemPasteboardProv
     }
 }
 
-final class DiskItemPasteboardTableView: NSTableView, DiskItemPasteboardProviding {
+class DiskItemPasteboardTableView: NSTableView, DiskItemPasteboardProviding {
     var pasteboardItemProvider: (() -> DiskItem?)?
 
     @objc func copy(_ sender: Any?) {

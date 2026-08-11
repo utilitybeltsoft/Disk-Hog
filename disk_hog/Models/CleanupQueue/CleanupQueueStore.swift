@@ -102,6 +102,22 @@ final class CleanupQueueStore: ObservableObject {
         _ = enqueue(queuedItem.item, from: queuedItem.session)
     }
 
+    func enqueue(_ items: [DiskItem], from session: ScanSession) {
+        let sortedItems: [DiskItem] = items
+            .filter { DiskItemDeletionPolicy.canDelete($0) }
+            .sorted { $0.url.pathComponents.count < $1.url.pathComponents.count }
+        var queuedParentURLs: [URL] = []
+        for item: DiskItem in sortedItems {
+            guard !queuedParentURLs.contains(where: { DiskItemDeletionPolicy.contains(item.url, in: $0) }) else {
+                continue
+            }
+            _ = enqueue(item, from: session)
+            if item.isFolder {
+                queuedParentURLs.append(item.url)
+            }
+        }
+    }
+
     func setSelected(_ isSelected: Bool, for id: CleanupQueueItem.ID) {
         guard let index: Int = items.firstIndex(where: { $0.id == id }) else {
             return

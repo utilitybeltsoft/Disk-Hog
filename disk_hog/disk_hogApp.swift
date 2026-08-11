@@ -87,6 +87,7 @@ final class DiskHogApplicationDelegate: NSObject, NSApplicationDelegate {
 private struct DiskHogCommands: Commands {
     @ObservedObject private var commandState: SourceWindowCommandState = .shared
     @ObservedObject private var scanWindowCommandState: ScanWindowCommandState = .shared
+    @ObservedObject private var selectionListBatchQueueCommandState: SelectionListBatchQueueCommandState = .shared
     @ObservedObject private var cleanupQueueStore: CleanupQueueStore = .shared
     @ObservedObject private var inspectorWindowController: InspectorWindowController = .shared
     @ObservedObject private var scanPreferences: ScanPreferences = .shared
@@ -118,11 +119,23 @@ private struct DiskHogCommands: Commands {
             }
             .disabled(scanWindowCommandState.canRevealSelectedItem == false)
 
-            Button(scanWindowCommandState.selectedItemCleanupQueueCommandTitle) {
-                ScanWindowCommandState.shared.toggleSelectedItemInCleanupQueue()
+            Button(
+                selectionListBatchQueueCommandState.isActive
+                    ? selectionListBatchQueueCommandState.title
+                    : scanWindowCommandState.selectedItemCleanupQueueCommandTitle
+            ) {
+                if selectionListBatchQueueCommandState.isActive {
+                    selectionListBatchQueueCommandState.toggle()
+                } else {
+                    ScanWindowCommandState.shared.toggleSelectedItemInCleanupQueue()
+                }
             }
             .keyboardShortcut("t", modifiers: .command)
-            .disabled(scanWindowCommandState.canToggleSelectedItemInCleanupQueue == false)
+            .disabled(
+                selectionListBatchQueueCommandState.isActive
+                    ? selectionListBatchQueueCommandState.canToggle == false
+                    : scanWindowCommandState.canToggleSelectedItemInCleanupQueue == false
+            )
         }
 
         #if FILE_MATCHING_DIAGNOSTICS

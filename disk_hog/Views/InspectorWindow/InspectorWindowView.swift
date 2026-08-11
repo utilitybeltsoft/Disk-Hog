@@ -400,6 +400,7 @@ private struct SelectionListView: View {
     @StateObject private var dataStore: SelectionListDataStore = SelectionListDataStore()
     @State private var rowsGeneration: Int = 0
     @State private var selectedItemID: DiskItemID?
+    @State private var selectedItemIDs: Set<DiskItemID> = []
     @State private var isLoading: Bool = false
     @State private var isQuerying: Bool = false
     @State private var hasCompletedInitialQuery: Bool = false
@@ -465,7 +466,9 @@ private struct SelectionListView: View {
                 ZStack {
                     SelectionListTableView(
                         dataStore: dataStore,
+                        session: session,
                         selectedItemID: $selectedItemID,
+                        selectedItemIDs: $selectedItemIDs,
                         sortDescriptors: $sortDescriptors
                     ) { item in
                         selectionCoordinator.setSelectedItem(item)
