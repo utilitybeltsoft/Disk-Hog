@@ -137,8 +137,7 @@ struct TreemapPanelView: View {
                 MagnifiedTreemapCropView(
                     sourceView: mainTreemapView,
                     sourceRect: region.contextRect,
-                    contentRevision: mainTreemapContentRevision,
-                    selectionRect: region.selectionRect
+                    contentRevision: mainTreemapContentRevision
                 )
             } else if let region: TreemapHoverRegion = mainTreemapView?.selectedRegion() {
                 let item: DiskItem = region.item

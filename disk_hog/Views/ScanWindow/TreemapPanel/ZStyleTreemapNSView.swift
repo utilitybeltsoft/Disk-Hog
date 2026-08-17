@@ -84,7 +84,6 @@ final class ZStyleTreemapNSView: NSView {
         guard pixelRect.isEmpty == false else { return nil }
         return TreemapSelectionRegion(
             item: item,
-            selectionRect: pixelRect,
             contextRect: TreemapRasterGeometry.contextRect(around: pixelRect, in: bounds, padding: 8)
         )
     }
@@ -311,6 +310,5 @@ private struct SelectionDiagnostic {
 
 struct TreemapSelectionRegion {
     let item: DiskItem
-    let selectionRect: NSRect
     let contextRect: NSRect
 }

@@ -5,7 +5,6 @@ struct MagnifiedTreemapCropView: NSViewRepresentable {
     let sourceView: ZStyleTreemapNSView?
     let sourceRect: NSRect
     let contentRevision: Int
-    var selectionRect: NSRect? = nil
 
     func makeNSView(context: Context) -> TreemapCropPreviewNSView {
         TreemapCropPreviewNSView()
@@ -14,8 +13,7 @@ struct MagnifiedTreemapCropView: NSViewRepresentable {
     func updateNSView(_ nsView: TreemapCropPreviewNSView, context: Context) {
         nsView.configure(
             sourceView: sourceView,
-            sourceRect: sourceRect,
-            selectionRect: selectionRect
+            sourceRect: sourceRect
         )
         nsView.contentRevision = contentRevision
     }
@@ -24,19 +22,16 @@ struct MagnifiedTreemapCropView: NSViewRepresentable {
 final class TreemapCropPreviewNSView: NSView {
     private weak var sourceView: ZStyleTreemapNSView?
     private var sourceRect: NSRect = .zero
-    private var selectionRect: NSRect?
     var contentRevision: Int = 0
 
     override var isFlipped: Bool { true }
 
     func configure(
         sourceView: ZStyleTreemapNSView?,
-        sourceRect: NSRect,
-        selectionRect: NSRect?
+        sourceRect: NSRect
     ) {
         self.sourceView = sourceView
         self.sourceRect = sourceRect
-        self.selectionRect = selectionRect
         needsDisplay = true
     }
 
@@ -81,20 +76,5 @@ final class TreemapCropPreviewNSView: NSView {
             respectFlipped: true,
             hints: nil
         )
-        drawSelection(in: destinationRect, sourceRect: sourceRect, scale: scale)
-    }
-
-    private func drawSelection(in destinationRect: NSRect, sourceRect: NSRect, scale: CGFloat) {
-        guard let selectionRect else { return }
-        let visibleRect: NSRect = selectionRect.intersection(sourceRect)
-        guard visibleRect.isEmpty == false else { return }
-        let previewRect: NSRect = NSRect(
-            x: destinationRect.minX + (visibleRect.minX - sourceRect.minX) * scale,
-            y: destinationRect.minY + (visibleRect.minY - sourceRect.minY) * scale,
-            width: visibleRect.width * scale,
-            height: visibleRect.height * scale
-        )
-        NSColor.yellow.setFill()
-        previewRect.fill()
     }
 }
