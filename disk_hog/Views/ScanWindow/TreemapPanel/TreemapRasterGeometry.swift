@@ -18,4 +18,14 @@ enum TreemapRasterGeometry {
         let y: CGFloat = min(max(selection.midY - height / 2, bounds.minY), bounds.maxY - height)
         return NSRect(x: x, y: y, width: width, height: height)
     }
+
+    static func visibleMarkerRect(for rasterRect: NSRect, in bounds: NSRect, scale: CGFloat) -> NSRect {
+        guard rasterRect.isEmpty == false, bounds.isEmpty == false, scale > 0 else { return .zero }
+        let minimumSide: CGFloat = 3 / scale
+        let width: CGFloat = min(bounds.width, max(rasterRect.width, minimumSide))
+        let height: CGFloat = min(bounds.height, max(rasterRect.height, minimumSide))
+        let x: CGFloat = min(max(rasterRect.midX - width / 2, bounds.minX), bounds.maxX - width)
+        let y: CGFloat = min(max(rasterRect.midY - height / 2, bounds.minY), bounds.maxY - height)
+        return NSRect(x: x, y: y, width: width, height: height)
+    }
 }

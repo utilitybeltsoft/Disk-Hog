@@ -44,7 +44,11 @@ enum TreemapViewPainter {
             ).intersection(bounds)
             guard pixelRect.isEmpty == false else { return }
             NSColor.yellow.setFill()
-            pixelRect.fill()
+            TreemapRasterGeometry.visibleMarkerRect(
+                for: pixelRect,
+                in: bounds,
+                scale: backingScaleFactor
+            ).fill()
             return
         }
         let rect: NSRect = TreemapSelectionRect.visibleRect(
