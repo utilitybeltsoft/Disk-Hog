@@ -3464,7 +3464,7 @@ struct TreemapViewRendererTests {
         #expect(renderer.item(by: renderer.cellID(by: NSPoint(x: 100, y: 50), inViewCoordinates: false)!) == emptyFolder)
     }
 
-    @Test func wholeTreemapSelectionRectLeavesRoomForStroke() {
+    @Test func wholeTreemapSelectionRectMatchesTheSelectedItem() {
         let visibleRect: NSRect = TreemapSelectionRect.visibleRect(
             for: NSRect(x: 0, y: 0, width: 200, height: 100),
             in: NSRect(x: 0, y: 0, width: 200, height: 100),
@@ -3472,18 +3472,18 @@ struct TreemapViewRendererTests {
             edgeInset: 2.5
         )
 
-        #expect(visibleRect == NSRect(x: 2.5, y: 2.5, width: 195, height: 95))
+        #expect(visibleRect == NSRect(x: 0, y: 0, width: 200, height: 100))
     }
 
-    @Test func zeroSizedSelectionRectExpandsAroundItsPosition() {
+    @Test func smallSelectionRectDoesNotExpandIntoNeighboringTiles() {
         let visibleRect: NSRect = TreemapSelectionRect.visibleRect(
-            for: NSRect(x: 150, y: 40, width: 0, height: 0),
+            for: NSRect(x: 476, y: 129, width: 5, height: 13),
             in: NSRect(x: 0, y: 0, width: 200, height: 100),
             minimumSide: 12,
             edgeInset: 2.5
         )
 
-        #expect(visibleRect == NSRect(x: 144, y: 34, width: 12, height: 12))
+        #expect(visibleRect == NSRect(x: 476, y: 129, width: 5, height: 13))
     }
 }
 

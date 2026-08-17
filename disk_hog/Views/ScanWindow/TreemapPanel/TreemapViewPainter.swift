@@ -46,12 +46,17 @@ enum TreemapViewPainter {
             return
         }
 
-        NSColor.black.setStroke()
-        stroke(rect: rect, lineWidth: ScanWindowMetrics.treemapSelectionOuterLineWidth)
-        NSColor.white.setStroke()
-        stroke(rect: rect, lineWidth: ScanWindowMetrics.treemapSelectionMiddleLineWidth)
-        NSColor.yellow.setStroke()
-        stroke(rect: rect, lineWidth: ScanWindowMetrics.treemapSelectionInnerLineWidth)
+        if min(rect.width, rect.height) < ScanWindowMetrics.treemapMinimumSelectionSide {
+            NSColor.yellow.setStroke()
+            strokeContained(in: rect, lineWidth: 1)
+        } else {
+            NSColor.black.setStroke()
+            strokeContained(in: rect, lineWidth: ScanWindowMetrics.treemapSelectionOuterLineWidth)
+            NSColor.white.setStroke()
+            strokeContained(in: rect, lineWidth: ScanWindowMetrics.treemapSelectionMiddleLineWidth)
+            NSColor.yellow.setStroke()
+            strokeContained(in: rect, lineWidth: ScanWindowMetrics.treemapSelectionInnerLineWidth)
+        }
     }
 
     static func drawPlaceholder(in dirtyRect: NSRect) {
@@ -59,8 +64,11 @@ enum TreemapViewPainter {
         dirtyRect.fill()
     }
 
-    private static func stroke(rect: NSRect, lineWidth: CGFloat) {
-        let path: NSBezierPath = NSBezierPath(rect: rect)
+    private static func strokeContained(in rect: NSRect, lineWidth: CGFloat) {
+        let inset: CGFloat = lineWidth / 2
+        let strokedRect: NSRect = rect.insetBy(dx: inset, dy: inset)
+        guard strokedRect.width >= 0, strokedRect.height >= 0 else { return }
+        let path: NSBezierPath = NSBezierPath(rect: strokedRect)
         path.lineWidth = lineWidth
         path.stroke()
     }
