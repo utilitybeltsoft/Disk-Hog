@@ -135,8 +135,7 @@ struct TreemapPanelView: View {
                     sourceView: mainTreemapView,
                     sourceRect: region.contextRect,
                     contentRevision: mainTreemapContentRevision,
-                    selectionRect: region.selectionRect,
-                    animationID: region.item.id
+                    selectionRect: region.selectionRect
                 )
             } else if let region: TreemapHoverRegion = mainTreemapView?.selectedRegion() {
                 let item: DiskItem = region.item
