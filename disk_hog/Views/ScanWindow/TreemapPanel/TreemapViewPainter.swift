@@ -46,7 +46,10 @@ enum TreemapViewPainter {
             return
         }
 
-        if min(rect.width, rect.height) < ScanWindowMetrics.treemapMinimumSelectionSide {
+        if rect.width <= 1 || rect.height <= 1 {
+            NSColor.yellow.setFill()
+            rect.fill()
+        } else if min(rect.width, rect.height) < ScanWindowMetrics.treemapMinimumSelectionSide {
             NSColor.yellow.setStroke()
             strokeContained(in: rect, lineWidth: 1)
         } else {

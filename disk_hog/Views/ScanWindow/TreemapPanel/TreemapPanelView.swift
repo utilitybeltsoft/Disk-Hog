@@ -3,7 +3,7 @@ import SwiftUI
 
 struct TreemapPanelView: View {
     @ObservedObject var session: ScanSession
-    let selectionCoordinator: ScanWindowSelectionCoordinator
+    @ObservedObject var selectionCoordinator: ScanWindowSelectionCoordinator
     @ObservedObject var navigation: TreemapNavigationState
     @Environment(\.hoveredScanItem) private var hoveredItem
     @Environment(\.activeScanWindowPane) private var activePane
@@ -113,7 +113,7 @@ struct TreemapPanelView: View {
                     .foregroundStyle(Color.accentColor)
             }
 
-            if let region: TreemapHoverRegion = hoverRegion {
+            if let region: TreemapHoverRegion = previewRegion {
                 let item: DiskItem = region.item
                 Text(item.displayName)
                     .lineLimit(2)
@@ -137,6 +137,10 @@ struct TreemapPanelView: View {
         }
         .padding(10)
         .background(Color(nsColor: .underPageBackgroundColor))
+    }
+
+    private var previewRegion: TreemapHoverRegion? {
+        hoverRegion ?? mainTreemapView?.selectedRegion()
     }
 
     private static let previewWidth: CGFloat = 280

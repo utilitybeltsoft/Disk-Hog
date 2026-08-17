@@ -54,6 +54,20 @@ final class ZStyleTreemapNSView: NSView {
         state.renderer?.cachedTreemapImage()
     }
 
+    func selectedRegion() -> TreemapHoverRegion? {
+        guard let item: DiskItem = state.selectedItem,
+              let renderer: TreemapViewRenderer = state.renderer,
+              renderer.selectedCellID?.item === item else {
+            return nil
+        }
+
+        let rect: NSRect = renderer.itemRect(by: renderer.selectedCellID)
+        guard rect.isEmpty == false else {
+            return nil
+        }
+        return TreemapHoverRegion(item: item, rect: rect)
+    }
+
     func applySelectedItem(_ selectedItem: DiskItem?) {
         if state.applySelectedItem(selectedItem) {
             needsDisplay = true
