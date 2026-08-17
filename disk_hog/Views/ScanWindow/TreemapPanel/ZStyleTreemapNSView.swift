@@ -83,7 +83,7 @@ final class ZStyleTreemapNSView: NSView {
         state.prepareLayout(in: bounds)
         _ = drawCachedImage(destinationRect: dirtyRect, sourceRect: dirtyRect, fraction: 1)
         TreemapViewPainter.drawSelection(renderer: state.renderer, in: bounds)
-        logPendingSelectionDiagnostic()
+        logPendingSelectionDiagnostic(dirtyRect: dirtyRect)
     }
 
     override func viewWillStartLiveResize() {
@@ -186,7 +186,7 @@ final class ZStyleTreemapNSView: NSView {
         needsDisplay = true
     }
 
-    private func logPendingSelectionDiagnostic() {
+    private func logPendingSelectionDiagnostic(dirtyRect: NSRect) {
         guard let diagnostic: SelectionDiagnostic = pendingSelectionDiagnostic else { return }
         defer { pendingSelectionDiagnostic = nil }
 
@@ -209,6 +209,11 @@ final class ZStyleTreemapNSView: NSView {
               selected rect: \(NSStringFromRect(selectedRect))
               outline rect: \(NSStringFromRect(outlineRect))
               view bounds: \(NSStringFromRect(bounds))
+              view frame: \(NSStringFromRect(frame))
+              visible rect: \(NSStringFromRect(visibleRect))
+              dirty rect: \(NSStringFromRect(dirtyRect))
+              bounds in window: \(NSStringFromRect(convert(bounds, to: nil)))
+              bitmap: \(state.renderer?.bitmapDiagnosticsDescription ?? "no renderer")
             """
         )
     }

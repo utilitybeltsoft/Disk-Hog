@@ -47,6 +47,13 @@ final class TreemapViewRenderer {
         rootItemRenderer?.childRendererReconciliationCount ?? 0
     }
 
+    var bitmapDiagnosticsDescription: String {
+        guard let cachedContent else {
+            return "no cached bitmap"
+        }
+        return "size=\(NSStringFromSize(cachedContent.size)), pixels=\(cachedContent.pixelsWide)x\(cachedContent.pixelsHigh), scale=\(cachedScale ?? 0)"
+    }
+
     func invalidateCanvasCache() {
         deallocContentCache()
     }
