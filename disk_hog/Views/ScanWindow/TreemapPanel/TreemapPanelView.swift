@@ -25,6 +25,9 @@ struct TreemapPanelView: View {
             .frame(width: geometry.size.width, height: geometry.size.height)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onChange(of: selectionCoordinator.selectedItem?.id) {
+            hoverRegion = nil
+        }
     }
 
     private var mainTreemap: some View {
