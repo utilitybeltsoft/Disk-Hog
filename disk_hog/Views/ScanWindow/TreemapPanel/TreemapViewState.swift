@@ -67,6 +67,12 @@ final class TreemapViewState {
         selectedItem = hitResult.item
     }
 
+    func selectNeighbor(in direction: TreemapNavigationDirection) -> DiskItem? {
+        let item: DiskItem? = renderer?.selectNeighbor(in: direction)
+        selectedItem = item ?? selectedItem
+        return item
+    }
+
     func hitResult(at point: NSPoint) -> TreemapHitResult? {
         guard let cellID: TreemapItemRenderer = renderer?.cellID(by: point, inViewCoordinates: false),
               let item: DiskItem = renderer?.item(by: cellID),

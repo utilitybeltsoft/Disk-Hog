@@ -130,6 +130,46 @@ final class TreemapViewRenderer {
         selectedRenderer?.unroundedRect ?? .zero
     }
 
+    func selectNeighbor(in direction: TreemapNavigationDirection) -> DiskItem? {
+        guard let selectedRenderer else { return nil }
+        let parent: TreemapItemRenderer = selectedRenderer.parent ?? rootItemRenderer ?? selectedRenderer
+        guard parent !== selectedRenderer, parent.isLeaf == false else { return nil }
+        parent.layoutUnroundedChilds()
+        let selectedRect: NSRect = selectedRenderer.navigationRect
+        guard selectedRect.isEmpty == false else { return nil }
+        let selectedCenter: NSPoint = NSPoint(x: selectedRect.midX, y: selectedRect.midY)
+        let candidate: TreemapItemRenderer? = parent.childEnumerator
+            .filter { $0 !== selectedRenderer && $0.item.isSpecialItem == false }
+            .compactMap { renderer -> (TreemapItemRenderer, CGFloat)? in
+                let rect: NSRect = renderer.navigationRect
+                guard rect.isEmpty == false else { return nil }
+                let center: NSPoint = NSPoint(x: rect.midX, y: rect.midY)
+                let primaryDistance: CGFloat
+                let crossDistance: CGFloat
+                switch direction {
+                case .left:
+                    primaryDistance = selectedCenter.x - center.x
+                    crossDistance = abs(selectedCenter.y - center.y)
+                case .right:
+                    primaryDistance = center.x - selectedCenter.x
+                    crossDistance = abs(selectedCenter.y - center.y)
+                case .up:
+                    primaryDistance = selectedCenter.y - center.y
+                    crossDistance = abs(selectedCenter.x - center.x)
+                case .down:
+                    primaryDistance = center.y - selectedCenter.y
+                    crossDistance = abs(selectedCenter.x - center.x)
+                }
+                guard primaryDistance > 0 else { return nil }
+                return (renderer, primaryDistance + crossDistance * 0.25)
+            }
+            .min(by: { $0.1 < $1.1 })?
+            .0
+        guard let candidate else { return nil }
+        selectItem(by: candidate)
+        return candidate.item
+    }
+
     func itemRect(byPathToItem path: [DiskItem]) -> NSRect {
         assert(path.count > 0, "path must contain at least 1 component")
         let renderer: TreemapItemRenderer? = findTreemapItem(byPathToDataItem: path)
@@ -316,4 +356,11 @@ final class TreemapViewRenderer {
             parent = child
         }
     }
+}
+
+enum TreemapNavigationDirection {
+    case left
+    case right
+    case up
+    case down
 }

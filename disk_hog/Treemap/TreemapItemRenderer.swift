@@ -5,6 +5,7 @@ final class TreemapItemRenderer {
     private static let cushionScaleFactor: CGFloat = 0.9
 
     private weak var dataSource: TreemapDiskItemDataSource?
+    private weak var parentRenderer: TreemapItemRenderer?
     private var renderedItem: DiskItem
     private var rectValue: NSRect
     private var unroundedRectValue: NSRect
@@ -12,9 +13,14 @@ final class TreemapItemRenderer {
     private let cushionRenderer: TreemapCushionRenderer
     private var childRendererReconciliationCountValue: Int
 
-    init(dataSource: TreemapDiskItemDataSource, renderedItem item: DiskItem) {
+    init(
+        dataSource: TreemapDiskItemDataSource,
+        renderedItem item: DiskItem,
+        parentRenderer: TreemapItemRenderer? = nil
+    ) {
         self.renderedItem = item
         self.dataSource = dataSource
+        self.parentRenderer = parentRenderer
         self.rectValue = .zero
         self.unroundedRectValue = .zero
         self.cushionRenderer = TreemapCushionRenderer()
@@ -87,6 +93,14 @@ final class TreemapItemRenderer {
 
     var unroundedRect: NSRect {
         unroundedRectValue
+    }
+
+    var parent: TreemapItemRenderer? {
+        parentRenderer
+    }
+
+    var navigationRect: NSRect {
+        rectValue.isEmpty ? unroundedRectValue : rectValue
     }
 
     var materializedRendererCount: Int {
@@ -460,7 +474,11 @@ final class TreemapItemRenderer {
                     childRenderers![index].refresh(with: childItem)
                 }
             } else {
-                let childRenderer: TreemapItemRenderer = TreemapItemRenderer(dataSource: dataSource, renderedItem: childItem)
+                let childRenderer: TreemapItemRenderer = TreemapItemRenderer(
+                    dataSource: dataSource,
+                    renderedItem: childItem,
+                    parentRenderer: self
+                )
                 childRenderers!.append(childRenderer)
             }
         }

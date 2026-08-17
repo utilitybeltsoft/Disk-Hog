@@ -179,10 +179,21 @@ final class ZStyleTreemapNSView: NSView {
             return
         }
         guard isInteractionEnabled else {
-            super.keyDown(with: event)
             return
         }
         switch event.keyCode {
+        case 123: // Left Arrow
+            selectNeighbor(in: .left)
+            return
+        case 124: // Right Arrow
+            selectNeighbor(in: .right)
+            return
+        case 125: // Down Arrow
+            selectNeighbor(in: .down)
+            return
+        case 126: // Up Arrow
+            selectNeighbor(in: .up)
+            return
         case 36, 76: // Return, keypad Enter
             if let item: DiskItem = state.selectedItem {
                 onZoomIn?(item)
@@ -192,9 +203,8 @@ final class ZStyleTreemapNSView: NSView {
             onZoomOut?()
             return
         default:
-            break
+            return
         }
-        super.keyDown(with: event)
     }
 
     override func keyUp(with event: NSEvent) {
@@ -202,7 +212,6 @@ final class ZStyleTreemapNSView: NSView {
             onPreviewSpaceChanged?(false)
             return
         }
-        super.keyUp(with: event)
     }
 
     override func resignFirstResponder() -> Bool {
@@ -236,6 +245,12 @@ final class ZStyleTreemapNSView: NSView {
             hitRect: hitResult.cellID.rect
         )
         onSelectItem?(hitResult.item)
+        needsDisplay = true
+    }
+
+    private func selectNeighbor(in direction: TreemapNavigationDirection) {
+        guard let item: DiskItem = state.selectNeighbor(in: direction) else { return }
+        onSelectItem?(item)
         needsDisplay = true
     }
 
