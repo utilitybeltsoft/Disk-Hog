@@ -112,7 +112,7 @@ struct TreemapPanelView: View {
             if let item: DiskItem = previewItem {
                 Text(item.displayName)
                     .lineLimit(2)
-                Text("\(item.childCount) items")
+                Text("\(item.childCount) \(String(localized: "items"))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 AppKitTreemapView(

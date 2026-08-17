@@ -7897,6 +7897,38 @@
         }
       }
     },
+    "Back" : {
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Zurück" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Atrás" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Retour" } },
+        "it" : { "stringUnit" : { "state" : "translated", "value" : "Indietro" } }
+      }
+    },
+    "Hover a folder to preview its contents." : {
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Bewege den Zeiger über einen Ordner, um seinen Inhalt in der Vorschau anzuzeigen." } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Coloca el cursor sobre una carpeta para obtener una vista previa de su contenido." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Survolez un dossier pour afficher un aperçu de son contenu." } },
+        "it" : { "stringUnit" : { "state" : "translated", "value" : "Passa il cursore su una cartella per visualizzarne il contenuto in anteprima." } }
+      }
+    },
+    "Preview" : {
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Vorschau" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Vista previa" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Aperçu" } },
+        "it" : { "stringUnit" : { "state" : "translated", "value" : "Anteprima" } }
+      }
+    },
+    "Preview active — release Space to return" : {
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Vorschau aktiv — Leertaste loslassen, um zurückzukehren" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Vista previa activa: suelta la barra espaciadora para volver" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Aperçu actif — relâchez la barre d’espace pour revenir" } },
+        "it" : { "stringUnit" : { "state" : "translated", "value" : "Anteprima attiva: rilascia la barra spaziatrice per tornare" } }
+      }
+    },
     "Zoom In" : {
       "localizations" : {
         "de" : {

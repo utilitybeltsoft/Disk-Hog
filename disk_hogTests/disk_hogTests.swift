@@ -30,6 +30,61 @@ struct DiskItemIconCacheTests {
     }
 }
 
+@MainActor
+struct TreemapNavigationStateTests {
+    @Test func zoomingBuildsBreadcrumbsAndReturnsToTheParent() {
+        let file: DiskItem = DiskItem(url: URL(fileURLWithPath: "/scan/folder/file"))
+        let folder: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/folder"),
+            isDirectory: true,
+            children: [file]
+        )
+        let root: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan"),
+            isDirectory: true,
+            children: [folder]
+        )
+        let navigation: TreemapNavigationState = TreemapNavigationState()
+
+        navigation.configure(baseRoot: root)
+        #expect(navigation.canZoom(into: root.children[0]))
+
+        navigation.zoom(into: root.children[0])
+        #expect(navigation.zoomRoot?.path == "/scan/folder")
+        #expect(navigation.zoomPath.map(\.path) == ["/scan", "/scan/folder"])
+
+        navigation.zoomOut()
+        #expect(navigation.zoomRoot?.path == "/scan")
+    }
+
+    @Test func previewLatchesItsFolderUntilItIsReleased() {
+        let child: DiskItem = DiskItem(url: URL(fileURLWithPath: "/scan/folder/file"))
+        let folder: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/folder"),
+            isDirectory: true,
+            children: [child]
+        )
+        let root: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan"),
+            isDirectory: true,
+            children: [folder]
+        )
+        let navigation: TreemapNavigationState = TreemapNavigationState()
+        navigation.configure(baseRoot: root)
+
+        navigation.updatePreviewRoot(from: root.children[0])
+        navigation.beginPreview()
+        navigation.updatePreviewRoot(from: child)
+
+        #expect(navigation.isPreviewActive)
+        #expect(navigation.previewRoot?.path == "/scan/folder")
+
+        navigation.endPreview()
+        navigation.updatePreviewRoot(from: child)
+        #expect(navigation.previewRoot == nil)
+    }
+}
+
 struct ScanSessionFailureTests {
     @Test func givesPermissionRecoveryAdvice() {
         let failure: ScanSessionFailure = ScanSessionFailure(
