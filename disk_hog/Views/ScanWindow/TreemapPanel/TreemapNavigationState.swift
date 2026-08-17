@@ -71,13 +71,17 @@ final class TreemapNavigationState: ObservableObject {
         let candidate: DiskItem
         if item.isFolder, item.isPackage == false, item.childCount > 0 {
             candidate = item
-        } else {
-            guard let parent: DiskItem = path.dropLast().last else { return nil }
+        } else if let parent: DiskItem = path.dropLast().last, parent != zoomRoot {
+            // A file within a nested folder expands into that folder so its nearby
+            // files become individually visible.
             candidate = parent
+        } else {
+            // A file immediately inside the current root still needs a useful
+            // zoom target: give it a focused, full-treemap view of its own tile.
+            candidate = item
         }
 
-        guard candidate != zoomRoot,
-              candidate.isFolder, candidate.isPackage == false, candidate.childCount > 0 else {
+        guard candidate != zoomRoot else {
             return nil
         }
         return candidate

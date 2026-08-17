@@ -83,6 +83,22 @@ struct TreemapNavigationStateTests {
         navigation.updatePreviewRoot(from: child)
         #expect(navigation.previewRoot?.path == "/scan/folder")
     }
+
+    @Test func directFileZoomsToItsOwnFocusedView() {
+        let file: DiskItem = DiskItem(url: URL(fileURLWithPath: "/scan/file"))
+        let root: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan"),
+            isDirectory: true,
+            children: [file]
+        )
+        let navigation: TreemapNavigationState = TreemapNavigationState()
+        navigation.configure(baseRoot: root)
+
+        navigation.zoom(into: root.children[0])
+
+        #expect(navigation.zoomRoot?.path == "/scan/file")
+        #expect(navigation.canZoomOut)
+    }
 }
 
 struct ScanSessionFailureTests {
