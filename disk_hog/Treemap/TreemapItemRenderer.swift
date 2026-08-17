@@ -34,6 +34,7 @@ final class TreemapItemRenderer {
     }
 
     func calcLayout(_ proposedRect: NSRect) {
+        unroundedRectValue = proposedRect
         let rect: NSRect = NSIntegralRect(proposedRect)
         if rectValue.equalTo(rect) {
             return
@@ -251,7 +252,13 @@ final class TreemapItemRenderer {
         var rows: [Double] = []
         var childsPerRow: [Int] = []
         var childWidths: [Double] = []
-        let horizontalRows: Bool = arrangeChildsOnRows(children: children, rows: &rows, childsPerRow: &childsPerRow, childWidths: &childWidths)
+        let horizontalRows: Bool = arrangeChildsOnRows(
+            children: children,
+            layoutRect: rectValue,
+            rows: &rows,
+            childsPerRow: &childsPerRow,
+            childWidths: &childWidths
+        )
         let parentWidth: Int = Int(horizontalRows ? rectValue.width : rectValue.height)
         let parentHeight: Int = Int(horizontalRows ? rectValue.height : rectValue.width)
         let parentBottom: Int = Int(horizontalRows ? rectValue.maxY : rectValue.maxX)
@@ -312,7 +319,52 @@ final class TreemapItemRenderer {
         }
     }
 
-    private func arrangeChildsOnRows(children: [TreemapItemRenderer], rows: inout [Double], childsPerRow: inout [Int], childWidths: inout [Double]) -> Bool {
+    func layoutUnroundedChilds() {
+        guard !isLeaf, unroundedRectValue.isEmpty == false else { return }
+        let children: [TreemapItemRenderer] = childEnumerator
+        var rows: [Double] = []
+        var childsPerRow: [Int] = []
+        var childWidths: [Double] = []
+        let horizontalRows: Bool = arrangeChildsOnRows(
+            children: children,
+            layoutRect: unroundedRectValue,
+            rows: &rows,
+            childsPerRow: &childsPerRow,
+            childWidths: &childWidths
+        )
+        let parentWidth: CGFloat = horizontalRows ? unroundedRectValue.width : unroundedRectValue.height
+        let parentHeight: CGFloat = horizontalRows ? unroundedRectValue.height : unroundedRectValue.width
+        let parentBottom: CGFloat = horizontalRows ? unroundedRectValue.maxY : unroundedRectValue.maxX
+        let parentRight: CGFloat = horizontalRows ? unroundedRectValue.maxX : unroundedRectValue.maxY
+        let parentLeft: CGFloat = horizontalRows ? unroundedRectValue.minX : unroundedRectValue.minY
+        var childIndex: Int = 0
+        var top: CGFloat = parentLeft
+        for row: Int in 0..<rows.count {
+            let bottom: CGFloat = row == rows.count - 1
+                ? parentBottom
+                : top + CGFloat(rows[row]) * parentHeight
+            var left: CGFloat = parentLeft
+            for column: Int in 0..<childsPerRow[row] {
+                let right: CGFloat = column == childsPerRow[row] - 1
+                    ? parentRight
+                    : left + CGFloat(childWidths[childIndex]) * parentWidth
+                children[childIndex].unroundedRectValue = horizontalRows
+                    ? NSRect(x: left, y: top, width: right - left, height: bottom - top)
+                    : NSRect(x: top, y: left, width: bottom - top, height: right - left)
+                left = right
+                childIndex += 1
+            }
+            top = bottom
+        }
+    }
+
+    private func arrangeChildsOnRows(
+        children: [TreemapItemRenderer],
+        layoutRect: NSRect,
+        rows: inout [Double],
+        childsPerRow: inout [Int],
+        childWidths: inout [Double]
+    ) -> Bool {
         let childCount: Int = children.count
         if weight == 0 {
             rows.append(1)
@@ -323,15 +375,15 @@ final class TreemapItemRenderer {
             }
             return true
         }
-        let horizontal: Bool = rectValue.size.width >= rectValue.size.height
+        let horizontal: Bool = layoutRect.size.width >= layoutRect.size.height
         var width: Double = 1
         if horizontal {
-            if rectValue.size.height > 0 {
-                width = Double(rectValue.size.width / rectValue.size.height)
+            if layoutRect.size.height > 0 {
+                width = Double(layoutRect.size.width / layoutRect.size.height)
             }
         } else {
-            if rectValue.size.width > 0 {
-                width = Double(rectValue.size.height / rectValue.size.width)
+            if layoutRect.size.width > 0 {
+                width = Double(layoutRect.size.height / layoutRect.size.width)
             }
         }
         var index: Int = 0

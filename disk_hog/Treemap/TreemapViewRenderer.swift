@@ -105,6 +105,7 @@ final class TreemapViewRenderer {
         guard let rendererToSelect else {
             return false
         }
+        populateUnroundedRects(byPathToItem: path)
         selectItem(by: rendererToSelect)
         return true
     }
@@ -303,5 +304,16 @@ final class TreemapViewRenderer {
             parent = child!
         }
         return child
+    }
+
+    private func populateUnroundedRects(byPathToItem path: [DiskItem]) {
+        guard var parent: TreemapItemRenderer = rootItemRenderer else { return }
+        for dataItem: DiskItem in path.dropFirst() {
+            parent.layoutUnroundedChilds()
+            guard let child: TreemapItemRenderer = parent.childEnumerator.first(where: { $0.item == dataItem }) else {
+                return
+            }
+            parent = child
+        }
     }
 }
