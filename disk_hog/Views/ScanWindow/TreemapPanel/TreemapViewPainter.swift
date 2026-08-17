@@ -31,13 +31,24 @@ enum TreemapViewPainter {
         return true
     }
 
-    static func drawSelection(renderer: TreemapViewRenderer?, in bounds: NSRect) {
+    static func drawSelection(renderer: TreemapViewRenderer?, in bounds: NSRect, backingScaleFactor: CGFloat) {
         guard let selectedCellID: TreemapItemRenderer = renderer?.selectedCellID else {
             return
         }
 
+        let selectedRect: NSRect = renderer?.itemRect(by: selectedCellID) ?? .zero
+        if selectedRect.isEmpty {
+            let pixelRect: NSRect = TreemapRasterGeometry.pixelAlignedRect(
+                for: renderer?.selectedItemUnroundedRect() ?? .zero,
+                scale: backingScaleFactor
+            ).intersection(bounds)
+            guard pixelRect.isEmpty == false else { return }
+            NSColor.yellow.setFill()
+            pixelRect.fill()
+            return
+        }
         let rect: NSRect = TreemapSelectionRect.visibleRect(
-            for: renderer?.itemRect(by: selectedCellID) ?? .zero,
+            for: selectedRect,
             in: bounds,
             minimumSide: ScanWindowMetrics.treemapMinimumSelectionSide,
             edgeInset: ScanWindowMetrics.treemapSelectionOuterLineWidth / 2

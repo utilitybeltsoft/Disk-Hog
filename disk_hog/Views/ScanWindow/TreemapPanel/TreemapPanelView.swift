@@ -113,7 +113,32 @@ struct TreemapPanelView: View {
                     .foregroundStyle(Color.accentColor)
             }
 
-            if let region: TreemapHoverRegion = previewRegion {
+            if let region: TreemapHoverRegion = hoverRegion {
+                let item: DiskItem = region.item
+                Text(item.displayName)
+                    .lineLimit(2)
+                Text("\(item.childCount) \(String(localized: "items"))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                MagnifiedTreemapCropView(
+                    sourceView: mainTreemapView,
+                    sourceRect: region.rect,
+                    contentRevision: mainTreemapContentRevision
+                )
+            } else if let region: TreemapSelectionRegion = mainTreemapView?.subpixelSelectedRegion() {
+                Text(region.item.displayName)
+                    .lineLimit(2)
+                Text("\(region.item.childCount) \(String(localized: "items"))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                MagnifiedTreemapCropView(
+                    sourceView: mainTreemapView,
+                    sourceRect: region.contextRect,
+                    contentRevision: mainTreemapContentRevision,
+                    selectionRect: region.selectionRect,
+                    animationID: region.item.id
+                )
+            } else if let region: TreemapHoverRegion = mainTreemapView?.selectedRegion() {
                 let item: DiskItem = region.item
                 Text(item.displayName)
                     .lineLimit(2)
@@ -137,10 +162,6 @@ struct TreemapPanelView: View {
         }
         .padding(10)
         .background(Color(nsColor: .underPageBackgroundColor))
-    }
-
-    private var previewRegion: TreemapHoverRegion? {
-        hoverRegion ?? mainTreemapView?.selectedRegion()
     }
 
     private static let previewWidth: CGFloat = 280

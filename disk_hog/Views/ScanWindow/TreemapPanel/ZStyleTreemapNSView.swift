@@ -55,6 +55,7 @@ final class ZStyleTreemapNSView: NSView {
     }
 
     func selectedRegion() -> TreemapHoverRegion? {
+        state.prepareLayout(in: bounds)
         guard let item: DiskItem = state.selectedItem,
               let renderer: TreemapViewRenderer = state.renderer,
               renderer.selectedCellID?.item === item else {
@@ -66,6 +67,26 @@ final class ZStyleTreemapNSView: NSView {
             return nil
         }
         return TreemapHoverRegion(item: item, rect: rect)
+    }
+
+    func subpixelSelectedRegion() -> TreemapSelectionRegion? {
+        state.prepareLayout(in: bounds)
+        guard let item: DiskItem = state.selectedItem,
+              let renderer: TreemapViewRenderer = state.renderer,
+              renderer.selectedCellID?.item === item,
+              renderer.itemRect(by: renderer.selectedCellID).isEmpty else {
+            return nil
+        }
+        let pixelRect: NSRect = TreemapRasterGeometry.pixelAlignedRect(
+            for: renderer.selectedItemUnroundedRect(),
+            scale: window?.backingScaleFactor ?? 1
+        ).intersection(bounds)
+        guard pixelRect.isEmpty == false else { return nil }
+        return TreemapSelectionRegion(
+            item: item,
+            selectionRect: pixelRect,
+            contextRect: TreemapRasterGeometry.contextRect(around: pixelRect, in: bounds, padding: 8)
+        )
     }
 
     func applySelectedItem(_ selectedItem: DiskItem?) {
@@ -107,7 +128,11 @@ final class ZStyleTreemapNSView: NSView {
             return
         }
         _ = drawCachedImage(destinationRect: drawableRect, sourceRect: drawableRect, fraction: 1)
-        TreemapViewPainter.drawSelection(renderer: state.renderer, in: bounds)
+        TreemapViewPainter.drawSelection(
+            renderer: state.renderer,
+            in: bounds,
+            backingScaleFactor: window?.backingScaleFactor ?? 1
+        )
         logPendingSelectionDiagnostic(dirtyRect: dirtyRect)
     }
 
@@ -267,4 +292,10 @@ private struct SelectionDiagnostic {
     let cursorPoint: NSPoint
     let hitItemPath: String
     let hitRect: NSRect
+}
+
+struct TreemapSelectionRegion {
+    let item: DiskItem
+    let selectionRect: NSRect
+    let contextRect: NSRect
 }
