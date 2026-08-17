@@ -269,9 +269,10 @@ final class TreemapItemRenderer {
         let unroundedParentBottom: CGFloat = horizontalRows ? rectValue.maxY : rectValue.maxX
         let unroundedParentRight: CGFloat = horizontalRows ? rectValue.maxX : rectValue.maxY
         let unroundedParentLeft: CGFloat = horizontalRows ? rectValue.minX : rectValue.minY
+        let unroundedRowStart: CGFloat = horizontalRows ? rectValue.minY : rectValue.minX
         var childIndex: Int = 0
         var top: Int = Int(horizontalRows ? rectValue.minY : rectValue.minX)
-        var unroundedTop: CGFloat = unroundedParentLeft
+        var unroundedTop: CGFloat = unroundedRowStart
         for row: Int in 0..<rows.count {
             var bottom: Int = top + Int((rows[row] * Double(parentHeight)).rounded())
             if bottom > parentBottom || row == rows.count - 1 {
@@ -337,8 +338,9 @@ final class TreemapItemRenderer {
         let parentBottom: CGFloat = horizontalRows ? unroundedRectValue.maxY : unroundedRectValue.maxX
         let parentRight: CGFloat = horizontalRows ? unroundedRectValue.maxX : unroundedRectValue.maxY
         let parentLeft: CGFloat = horizontalRows ? unroundedRectValue.minX : unroundedRectValue.minY
+        let parentRowStart: CGFloat = horizontalRows ? unroundedRectValue.minY : unroundedRectValue.minX
         var childIndex: Int = 0
-        var top: CGFloat = parentLeft
+        var top: CGFloat = parentRowStart
         for row: Int in 0..<rows.count {
             let bottom: CGFloat = row == rows.count - 1
                 ? parentBottom
