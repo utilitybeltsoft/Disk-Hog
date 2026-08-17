@@ -9,17 +9,14 @@ struct TreemapPanelView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let showsPreview: Bool = geometry.size.width >= Self.previewMinimumWindowWidth
             HStack(spacing: 0) {
                 VStack(spacing: 0) {
                     navigationBar
                     mainTreemap
                 }
-                if showsPreview {
-                    Divider()
-                    previewPane
-                        .frame(width: Self.previewWidth)
-                }
+                Divider()
+                previewPane
+                    .frame(width: Self.previewWidth)
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
         }
@@ -156,5 +153,4 @@ struct TreemapPanelView: View {
     private var previewItem: DiskItem? { navigation.previewRoot }
 
     private static let previewWidth: CGFloat = 280
-    private static let previewMinimumWindowWidth: CGFloat = 1_120
 }
