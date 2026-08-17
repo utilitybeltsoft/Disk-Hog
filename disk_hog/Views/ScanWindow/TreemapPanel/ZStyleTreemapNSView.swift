@@ -81,7 +81,11 @@ final class ZStyleTreemapNSView: NSView {
         }
 
         state.prepareLayout(in: bounds)
-        _ = drawCachedImage(destinationRect: dirtyRect, sourceRect: dirtyRect, fraction: 1)
+        let drawableRect: NSRect = dirtyRect.intersection(bounds)
+        guard drawableRect.isEmpty == false else {
+            return
+        }
+        _ = drawCachedImage(destinationRect: drawableRect, sourceRect: drawableRect, fraction: 1)
         TreemapViewPainter.drawSelection(renderer: state.renderer, in: bounds)
         logPendingSelectionDiagnostic(dirtyRect: dirtyRect)
     }
