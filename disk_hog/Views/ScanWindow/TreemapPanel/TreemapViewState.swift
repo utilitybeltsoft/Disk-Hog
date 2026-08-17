@@ -14,6 +14,7 @@ final class TreemapViewState {
     private var freeSpaceItem: DiskItem?
     private var otherSpaceItem: DiskItem?
     private var lastSelectionDiagnostic: String?
+    private var lastDirectionalMove: (origin: DiskItem, direction: TreemapNavigationDirection)?
 
     func configure(
         source: ScanSource,
@@ -45,6 +46,7 @@ final class TreemapViewState {
         }
 
         if self.selectedItem !== selectedItem {
+            lastDirectionalMove = nil
             self.selectedItem = selectedItem
             syncSelectionToRenderer()
             needsDisplay = true
@@ -57,19 +59,31 @@ final class TreemapViewState {
             return false
         }
 
+        lastDirectionalMove = nil
         self.selectedItem = selectedItem
         syncSelectionToRenderer()
         return true
     }
 
     func select(_ hitResult: TreemapHitResult) {
+        lastDirectionalMove = nil
         renderer?.selectItem(by: hitResult.cellID)
         selectedItem = hitResult.item
     }
 
     func selectNeighbor(in direction: TreemapNavigationDirection) -> DiskItem? {
+        if let lastDirectionalMove,
+           direction == lastDirectionalMove.direction.opposite,
+           renderer?.selectItem(byRenderedItem: lastDirectionalMove.origin) == true {
+            self.lastDirectionalMove = nil
+            selectedItem = lastDirectionalMove.origin
+            return lastDirectionalMove.origin
+        }
+        guard let origin: DiskItem = selectedItem else { return nil }
         let item: DiskItem? = renderer?.selectNeighbor(in: direction)
-        selectedItem = item ?? selectedItem
+        guard let item else { return nil }
+        selectedItem = item
+        lastDirectionalMove = (origin: origin, direction: direction)
         return item
     }
 
@@ -166,6 +180,17 @@ final class TreemapViewState {
         guard message != lastSelectionDiagnostic else { return }
         lastSelectionDiagnostic = message
         NSLog("%@", message)
+    }
+}
+
+private extension TreemapNavigationDirection {
+    var opposite: TreemapNavigationDirection {
+        switch self {
+        case .left: .right
+        case .right: .left
+        case .up: .down
+        case .down: .up
+        }
     }
 }
 

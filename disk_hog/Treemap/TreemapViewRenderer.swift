@@ -381,7 +381,7 @@ final class TreemapViewRenderer {
     }
 }
 
-enum TreemapNavigationDirection {
+enum TreemapNavigationDirection: Equatable {
     case left
     case right
     case up
