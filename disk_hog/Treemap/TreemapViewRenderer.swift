@@ -54,6 +54,10 @@ final class TreemapViewRenderer {
         return "size=\(NSStringFromSize(cachedContent.size)), pixels=\(cachedContent.pixelsWide)x\(cachedContent.pixelsHigh), scale=\(cachedScale ?? 0)"
     }
 
+    func cachedTreemapImage() -> NSImage? {
+        cachedContent?.treemapSuitableImage()
+    }
+
     func invalidateCanvasCache() {
         deallocContentCache()
     }

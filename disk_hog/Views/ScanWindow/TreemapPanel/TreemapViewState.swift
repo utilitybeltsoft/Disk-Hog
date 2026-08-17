@@ -143,3 +143,8 @@ struct TreemapHitResult {
     let item: DiskItem
     let cellID: TreemapItemRenderer
 }
+
+struct TreemapHoverRegion {
+    let item: DiskItem
+    let rect: NSRect
+}

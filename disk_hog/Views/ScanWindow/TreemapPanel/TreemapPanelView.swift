@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct TreemapPanelView: View {
@@ -6,6 +7,9 @@ struct TreemapPanelView: View {
     @ObservedObject var navigation: TreemapNavigationState
     @Environment(\.hoveredScanItem) private var hoveredItem
     @Environment(\.activeScanWindowPane) private var activePane
+    @State private var hoverRegion: TreemapHoverRegion?
+    @State private var mainTreemapView: ZStyleTreemapNSView?
+    @State private var mainTreemapContentRevision: Int = 0
 
     var body: some View {
         GeometryReader { geometry in
@@ -42,7 +46,10 @@ struct TreemapPanelView: View {
                 isInteractionEnabled: navigation.isPreviewActive == false,
                 onPreviewSpaceChanged: { isHeld in
                     isHeld ? navigation.beginPreview() : navigation.endPreview()
-                }
+                },
+                onHoverRegion: { hoverRegion = $0 },
+                onTreemapViewAvailable: { mainTreemapView = $0 },
+                onTreemapContentChanged: { mainTreemapContentRevision &+= 1 }
             )
             .overlay {
                 PaneBorderView(isActive: activePane.wrappedValue == .treemap)
@@ -106,36 +113,18 @@ struct TreemapPanelView: View {
                     .foregroundStyle(Color.accentColor)
             }
 
-            if let item: DiskItem = previewItem {
+            if let region: TreemapHoverRegion = hoverRegion {
+                let item: DiskItem = region.item
                 Text(item.displayName)
                     .lineLimit(2)
                 Text("\(item.childCount) \(String(localized: "items"))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                AppKitTreemapView(
-                    session: session,
-                    source: session.source,
-                    rootItem: item,
-                    presentationMetrics: session.presentationMetrics,
-                    showsFreeSpace: false,
-                    showsOtherSpace: false,
-                    freeSpaceItem: nil,
-                    otherSpaceItem: nil,
-                    selectionCoordinator: selectionCoordinator,
-                    hoveredItem: .constant(nil),
-                    activePane: activePane,
-                    onZoomIn: { item in navigation.commitPreviewZoom(into: item) },
-                    onZoomOut: {},
-                    isInteractionEnabled: navigation.isPreviewActive,
-                    onPreviewSpaceChanged: { _ in }
+                MagnifiedTreemapCropView(
+                    sourceView: mainTreemapView,
+                    sourceRect: region.rect,
+                    contentRevision: mainTreemapContentRevision
                 )
-                .overlay {
-                    RoundedRectangle(cornerRadius: 4)
-                        .stroke(
-                            navigation.isPreviewActive ? Color.accentColor : Color(nsColor: .separatorColor),
-                            lineWidth: navigation.isPreviewActive ? 2 : 1
-                        )
-                }
             } else {
                 Spacer()
                 Text("Hover a folder to preview its contents.")
@@ -149,8 +138,6 @@ struct TreemapPanelView: View {
         .padding(10)
         .background(Color(nsColor: .underPageBackgroundColor))
     }
-
-    private var previewItem: DiskItem? { navigation.previewRoot }
 
     private static let previewWidth: CGFloat = 280
 }

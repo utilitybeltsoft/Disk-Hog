@@ -3,6 +3,8 @@ import AppKit
 final class ZStyleTreemapNSView: NSView {
     var onSelectItem: ((DiskItem?) -> Void)?
     var onHoverItem: ((DiskItem?) -> Void)?
+    var onHoverRegion: ((TreemapHoverRegion?) -> Void)?
+    var onTreemapContentChanged: (() -> Void)?
     var onZoomIn: ((DiskItem) -> Void)?
     var onZoomOut: (() -> Void)?
     var onPreviewSpaceChanged: ((Bool) -> Void)?
@@ -44,7 +46,12 @@ final class ZStyleTreemapNSView: NSView {
         }
         state.renderer?.onCachedBitmapReady = { [weak self] in
             self?.needsDisplay = true
+            self?.onTreemapContentChanged?()
         }
+    }
+
+    func cachedTreemapImage() -> NSImage? {
+        state.renderer?.cachedTreemapImage()
     }
 
     func applySelectedItem(_ selectedItem: DiskItem?) {
@@ -103,12 +110,15 @@ final class ZStyleTreemapNSView: NSView {
 
     override func mouseMoved(with event: NSEvent) {
         guard isInteractionEnabled else { return }
-        onHoverItem?(hitResult(for: event)?.item)
+        let hitResult: TreemapHitResult? = hitResult(for: event)
+        onHoverItem?(hitResult?.item)
+        onHoverRegion?(hitResult.map { TreemapHoverRegion(item: $0.item, rect: $0.cellID.rect) })
     }
 
     override func mouseExited(with event: NSEvent) {
         guard isInteractionEnabled else { return }
         onHoverItem?(nil)
+        onHoverRegion?(nil)
     }
 
     override func mouseDown(with event: NSEvent) {
