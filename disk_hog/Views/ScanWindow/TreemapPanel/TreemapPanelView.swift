@@ -41,7 +41,11 @@ struct TreemapPanelView: View {
                 hoveredItem: hoveredItem,
                 activePane: activePane,
                 onZoomIn: { item in navigation.zoom(into: item) },
-                onZoomOut: { navigation.zoomOut() }
+                onZoomOut: { navigation.zoomOut() },
+                isInteractionEnabled: navigation.isPreviewActive == false,
+                onPreviewSpaceChanged: { isHeld in
+                    isHeld ? navigation.beginPreview() : navigation.endPreview()
+                }
             )
             .overlay {
                 PaneBorderView(isActive: activePane.wrappedValue == .treemap)
@@ -99,6 +103,12 @@ struct TreemapPanelView: View {
             Text("Preview")
                 .font(.headline)
 
+            if navigation.isPreviewActive {
+                Text("Preview active — release Space to return")
+                    .font(.caption)
+                    .foregroundStyle(Color.accentColor)
+            }
+
             if let item: DiskItem = previewItem {
                 Text(item.displayName)
                     .lineLimit(2)
@@ -117,13 +127,17 @@ struct TreemapPanelView: View {
                     selectionCoordinator: selectionCoordinator,
                     hoveredItem: .constant(nil),
                     activePane: activePane,
-                    onZoomIn: { _ in },
-                    onZoomOut: {}
+                    onZoomIn: { item in navigation.commitPreviewZoom(into: item) },
+                    onZoomOut: {},
+                    isInteractionEnabled: navigation.isPreviewActive,
+                    onPreviewSpaceChanged: { _ in }
                 )
-                .allowsHitTesting(false)
                 .overlay {
                     RoundedRectangle(cornerRadius: 4)
-                        .stroke(Color(nsColor: .separatorColor))
+                        .stroke(
+                            navigation.isPreviewActive ? Color.accentColor : Color(nsColor: .separatorColor),
+                            lineWidth: navigation.isPreviewActive ? 2 : 1
+                        )
                 }
             } else {
                 Spacer()
@@ -139,9 +153,7 @@ struct TreemapPanelView: View {
         .background(Color(nsColor: .underPageBackgroundColor))
     }
 
-    private var previewItem: DiskItem? {
-        navigation.canZoom(into: hoveredItem.wrappedValue) ? hoveredItem.wrappedValue : nil
-    }
+    private var previewItem: DiskItem? { navigation.previewRoot }
 
     private static let previewWidth: CGFloat = 280
     private static let previewMinimumWindowWidth: CGFloat = 1_120

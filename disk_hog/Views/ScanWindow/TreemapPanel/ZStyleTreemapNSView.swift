@@ -5,6 +5,8 @@ final class ZStyleTreemapNSView: NSView {
     var onHoverItem: ((DiskItem?) -> Void)?
     var onZoomIn: ((DiskItem) -> Void)?
     var onZoomOut: (() -> Void)?
+    var onPreviewSpaceChanged: ((Bool) -> Void)?
+    var isInteractionEnabled: Bool = true
 
     private weak var session: ScanSession?
     private let contextMenuActionTarget: DiskItemContextMenuActionTarget = DiskItemContextMenuActionTarget()
@@ -94,14 +96,17 @@ final class ZStyleTreemapNSView: NSView {
     }
 
     override func mouseMoved(with event: NSEvent) {
+        guard isInteractionEnabled else { return }
         onHoverItem?(hitResult(for: event)?.item)
     }
 
     override func mouseExited(with event: NSEvent) {
+        guard isInteractionEnabled else { return }
         onHoverItem?(nil)
     }
 
     override func mouseDown(with event: NSEvent) {
+        guard isInteractionEnabled else { return }
         guard let hitResult: TreemapHitResult = hitResult(for: event) else {
             return
         }
@@ -112,6 +117,14 @@ final class ZStyleTreemapNSView: NSView {
     }
 
     override func keyDown(with event: NSEvent) {
+        if event.keyCode == 49, event.isARepeat == false {
+            onPreviewSpaceChanged?(true)
+            return
+        }
+        guard isInteractionEnabled else {
+            super.keyDown(with: event)
+            return
+        }
         switch event.keyCode {
         case 36, 76: // Return, keypad Enter
             if let item: DiskItem = state.selectedItem {
@@ -127,7 +140,21 @@ final class ZStyleTreemapNSView: NSView {
         super.keyDown(with: event)
     }
 
+    override func keyUp(with event: NSEvent) {
+        if event.keyCode == 49 {
+            onPreviewSpaceChanged?(false)
+            return
+        }
+        super.keyUp(with: event)
+    }
+
+    override func resignFirstResponder() -> Bool {
+        onPreviewSpaceChanged?(false)
+        return super.resignFirstResponder()
+    }
+
     override func menu(for event: NSEvent) -> NSMenu? {
+        guard isInteractionEnabled else { return nil }
         let hitResult: TreemapHitResult? = hitResult(for: event)
         if let hitResult: TreemapHitResult = hitResult {
             select(hitResult)

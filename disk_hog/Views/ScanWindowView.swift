@@ -109,6 +109,9 @@ struct ScanWindowView: View {
         .onChange(of: treemapNavigation.zoomPath.map(\.id)) {
             updateScanWindowCommandState()
         }
+        .onChange(of: hoveredItem?.id) {
+            treemapNavigation.updatePreviewRoot(from: hoveredItem)
+        }
         .alert(item: ScanSessionFailureAlertBinding.binding(for: session)) { failureAlert in
             Alert(
                 title: Text(failureAlert.title),
