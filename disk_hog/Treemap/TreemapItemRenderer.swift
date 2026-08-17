@@ -7,6 +7,7 @@ final class TreemapItemRenderer {
     private weak var dataSource: TreemapDiskItemDataSource?
     private var renderedItem: DiskItem
     private var rectValue: NSRect
+    private var unroundedRectValue: NSRect
     private var childRenderers: [TreemapItemRenderer]?
     private let cushionRenderer: TreemapCushionRenderer
     private var childRendererReconciliationCountValue: Int
@@ -15,6 +16,7 @@ final class TreemapItemRenderer {
         self.renderedItem = item
         self.dataSource = dataSource
         self.rectValue = .zero
+        self.unroundedRectValue = .zero
         self.cushionRenderer = TreemapCushionRenderer()
         self.childRendererReconciliationCountValue = 0
     }
@@ -22,6 +24,7 @@ final class TreemapItemRenderer {
     func refresh(with item: DiskItem) {
         renderedItem = item
         rectValue = .zero
+        unroundedRectValue = .zero
         cushionRenderer.setRect(.zero)
         childRenderers = nil
     }
@@ -79,6 +82,10 @@ final class TreemapItemRenderer {
 
     var rect: NSRect {
         rectValue
+    }
+
+    var unroundedRect: NSRect {
+        unroundedRectValue
     }
 
     var materializedRendererCount: Int {
@@ -250,14 +257,24 @@ final class TreemapItemRenderer {
         let parentBottom: Int = Int(horizontalRows ? rectValue.maxY : rectValue.maxX)
         let parentRight: Int = Int(horizontalRows ? rectValue.maxX : rectValue.maxY)
         let parentLeft: Int = Int(horizontalRows ? rectValue.minX : rectValue.minY)
+        let unroundedParentWidth: CGFloat = horizontalRows ? rectValue.width : rectValue.height
+        let unroundedParentHeight: CGFloat = horizontalRows ? rectValue.height : rectValue.width
+        let unroundedParentBottom: CGFloat = horizontalRows ? rectValue.maxY : rectValue.maxX
+        let unroundedParentRight: CGFloat = horizontalRows ? rectValue.maxX : rectValue.maxY
+        let unroundedParentLeft: CGFloat = horizontalRows ? rectValue.minX : rectValue.minY
         var childIndex: Int = 0
         var top: Int = Int(horizontalRows ? rectValue.minY : rectValue.minX)
+        var unroundedTop: CGFloat = unroundedParentLeft
         for row: Int in 0..<rows.count {
             var bottom: Int = top + Int((rows[row] * Double(parentHeight)).rounded())
             if bottom > parentBottom || row == rows.count - 1 {
                 bottom = parentBottom
             }
+            let unroundedBottom: CGFloat = row == rows.count - 1
+                ? unroundedParentBottom
+                : unroundedTop + CGFloat(rows[row]) * unroundedParentHeight
             var left: Int = parentLeft
+            var unroundedLeft: CGFloat = unroundedParentLeft
             for column: Int in 0..<childsPerRow[row] {
                 var right: Int = left + Int((childWidths[childIndex] * Double(parentWidth)).rounded())
                 if right > parentRight || column == childsPerRow[row] - 1 {
@@ -269,11 +286,29 @@ final class TreemapItemRenderer {
                 } else {
                     childRect = NSRect(x: top, y: left, width: bottom - top, height: right - left)
                 }
+                let unroundedRight: CGFloat = column == childsPerRow[row] - 1
+                    ? unroundedParentRight
+                    : unroundedLeft + CGFloat(childWidths[childIndex]) * unroundedParentWidth
+                children[childIndex].unroundedRectValue = horizontalRows
+                    ? NSRect(
+                        x: unroundedLeft,
+                        y: unroundedTop,
+                        width: unroundedRight - unroundedLeft,
+                        height: unroundedBottom - unroundedTop
+                    )
+                    : NSRect(
+                        x: unroundedTop,
+                        y: unroundedLeft,
+                        width: unroundedBottom - unroundedTop,
+                        height: unroundedRight - unroundedLeft
+                    )
                 children[childIndex].calcLayout(childRect)
                 left = right
+                unroundedLeft = unroundedRight
                 childIndex += 1
             }
             top = bottom
+            unroundedTop = unroundedBottom
         }
     }
 

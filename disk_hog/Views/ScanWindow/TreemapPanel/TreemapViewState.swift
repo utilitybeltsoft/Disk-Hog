@@ -145,6 +145,7 @@ final class TreemapViewState {
     private func logSelectionDiagnostic(selectionPath: [DiskItem], didSelectRenderer: Bool) {
         let selectedRenderer: TreemapItemRenderer? = renderer?.selectedCellID
         let selectedRect: NSRect = renderer?.itemRect(by: selectedRenderer) ?? .zero
+        let unroundedRect: NSRect = renderer?.selectedItemUnroundedRect() ?? .zero
         let message: String =
             """
             Treemap external selection diagnostic
@@ -154,6 +155,7 @@ final class TreemapViewState {
               renderer resolved: \(didSelectRenderer)
               rendered item: \(selectedRenderer?.item.path ?? "<none>")
               rendered rect: \(NSStringFromRect(selectedRect))
+              unrounded rect: \(NSStringFromRect(unroundedRect))
             """
         guard message != lastSelectionDiagnostic else { return }
         lastSelectionDiagnostic = message

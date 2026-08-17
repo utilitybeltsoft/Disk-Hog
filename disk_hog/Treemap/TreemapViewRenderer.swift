@@ -125,6 +125,10 @@ final class TreemapViewRenderer {
         }
     }
 
+    func selectedItemUnroundedRect() -> NSRect {
+        selectedRenderer?.unroundedRect ?? .zero
+    }
+
     func itemRect(byPathToItem path: [DiskItem]) -> NSRect {
         assert(path.count > 0, "path must contain at least 1 component")
         let renderer: TreemapItemRenderer? = findTreemapItem(byPathToDataItem: path)
