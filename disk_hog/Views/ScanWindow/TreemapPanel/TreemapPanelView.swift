@@ -104,7 +104,7 @@ struct TreemapPanelView: View {
     @ViewBuilder
     private var previewPane: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Preview")
+            Text("Close-up")
                 .font(.headline)
 
             if navigation.isPreviewActive {
@@ -151,7 +151,7 @@ struct TreemapPanelView: View {
                 )
             } else {
                 Spacer()
-                Text("Hover a folder to preview its contents.")
+                Text("View an item in the tree pane to see a close up of it here")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
