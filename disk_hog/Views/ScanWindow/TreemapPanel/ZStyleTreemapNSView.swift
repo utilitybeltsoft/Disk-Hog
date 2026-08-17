@@ -107,6 +107,7 @@ final class ZStyleTreemapNSView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         guard isInteractionEnabled else { return }
+        window?.makeFirstResponder(self)
         guard let hitResult: TreemapHitResult = hitResult(for: event) else {
             return
         }

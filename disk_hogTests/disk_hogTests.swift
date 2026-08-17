@@ -81,7 +81,7 @@ struct TreemapNavigationStateTests {
 
         navigation.endPreview()
         navigation.updatePreviewRoot(from: child)
-        #expect(navigation.previewRoot == nil)
+        #expect(navigation.previewRoot?.path == "/scan/folder")
     }
 }
 

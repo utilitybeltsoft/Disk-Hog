@@ -19,15 +19,12 @@ final class TreemapNavigationState: ObservableObject {
     }
 
     func canZoom(into item: DiskItem?) -> Bool {
-        guard let item, item.isSpecialItem == false,
-              item.isFolder, item.isPackage == false, item.childCount > 0,
-              let baseRoot else { return false }
-        return baseRoot.descendantsMatchingAncestorPath(of: item).isEmpty == false
+        zoomTarget(for: item) != nil
     }
 
     func zoom(into item: DiskItem?) {
-        guard canZoom(into: item), let item, let baseRoot else { return }
-        zoomPath = baseRoot.descendantsMatchingAncestorPath(of: item)
+        guard let target: DiskItem = zoomTarget(for: item), let baseRoot else { return }
+        zoomPath = baseRoot.descendantsMatchingAncestorPath(of: target)
         previewRoot = nil
         isPreviewActive = false
     }
@@ -48,7 +45,7 @@ final class TreemapNavigationState: ObservableObject {
 
     func updatePreviewRoot(from item: DiskItem?) {
         guard isPreviewActive == false else { return }
-        previewRoot = canZoom(into: item) ? item : nil
+        previewRoot = zoomTarget(for: item)
     }
 
     func beginPreview() {
@@ -64,5 +61,25 @@ final class TreemapNavigationState: ObservableObject {
         guard isPreviewActive else { return }
         zoom(into: item)
         endPreview()
+    }
+
+    private func zoomTarget(for item: DiskItem?) -> DiskItem? {
+        guard let item, item.isSpecialItem == false, let baseRoot else { return nil }
+        let path: [DiskItem] = baseRoot.descendantsMatchingAncestorPath(of: item)
+        guard path.isEmpty == false else { return nil }
+
+        let candidate: DiskItem
+        if item.isFolder, item.isPackage == false, item.childCount > 0 {
+            candidate = item
+        } else {
+            guard let parent: DiskItem = path.dropLast().last else { return nil }
+            candidate = parent
+        }
+
+        guard candidate != zoomRoot,
+              candidate.isFolder, candidate.isPackage == false, candidate.childCount > 0 else {
+            return nil
+        }
+        return candidate
     }
 }
