@@ -12,6 +12,7 @@ final class ZStyleTreemapNSView: NSView {
     private let contextMenuActionTarget: DiskItemContextMenuActionTarget = DiskItemContextMenuActionTarget()
     private let state: TreemapViewState = TreemapViewState()
     private let trackingAreaController: TreemapTrackingAreaController = TreemapTrackingAreaController()
+    private var pendingSelectionDiagnostic: SelectionDiagnostic?
 
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
@@ -82,6 +83,7 @@ final class ZStyleTreemapNSView: NSView {
         state.prepareLayout(in: bounds)
         _ = drawCachedImage(destinationRect: dirtyRect, sourceRect: dirtyRect, fraction: 1)
         TreemapViewPainter.drawSelection(renderer: state.renderer, in: bounds)
+        logPendingSelectionDiagnostic()
     }
 
     override func viewWillStartLiveResize() {
@@ -108,10 +110,11 @@ final class ZStyleTreemapNSView: NSView {
     override func mouseDown(with event: NSEvent) {
         guard isInteractionEnabled else { return }
         window?.makeFirstResponder(self)
-        guard let hitResult: TreemapHitResult = hitResult(for: event) else {
+        let point: NSPoint = convert(event.locationInWindow, from: nil)
+        guard let hitResult: TreemapHitResult = state.hitResult(at: point) else {
             return
         }
-        select(hitResult)
+        select(hitResult, cursorPoint: point)
         if event.clickCount == 2 {
             onZoomIn?(hitResult.item)
         }
@@ -158,7 +161,7 @@ final class ZStyleTreemapNSView: NSView {
         guard isInteractionEnabled else { return nil }
         let hitResult: TreemapHitResult? = hitResult(for: event)
         if let hitResult: TreemapHitResult = hitResult {
-            select(hitResult)
+            select(hitResult, cursorPoint: convert(event.locationInWindow, from: nil))
         }
 
         return DiskItemContextMenuBuilder.menu(
@@ -172,10 +175,42 @@ final class ZStyleTreemapNSView: NSView {
         state.hitResult(at: convert(event.locationInWindow, from: nil))
     }
 
-    private func select(_ hitResult: TreemapHitResult) {
+    private func select(_ hitResult: TreemapHitResult, cursorPoint: NSPoint) {
         state.select(hitResult)
+        pendingSelectionDiagnostic = SelectionDiagnostic(
+            cursorPoint: cursorPoint,
+            hitItemPath: hitResult.item.path,
+            hitRect: hitResult.cellID.rect
+        )
         onSelectItem?(hitResult.item)
         needsDisplay = true
+    }
+
+    private func logPendingSelectionDiagnostic() {
+        guard let diagnostic: SelectionDiagnostic = pendingSelectionDiagnostic else { return }
+        defer { pendingSelectionDiagnostic = nil }
+
+        let selectedCellID: TreemapItemRenderer? = state.renderer?.selectedCellID
+        let selectedRect: NSRect = state.renderer?.itemRect(by: selectedCellID) ?? .zero
+        let outlineRect: NSRect = TreemapSelectionRect.visibleRect(
+            for: selectedRect,
+            in: bounds,
+            minimumSide: ScanWindowMetrics.treemapMinimumSelectionSide,
+            edgeInset: ScanWindowMetrics.treemapSelectionOuterLineWidth / 2
+        )
+        let selectedPath: String = selectedCellID?.item.path ?? "<none>"
+        NSLog(
+            """
+            Treemap selection diagnostic
+              cursor point: \(NSStringFromPoint(diagnostic.cursorPoint))
+              hit item: \(diagnostic.hitItemPath)
+              hit rect: \(NSStringFromRect(diagnostic.hitRect))
+              selected item: \(selectedPath)
+              selected rect: \(NSStringFromRect(selectedRect))
+              outline rect: \(NSStringFromRect(outlineRect))
+              view bounds: \(NSStringFromRect(bounds))
+            """
+        )
     }
 
     private func drawCachedImage(
@@ -193,4 +228,10 @@ final class ZStyleTreemapNSView: NSView {
             fraction: fraction
         )
     }
+}
+
+private struct SelectionDiagnostic {
+    let cursorPoint: NSPoint
+    let hitItemPath: String
+    let hitRect: NSRect
 }
