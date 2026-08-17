@@ -58,7 +58,7 @@ final class ZStyleTreemapNSView: NSView {
         state.prepareLayout(in: bounds)
         guard let item: DiskItem = state.selectedItem,
               let renderer: TreemapViewRenderer = state.renderer,
-              renderer.selectedCellID?.item === item else {
+              renderer.selectedCellID?.item == item else {
             return nil
         }
 
@@ -73,7 +73,7 @@ final class ZStyleTreemapNSView: NSView {
         state.prepareLayout(in: bounds)
         guard let item: DiskItem = state.selectedItem,
               let renderer: TreemapViewRenderer = state.renderer,
-              renderer.selectedCellID?.item === item,
+              renderer.selectedCellID?.item == item,
               renderer.itemRect(by: renderer.selectedCellID).isEmpty else {
             return nil
         }
