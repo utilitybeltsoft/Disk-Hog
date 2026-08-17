@@ -13,6 +13,7 @@ final class TreemapViewState {
     private var showsOtherSpace: Bool = false
     private var freeSpaceItem: DiskItem?
     private var otherSpaceItem: DiskItem?
+    private var lastSelectionDiagnostic: String?
 
     func configure(
         source: ScanSource,
@@ -126,16 +127,37 @@ final class TreemapViewState {
         guard let item: DiskItem = selectedItem,
               let rootItem: DiskItem = rootItem else {
             renderer?.selectItem(by: nil)
+            logSelectionDiagnostic(selectionPath: [], didSelectRenderer: false)
             return
         }
 
         let selectionPath: [DiskItem] = rootItem.descendantsMatchingAncestorPath(of: item)
         guard selectionPath.isEmpty == false else {
             renderer?.selectItem(by: nil)
+            logSelectionDiagnostic(selectionPath: selectionPath, didSelectRenderer: false)
             return
         }
 
-        _ = renderer?.selectRenderedItem(byPathToItem: selectionPath)
+        let didSelectRenderer: Bool = renderer?.selectRenderedItem(byPathToItem: selectionPath) ?? false
+        logSelectionDiagnostic(selectionPath: selectionPath, didSelectRenderer: didSelectRenderer)
+    }
+
+    private func logSelectionDiagnostic(selectionPath: [DiskItem], didSelectRenderer: Bool) {
+        let selectedRenderer: TreemapItemRenderer? = renderer?.selectedCellID
+        let selectedRect: NSRect = renderer?.itemRect(by: selectedRenderer) ?? .zero
+        let message: String =
+            """
+            Treemap external selection diagnostic
+              map root: \(rootItem?.path ?? "<none>")
+              selected item: \(selectedItem?.path ?? "<none>")
+              selection path: \(selectionPath.map(\.path).joined(separator: " -> "))
+              renderer resolved: \(didSelectRenderer)
+              rendered item: \(selectedRenderer?.item.path ?? "<none>")
+              rendered rect: \(NSStringFromRect(selectedRect))
+            """
+        guard message != lastSelectionDiagnostic else { return }
+        lastSelectionDiagnostic = message
+        NSLog("%@", message)
     }
 }
 
