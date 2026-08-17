@@ -121,6 +121,16 @@ final class TreemapItemRenderer {
         return childRenderers ?? []
     }
 
+    func appendNavigableRenderers(to renderers: inout [TreemapItemRenderer]) {
+        guard isLeaf == false, let childRenderers, childRenderers.isEmpty == false else {
+            renderers.append(self)
+            return
+        }
+        for childRenderer: TreemapItemRenderer in childRenderers {
+            childRenderer.appendNavigableRenderers(to: &renderers)
+        }
+    }
+
     var childCount: Int {
         guard !isLeaf, let dataSource: TreemapDiskItemDataSource = dataSource else {
             return 0

@@ -133,38 +133,25 @@ final class TreemapViewRenderer {
     func selectNeighbor(in direction: TreemapNavigationDirection) -> DiskItem? {
         guard let selectedRenderer else { return nil }
         let parent: TreemapItemRenderer = selectedRenderer.parent ?? rootItemRenderer ?? selectedRenderer
-        guard parent !== selectedRenderer, parent.isLeaf == false else { return nil }
-        parent.layoutUnroundedChilds()
+        guard parent !== selectedRenderer else { return nil }
+        if parent.isLeaf == false {
+            parent.layoutUnroundedChilds()
+        }
         let selectedRect: NSRect = selectedRenderer.navigationRect
         guard selectedRect.isEmpty == false else { return nil }
-        let selectedCenter: NSPoint = NSPoint(x: selectedRect.midX, y: selectedRect.midY)
-        let candidate: TreemapItemRenderer? = parent.childEnumerator
-            .filter { $0 !== selectedRenderer && $0.item.isSpecialItem == false }
-            .compactMap { renderer -> (TreemapItemRenderer, CGFloat)? in
-                let rect: NSRect = renderer.navigationRect
-                guard rect.isEmpty == false else { return nil }
-                let center: NSPoint = NSPoint(x: rect.midX, y: rect.midY)
-                let primaryDistance: CGFloat
-                let crossDistance: CGFloat
-                switch direction {
-                case .left:
-                    primaryDistance = selectedCenter.x - center.x
-                    crossDistance = abs(selectedCenter.y - center.y)
-                case .right:
-                    primaryDistance = center.x - selectedCenter.x
-                    crossDistance = abs(selectedCenter.y - center.y)
-                case .up:
-                    primaryDistance = selectedCenter.y - center.y
-                    crossDistance = abs(selectedCenter.x - center.x)
-                case .down:
-                    primaryDistance = center.y - selectedCenter.y
-                    crossDistance = abs(selectedCenter.x - center.x)
-                }
-                guard primaryDistance > 0 else { return nil }
-                return (renderer, primaryDistance + crossDistance * 0.25)
-            }
-            .min(by: { $0.1 < $1.1 })?
-            .0
+        var allRenderedLeaves: [TreemapItemRenderer] = []
+        rootItemRenderer?.appendNavigableRenderers(to: &allRenderedLeaves)
+        let candidate: TreemapItemRenderer? = nearestNeighbor(
+            among: parent.isLeaf ? [] : parent.childEnumerator,
+            from: selectedRenderer,
+            selectedRect: selectedRect,
+            direction: direction
+        ) ?? nearestNeighbor(
+            among: allRenderedLeaves,
+            from: selectedRenderer,
+            selectedRect: selectedRect,
+            direction: direction
+        )
         guard let candidate else { return nil }
         selectItem(by: candidate)
         return candidate.item
@@ -322,6 +309,42 @@ final class TreemapViewRenderer {
         default:
             false
         }
+    }
+
+    private func nearestNeighbor(
+        among renderers: [TreemapItemRenderer],
+        from selectedRenderer: TreemapItemRenderer,
+        selectedRect: NSRect,
+        direction: TreemapNavigationDirection
+    ) -> TreemapItemRenderer? {
+        let selectedCenter: NSPoint = NSPoint(x: selectedRect.midX, y: selectedRect.midY)
+        return renderers
+            .filter { $0 !== selectedRenderer && $0.item.isSpecialItem == false }
+            .compactMap { renderer -> (TreemapItemRenderer, CGFloat)? in
+                let rect: NSRect = renderer.navigationRect
+                guard rect.isEmpty == false else { return nil }
+                let center: NSPoint = NSPoint(x: rect.midX, y: rect.midY)
+                let primaryDistance: CGFloat
+                let crossDistance: CGFloat
+                switch direction {
+                case .left:
+                    primaryDistance = selectedCenter.x - center.x
+                    crossDistance = abs(selectedCenter.y - center.y)
+                case .right:
+                    primaryDistance = center.x - selectedCenter.x
+                    crossDistance = abs(selectedCenter.y - center.y)
+                case .up:
+                    primaryDistance = selectedCenter.y - center.y
+                    crossDistance = abs(selectedCenter.x - center.x)
+                case .down:
+                    primaryDistance = center.y - selectedCenter.y
+                    crossDistance = abs(selectedCenter.x - center.x)
+                }
+                guard primaryDistance > 0 else { return nil }
+                return (renderer, primaryDistance + crossDistance * 0.25)
+            }
+            .min(by: { $0.1 < $1.1 })?
+            .0
     }
 
     private func findTreemapItem(byPathToDataItem path: [DiskItem]) -> TreemapItemRenderer? {
