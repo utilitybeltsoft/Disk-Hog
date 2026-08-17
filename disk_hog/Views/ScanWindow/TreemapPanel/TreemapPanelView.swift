@@ -3,15 +3,18 @@ import SwiftUI
 struct TreemapPanelView: View {
     @ObservedObject var session: ScanSession
     let selectionCoordinator: ScanWindowSelectionCoordinator
+    @ObservedObject var navigation: TreemapNavigationState
     @Environment(\.hoveredScanItem) private var hoveredItem
     @Environment(\.activeScanWindowPane) private var activePane
 
     var body: some View {
-        ZStack {
-            AppKitTreemapView(
+        VStack(spacing: 0) {
+            navigationBar
+            ZStack {
+                AppKitTreemapView(
                 session: session,
                 source: session.source,
-                rootItem: session.rootItem,
+                rootItem: navigation.zoomRoot,
                 presentationMetrics: session.presentationMetrics,
                 showsFreeSpace: session.showsFreeSpace,
                 showsOtherSpace: session.showsOtherSpace,
@@ -19,21 +22,24 @@ struct TreemapPanelView: View {
                 otherSpaceItem: session.otherSpaceItem,
                 selectionCoordinator: selectionCoordinator,
                 hoveredItem: hoveredItem,
-                activePane: activePane
-            )
-            .overlay {
-                PaneBorderView(isActive: activePane.wrappedValue == .treemap)
-            }
-            if session.rootItem == nil {
-                ScanPanePlaceholderView(
+                activePane: activePane,
+                onZoomIn: { item in navigation.zoom(into: item) },
+                onZoomOut: { navigation.zoomOut() }
+                )
+                .overlay {
+                    PaneBorderView(isActive: activePane.wrappedValue == .treemap)
+                }
+                if session.rootItem == nil {
+                    ScanPanePlaceholderView(
                     title: session.isBuildingTreemap ? "Preparing treemap" : "Treemap",
                     message: session.isBuildingTreemap
                         ? "Preparing file distribution: \(treemapPreparationPercentage)%"
                         : "Pending scan completion",
                     showsProgress: session.isBuildingTreemap,
                     progress: session.treemapPreparationProgress
-                )
-                .padding(ScanWindowMetrics.inactivePaneBorderWidth)
+                    )
+                    .padding(ScanWindowMetrics.inactivePaneBorderWidth)
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -41,5 +47,34 @@ struct TreemapPanelView: View {
 
     private var treemapPreparationPercentage: Int {
         Int(((session.treemapPreparationProgress ?? 0) * 100).rounded(.down))
+    }
+
+    private var navigationBar: some View {
+        HStack(spacing: 4) {
+            Button { navigation.zoomOut() } label: {
+                Label("Back", systemImage: "chevron.left")
+            }
+            .disabled(navigation.canZoomOut == false)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 4) {
+                    ForEach(Array(navigation.zoomPath.enumerated()), id: \.element.id) { index, item in
+                        if index > 0 {
+                            Image(systemName: "chevron.right")
+                                .foregroundStyle(.secondary)
+                                .font(.caption)
+                        }
+                        Button(item.displayName) { navigation.zoom(toPathIndex: index) }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(index == navigation.zoomPath.indices.last ? .primary : .secondary)
+                    }
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .font(.system(size: ScanWindowMetrics.statusFieldFontSize))
+        .padding(.horizontal, ScanWindowMetrics.mainSplitHorizontalPadding)
+        .padding(.vertical, 5)
+        .background(Color(nsColor: .controlBackgroundColor))
     }
 }

@@ -14,6 +14,8 @@ struct AppKitTreemapView: NSViewRepresentable {
     let selectionCoordinator: ScanWindowSelectionCoordinator
     let hoveredItem: Binding<DiskItem?>
     let activePane: Binding<ScanWindowPane?>
+    let onZoomIn: (DiskItem) -> Void
+    let onZoomOut: () -> Void
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
@@ -32,6 +34,8 @@ struct AppKitTreemapView: NSViewRepresentable {
         view.onHoverItem = { item in
             context.coordinator.hoveredItem.wrappedValue = item
         }
+        view.onZoomIn = onZoomIn
+        view.onZoomOut = onZoomOut
         context.coordinator.view = view
         context.coordinator.observeSelection()
         view.configure(
@@ -52,6 +56,8 @@ struct AppKitTreemapView: NSViewRepresentable {
         context.coordinator.selectionCoordinator = selectionCoordinator
         context.coordinator.hoveredItem = hoveredItem
         context.coordinator.activePane = activePane
+        nsView.onZoomIn = onZoomIn
+        nsView.onZoomOut = onZoomOut
         nsView.configure(
             session: session,
             source: source,

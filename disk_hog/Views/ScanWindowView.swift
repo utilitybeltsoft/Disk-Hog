@@ -5,12 +5,14 @@ struct ScanWindowView: View {
     @StateObject private var selectionCoordinator: ScanWindowSelectionCoordinator
     @StateObject private var inspectorContext: InspectorWindowContext
     @StateObject private var commandContext: ScanWindowCommandContext
+    @StateObject private var treemapNavigation: TreemapNavigationState
     @ObservedObject private var scanPreferences: ScanPreferences = .shared
     @State private var hoveredItem: DiskItem?
     @State private var activePane: ScanWindowPane?
 
     init(session: ScanSession) {
         let selectionCoordinator: ScanWindowSelectionCoordinator = ScanWindowSelectionCoordinator()
+        let treemapNavigation: TreemapNavigationState = TreemapNavigationState()
         _session = StateObject(wrappedValue: session)
         _selectionCoordinator = StateObject(wrappedValue: selectionCoordinator)
         _inspectorContext = StateObject(
@@ -22,9 +24,11 @@ struct ScanWindowView: View {
         _commandContext = StateObject(
             wrappedValue: ScanWindowCommandContext(
                 session: session,
-                selectionCoordinator: selectionCoordinator
+                selectionCoordinator: selectionCoordinator,
+                treemapNavigation: treemapNavigation
             )
         )
+        _treemapNavigation = StateObject(wrappedValue: treemapNavigation)
     }
 
     var body: some View {
@@ -62,7 +66,8 @@ struct ScanWindowView: View {
             } second: {
                 TreemapPanelView(
                     session: session,
-                    selectionCoordinator: selectionCoordinator
+                    selectionCoordinator: selectionCoordinator,
+                    navigation: treemapNavigation
                 )
                     .environment(\.hoveredScanItem, $hoveredItem)
                     .environment(\.activeScanWindowPane, $activePane)
@@ -80,6 +85,7 @@ struct ScanWindowView: View {
             activateScanWindowContext()
         })
         .onAppear {
+            treemapNavigation.configure(baseRoot: session.rootItem)
             session.startScan()
             activateScanWindowContext()
             InspectorWindowController.shared.automaticallyShowDiskUsageIfNeeded(for: inspectorContext)
@@ -91,12 +97,16 @@ struct ScanWindowView: View {
             InspectorWindowController.shared.deactivate(if: inspectorContext)
         }
         .onChange(of: session.rootItem?.id) {
+            treemapNavigation.configure(baseRoot: session.rootItem)
             selectionCoordinator.setSelectedItem(session.preferredSelection ?? session.rootItem)
             hoveredItem = nil
             updateScanWindowCommandState()
         }
         .onChange(of: selectionCoordinator.selectedItem?.id) {
             session.rememberSelection(selectionCoordinator.selectedItem)
+            updateScanWindowCommandState()
+        }
+        .onChange(of: treemapNavigation.zoomPath.map(\.id)) {
             updateScanWindowCommandState()
         }
         .alert(item: ScanSessionFailureAlertBinding.binding(for: session)) { failureAlert in

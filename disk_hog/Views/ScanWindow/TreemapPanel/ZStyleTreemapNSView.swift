@@ -3,6 +3,8 @@ import AppKit
 final class ZStyleTreemapNSView: NSView {
     var onSelectItem: ((DiskItem?) -> Void)?
     var onHoverItem: ((DiskItem?) -> Void)?
+    var onZoomIn: ((DiskItem) -> Void)?
+    var onZoomOut: (() -> Void)?
 
     private weak var session: ScanSession?
     private let contextMenuActionTarget: DiskItemContextMenuActionTarget = DiskItemContextMenuActionTarget()
@@ -104,6 +106,25 @@ final class ZStyleTreemapNSView: NSView {
             return
         }
         select(hitResult)
+        if event.clickCount == 2 {
+            onZoomIn?(hitResult.item)
+        }
+    }
+
+    override func keyDown(with event: NSEvent) {
+        switch event.keyCode {
+        case 36, 76: // Return, keypad Enter
+            if let item: DiskItem = state.selectedItem {
+                onZoomIn?(item)
+                return
+            }
+        case 53: // Escape
+            onZoomOut?()
+            return
+        default:
+            break
+        }
+        super.keyDown(with: event)
     }
 
     override func menu(for event: NSEvent) -> NSMenu? {

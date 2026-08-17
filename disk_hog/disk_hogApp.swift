@@ -148,13 +148,17 @@ private struct DiskHogCommands: Commands {
         #endif
 
         CommandGroup(before: .sidebar) {
-            Button("Zoom In") {}
+            Button("Zoom In") {
+                ScanWindowCommandState.shared.zoomIn()
+            }
                 .keyboardShortcut("+", modifiers: .command)
-                .disabled(true)
+                .disabled(scanWindowCommandState.canZoomIn == false)
 
-            Button("Zoom Out") {}
+            Button("Zoom Out") {
+                ScanWindowCommandState.shared.zoomOut()
+            }
                 .keyboardShortcut("-", modifiers: .command)
-                .disabled(true)
+                .disabled(scanWindowCommandState.canZoomOut == false)
 
             Menu("Zoom Out To") {
                 Button("No Zoom History") {}

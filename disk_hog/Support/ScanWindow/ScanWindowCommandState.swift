@@ -11,6 +11,8 @@ final class ScanWindowCommandContext: ObservableObject {
     @Published var canToggleOtherSpace: Bool = false
     @Published var showsFreeSpace: Bool = false
     @Published var showsOtherSpace: Bool = false
+    @Published var canZoomIn: Bool = false
+    @Published var canZoomOut: Bool = false
     #if FILE_MATCHING_DIAGNOSTICS
     @Published var canCopyMatchingFile: Bool = false
     #endif
@@ -20,10 +22,12 @@ final class ScanWindowCommandContext: ObservableObject {
     // Keep the command target alive independently of the selection view's instance.
     private var selectedItem: DiskItem?
     private weak var selectionCoordinator: ScanWindowSelectionCoordinator?
+    private weak var treemapNavigation: TreemapNavigationState?
 
-    init(session: ScanSession, selectionCoordinator: ScanWindowSelectionCoordinator) {
+    init(session: ScanSession, selectionCoordinator: ScanWindowSelectionCoordinator, treemapNavigation: TreemapNavigationState) {
         self.session = session
         self.selectionCoordinator = selectionCoordinator
+        self.treemapNavigation = treemapNavigation
     }
 
     var commandSelectedItem: DiskItem? {
@@ -44,6 +48,8 @@ final class ScanWindowCommandContext: ObservableObject {
             canToggleOtherSpace = false
             showsFreeSpace = false
             showsOtherSpace = false
+            canZoomIn = false
+            canZoomOut = false
             #if FILE_MATCHING_DIAGNOSTICS
             canCopyMatchingFile = false
             #endif
@@ -62,6 +68,8 @@ final class ScanWindowCommandContext: ObservableObject {
         setIfChanged(\.canToggleOtherSpace, to: false)
         setIfChanged(\.showsFreeSpace, to: false)
         setIfChanged(\.showsOtherSpace, to: false)
+        setIfChanged(\.canZoomIn, to: false)
+        setIfChanged(\.canZoomOut, to: false)
         #if FILE_MATCHING_DIAGNOSTICS
         setIfChanged(\.canCopyMatchingFile, to: false)
         #endif
@@ -72,6 +80,7 @@ final class ScanWindowCommandContext: ObservableObject {
         canToggleOtherSpace = session.canToggleOtherSpace
         showsFreeSpace = session.showsFreeSpace
         showsOtherSpace = session.showsOtherSpace
+        canZoomOut = treemapNavigation?.canZoomOut ?? false
         #if FILE_MATCHING_DIAGNOSTICS
         canCopyMatchingFile = session.rootItem != nil && session.diagnosticsExportState.isWriting == false
         #endif
@@ -122,11 +131,23 @@ final class ScanWindowCommandContext: ObservableObject {
         updateScanState(from: session)
     }
 
+    func zoomIn() {
+        treemapNavigation?.zoom(into: selectedItem)
+        updateSelectedItemAvailability(selectedItem)
+    }
+
+    func zoomOut() {
+        treemapNavigation?.zoomOut()
+        canZoomOut = treemapNavigation?.canZoomOut ?? false
+    }
+
     private func updateSelectedItemAvailability(_ item: DiskItem?) {
         selectedItem = item
         let canActOnItem: Bool = item?.isSpecialItem == false
         canOpenSelectedItem = canActOnItem
         canRevealSelectedItem = canActOnItem
+        canZoomIn = treemapNavigation?.canZoom(into: item) ?? false
+        canZoomOut = treemapNavigation?.canZoomOut ?? false
         if let session: ScanSession,
            let rootItem: DiskItem = session.rootItem,
            let item: DiskItem {
@@ -169,6 +190,8 @@ final class ScanWindowCommandState: ObservableObject {
     var canOpenSelectedItem: Bool { activeContext?.canOpenSelectedItem ?? false }
     var canRevealSelectedItem: Bool { activeContext?.canRevealSelectedItem ?? false }
     var canSelectParentFolder: Bool { activeContext?.canSelectParentFolder ?? false }
+    var canZoomIn: Bool { activeContext?.canZoomIn ?? false }
+    var canZoomOut: Bool { activeContext?.canZoomOut ?? false }
     var canToggleFreeSpace: Bool { activeContext?.canToggleFreeSpace ?? false }
     var canToggleOtherSpace: Bool { activeContext?.canToggleOtherSpace ?? false }
     var showsFreeSpace: Bool { activeContext?.showsFreeSpace ?? false }
@@ -236,6 +259,14 @@ final class ScanWindowCommandState: ObservableObject {
 
     func selectParentFolder() {
         activeContext?.selectParentFolder()
+    }
+
+    func zoomIn() {
+        activeContext?.zoomIn()
+    }
+
+    func zoomOut() {
+        activeContext?.zoomOut()
     }
 
     func toggleSelectedItemInCleanupQueue() {
