@@ -7,27 +7,16 @@ struct TreemapPanelView: View {
     @ObservedObject var navigation: TreemapNavigationState
     @Environment(\.hoveredScanItem) private var hoveredItem
     @Environment(\.activeScanWindowPane) private var activePane
-    @State private var hoverRegion: TreemapHoverRegion?
-    @State private var mainTreemapView: ZStyleTreemapNSView?
-    @State private var mainTreemapContentRevision: Int = 0
 
     var body: some View {
         GeometryReader { geometry in
-            HStack(spacing: 0) {
-                VStack(spacing: 0) {
-                    navigationBar
-                    mainTreemap
-                }
-                Divider()
-                previewPane
-                    .frame(width: Self.previewWidth)
+            VStack(spacing: 0) {
+                navigationBar
+                mainTreemap
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .onChange(of: selectionCoordinator.selectedItem?.id) {
-            hoverRegion = nil
-        }
     }
 
     private var mainTreemap: some View {
@@ -49,10 +38,7 @@ struct TreemapPanelView: View {
                 isInteractionEnabled: navigation.isPreviewActive == false,
                 onPreviewSpaceChanged: { isHeld in
                     isHeld ? navigation.beginPreview() : navigation.endPreview()
-                },
-                onHoverRegion: { hoverRegion = $0 },
-                onTreemapViewAvailable: { mainTreemapView = $0 },
-                onTreemapContentChanged: { mainTreemapContentRevision &+= 1 }
+                }
             )
             .overlay {
                 PaneBorderView(isActive: activePane.wrappedValue == .treemap)
@@ -104,66 +90,4 @@ struct TreemapPanelView: View {
         .background(Color(nsColor: .controlBackgroundColor))
     }
 
-    @ViewBuilder
-    private var previewPane: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Close-up")
-                .font(.headline)
-
-            if navigation.isPreviewActive {
-                Text("Preview active — release Space to return")
-                    .font(.caption)
-                    .foregroundStyle(Color.accentColor)
-            }
-
-            if let region: TreemapHoverRegion = hoverRegion {
-                let item: DiskItem = region.item
-                Text(item.displayName)
-                    .lineLimit(2)
-                Text("\(item.childCount) \(String(localized: "items"))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                MagnifiedTreemapCropView(
-                    sourceView: mainTreemapView,
-                    sourceRect: region.rect,
-                    contentRevision: mainTreemapContentRevision
-                )
-            } else if let region: TreemapSelectionRegion = mainTreemapView?.subpixelSelectedRegion() {
-                Text(region.item.displayName)
-                    .lineLimit(2)
-                Text("\(region.item.childCount) \(String(localized: "items"))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                MagnifiedTreemapCropView(
-                    sourceView: mainTreemapView,
-                    sourceRect: region.contextRect,
-                    contentRevision: mainTreemapContentRevision
-                )
-            } else if let region: TreemapHoverRegion = mainTreemapView?.selectedRegion() {
-                let item: DiskItem = region.item
-                Text(item.displayName)
-                    .lineLimit(2)
-                Text("\(item.childCount) \(String(localized: "items"))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                MagnifiedTreemapCropView(
-                    sourceView: mainTreemapView,
-                    sourceRect: region.rect,
-                    contentRevision: mainTreemapContentRevision
-                )
-            } else {
-                Spacer()
-                Text("View an item in the tree pane to see a close up of it here")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
-                Spacer()
-            }
-        }
-        .padding(10)
-        .background(Color(nsColor: .underPageBackgroundColor))
-    }
-
-    private static let previewWidth: CGFloat = 280
 }

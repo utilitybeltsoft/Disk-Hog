@@ -3,8 +3,6 @@ import AppKit
 final class ZStyleTreemapNSView: NSView {
     var onSelectItem: ((DiskItem?) -> Void)?
     var onHoverItem: ((DiskItem?) -> Void)?
-    var onHoverRegion: ((TreemapHoverRegion?) -> Void)?
-    var onTreemapContentChanged: (() -> Void)?
     var onZoomIn: ((DiskItem) -> Void)?
     var onZoomOut: (() -> Void)?
     var onPreviewSpaceChanged: ((Bool) -> Void)?
@@ -46,46 +44,7 @@ final class ZStyleTreemapNSView: NSView {
         }
         state.renderer?.onCachedBitmapReady = { [weak self] in
             self?.needsDisplay = true
-            self?.onTreemapContentChanged?()
         }
-    }
-
-    func cachedTreemapImage() -> NSImage? {
-        state.renderer?.cachedTreemapImage()
-    }
-
-    func selectedRegion() -> TreemapHoverRegion? {
-        state.prepareLayout(in: bounds)
-        guard let item: DiskItem = state.selectedItem,
-              let renderer: TreemapViewRenderer = state.renderer,
-              renderer.selectedCellID?.item == item else {
-            return nil
-        }
-
-        let rect: NSRect = renderer.itemRect(by: renderer.selectedCellID)
-        guard rect.isEmpty == false else {
-            return nil
-        }
-        return TreemapHoverRegion(item: item, rect: rect)
-    }
-
-    func subpixelSelectedRegion() -> TreemapSelectionRegion? {
-        state.prepareLayout(in: bounds)
-        guard let item: DiskItem = state.selectedItem,
-              let renderer: TreemapViewRenderer = state.renderer,
-              renderer.selectedCellID?.item == item,
-              renderer.itemRect(by: renderer.selectedCellID).isEmpty else {
-            return nil
-        }
-        let pixelRect: NSRect = TreemapRasterGeometry.pixelAlignedRect(
-            for: renderer.selectedItemUnroundedRect(),
-            scale: window?.backingScaleFactor ?? 1
-        ).intersection(bounds)
-        guard pixelRect.isEmpty == false else { return nil }
-        return TreemapSelectionRegion(
-            item: item,
-            contextRect: TreemapRasterGeometry.contextRect(around: pixelRect, in: bounds, padding: 8)
-        )
     }
 
     func applySelectedItem(_ selectedItem: DiskItem?) {
@@ -150,13 +109,11 @@ final class ZStyleTreemapNSView: NSView {
         guard isInteractionEnabled else { return }
         let hitResult: TreemapHitResult? = hitResult(for: event)
         onHoverItem?(hitResult?.item)
-        onHoverRegion?(hitResult.map { TreemapHoverRegion(item: $0.item, rect: $0.cellID.rect) })
     }
 
     override func mouseExited(with event: NSEvent) {
         guard isInteractionEnabled else { return }
         onHoverItem?(nil)
-        onHoverRegion?(nil)
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -306,9 +263,4 @@ private struct SelectionDiagnostic {
     let cursorPoint: NSPoint
     let hitItemPath: String
     let hitRect: NSRect
-}
-
-struct TreemapSelectionRegion {
-    let item: DiskItem
-    let contextRect: NSRect
 }

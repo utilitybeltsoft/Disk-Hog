@@ -18,9 +18,6 @@ struct AppKitTreemapView: NSViewRepresentable {
     let onZoomOut: () -> Void
     let isInteractionEnabled: Bool
     let onPreviewSpaceChanged: (Bool) -> Void
-    let onHoverRegion: (TreemapHoverRegion?) -> Void
-    let onTreemapViewAvailable: (ZStyleTreemapNSView) -> Void
-    let onTreemapContentChanged: () -> Void
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
@@ -39,8 +36,6 @@ struct AppKitTreemapView: NSViewRepresentable {
         view.onHoverItem = { item in
             context.coordinator.hoveredItem.wrappedValue = item
         }
-        view.onHoverRegion = onHoverRegion
-        view.onTreemapContentChanged = onTreemapContentChanged
         view.onZoomIn = onZoomIn
         view.onZoomOut = onZoomOut
         view.isInteractionEnabled = isInteractionEnabled
@@ -58,9 +53,6 @@ struct AppKitTreemapView: NSViewRepresentable {
             otherSpaceItem: otherSpaceItem,
             selectedItem: selectionCoordinator.selectedItem
         )
-        DispatchQueue.main.async {
-            onTreemapViewAvailable(view)
-        }
         return view
     }
 
@@ -72,8 +64,6 @@ struct AppKitTreemapView: NSViewRepresentable {
         nsView.onZoomOut = onZoomOut
         nsView.isInteractionEnabled = isInteractionEnabled
         nsView.onPreviewSpaceChanged = onPreviewSpaceChanged
-        nsView.onHoverRegion = onHoverRegion
-        nsView.onTreemapContentChanged = onTreemapContentChanged
         nsView.configure(
             session: session,
             source: source,
