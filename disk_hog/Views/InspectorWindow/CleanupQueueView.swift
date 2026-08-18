@@ -3,6 +3,7 @@ import SwiftUI
 
 struct CleanupQueueView: View {
     @ObservedObject private var store: CleanupQueueStore = .shared
+    @State private var isMoveConfirmationPresented: Bool = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -48,17 +49,44 @@ struct CleanupQueueView: View {
                     Spacer()
 
                     Button("Move Selected to Finder Trash") {
-                        store.moveSelectedItemsToFinderTrash()
+                        isMoveConfirmationPresented = true
                     }
                     .disabled(store.selectedReadyItems.isEmpty)
                 }
                 .padding(14)
             }
         }
+        .confirmationDialog(
+            String(localized: "Move Selected to Finder Trash"),
+            isPresented: $isMoveConfirmationPresented,
+            titleVisibility: .visible
+        ) {
+            Button(String(localized: "Move Selected to Finder Trash"), role: .destructive) {
+                store.moveSelectedItemsToFinderTrash()
+            }
+            Button(String(localized: "Cancel"), role: .cancel) {}
+        } message: {
+            VStack(alignment: .leading) {
+                Text("Selected for Finder Trash")
+                Text("\(selectedReadyItems.count) items")
+                Text(selectedReadySizeDescription)
+            }
+        }
     }
 
     private var selectedItems: [CleanupQueueItem] {
         store.items.filter(\.isSelected)
+    }
+
+    private var selectedReadyItems: [CleanupQueueItem] {
+        store.selectedReadyItems
+    }
+
+    private var selectedReadySizeDescription: String {
+        ByteCountFormatter.string(
+            fromByteCount: Int64(selectedReadyItems.reduce(0) { $0 + $1.allocatedSize }),
+            countStyle: .file
+        )
     }
 
     private var groupedItems: [CleanupQueueVolumeGroup] {
