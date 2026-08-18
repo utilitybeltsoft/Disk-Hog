@@ -104,6 +104,7 @@ struct ScanWindowView: View {
         }
         .onChange(of: selectionCoordinator.selectedItem?.id) {
             session.rememberSelection(selectionCoordinator.selectedItem)
+            treemapNavigation.revealSelection(selectionCoordinator.selectedItem)
             updateScanWindowCommandState()
         }
         .onChange(of: treemapNavigation.zoomPath.map(\.id)) {

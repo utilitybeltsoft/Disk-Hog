@@ -63,27 +63,29 @@ final class TreemapNavigationState: ObservableObject {
         endPreview()
     }
 
+    func revealSelection(_ item: DiskItem?) {
+        guard let item, let baseRoot else { return }
+        let selectionPath: [DiskItem] = baseRoot.descendantsMatchingAncestorPath(of: item)
+        guard selectionPath.isEmpty == false else { return }
+        let sharedPathLength: Int = zip(zoomPath, selectionPath)
+            .prefix { pair in pair.0 == pair.1 }
+            .count
+        guard sharedPathLength < zoomPath.count else { return }
+        zoomPath = Array(selectionPath.prefix(max(sharedPathLength, 1)))
+        previewRoot = nil
+        isPreviewActive = false
+    }
+
     private func zoomTarget(for item: DiskItem?) -> DiskItem? {
         guard let item, item.isSpecialItem == false, let baseRoot else { return nil }
         let path: [DiskItem] = baseRoot.descendantsMatchingAncestorPath(of: item)
-        guard path.isEmpty == false else { return nil }
-
-        let candidate: DiskItem
-        if item.isFolder, item.isPackage == false, item.childCount > 0 {
-            candidate = item
-        } else if let parent: DiskItem = path.dropLast().last, parent != zoomRoot {
-            // A file within a nested folder expands into that folder so its nearby
-            // files become individually visible.
-            candidate = parent
-        } else {
-            // A file immediately inside the current root still needs a useful
-            // zoom target: give it a focused, full-treemap view of its own tile.
-            candidate = item
-        }
-
-        guard candidate != zoomRoot else {
+        guard path.isEmpty == false,
+              item.isFolder,
+              item.isPackage == false,
+              item.childCount > 0,
+              item != zoomRoot else {
             return nil
         }
-        return candidate
+        return item
     }
 }
