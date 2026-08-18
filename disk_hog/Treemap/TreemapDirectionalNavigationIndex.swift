@@ -26,7 +26,12 @@ final class TreemapDirectionalNavigationIndex {
         for renderer: TreemapItemRenderer in renderers {
             let rect: NSRect = renderer.navigationRect
             guard rect.isEmpty == false else { continue }
-            renderersByCell[cellIndex(x: rect.midX, y: rect.midY), default: []].append(renderer)
+            renderersByCell[Self.cellIndex(
+                x: rect.midX,
+                y: rect.midY,
+                bounds: bounds,
+                gridSide: gridSide
+            ), default: []].append(renderer)
         }
         self.renderersByCell = renderersByCell
     }
@@ -37,8 +42,18 @@ final class TreemapDirectionalNavigationIndex {
         direction: TreemapNavigationDirection
     ) -> TreemapItemRenderer? {
         let selectedCenter: NSPoint = NSPoint(x: selectedRect.midX, y: selectedRect.midY)
-        let selectedColumn: Int = bin(for: selectedCenter.x, lower: bounds.minX, length: bounds.width)
-        let selectedRow: Int = bin(for: selectedCenter.y, lower: bounds.minY, length: bounds.height)
+        let selectedColumn: Int = Self.bin(
+            for: selectedCenter.x,
+            lower: bounds.minX,
+            length: bounds.width,
+            gridSide: gridSide
+        )
+        let selectedRow: Int = Self.bin(
+            for: selectedCenter.y,
+            lower: bounds.minY,
+            length: bounds.height,
+            gridSide: gridSide
+        )
 
         switch direction {
         case .left:
@@ -169,12 +184,12 @@ final class TreemapDirectionalNavigationIndex {
         }
     }
 
-    private func cellIndex(x: CGFloat, y: CGFloat) -> Int {
-        bin(for: x, lower: bounds.minX, length: bounds.width) * gridSide
-            + bin(for: y, lower: bounds.minY, length: bounds.height)
+    private static func cellIndex(x: CGFloat, y: CGFloat, bounds: NSRect, gridSide: Int) -> Int {
+        bin(for: x, lower: bounds.minX, length: bounds.width, gridSide: gridSide) * gridSide
+            + bin(for: y, lower: bounds.minY, length: bounds.height, gridSide: gridSide)
     }
 
-    private func bin(for value: CGFloat, lower: CGFloat, length: CGFloat) -> Int {
+    private static func bin(for value: CGFloat, lower: CGFloat, length: CGFloat, gridSide: Int) -> Int {
         guard length > 0 else { return 0 }
         let normalized: CGFloat = (value - lower) / length
         return min(max(Int(normalized * CGFloat(gridSide)), 0), gridSide - 1)
