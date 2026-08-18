@@ -4101,6 +4101,18 @@ struct TreemapRasterGeometryTests {
 @MainActor
 struct TreemapCushionRendererTests {
 
+    @Test func cushionByteConversionClampsOverflowedComponents() {
+        var red: Double = 5
+        var green: Double = 0
+        var blue: Double = 0
+        TreemapColorNormalization.distributeOverflow(red: &red, green: &green, blue: &blue)
+
+        #expect(TreemapColorNormalization.byte(from: red) == 255)
+        #expect(TreemapColorNormalization.byte(from: green) == 255)
+        #expect(TreemapColorNormalization.byte(from: blue) == 255)
+        #expect(TreemapColorNormalization.byte(from: Double.nan) == 0)
+    }
+
     @Test func backgroundRasterizerMatchesTheLegacyCushionPixels() throws {
         let bounds: NSRect = NSRect(x: 0, y: 0, width: 10, height: 10)
         let bitmap: NSBitmapImageRep = try #require(NSBitmapImageRep.treemapImageRepCompatible(

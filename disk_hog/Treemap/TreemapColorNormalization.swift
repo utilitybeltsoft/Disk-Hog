@@ -27,6 +27,11 @@ nonisolated enum TreemapColorNormalization {
         }
     }
 
+    static func byte<Component: BinaryFloatingPoint>(from component: Component) -> UInt8 {
+        guard component.isFinite else { return 0 }
+        return UInt8(max(0, min(1, component)) * 255)
+    }
+
     private static func distribute<Component: BinaryFloatingPoint>(
         first: inout Component,
         second: inout Component,

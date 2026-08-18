@@ -123,9 +123,9 @@ final class TreemapCushionRenderer {
                 var blue: CGFloat = baseBlue * CGFloat(brightness)
                 Self.normalizeColorRed(&red, green: &green, blue: &blue)
                 let pixel: UnsafeMutablePointer<UInt8> = rowStart + (x * 3)
-                pixel[0] = UInt8(red * 255)
-                pixel[1] = UInt8(green * 255)
-                pixel[2] = UInt8(blue * 255)
+                pixel[0] = TreemapColorNormalization.byte(from: red)
+                pixel[1] = TreemapColorNormalization.byte(from: green)
+                pixel[2] = TreemapColorNormalization.byte(from: blue)
             }
         }
     }

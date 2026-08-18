@@ -65,9 +65,9 @@ nonisolated enum TreemapBitmapRasterizer {
                     green: &green,
                     blue: &blue
                 )
-                pixels[offset] = UInt8(red * 255)
-                pixels[offset + 1] = UInt8(green * 255)
-                pixels[offset + 2] = UInt8(blue * 255)
+                pixels[offset] = TreemapColorNormalization.byte(from: red)
+                pixels[offset + 1] = TreemapColorNormalization.byte(from: green)
+                pixels[offset + 2] = TreemapColorNormalization.byte(from: blue)
             }
         }
     }
