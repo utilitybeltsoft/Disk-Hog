@@ -412,6 +412,38 @@ struct CleanupQueueStoreTests {
         #expect(invocationCount.value == 1)
     }
 
+    @Test func batchTrashRequestsOneRefreshForEachAffectedSession() async throws {
+        let invocationCount: LockedCounter = LockedCounter()
+        var refreshCount: Int = 0
+        let store: CleanupQueueStore = CleanupQueueStore(
+            trashItem: { _, _ in invocationCount.increment() },
+            refreshSession: { _ in refreshCount += 1 }
+        )
+        let session: ScanSession = Self.session()
+        #expect(store.enqueue(Self.file(named: "first.txt"), from: session))
+        #expect(store.enqueue(Self.file(named: "second.txt"), from: session))
+
+        store.moveSelectedItemsToFinderTrash()
+        try await Self.waitUntil { store.items.isEmpty && refreshCount == 1 }
+
+        #expect(invocationCount.value == 2)
+        #expect(refreshCount == 1)
+    }
+
+    @Test func queueEntriesDoNotKeepClosedScanSessionsAlive() {
+        let store: CleanupQueueStore = CleanupQueueStore { _, _ in }
+        weak var queuedSession: ScanSession?
+
+        do {
+            let session: ScanSession = Self.session()
+            queuedSession = session
+            #expect(store.enqueue(Self.file(named: "retained.txt"), from: session))
+        }
+
+        #expect(store.items.count == 1)
+        #expect(queuedSession == nil)
+    }
+
     @Test func missingTrashTargetRemainsQueuedWithAMissingStatus() async throws {
         let store: CleanupQueueStore = CleanupQueueStore { _, _ in
             throw CocoaError(.fileNoSuchFile)

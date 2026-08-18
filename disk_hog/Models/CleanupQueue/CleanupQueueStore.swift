@@ -19,7 +19,7 @@ struct CleanupQueueItem: Identifiable {
     let allocatedSize: UInt64
     let logicalSize: UInt64
     let source: ScanSource
-    let session: ScanSession
+    let sessionReference: ScanSessionWeakReference
     var isSelected: Bool
     var status: CleanupQueueItemStatus
 
@@ -33,9 +33,17 @@ final class CleanupQueueStore: ObservableObject {
 
     @Published private(set) var items: [CleanupQueueItem] = []
     private let trashItem: @Sendable (URL, Data?) throws -> Void
+    private let refreshSession: @MainActor (ScanSession) -> Void
 
-    init(trashItem: @escaping @Sendable (URL, Data?) throws -> Void = CleanupQueueStore.moveToFinderTrash) {
+    init(
+        trashItem: @escaping @Sendable (URL, Data?) throws -> Void = CleanupQueueStore.moveToFinderTrash,
+        refreshSession: @escaping @MainActor (ScanSession) -> Void = { session in
+            guard let rootItem: DiskItem = session.rootItem else { return }
+            session.refresh(rootItem)
+        }
+    ) {
         self.trashItem = trashItem
+        self.refreshSession = refreshSession
     }
 
     @discardableResult
@@ -64,7 +72,7 @@ final class CleanupQueueStore: ObservableObject {
                 allocatedSize: item.allocatedSizeValue,
                 logicalSize: item.logicalSizeValue,
                 source: session.source,
-                session: session,
+                sessionReference: ScanSessionWeakReference(session),
                 isSelected: true,
                 status: .ready
             )
@@ -143,7 +151,9 @@ final class CleanupQueueStore: ObservableObject {
         }
 
         let trashItem: @Sendable (URL, Data?) throws -> Void = trashItem
-        Task { [trashItem] in
+        let refreshSession: @MainActor (ScanSession) -> Void = refreshSession
+        Task { [trashItem, refreshSession] in
+            var sessionsToRefresh: [ObjectIdentifier: ScanSession] = [:]
             for item: CleanupQueueItem in selectedItems {
                 let result: Result<Void, Error> = await Task.detached(priority: .userInitiated) {
                     try trashItem(item.itemURL, item.source.bookmarkData)
@@ -152,16 +162,15 @@ final class CleanupQueueStore: ObservableObject {
                 switch result {
                 case .success:
                     remove(ids: [item.id])
-                    item.session.refresh(
-                        DiskItem(
-                            url: item.itemURL.deletingLastPathComponent(),
-                            isDirectory: true,
-                            isRoot: false
-                        )
-                    )
+                    if let session: ScanSession = item.sessionReference.value {
+                        sessionsToRefresh[ObjectIdentifier(session)] = session
+                    }
                 case .failure(let error):
                     updateStatus(Self.status(for: error), for: item.id)
                 }
+            }
+            for session: ScanSession in sessionsToRefresh.values {
+                refreshSession(session)
             }
         }
     }
