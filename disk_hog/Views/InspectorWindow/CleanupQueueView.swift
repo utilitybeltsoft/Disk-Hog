@@ -1,6 +1,5 @@
 import AppKit
 import SwiftUI
-import UniformTypeIdentifiers
 
 struct CleanupQueueView: View {
     @ObservedObject private var store: CleanupQueueStore = .shared
@@ -15,7 +14,7 @@ struct CleanupQueueView: View {
             } else {
                 ScrollView {
                     LazyVStack(spacing: 0) {
-                        ForEach(Array(groupedItems.enumerated()), id: \.element.volumeName) { index, group in
+                        ForEach(Array(groupedItems.enumerated()), id: \.element.id) { index, group in
                             CleanupQueueVolumeSection(
                                 volumeName: group.volumeName,
                                 items: group.items,
@@ -56,40 +55,30 @@ struct CleanupQueueView: View {
                 .padding(14)
             }
         }
-        .onDrop(of: [UTType.fileURL], delegate: CleanupQueueDropDelegate())
     }
 
     private var selectedItems: [CleanupQueueItem] {
         store.items.filter(\.isSelected)
     }
 
-    private var groupedItems: [(volumeName: String, items: [CleanupQueueItem])] {
-        Dictionary(grouping: store.items, by: \.volumeName)
-            .map { (volumeName: $0.key, items: $0.value) }
-            .sorted { $0.volumeName.localizedStandardCompare($1.volumeName) == .orderedAscending }
+    private var groupedItems: [CleanupQueueVolumeGroup] {
+        Dictionary(grouping: store.items, by: \.source)
+            .map { CleanupQueueVolumeGroup(source: $0.key, items: $0.value) }
+            .sorted {
+                let nameOrder: ComparisonResult = $0.volumeName.localizedStandardCompare($1.volumeName)
+                return nameOrder == .orderedSame
+                    ? $0.source.id < $1.source.id
+                    : nameOrder == .orderedAscending
+            }
     }
 }
 
-private struct CleanupQueueDropDelegate: DropDelegate {
-    func validateDrop(info: DropInfo) -> Bool {
-        info.hasItemsConforming(to: [UTType.fileURL])
-    }
+private struct CleanupQueueVolumeGroup: Identifiable {
+    let source: ScanSource
+    let items: [CleanupQueueItem]
 
-    func dropUpdated(info: DropInfo) -> DropProposal? {
-        DropProposal(operation: .copy)
-    }
-
-    func performDrop(info: DropInfo) -> Bool {
-        for provider: NSItemProvider in info.itemProviders(for: [UTType.fileURL]) {
-            _ = provider.loadObject(ofClass: URL.self) { url, _ in
-                guard let url else { return }
-                Task { @MainActor in
-                    CleanupQueueStore.shared.enqueueDroppedItem(at: url)
-                }
-            }
-        }
-        return true
-    }
+    var id: String { source.id }
+    var volumeName: String { source.displayName }
 }
 
 private struct CleanupQueueRow: View {

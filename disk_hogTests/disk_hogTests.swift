@@ -474,6 +474,59 @@ struct CleanupQueueStoreTests {
         #expect(store.items.first?.status == .inaccessible)
     }
 
+    @Test func readOnlyVolumeFailureRemainsQueuedWithACannotMoveToTrashStatus() async throws {
+        let store: CleanupQueueStore = CleanupQueueStore { _, _ in
+            throw CocoaError(.fileWriteVolumeReadOnly)
+        }
+        let session: ScanSession = Self.session()
+        #expect(store.enqueue(Self.file(named: "read-only.txt"), from: session))
+
+        store.moveSelectedItemsToFinderTrash()
+        try await Self.waitUntil { store.items.first?.status == .cannotMoveToTrash }
+
+        #expect(store.items.count == 1)
+        #expect(store.items.first?.status == .cannotMoveToTrash)
+    }
+
+    @Test func removingAnItemBeforeTheTrashTaskRunsPreventsItsExecution() async throws {
+        let invocationCount: LockedCounter = LockedCounter()
+        let store: CleanupQueueStore = CleanupQueueStore { _, _ in
+            invocationCount.increment()
+        }
+        let session: ScanSession = Self.session()
+        #expect(store.enqueue(Self.file(named: "removed-before-processing.txt"), from: session))
+        let id: CleanupQueueItem.ID = try #require(store.items.first?.id)
+
+        store.moveSelectedItemsToFinderTrash()
+        store.remove(ids: [id])
+        try await Task.sleep(nanoseconds: 20_000_000)
+
+        #expect(invocationCount.value == 0)
+        #expect(store.items.isEmpty)
+    }
+
+    @Test func removingALaterItemWhileBatchTrashIsRunningPreventsItsExecution() async throws {
+        let invocationCount: LockedCounter = LockedCounter()
+        let store: CleanupQueueStore = CleanupQueueStore { itemURL, _ in
+            invocationCount.increment()
+            if itemURL.lastPathComponent == "first.txt" {
+                Thread.sleep(forTimeInterval: 0.1)
+            }
+        }
+        let session: ScanSession = Self.session()
+        #expect(store.enqueue(Self.file(named: "first.txt"), from: session))
+        #expect(store.enqueue(Self.file(named: "second.txt"), from: session))
+        let secondID: CleanupQueueItem.ID = try #require(store.items.last?.id)
+
+        store.moveSelectedItemsToFinderTrash()
+        try await Self.waitUntil { invocationCount.value == 1 }
+        store.remove(ids: [secondID])
+        try await Task.sleep(nanoseconds: 150_000_000)
+
+        #expect(invocationCount.value == 1)
+        #expect(store.items.isEmpty)
+    }
+
     @Test func deselectedItemsAreNeverSentToTheTrashExecutor() async throws {
         let invocationCount: LockedCounter = LockedCounter()
         let store: CleanupQueueStore = CleanupQueueStore { _, _ in

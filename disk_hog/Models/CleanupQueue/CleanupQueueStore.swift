@@ -16,8 +16,8 @@ struct CleanupQueueItem: Identifiable {
     let itemURL: URL
     let displayName: String
     let isFolder: Bool
-    let allocatedSize: UInt64
-    let logicalSize: UInt64
+    let allocatedSizeAtEnqueue: UInt64
+    let logicalSizeAtEnqueue: UInt64
     let source: ScanSource
     let sessionReference: ScanSessionWeakReference
     var isSelected: Bool
@@ -25,6 +25,12 @@ struct CleanupQueueItem: Identifiable {
 
     var volumeName: String { source.displayName }
     var parentPath: String { itemURL.deletingLastPathComponent().path }
+    var allocatedSize: UInt64 { currentItem?.allocatedSizeValue ?? allocatedSizeAtEnqueue }
+    var logicalSize: UInt64 { currentItem?.logicalSizeValue ?? logicalSizeAtEnqueue }
+
+    private var currentItem: DiskItem? {
+        sessionReference.value?.rootItem?.item(atPath: itemURL.path)
+    }
 }
 
 @MainActor
@@ -34,6 +40,7 @@ final class CleanupQueueStore: ObservableObject {
     @Published private(set) var items: [CleanupQueueItem] = []
     private let trashItem: @Sendable (URL, Data?) throws -> Void
     private let refreshSession: @MainActor (ScanSession) -> Void
+    private var notificationCancellable: AnyCancellable?
 
     init(
         trashItem: @escaping @Sendable (URL, Data?) throws -> Void = CleanupQueueStore.moveToFinderTrash,
@@ -44,6 +51,16 @@ final class CleanupQueueStore: ObservableObject {
     ) {
         self.trashItem = trashItem
         self.refreshSession = refreshSession
+        notificationCancellable = NotificationCenter.default.publisher(for: .scanSessionTreeDidChange)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] notification in
+                guard let self,
+                      let session: ScanSession = notification.object as? ScanSession,
+                      self.items.contains(where: { $0.sessionReference.value === session }) else {
+                    return
+                }
+                self.objectWillChange.send()
+            }
     }
 
     @discardableResult
@@ -69,8 +86,8 @@ final class CleanupQueueStore: ObservableObject {
                 itemURL: itemURL,
                 displayName: item.displayName,
                 isFolder: item.isFolder,
-                allocatedSize: item.allocatedSizeValue,
-                logicalSize: item.logicalSizeValue,
+                allocatedSizeAtEnqueue: item.allocatedSizeValue,
+                logicalSizeAtEnqueue: item.logicalSizeValue,
                 source: session.source,
                 sessionReference: ScanSessionWeakReference(session),
                 isSelected: true,
@@ -104,13 +121,6 @@ final class CleanupQueueStore: ObservableObject {
 
     func removeAll() {
         items.removeAll()
-    }
-
-    func enqueueDroppedItem(at url: URL) {
-        guard let queuedItem: (item: DiskItem, session: ScanSession) = ScanWindowRegistry.shared.queuedItem(at: url) else {
-            return
-        }
-        _ = enqueue(queuedItem.item, from: queuedItem.session)
     }
 
     func enqueue(_ items: [DiskItem], from session: ScanSession) {
@@ -155,6 +165,21 @@ final class CleanupQueueStore: ObservableObject {
         Task { [trashItem, refreshSession] in
             var sessionsToRefresh: [ObjectIdentifier: ScanSession] = [:]
             for item: CleanupQueueItem in selectedItems {
+                guard isProcessing(item.id) else {
+                    continue
+                }
+
+                let cannotMoveToTrash: Bool = await Task.detached(priority: .userInitiated) {
+                    Self.cannotMoveToFinderTrash(item.itemURL)
+                }.value
+                guard isProcessing(item.id) else {
+                    continue
+                }
+                guard cannotMoveToTrash == false else {
+                    updateStatus(.cannotMoveToTrash, for: item.id)
+                    continue
+                }
+
                 let result: Result<Void, Error> = await Task.detached(priority: .userInitiated) {
                     try trashItem(item.itemURL, item.source.bookmarkData)
                 }.result
@@ -180,6 +205,10 @@ final class CleanupQueueStore: ObservableObject {
             return
         }
         items[index].status = status
+    }
+
+    private func isProcessing(_ id: CleanupQueueItem.ID) -> Bool {
+        items.contains { $0.id == id && $0.status == .processing }
     }
 
     private nonisolated static func moveToFinderTrash(
@@ -212,6 +241,15 @@ final class CleanupQueueStore: ObservableObject {
         try FileManager.default.trashItem(at: itemURL, resultingItemURL: &resultingURL)
     }
 
+    private nonisolated static func cannotMoveToFinderTrash(_ itemURL: URL) -> Bool {
+        guard let values: URLResourceValues = try? itemURL.resourceValues(
+            forKeys: [.volumeIsLocalKey, .volumeIsReadOnlyKey]
+        ) else {
+            return false
+        }
+        return values.volumeIsLocal == false || values.volumeIsReadOnly == true
+    }
+
     private static func status(for error: Error) -> CleanupQueueItemStatus {
         let cocoaError: CocoaError? = error as? CocoaError
         switch cocoaError?.code {
@@ -219,6 +257,8 @@ final class CleanupQueueStore: ObservableObject {
             return .missing
         case .fileReadNoPermission, .fileWriteNoPermission:
             return .inaccessible
+        case .fileWriteVolumeReadOnly:
+            return .cannotMoveToTrash
         default:
             return .failed(error.localizedDescription)
         }

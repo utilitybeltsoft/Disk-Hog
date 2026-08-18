@@ -13,7 +13,11 @@ final class ScanSession: ObservableObject {
     @Published private(set) var scannedFolderCount: Int
     @Published private(set) var scannedByteCount: UInt64
     @Published private(set) var currentPath: String
-    @Published private(set) var rootItem: DiskItem?
+    @Published private(set) var rootItem: DiskItem? {
+        didSet {
+            NotificationCenter.default.post(name: .scanSessionTreeDidChange, object: self)
+        }
+    }
     @Published private(set) var presentationMetrics: TreemapPresentationMetrics?
     @Published private(set) var preferredSelection: DiskItem?
     @Published private(set) var showsFreeSpace: Bool
