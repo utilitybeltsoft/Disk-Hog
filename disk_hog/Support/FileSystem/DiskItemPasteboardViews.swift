@@ -37,9 +37,19 @@ extension DiskItemPasteboardProviding where Self: NSResponder {
 
 final class DiskItemPasteboardOutlineView: NSOutlineView, DiskItemPasteboardProviding {
     var pasteboardItemProvider: (() -> DiskItem?)?
+    var openSelectedFolder: (() -> Void)?
 
     @objc func copy(_ sender: Any?) {
         copySelectedItem()
+    }
+
+    override func keyDown(with event: NSEvent) {
+        switch event.keyCode {
+        case 36, 76: // Return, keypad Enter
+            openSelectedFolder?()
+        default:
+            super.keyDown(with: event)
+        }
     }
 
     override func validRequestor(

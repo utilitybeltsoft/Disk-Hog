@@ -405,7 +405,6 @@ final class ScanSession: ObservableObject {
             } catch {
                 await MainActor.run { [weak self] in
                     self?.diagnosticsExportState = .failed(String(describing: error))
-                    NSSound.beep()
                 }
             }
         }

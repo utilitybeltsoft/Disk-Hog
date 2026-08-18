@@ -50,6 +50,9 @@ struct DiskItemOutlineView: NSViewRepresentable {
         outlineView.target = context.coordinator
         outlineView.doubleAction = #selector(Coordinator.doubleClick(_:))
         outlineView.menu = context.coordinator.contextMenu
+        outlineView.openSelectedFolder = { [weak contextCoordinator = context.coordinator] in
+            contextCoordinator?.openSelectedFolder()
+        }
         outlineView.pasteboardItemProvider = { [weak contextCoordinator = context.coordinator] in
             contextCoordinator?.selectedItemForPasteboard()
         }
@@ -280,6 +283,17 @@ struct DiskItemOutlineView: NSViewRepresentable {
             } else {
                 outlineView.expandItem(item)
             }
+        }
+
+        func openSelectedFolder() {
+            guard let outlineView,
+                  outlineView.selectedRow >= 0,
+                  let item: DiskItem = outlineView.item(atRow: outlineView.selectedRow) as? DiskItem,
+                  item.isFolder,
+                  item.childCount > 0 else {
+                return
+            }
+            outlineView.expandItem(item)
         }
 
         private func expandAncestors(of item: DiskItem) {
