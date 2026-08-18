@@ -63,15 +63,15 @@ struct TreemapPanelView: View {
 
     private var navigationBar: some View {
         HStack(spacing: 4) {
-            Button { navigation.zoomOut() } label: {
-                Label("Back ⇧↩", systemImage: "chevron.left")
-            }
-            .disabled(navigation.canZoomOut == false)
-
             Button { navigation.zoom(into: selectionCoordinator.selectedItem) } label: {
                 Label("Zoom In ↩", systemImage: "arrow.down.right.and.arrow.up.left")
             }
             .disabled(navigation.canZoom(into: selectionCoordinator.selectedItem) == false)
+
+            Button { navigation.zoomOut() } label: {
+                Label("Back ⇧↩", systemImage: "chevron.left")
+            }
+            .disabled(navigation.canZoomOut == false)
 
             ScrollViewReader { breadcrumbProxy in
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -94,8 +94,11 @@ struct TreemapPanelView: View {
                         breadcrumbProxy.scrollTo(lastItem.id, anchor: .trailing)
                     }
                 }
+                .frame(minWidth: 0, maxWidth: .infinity)
+                .layoutPriority(1)
             }
-            Spacer(minLength: 0)
+            .frame(minWidth: 0, maxWidth: .infinity)
+            .layoutPriority(1)
         }
         .font(.system(size: ScanWindowMetrics.statusFieldFontSize))
         .padding(.horizontal, ScanWindowMetrics.mainSplitHorizontalPadding)

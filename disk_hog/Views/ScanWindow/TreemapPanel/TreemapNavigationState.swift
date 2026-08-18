@@ -79,13 +79,15 @@ final class TreemapNavigationState: ObservableObject {
     private func zoomTarget(for item: DiskItem?) -> DiskItem? {
         guard let item, item.isSpecialItem == false, let baseRoot else { return nil }
         let path: [DiskItem] = baseRoot.descendantsMatchingAncestorPath(of: item)
-        guard path.isEmpty == false,
-              item.isFolder,
-              item.isPackage == false,
-              item.childCount > 0,
-              item != zoomRoot else {
+        guard path.isEmpty == false else { return nil }
+        let target: DiskItem
+        if item.isFolder, item.isPackage == false, item.childCount > 0 {
+            target = item
+        } else if let parent: DiskItem = path.dropLast().last {
+            target = parent
+        } else {
             return nil
         }
-        return item
+        return target == zoomRoot ? nil : target
     }
 }

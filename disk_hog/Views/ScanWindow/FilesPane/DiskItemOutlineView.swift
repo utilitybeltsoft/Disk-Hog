@@ -8,7 +8,8 @@ struct DiskItemOutlineView: NSViewRepresentable {
     let usePhysicalSize: Bool
     let selectionCoordinator: ScanWindowSelectionCoordinator
     let activePane: Binding<ScanWindowPane?>
-    let onOpenFolder: (DiskItem) -> Void
+    let onActivateItem: (DiskItem) -> Void
+    let onZoomOut: () -> Void
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
@@ -16,7 +17,8 @@ struct DiskItemOutlineView: NSViewRepresentable {
             usePhysicalSize: usePhysicalSize,
             selectionCoordinator: selectionCoordinator,
             activePane: activePane,
-            onOpenFolder: onOpenFolder
+            onActivateItem: onActivateItem,
+            onZoomOut: onZoomOut
         )
     }
 
@@ -52,8 +54,11 @@ struct DiskItemOutlineView: NSViewRepresentable {
         outlineView.target = context.coordinator
         outlineView.doubleAction = #selector(Coordinator.doubleClick(_:))
         outlineView.menu = context.coordinator.contextMenu
-        outlineView.openSelectedFolder = { [weak contextCoordinator = context.coordinator] in
-            contextCoordinator?.openSelectedFolder()
+        outlineView.activateSelectedItem = { [weak contextCoordinator = context.coordinator] in
+            contextCoordinator?.activateSelectedItem()
+        }
+        outlineView.zoomOut = { [weak contextCoordinator = context.coordinator] in
+            contextCoordinator?.onZoomOut()
         }
         outlineView.pasteboardItemProvider = { [weak contextCoordinator = context.coordinator] in
             contextCoordinator?.selectedItemForPasteboard()
@@ -77,7 +82,8 @@ struct DiskItemOutlineView: NSViewRepresentable {
         context.coordinator.session = session
         context.coordinator.selectionCoordinator = selectionCoordinator
         context.coordinator.activePane = activePane
-        context.coordinator.onOpenFolder = onOpenFolder
+        context.coordinator.onActivateItem = onActivateItem
+        context.coordinator.onZoomOut = onZoomOut
         context.coordinator.updateSizeMode(usePhysicalSize)
         context.coordinator.reloadIfNeeded(rootItem: rootItem)
         context.coordinator.syncSelectionIfNeeded(selectionCoordinator.selectedItem)
@@ -92,7 +98,8 @@ struct DiskItemOutlineView: NSViewRepresentable {
         private var usePhysicalSize: Bool
         var selectionCoordinator: ScanWindowSelectionCoordinator
         var activePane: Binding<ScanWindowPane?>
-        var onOpenFolder: (DiskItem) -> Void
+        var onActivateItem: (DiskItem) -> Void
+        var onZoomOut: () -> Void
         weak var outlineView: NSOutlineView?
         let contextMenu: NSMenu = NSMenu()
         private let contextMenuActionTarget: DiskItemContextMenuActionTarget
@@ -109,14 +116,16 @@ struct DiskItemOutlineView: NSViewRepresentable {
             usePhysicalSize: Bool,
             selectionCoordinator: ScanWindowSelectionCoordinator,
             activePane: Binding<ScanWindowPane?>,
-            onOpenFolder: @escaping (DiskItem) -> Void
+            onActivateItem: @escaping (DiskItem) -> Void,
+            onZoomOut: @escaping () -> Void
         ) {
             self.session = session
             self.contextMenuActionTarget = DiskItemContextMenuActionTarget(session: session)
             self.usePhysicalSize = usePhysicalSize
             self.selectionCoordinator = selectionCoordinator
             self.activePane = activePane
-            self.onOpenFolder = onOpenFolder
+            self.onActivateItem = onActivateItem
+            self.onZoomOut = onZoomOut
             super.init()
             contextMenu.delegate = self
         }
@@ -282,22 +291,23 @@ struct DiskItemOutlineView: NSViewRepresentable {
                   let item: DiskItem = outlineView.item(atRow: outlineView.clickedRow) as? DiskItem else {
                 return
             }
-            openFolder(item)
+            activate(item)
         }
 
-        func openSelectedFolder() {
+        func activateSelectedItem() {
             guard let outlineView,
                   outlineView.selectedRow >= 0,
                   let item: DiskItem = outlineView.item(atRow: outlineView.selectedRow) as? DiskItem else {
                 return
             }
-            openFolder(item)
+            activate(item)
         }
 
-        private func openFolder(_ item: DiskItem) {
-            guard item.isFolder, item.childCount > 0 else { return }
-            outlineView?.expandItem(item)
-            onOpenFolder(item)
+        private func activate(_ item: DiskItem) {
+            if item.isFolder, item.childCount > 0 {
+                outlineView?.expandItem(item)
+            }
+            onActivateItem(item)
         }
 
         private func expandAncestors(of item: DiskItem) {

@@ -13,7 +13,8 @@ struct FilesPaneView: View {
             usePhysicalSize: session.scanSettings.usePhysicalSize,
             selectionCoordinator: selectionCoordinator,
             activePane: activePane,
-            onOpenFolder: { item in navigation.zoom(into: item) }
+            onActivateItem: { item in navigation.zoom(into: item) },
+            onZoomOut: { navigation.zoomOut() }
         )
         .background(Color(nsColor: .controlBackgroundColor))
         .overlay {
