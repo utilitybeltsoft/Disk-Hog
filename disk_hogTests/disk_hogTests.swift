@@ -4101,15 +4101,12 @@ struct TreemapRasterGeometryTests {
 @MainActor
 struct TreemapCushionRendererTests {
 
-    @Test func cushionByteConversionClampsOverflowedComponents() {
-        var red: Double = 5
-        var green: Double = 0
-        var blue: Double = 0
-        TreemapColorNormalization.distributeOverflow(red: &red, green: &green, blue: &blue)
-
-        #expect(TreemapColorNormalization.byte(from: red) == 255)
-        #expect(TreemapColorNormalization.byte(from: green) == 255)
-        #expect(TreemapColorNormalization.byte(from: blue) == 255)
+    @Test func cushionByteConversionClampsOutOfRangeComponents() {
+        // Overflow redistribution has an internal normalized-input invariant.
+        // Byte conversion is the independent final safety boundary and must be
+        // safe even if an upstream caller violates that invariant.
+        #expect(TreemapColorNormalization.byte(from: 5.0) == 255)
+        #expect(TreemapColorNormalization.byte(from: -1.0) == 0)
         #expect(TreemapColorNormalization.byte(from: Double.nan) == 0)
     }
 
