@@ -10,6 +10,7 @@ nonisolated final class TreemapViewRendererWeakReference: @unchecked Sendable {
 
 @MainActor
 final class TreemapViewRenderer {
+    private static let directSiblingNavigationLimit: Int = 256
     private var rootItemRenderer: TreemapItemRenderer?
     private weak var dataSource: TreemapDiskItemDataSource?
     private var selectedRenderer: TreemapItemRenderer?
@@ -19,6 +20,7 @@ final class TreemapViewRenderer {
     private var cachedScale: CGFloat?
     private var cachedColorSpace: NSColorSpace?
     private var pendingBitmapRequestID: UUID?
+    private var directionalNavigationIndex: TreemapDirectionalNavigationIndex?
     var onCachedBitmapReady: (() -> Void)?
     private let rootItem: DiskItem
 
@@ -63,6 +65,7 @@ final class TreemapViewRenderer {
         deallocContentCache()
         selectedRenderer = nil
         touchedRenderer = nil
+        directionalNavigationIndex = nil
         guard let dataSource: TreemapDiskItemDataSource = dataSource else {
             return
         }
@@ -130,20 +133,20 @@ final class TreemapViewRenderer {
         guard let selectedRenderer else { return nil }
         let parent: TreemapItemRenderer = selectedRenderer.parent ?? rootItemRenderer ?? selectedRenderer
         guard parent !== selectedRenderer else { return nil }
-        if parent.isLeaf == false {
-            parent.layoutUnroundedChilds()
-        }
         let selectedRect: NSRect = selectedRenderer.navigationRect
         guard selectedRect.isEmpty == false else { return nil }
-        var allRenderedLeaves: [TreemapItemRenderer] = []
-        rootItemRenderer?.appendNavigableRenderers(to: &allRenderedLeaves)
-        let candidate: TreemapItemRenderer? = nearestNeighbor(
-            among: parent.isLeaf ? [] : parent.childEnumerator,
-            from: selectedRenderer,
-            selectedRect: selectedRect,
-            direction: direction
-        ) ?? nearestNeighbor(
-            among: allRenderedLeaves,
+        let siblingCandidate: TreemapItemRenderer?
+        if parent.isLeaf == false && parent.childCount <= Self.directSiblingNavigationLimit {
+            siblingCandidate = nearestNeighbor(
+                among: parent.childEnumerator,
+                from: selectedRenderer,
+                selectedRect: selectedRect,
+                direction: direction
+            )
+        } else {
+            siblingCandidate = nil
+        }
+        let candidate: TreemapItemRenderer? = siblingCandidate ?? directionalNavigationIndex?.nearestNeighbor(
             from: selectedRenderer,
             selectedRect: selectedRect,
             direction: direction
@@ -165,6 +168,11 @@ final class TreemapViewRenderer {
 
     func calcLayout(_ bounds: NSRect) {
         rootItemRenderer?.calcLayout(bounds)
+        if let rootItemRenderer {
+            directionalNavigationIndex = TreemapDirectionalNavigationIndex(rootRenderer: rootItemRenderer)
+        } else {
+            directionalNavigationIndex = nil
+        }
         deallocContentCache()
     }
 

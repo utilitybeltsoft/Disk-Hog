@@ -141,7 +141,7 @@ final class ScanWindowCommandContext: ObservableObject {
         if let session: ScanSession,
            let rootItem: DiskItem = session.rootItem,
            let item: DiskItem {
-            canSelectParentFolder = rootItem.descendantsMatchingAncestorPath(of: item).count > 1
+            canSelectParentFolder = item != rootItem
         } else {
             canSelectParentFolder = false
         }

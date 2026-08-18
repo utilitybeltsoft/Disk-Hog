@@ -40,6 +40,12 @@ final class TreemapNavigationState: ObservableObject {
 
     func revealSelection(_ item: DiskItem?) {
         guard let item, let baseRoot else { return }
+        // Treemap arrow navigation always produces an item below the current
+        // zoom root.  Avoid re-walking the complete packed tree just to prove
+        // that an in-scope selection needs no zoom adjustment.
+        if let zoomRoot, contains(item.path, within: zoomRoot.path) {
+            return
+        }
         let selectionPath: [DiskItem] = baseRoot.descendantsMatchingAncestorPath(of: item)
         guard selectionPath.isEmpty == false else { return }
         let sharedPathLength: Int = zip(zoomPath, selectionPath)
@@ -68,5 +74,10 @@ final class TreemapNavigationState: ObservableObject {
             return nil
         }
         return target == zoomRoot ? nil : target
+    }
+
+    private func contains(_ itemPath: String, within rootPath: String) -> Bool {
+        itemPath == rootPath
+            || itemPath.hasPrefix(rootPath.hasSuffix("/") ? rootPath : rootPath + "/")
     }
 }

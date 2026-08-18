@@ -4053,6 +4053,37 @@ struct TreemapViewStateTests {
         #expect(restoredItem === originalItem)
         #expect(state.selectedItem === originalItem)
     }
+
+    @Test func largeSiblingGroupUsesIndexedDirectionalNavigation() {
+        let rootBuilder: DiskItemBuilder = DiskItemBuilder(
+            url: URL(fileURLWithPath: "/scan"),
+            isDirectory: true
+        )
+        for index: Int in 0..<300 {
+            rootBuilder.appendChild(DiskItemBuilder(
+                url: URL(fileURLWithPath: "/scan/file-\(index)"),
+                allocatedSizeValue: 1,
+                logicalSizeValue: 1
+            ), updateSize: false)
+        }
+        rootBuilder.recalculateSize(usePhysicalSize: true)
+        let root: DiskItem = rootBuilder.freeze()
+        let state: TreemapViewState = TreemapViewState()
+
+        _ = state.configure(
+            source: ScanSource(path: "/scan", displayName: "scan"),
+            rootItem: root,
+            presentationMetrics: nil,
+            showsFreeSpace: false,
+            showsOtherSpace: false,
+            freeSpaceItem: nil,
+            otherSpaceItem: nil,
+            selectedItem: root.children[0]
+        )
+        state.prepareLayout(in: NSRect(x: 0, y: 0, width: 600, height: 400))
+
+        #expect(state.selectNeighbor(in: .right) != nil)
+    }
 }
 
 struct TreemapRasterGeometryTests {
