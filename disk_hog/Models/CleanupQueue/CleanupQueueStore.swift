@@ -16,8 +16,11 @@ struct CleanupQueueItem: Identifiable {
     let itemURL: URL
     let displayName: String
     let isFolder: Bool
-    let allocatedSizeAtEnqueue: UInt64
-    let logicalSizeAtEnqueue: UInt64
+    /// Values cached from the most recently published scan tree.  Keeping
+    /// scalars here avoids retaining a tree node while making list rendering
+    /// independent of repeated path walks.
+    var allocatedSize: UInt64
+    var logicalSize: UInt64
     let source: ScanSource
     let sessionReference: ScanSessionWeakReference
     var isSelected: Bool
@@ -25,12 +28,6 @@ struct CleanupQueueItem: Identifiable {
 
     var volumeName: String { source.displayName }
     var parentPath: String { itemURL.deletingLastPathComponent().path }
-    var allocatedSize: UInt64 { currentItem?.allocatedSizeValue ?? allocatedSizeAtEnqueue }
-    var logicalSize: UInt64 { currentItem?.logicalSizeValue ?? logicalSizeAtEnqueue }
-
-    private var currentItem: DiskItem? {
-        sessionReference.value?.rootItem?.item(atPath: itemURL.path)
-    }
 }
 
 @MainActor
@@ -55,11 +52,10 @@ final class CleanupQueueStore: ObservableObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] notification in
                 guard let self,
-                      let session: ScanSession = notification.object as? ScanSession,
-                      self.items.contains(where: { $0.sessionReference.value === session }) else {
+                      let session: ScanSession = notification.object as? ScanSession else {
                     return
                 }
-                self.objectWillChange.send()
+                self.refreshCachedSizes(for: session)
             }
     }
 
@@ -86,8 +82,8 @@ final class CleanupQueueStore: ObservableObject {
                 itemURL: itemURL,
                 displayName: item.displayName,
                 isFolder: item.isFolder,
-                allocatedSizeAtEnqueue: item.allocatedSizeValue,
-                logicalSizeAtEnqueue: item.logicalSizeValue,
+                allocatedSize: item.allocatedSizeValue,
+                logicalSize: item.logicalSizeValue,
                 source: session.source,
                 sessionReference: ScanSessionWeakReference(session),
                 isSelected: true,
@@ -98,7 +94,11 @@ final class CleanupQueueStore: ObservableObject {
     }
 
     func contains(_ item: DiskItem) -> Bool {
-        let itemURL: URL = item.url.standardizedFileURL
+        contains(at: item.url)
+    }
+
+    func contains(at itemURL: URL) -> Bool {
+        let itemURL: URL = itemURL.standardizedFileURL
         return items.contains { queuedItem in
             queuedItem.itemURL == itemURL
                 || (queuedItem.isFolder && DiskItemDeletionPolicy.contains(itemURL, in: queuedItem.itemURL))
@@ -106,12 +106,20 @@ final class CleanupQueueStore: ObservableObject {
     }
 
     func isDirectlyQueued(_ item: DiskItem) -> Bool {
-        let itemURL: URL = item.url.standardizedFileURL
+        isDirectlyQueued(at: item.url)
+    }
+
+    func isDirectlyQueued(at itemURL: URL) -> Bool {
+        let itemURL: URL = itemURL.standardizedFileURL
         return items.contains { $0.itemURL == itemURL }
     }
 
     func remove(_ item: DiskItem) {
-        let itemURL: URL = item.url.standardizedFileURL
+        remove(at: item.url)
+    }
+
+    func remove(at itemURL: URL) {
+        let itemURL: URL = itemURL.standardizedFileURL
         items.removeAll { $0.itemURL == itemURL }
     }
 
@@ -206,6 +214,33 @@ final class CleanupQueueStore: ObservableObject {
             return
         }
         items[index].status = status
+    }
+
+    private func refreshCachedSizes(for session: ScanSession) {
+        guard let rootItem: DiskItem = session.rootItem else {
+            return
+        }
+
+        var updatedItems: [CleanupQueueItem] = items
+        var didChange: Bool = false
+        for index: Int in updatedItems.indices where updatedItems[index].sessionReference.value === session {
+            guard let currentItem: DiskItem = rootItem.item(atPath: updatedItems[index].itemURL.path) else {
+                continue
+            }
+            let allocatedSize: UInt64 = currentItem.allocatedSizeValue
+            let logicalSize: UInt64 = currentItem.logicalSizeValue
+            guard updatedItems[index].allocatedSize != allocatedSize
+                    || updatedItems[index].logicalSize != logicalSize else {
+                continue
+            }
+            updatedItems[index].allocatedSize = allocatedSize
+            updatedItems[index].logicalSize = logicalSize
+            didChange = true
+        }
+
+        if didChange {
+            items = updatedItems
+        }
     }
 
     private func isProcessing(_ id: CleanupQueueItem.ID) -> Bool {
