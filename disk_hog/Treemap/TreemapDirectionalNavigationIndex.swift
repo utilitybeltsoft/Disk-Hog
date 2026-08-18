@@ -11,13 +11,8 @@ final class TreemapDirectionalNavigationIndex {
     private let gridSide: Int
     private let renderersByCell: [Int: [TreemapItemRenderer]]
 
-    init?(rootRenderer: TreemapItemRenderer) {
-        let bounds: NSRect = rootRenderer.navigationRect
-        guard bounds.isEmpty == false else { return nil }
-
-        var renderers: [TreemapItemRenderer] = []
-        rootRenderer.appendNavigableRenderers(to: &renderers)
-        guard renderers.isEmpty == false else { return nil }
+    init?(renderers: [TreemapItemRenderer], bounds: NSRect) {
+        guard bounds.isEmpty == false, renderers.isEmpty == false else { return nil }
 
         self.bounds = bounds
         gridSide = min(256, max(16, Int(Double(renderers.count).squareRoot().rounded(.up))))

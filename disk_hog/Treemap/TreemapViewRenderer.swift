@@ -168,11 +168,7 @@ final class TreemapViewRenderer {
 
     func calcLayout(_ bounds: NSRect) {
         rootItemRenderer?.calcLayout(bounds)
-        if let rootItemRenderer {
-            directionalNavigationIndex = TreemapDirectionalNavigationIndex(rootRenderer: rootItemRenderer)
-        } else {
-            directionalNavigationIndex = nil
-        }
+        directionalNavigationIndex = nil
         deallocContentCache()
     }
 
@@ -218,7 +214,14 @@ final class TreemapViewRenderer {
         }
         let pixelsWide: Int = max(Int((size.width * scale).rounded(.up)), 1)
         let pixelsHigh: Int = max(Int((size.height * scale).rounded(.up)), 1)
-        let snapshots: [TreemapCushionSnapshot] = rootItemRenderer.cushionSnapshots()
+        var navigationRenderers: [TreemapItemRenderer] = []
+        let snapshots: [TreemapCushionSnapshot] = rootItemRenderer.cushionSnapshots(
+            navigationRenderers: &navigationRenderers
+        )
+        directionalNavigationIndex = TreemapDirectionalNavigationIndex(
+            renderers: navigationRenderers,
+            bounds: rootItemRenderer.navigationRect
+        )
         let requestID: UUID = UUID()
         let rendererReference: TreemapViewRendererWeakReference = TreemapViewRendererWeakReference(self)
         pendingBitmapRequestID = requestID

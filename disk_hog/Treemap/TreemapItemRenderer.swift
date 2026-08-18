@@ -68,9 +68,16 @@ final class TreemapItemRenderer {
         )
     }
 
-    func cushionSnapshots() -> [TreemapCushionSnapshot] {
+    func cushionSnapshots(
+        navigationRenderers: inout [TreemapItemRenderer]
+    ) -> [TreemapCushionSnapshot] {
         var snapshots: [TreemapCushionSnapshot] = []
-        appendCushionSnapshots(parentSurface: nil, heightFactor: 0.5, to: &snapshots)
+        appendCushionSnapshots(
+            parentSurface: nil,
+            heightFactor: 0.5,
+            to: &snapshots,
+            navigationRenderers: &navigationRenderers
+        )
         return snapshots
     }
 
@@ -239,9 +246,15 @@ final class TreemapItemRenderer {
     private func appendCushionSnapshots(
         parentSurface: [CGFloat]?,
         heightFactor: CGFloat,
-        to snapshots: inout [TreemapCushionSnapshot]
+        to snapshots: inout [TreemapCushionSnapshot],
+        navigationRenderers: inout [TreemapItemRenderer]
     ) {
-        guard rectValue.height >= 1, rectValue.width >= 1 else { return }
+        guard rectValue.height >= 1, rectValue.width >= 1 else {
+            if navigationRect.isEmpty == false {
+                navigationRenderers.append(self)
+            }
+            return
+        }
         var surface: [CGFloat] = parentSurface ?? cushionRenderer.surfaceValues()
         if parentSurface != nil {
             let h4: CGFloat = 4 * heightFactor
@@ -251,6 +264,7 @@ final class TreemapItemRenderer {
             surface[1] -= h4 / rectValue.height
         }
         if isLeaf {
+            navigationRenderers.append(self)
             cushionRenderer.setSurface(surface)
             dataSource?.prepareRenderer(self, for: renderedItem)
             let color: NSColor = cushionRenderer.color
@@ -265,7 +279,8 @@ final class TreemapItemRenderer {
                 child.appendCushionSnapshots(
                     parentSurface: surface,
                     heightFactor: heightFactor * Self.cushionScaleFactor,
-                    to: &snapshots
+                    to: &snapshots,
+                    navigationRenderers: &navigationRenderers
                 )
             }
         }
