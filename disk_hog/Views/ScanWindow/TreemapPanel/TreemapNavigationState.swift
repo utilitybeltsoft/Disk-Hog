@@ -4,8 +4,6 @@ import Combine
 final class TreemapNavigationState: ObservableObject {
     @Published private(set) var baseRoot: DiskItem?
     @Published private(set) var zoomPath: [DiskItem] = []
-    @Published private(set) var previewRoot: DiskItem?
-    @Published private(set) var isPreviewActive: Bool = false
     private var selectionAfterZoom: DiskItem?
 
     var zoomRoot: DiskItem? { zoomPath.last ?? baseRoot }
@@ -15,8 +13,6 @@ final class TreemapNavigationState: ObservableObject {
         guard self.baseRoot !== baseRoot else { return }
         self.baseRoot = baseRoot
         zoomPath = baseRoot.map { [$0] } ?? []
-        previewRoot = nil
-        isPreviewActive = false
         selectionAfterZoom = nil
     }
 
@@ -27,45 +23,19 @@ final class TreemapNavigationState: ObservableObject {
     func zoom(into item: DiskItem?) {
         guard let target: DiskItem = zoomTarget(for: item), let baseRoot else { return }
         zoomPath = baseRoot.descendantsMatchingAncestorPath(of: target)
-        previewRoot = nil
-        isPreviewActive = false
         selectionAfterZoom = target
     }
 
     func zoomOut() {
         guard canZoomOut else { return }
         zoomPath.removeLast()
-        previewRoot = nil
-        isPreviewActive = false
         selectionAfterZoom = zoomPath.last
     }
 
     func zoom(toPathIndex index: Int) {
         guard zoomPath.indices.contains(index) else { return }
         zoomPath = Array(zoomPath.prefix(through: index))
-        previewRoot = nil
-        isPreviewActive = false
         selectionAfterZoom = zoomPath.last
-    }
-
-    func updatePreviewRoot(from item: DiskItem?) {
-        guard isPreviewActive == false else { return }
-        previewRoot = zoomTarget(for: item)
-    }
-
-    func beginPreview() {
-        guard previewRoot != nil else { return }
-        isPreviewActive = true
-    }
-
-    func endPreview() {
-        isPreviewActive = false
-    }
-
-    func commitPreviewZoom(into item: DiskItem) {
-        guard isPreviewActive else { return }
-        zoom(into: item)
-        endPreview()
     }
 
     func revealSelection(_ item: DiskItem?) {
@@ -77,8 +47,6 @@ final class TreemapNavigationState: ObservableObject {
             .count
         guard sharedPathLength < zoomPath.count else { return }
         zoomPath = Array(selectionPath.prefix(max(sharedPathLength, 1)))
-        previewRoot = nil
-        isPreviewActive = false
         selectionAfterZoom = nil
     }
 

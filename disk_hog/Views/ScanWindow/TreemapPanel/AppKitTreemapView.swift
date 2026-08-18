@@ -16,8 +16,6 @@ struct AppKitTreemapView: NSViewRepresentable {
     let activePane: Binding<ScanWindowPane?>
     let onZoomIn: (DiskItem) -> Void
     let onZoomOut: () -> Void
-    let isInteractionEnabled: Bool
-    let onPreviewSpaceChanged: (Bool) -> Void
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
@@ -38,8 +36,6 @@ struct AppKitTreemapView: NSViewRepresentable {
         }
         view.onZoomIn = onZoomIn
         view.onZoomOut = onZoomOut
-        view.isInteractionEnabled = isInteractionEnabled
-        view.onPreviewSpaceChanged = onPreviewSpaceChanged
         context.coordinator.view = view
         context.coordinator.observeSelection()
         view.configure(
@@ -62,8 +58,6 @@ struct AppKitTreemapView: NSViewRepresentable {
         context.coordinator.activePane = activePane
         nsView.onZoomIn = onZoomIn
         nsView.onZoomOut = onZoomOut
-        nsView.isInteractionEnabled = isInteractionEnabled
-        nsView.onPreviewSpaceChanged = onPreviewSpaceChanged
         nsView.configure(
             session: session,
             source: source,

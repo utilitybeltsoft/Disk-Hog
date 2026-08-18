@@ -101,10 +101,10 @@ struct KeyboardRoutingTests {
         #expect(zoomOutCount == 2)
     }
 
-    @Test func treemapSpacePreviewIgnoresKeyRepeatsAndAlwaysReleases() throws {
+    @Test func treemapSpaceDoesNotBlockSubsequentZoomKeyboardCommands() throws {
         let treemap: ZStyleTreemapNSView = ZStyleTreemapNSView()
-        var previewEvents: [Bool] = []
-        treemap.onPreviewSpaceChanged = { previewEvents.append($0) }
+        var zoomOutCount: Int = 0
+        treemap.onZoomOut = { zoomOutCount += 1 }
 
         treemap.keyDown(with: try #require(NSEvent.keyEvent(
             with: .keyDown,
@@ -130,20 +130,20 @@ struct KeyboardRoutingTests {
             isARepeat: true,
             keyCode: 49
         )))
-        treemap.keyUp(with: try #require(NSEvent.keyEvent(
-            with: .keyUp,
+        treemap.keyDown(with: try #require(NSEvent.keyEvent(
+            with: .keyDown,
             location: .zero,
-            modifierFlags: [],
+            modifierFlags: .shift,
             timestamp: 0,
             windowNumber: 0,
             context: nil,
-            characters: " ",
-            charactersIgnoringModifiers: " ",
+            characters: "\r",
+            charactersIgnoringModifiers: "\r",
             isARepeat: false,
-            keyCode: 49
+            keyCode: 36
         )))
 
-        #expect(previewEvents == [true, false])
+        #expect(zoomOutCount == 1)
     }
 }
 

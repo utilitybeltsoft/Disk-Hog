@@ -34,11 +34,7 @@ struct TreemapPanelView: View {
                 hoveredItem: hoveredItem,
                 activePane: activePane,
                 onZoomIn: { item in navigation.zoom(into: item) },
-                onZoomOut: { navigation.zoomOut() },
-                isInteractionEnabled: navigation.isPreviewActive == false,
-                onPreviewSpaceChanged: { isHeld in
-                    isHeld ? navigation.beginPreview() : navigation.endPreview()
-                }
+                onZoomOut: { navigation.zoomOut() }
             )
             .overlay {
                 PaneBorderView(isActive: activePane.wrappedValue == .treemap)

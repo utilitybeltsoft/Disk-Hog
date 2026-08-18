@@ -5,8 +5,6 @@ final class ZStyleTreemapNSView: NSView {
     var onHoverItem: ((DiskItem?) -> Void)?
     var onZoomIn: ((DiskItem) -> Void)?
     var onZoomOut: (() -> Void)?
-    var onPreviewSpaceChanged: ((Bool) -> Void)?
-    var isInteractionEnabled: Bool = true
 
     private weak var session: ScanSession?
     private let contextMenuActionTarget: DiskItemContextMenuActionTarget = DiskItemContextMenuActionTarget()
@@ -115,18 +113,15 @@ final class ZStyleTreemapNSView: NSView {
     }
 
     override func mouseMoved(with event: NSEvent) {
-        guard isInteractionEnabled else { return }
         let hitResult: TreemapHitResult? = hitResult(for: event)
         onHoverItem?(hitResult?.item)
     }
 
     override func mouseExited(with event: NSEvent) {
-        guard isInteractionEnabled else { return }
         onHoverItem?(nil)
     }
 
     override func mouseDown(with event: NSEvent) {
-        guard isInteractionEnabled else { return }
         window?.makeFirstResponder(self)
         let point: NSPoint = convert(event.locationInWindow, from: nil)
         guard let hitResult: TreemapHitResult = state.hitResult(at: point) else {
@@ -139,14 +134,9 @@ final class ZStyleTreemapNSView: NSView {
     }
 
     override func keyDown(with event: NSEvent) {
-        if event.keyCode == 49, event.isARepeat == false {
-            onPreviewSpaceChanged?(true)
-            return
-        }
-        guard isInteractionEnabled else {
-            return
-        }
         switch event.keyCode {
+        case 49: // Space
+            return
         case 123: // Left Arrow
             selectNeighbor(in: .left)
             return
@@ -176,20 +166,7 @@ final class ZStyleTreemapNSView: NSView {
         }
     }
 
-    override func keyUp(with event: NSEvent) {
-        if event.keyCode == 49 {
-            onPreviewSpaceChanged?(false)
-            return
-        }
-    }
-
-    override func resignFirstResponder() -> Bool {
-        onPreviewSpaceChanged?(false)
-        return super.resignFirstResponder()
-    }
-
     override func menu(for event: NSEvent) -> NSMenu? {
-        guard isInteractionEnabled else { return nil }
         let hitResult: TreemapHitResult? = hitResult(for: event)
         if let hitResult: TreemapHitResult = hitResult {
             select(hitResult)
