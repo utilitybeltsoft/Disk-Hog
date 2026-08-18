@@ -64,12 +64,22 @@ struct TreemapPanelView: View {
     private var navigationBar: some View {
         HStack(spacing: 4) {
             Button { navigation.zoom(into: selectionCoordinator.selectedItem) } label: {
-                Label("Zoom In ↩", systemImage: "arrow.down.right.and.arrow.up.left")
+                HStack(spacing: 3) {
+                    Image(systemName: "arrow.down.right.and.arrow.up.left")
+                    Text("Zoom In")
+                    Text("↩")
+                }
+                .fixedSize()
             }
             .disabled(navigation.canZoom(into: selectionCoordinator.selectedItem) == false)
 
             Button { navigation.zoomOut() } label: {
-                Label("Back ⇧↩", systemImage: "chevron.left")
+                HStack(spacing: 3) {
+                    Image(systemName: "chevron.left")
+                    Text("Back")
+                    Text("⇧↩")
+                }
+                .fixedSize()
             }
             .disabled(navigation.canZoomOut == false)
 
