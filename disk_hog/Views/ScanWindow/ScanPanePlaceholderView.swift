@@ -10,8 +10,7 @@ struct ScanPanePlaceholderView: View {
         VStack(spacing: ScanWindowMetrics.placeholderSpacing) {
             if showsProgress {
                 if let progress {
-                    ProgressView(value: progress, total: 1)
-                        .frame(width: 120)
+                    ScanPreparationProgressBar(progress: progress)
                 } else {
                     ProgressView()
                         .controlSize(.small)
@@ -29,5 +28,26 @@ struct ScanPanePlaceholderView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(nsColor: .controlBackgroundColor))
         .allowsHitTesting(false)
+    }
+}
+
+private struct ScanPreparationProgressBar: View {
+    let progress: Double
+
+    var body: some View {
+        GeometryReader { geometry in
+            let fillWidth: CGFloat = geometry.size.width * CGFloat(min(max(progress, 0), 1))
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(Color(nsColor: .separatorColor).opacity(0.28))
+                Capsule()
+                    .fill(Color.accentColor)
+                    .frame(width: fillWidth)
+            }
+        }
+        .frame(width: 120, height: 6)
+        .transaction { transaction in
+            transaction.animation = nil
+        }
     }
 }
