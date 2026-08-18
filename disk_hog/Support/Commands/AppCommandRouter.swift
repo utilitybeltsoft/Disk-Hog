@@ -5,6 +5,7 @@ import Foundation
 final class AppCommandRouter: ObservableObject {
     static let shared: AppCommandRouter = AppCommandRouter()
 
+    @Published var canScanSelectedVolume: Bool = false
     private weak var selectionListSession: ScanSession?
     private var selectionListItems: [DiskItem] = []
     @Published private(set) var isSelectionListBatchQueueActive: Bool = false

@@ -85,7 +85,6 @@ final class DiskHogApplicationDelegate: NSObject, NSApplicationDelegate {
 }
 
 private struct DiskHogCommands: Commands {
-    @ObservedObject private var commandState: SourceWindowCommandState = .shared
     @ObservedObject private var scanWindowCommandState: ScanWindowCommandState = .shared
     @ObservedObject private var appCommandRouter: AppCommandRouter = .shared
     @ObservedObject private var cleanupQueueStore: CleanupQueueStore = .shared
@@ -105,7 +104,7 @@ private struct DiskHogCommands: Commands {
                 NotificationCenter.default.post(name: .sourceWindowScanSelectedVolume, object: nil)
             }
             .keyboardShortcut(.defaultAction)
-            .disabled(commandState.canScanSelectedVolume == false)
+            .disabled(appCommandRouter.canScanSelectedVolume == false)
         }
 
         CommandGroup(after: .newItem) {

@@ -1817,13 +1817,13 @@ struct SourceWindowViewModelTests {
                 includesDiskImages: true
             )
         )
-        SourceWindowCommandState.shared.canScanSelectedVolume = true
+        AppCommandRouter.shared.canScanSelectedVolume = true
 
         viewModel.select(source.id)
 
         #expect(viewModel.selectedSource == source)
         #expect(source.canScan == false)
-        #expect(SourceWindowCommandState.shared.canScanSelectedVolume == false)
+        #expect(AppCommandRouter.shared.canScanSelectedVolume == false)
     }
 
     @Test func deactivatingUnchangedCommandStateDoesNotPublish() {
@@ -1856,13 +1856,13 @@ struct SourceWindowViewModelTests {
         let viewModel: SourceWindowViewModel = SourceWindowViewModel(
             sources: [internalSource, externalSource]
         )
-        SourceWindowCommandState.shared.canScanSelectedVolume = false
+        AppCommandRouter.shared.canScanSelectedVolume = false
         var viewModelChangeCount: Int = 0
         var commandStateChangeCount: Int = 0
         let viewModelCancellable: AnyCancellable = viewModel.objectWillChange.sink {
             viewModelChangeCount += 1
         }
-        let commandStateCancellable: AnyCancellable = SourceWindowCommandState.shared.objectWillChange.sink {
+        let commandStateCancellable: AnyCancellable = AppCommandRouter.shared.objectWillChange.sink {
             commandStateChangeCount += 1
         }
 
