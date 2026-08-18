@@ -78,6 +78,75 @@ struct TreemapNavigationStateTests {
         #expect(navigation.zoomPath.map(\.path) == ["/scan", "/scan/folder"])
         #expect(navigation.canZoomOut)
     }
+
+    @Test func directFileAtTheCurrentRootDoesNotOfferADeadEndZoom() {
+        let file: DiskItem = DiskItem(url: URL(fileURLWithPath: "/scan/file"))
+        let root: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan"),
+            isDirectory: true,
+            children: [file]
+        )
+        let navigation: TreemapNavigationState = TreemapNavigationState()
+        navigation.configure(baseRoot: root)
+
+        #expect(navigation.canZoom(into: root.children[0]) == false)
+        navigation.zoom(into: root.children[0])
+        #expect(navigation.zoomRoot?.path == "/scan")
+        #expect(navigation.canZoomOut == false)
+    }
+
+    @Test func externalSelectionLeavesTheCurrentZoomAtItsSharedAncestor() {
+        let nestedFile: DiskItem = DiskItem(url: URL(fileURLWithPath: "/scan/folder/nested/file"))
+        let nestedFolder: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/folder/nested"),
+            isDirectory: true,
+            children: [nestedFile]
+        )
+        let folder: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/folder"),
+            isDirectory: true,
+            children: [nestedFolder]
+        )
+        let sibling: DiskItem = DiskItem(url: URL(fileURLWithPath: "/scan/sibling"))
+        let root: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan"),
+            isDirectory: true,
+            children: [folder, sibling]
+        )
+        let navigation: TreemapNavigationState = TreemapNavigationState()
+        navigation.configure(baseRoot: root)
+        navigation.zoom(into: root.children[0])
+        navigation.zoom(into: root.children[0].children[0])
+
+        navigation.revealSelection(root.children[1])
+
+        #expect(navigation.zoomRoot?.path == "/scan")
+        #expect(navigation.zoomPath.map(\.path) == ["/scan"])
+        #expect(navigation.consumeSelectionAfterZoom() == nil)
+    }
+
+    @Test func zoomOutPublishesItsNewRootOnlyOnceForListSynchronization() {
+        let file: DiskItem = DiskItem(url: URL(fileURLWithPath: "/scan/folder/file"))
+        let folder: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/folder"),
+            isDirectory: true,
+            children: [file]
+        )
+        let root: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan"),
+            isDirectory: true,
+            children: [folder]
+        )
+        let navigation: TreemapNavigationState = TreemapNavigationState()
+        navigation.configure(baseRoot: root)
+        navigation.zoom(into: root.children[0])
+        _ = navigation.consumeSelectionAfterZoom()
+
+        navigation.zoomOut()
+
+        #expect(navigation.consumeSelectionAfterZoom()?.path == "/scan")
+        #expect(navigation.consumeSelectionAfterZoom() == nil)
+    }
 }
 
 struct ScanSessionFailureTests {
@@ -3470,6 +3539,49 @@ struct TreemapViewRendererTests {
         )
 
         #expect(visibleRect == NSRect(x: 476, y: 129, width: 5, height: 13))
+    }
+}
+
+struct TreemapRasterGeometryTests {
+
+    @Test func subpixelSelectionGetsAPixelAlignedVisibleMarker() {
+        let bounds: NSRect = NSRect(x: 0, y: 0, width: 536, height: 368)
+        let pixelRect: NSRect = TreemapRasterGeometry.pixelAlignedRect(
+            for: NSRect(x: 532.182, y: 367.842, width: 0.764, height: 0.158),
+            scale: 1
+        )
+        let marker: NSRect = TreemapRasterGeometry.visibleMarkerRect(
+            for: pixelRect,
+            in: bounds,
+            scale: 1
+        )
+
+        #expect(pixelRect == NSRect(x: 532, y: 367, width: 1, height: 1))
+        #expect(marker == NSRect(x: 531, y: 365, width: 3, height: 3))
+        #expect(bounds.contains(marker))
+    }
+
+    @Test func visibleMarkerClampsAtTheTreemapEdge() {
+        let bounds: NSRect = NSRect(x: 0, y: 0, width: 10, height: 10)
+        let marker: NSRect = TreemapRasterGeometry.visibleMarkerRect(
+            for: NSRect(x: 9, y: 9, width: 1, height: 1),
+            in: bounds,
+            scale: 2
+        )
+
+        #expect(marker == NSRect(x: 8.5, y: 8.5, width: 1.5, height: 1.5))
+        #expect(bounds.contains(marker))
+    }
+
+    @Test func discoveryRectangleRemainsInsideSmallTreemapBounds() {
+        let bounds: NSRect = NSRect(x: 0, y: 0, width: 100, height: 70)
+        let discoveryRect: NSRect = TreemapRasterGeometry.discoveryRect(
+            around: NSRect(x: 95, y: 65, width: 1, height: 1),
+            in: bounds
+        )
+
+        #expect(discoveryRect == NSRect(x: 30, y: 0, width: 70, height: 70))
+        #expect(bounds.contains(discoveryRect))
     }
 }
 
