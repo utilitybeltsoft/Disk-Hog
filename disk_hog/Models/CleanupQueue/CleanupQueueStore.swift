@@ -32,8 +32,11 @@ final class CleanupQueueStore: ObservableObject {
     static let shared: CleanupQueueStore = CleanupQueueStore()
 
     @Published private(set) var items: [CleanupQueueItem] = []
+    private let trashItem: @Sendable (URL, Data?) throws -> Void
 
-    private init() {}
+    init(trashItem: @escaping @Sendable (URL, Data?) throws -> Void = CleanupQueueStore.moveToFinderTrash) {
+        self.trashItem = trashItem
+    }
 
     @discardableResult
     func enqueue(_ item: DiskItem, from session: ScanSession) -> Bool {
@@ -139,13 +142,11 @@ final class CleanupQueueStore: ObservableObject {
             updateStatus(.processing, for: item.id)
         }
 
-        Task {
+        let trashItem: @Sendable (URL, Data?) throws -> Void = trashItem
+        Task { [trashItem] in
             for item: CleanupQueueItem in selectedItems {
                 let result: Result<Void, Error> = await Task.detached(priority: .userInitiated) {
-                    try CleanupQueueStore.moveToFinderTrash(
-                        itemURL: item.itemURL,
-                        sourceBookmarkData: item.source.bookmarkData
-                    )
+                    try trashItem(item.itemURL, item.source.bookmarkData)
                 }.result
 
                 switch result {

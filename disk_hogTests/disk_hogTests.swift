@@ -330,6 +330,162 @@ struct ScanSessionFailureTests {
     }
 }
 
+@MainActor
+struct CleanupQueueStoreTests {
+    @Test func rejectsRootItemsAndDuplicateEntries() {
+        let store: CleanupQueueStore = CleanupQueueStore { _, _ in }
+        let session: ScanSession = Self.session()
+        let root: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/tmp/cleanup-fixture"),
+            isDirectory: true
+        )
+        let file: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/tmp/cleanup-fixture/file.txt"),
+            allocatedSizeValue: 42,
+            logicalSizeValue: 42,
+            isRoot: false
+        )
+
+        #expect(store.enqueue(root, from: session) == false)
+        #expect(store.enqueue(file, from: session))
+        #expect(store.enqueue(file, from: session) == false)
+        #expect(store.items.map(\.itemURL) == [file.url.standardizedFileURL])
+    }
+
+    @Test func enqueuingAFolderRemovesItsPreviouslyQueuedDescendants() {
+        let store: CleanupQueueStore = CleanupQueueStore { _, _ in }
+        let session: ScanSession = Self.session()
+        let child: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/tmp/cleanup-fixture/folder/child.txt"),
+            allocatedSizeValue: 20,
+            logicalSizeValue: 20,
+            isRoot: false
+        )
+        let folder: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/tmp/cleanup-fixture/folder"),
+            isDirectory: true,
+            children: [child],
+            isRoot: false
+        )
+
+        #expect(store.enqueue(child, from: session))
+        #expect(store.enqueue(folder, from: session))
+
+        #expect(store.items.count == 1)
+        #expect(store.items.first?.itemURL == folder.url.standardizedFileURL)
+    }
+
+    @Test func batchQueueingKeepsOnlyTheHighestSelectedAncestor() {
+        let store: CleanupQueueStore = CleanupQueueStore { _, _ in }
+        let session: ScanSession = Self.session()
+        let child: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/tmp/cleanup-fixture/folder/child.txt"),
+            allocatedSizeValue: 20,
+            logicalSizeValue: 20,
+            isRoot: false
+        )
+        let folder: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/tmp/cleanup-fixture/folder"),
+            isDirectory: true,
+            children: [child],
+            isRoot: false
+        )
+
+        store.enqueue([child, folder], from: session)
+
+        #expect(store.items.count == 1)
+        #expect(store.items.first?.itemURL == folder.url.standardizedFileURL)
+    }
+
+    @Test func successfulTrashExecutionUsesTheInjectedExecutorAndRemovesTheQueueItem() async throws {
+        let invocationCount: LockedCounter = LockedCounter()
+        let store: CleanupQueueStore = CleanupQueueStore { _, _ in
+            invocationCount.increment()
+        }
+        let session: ScanSession = Self.session()
+        let file: DiskItem = Self.file(named: "successful.txt")
+        #expect(store.enqueue(file, from: session))
+
+        store.moveSelectedItemsToFinderTrash()
+        try await Self.waitUntil { store.items.isEmpty }
+
+        #expect(invocationCount.value == 1)
+    }
+
+    @Test func missingTrashTargetRemainsQueuedWithAMissingStatus() async throws {
+        let store: CleanupQueueStore = CleanupQueueStore { _, _ in
+            throw CocoaError(.fileNoSuchFile)
+        }
+        let session: ScanSession = Self.session()
+        let file: DiskItem = Self.file(named: "missing.txt")
+        #expect(store.enqueue(file, from: session))
+
+        store.moveSelectedItemsToFinderTrash()
+        try await Self.waitUntil { store.items.first?.status == .missing }
+
+        #expect(store.items.count == 1)
+        #expect(store.items.first?.status == .missing)
+    }
+
+    @Test func permissionFailureRemainsQueuedWithAnInaccessibleStatus() async throws {
+        let store: CleanupQueueStore = CleanupQueueStore { _, _ in
+            throw CocoaError(.fileWriteNoPermission)
+        }
+        let session: ScanSession = Self.session()
+        let file: DiskItem = Self.file(named: "protected.txt")
+        #expect(store.enqueue(file, from: session))
+
+        store.moveSelectedItemsToFinderTrash()
+        try await Self.waitUntil { store.items.first?.status == .inaccessible }
+
+        #expect(store.items.count == 1)
+        #expect(store.items.first?.status == .inaccessible)
+    }
+
+    @Test func deselectedItemsAreNeverSentToTheTrashExecutor() async throws {
+        let invocationCount: LockedCounter = LockedCounter()
+        let store: CleanupQueueStore = CleanupQueueStore { _, _ in
+            invocationCount.increment()
+        }
+        let session: ScanSession = Self.session()
+        let file: DiskItem = Self.file(named: "deselected.txt")
+        #expect(store.enqueue(file, from: session))
+        let id: CleanupQueueItem.ID = try #require(store.items.first?.id)
+        store.setSelected(false, for: id)
+
+        store.moveSelectedItemsToFinderTrash()
+        try await Task.sleep(nanoseconds: 20_000_000)
+
+        #expect(invocationCount.value == 0)
+        #expect(store.items.first?.status == .ready)
+    }
+
+    private static func session() -> ScanSession {
+        ScanSession(source: ScanSource(path: "/tmp/cleanup-fixture", displayName: "Cleanup Fixture"))
+    }
+
+    private static func file(named name: String) -> DiskItem {
+        DiskItem(
+            url: URL(fileURLWithPath: "/tmp/cleanup-fixture/\(name)"),
+            allocatedSizeValue: 42,
+            logicalSizeValue: 42,
+            isRoot: false
+        )
+    }
+
+    private static func waitUntil(
+        timeoutNanoseconds: UInt64 = 1_000_000_000,
+        condition: @escaping @MainActor () -> Bool
+    ) async throws {
+        let attempts: Int = Int(timeoutNanoseconds / 10_000_000)
+        for _ in 0..<attempts {
+            if condition() { return }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        #expect(condition())
+    }
+}
+
 struct ScanSourceBookmarkTests {
     @Test func refreshesBookmarkDataWhenResolutionIsStale() throws {
         let originalBookmark: Data = Data([1])
