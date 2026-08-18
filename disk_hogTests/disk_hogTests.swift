@@ -4011,6 +4011,41 @@ struct TreemapRasterGeometryTests {
 @MainActor
 struct TreemapCushionRendererTests {
 
+    @Test func backgroundRasterizerMatchesTheLegacyCushionPixels() throws {
+        let bounds: NSRect = NSRect(x: 0, y: 0, width: 10, height: 10)
+        let bitmap: NSBitmapImageRep = try #require(NSBitmapImageRep.treemapImageRepCompatible(
+            withBounds: bounds,
+            backingScaleFactor: 1,
+            colorSpace: .genericRGB
+        ))
+        let renderer: TreemapCushionRenderer = TreemapCushionRenderer(rect: bounds)
+        renderer.setColor(NSColor(calibratedRed: 1, green: 0.8, blue: 0.2, alpha: 1))
+        renderer.setSurface([0, 0, 0, 0])
+        renderer.renderCushion(in: bitmap)
+        let legacyPixels: Data = Data(
+            bytes: try #require(bitmap.bitmapData),
+            count: bitmap.bytesPerRow * bitmap.pixelsHigh
+        )
+
+        let backgroundPixels: Data = TreemapBitmapRasterizer.render(
+            snapshots: [TreemapCushionSnapshot(
+                x: 0,
+                y: 0,
+                width: 10,
+                height: 10,
+                surface: [0, 0, 0, 0],
+                red: 1,
+                green: 0.8,
+                blue: 0.2
+            )],
+            pixelsWide: 10,
+            pixelsHigh: 10,
+            scale: 1
+        )
+
+        #expect(backgroundPixels == legacyPixels)
+    }
+
     @Test func fillsTheFullPixelAreaOfARetinaBitmap() throws {
         let bitmap: NSBitmapImageRep = try #require(NSBitmapImageRep.treemapImageRepCompatible(
             withBounds: NSRect(x: 0, y: 0, width: 100, height: 100),

@@ -57,9 +57,17 @@ nonisolated enum TreemapBitmapRasterizer {
                 let cosine: Double = (normalX * lightX + normalY * lightY + lightZ) / sqrt(normalX * normalX + normalY * normalY + 1)
                 let brightness: Double = max(ambient, (1 - ambient) * cosine + ambient) * (2.5 / 1.8)
                 let offset: Int = (y * pixelsWide + x) * 3
-                pixels[offset] = UInt8(max(0, min(255, Int(snapshot.red * brightness * 255))))
-                pixels[offset + 1] = UInt8(max(0, min(255, Int(snapshot.green * brightness * 255))))
-                pixels[offset + 2] = UInt8(max(0, min(255, Int(snapshot.blue * brightness * 255))))
+                var red: Double = snapshot.red * brightness
+                var green: Double = snapshot.green * brightness
+                var blue: Double = snapshot.blue * brightness
+                TreemapColorNormalization.distributeOverflow(
+                    red: &red,
+                    green: &green,
+                    blue: &blue
+                )
+                pixels[offset] = UInt8(red * 255)
+                pixels[offset + 1] = UInt8(green * 255)
+                pixels[offset + 2] = UInt8(blue * 255)
             }
         }
     }
