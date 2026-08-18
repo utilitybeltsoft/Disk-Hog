@@ -285,7 +285,12 @@
       }
     },
     "%lld items" : {
-
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "%1$lld Objekte" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "%1$lld elementos" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "%1$lld éléments" } },
+        "it" : { "stringUnit" : { "state" : "translated", "value" : "%1$lld elementi" } }
+      }
     },
     "%lld percent used" : {
       "localizations" : {
@@ -432,7 +437,12 @@
       }
     },
     "Add %lld Items to Cleanup Queue" : {
-
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "%1$lld Objekte zur Bereinigungswarteschlange hinzufügen" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Añadir %1$lld elementos a la cola de limpieza" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Ajouter %1$lld éléments à la file de nettoyage" } },
+        "it" : { "stringUnit" : { "state" : "translated", "value" : "Aggiungi %1$lld elementi alla coda di pulizia" } }
+      }
     },
     "Add files or folders from a scan window to review them before moving them to Finder Trash." : {
       "localizations" : {
@@ -1848,6 +1858,18 @@
             "state" : "new",
             "value" : "Couldn't %1$@ \"%2$@\"."
           }
+        },
+        "de" : {
+          "stringUnit" : { "state" : "translated", "value" : "\u201e%2$@\u201c konnte nicht %1$@ werden." }
+        },
+        "es" : {
+          "stringUnit" : { "state" : "translated", "value" : "No se pudo %1$@ \"%2$@\"." }
+        },
+        "fr" : {
+          "stringUnit" : { "state" : "translated", "value" : "Impossible de %1$@ \u00ab\u00a0%2$@\u00a0\u00bb." }
+        },
+        "it" : {
+          "stringUnit" : { "state" : "translated", "value" : "Impossibile %1$@ \"%2$@\"." }
         }
       }
     },
@@ -2132,7 +2154,12 @@
       }
     },
     "Disk Hog does not have permission to %@ this item." : {
-
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Disk Hog hat nicht die Berechtigung, dieses Element zu %1$@." } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Disk Hog no tiene permiso para %1$@ este elemento." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Disk Hog n\u2019est pas autorisé à %1$@ cet élément." } },
+        "it" : { "stringUnit" : { "state" : "translated", "value" : "Disk Hog non dispone dell\u2019autorizzazione per %1$@ questo elemento." } }
+      }
     },
     "Disk image" : {
       "localizations" : {
@@ -7573,7 +7600,12 @@
       }
     },
     "This volume is read-only, so Disk Hog cannot %@ this item." : {
-
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Dieses Volume ist schreibgeschützt, daher kann Disk Hog dieses Element nicht %1$@." } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Este volumen es de solo lectura, por lo que Disk Hog no puede %1$@ este elemento." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Ce volume est en lecture seule, donc Disk Hog ne peut pas %1$@ cet élément." } },
+        "it" : { "stringUnit" : { "state" : "translated", "value" : "Questo volume è di sola lettura, quindi Disk Hog non può %1$@ questo elemento." } }
+      }
     },
     "Total allocated" : {
       "localizations" : {

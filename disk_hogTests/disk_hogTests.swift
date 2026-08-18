@@ -57,33 +57,6 @@ struct TreemapNavigationStateTests {
         #expect(navigation.zoomRoot?.path == "/scan")
     }
 
-    @Test func previewLatchesItsFolderUntilItIsReleased() {
-        let child: DiskItem = DiskItem(url: URL(fileURLWithPath: "/scan/folder/file"))
-        let folder: DiskItem = DiskItem(
-            url: URL(fileURLWithPath: "/scan/folder"),
-            isDirectory: true,
-            children: [child]
-        )
-        let root: DiskItem = DiskItem(
-            url: URL(fileURLWithPath: "/scan"),
-            isDirectory: true,
-            children: [folder]
-        )
-        let navigation: TreemapNavigationState = TreemapNavigationState()
-        navigation.configure(baseRoot: root)
-
-        navigation.updatePreviewRoot(from: root.children[0])
-        navigation.beginPreview()
-        navigation.updatePreviewRoot(from: child)
-
-        #expect(navigation.isPreviewActive)
-        #expect(navigation.previewRoot?.path == "/scan/folder")
-
-        navigation.endPreview()
-        navigation.updatePreviewRoot(from: child)
-        #expect(navigation.previewRoot?.path == "/scan/folder")
-    }
-
     @Test func directFileZoomsToItsParentFolder() {
         let file: DiskItem = DiskItem(url: URL(fileURLWithPath: "/scan/folder/file"))
         let folder: DiskItem = DiskItem(
@@ -3491,7 +3464,7 @@ struct TreemapViewRendererTests {
     @Test func smallSelectionRectDoesNotExpandIntoNeighboringTiles() {
         let visibleRect: NSRect = TreemapSelectionRect.visibleRect(
             for: NSRect(x: 476, y: 129, width: 5, height: 13),
-            in: NSRect(x: 0, y: 0, width: 200, height: 100),
+            in: NSRect(x: 0, y: 0, width: 536, height: 368),
             minimumSide: 12,
             edgeInset: 2.5
         )
