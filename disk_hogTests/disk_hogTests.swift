@@ -3659,6 +3659,118 @@ struct TreemapViewRendererTests {
     }
 }
 
+@MainActor
+struct TreemapViewStateTests {
+
+    @Test func externalFileListSelectionResolvesToTheRenderedTreemapItem() throws {
+        let file: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/folder/file.txt"),
+            allocatedSizeValue: 100,
+            logicalSizeValue: 100
+        )
+        let folder: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/folder"),
+            isDirectory: true,
+            children: [file]
+        )
+        let root: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan"),
+            isDirectory: true,
+            children: [folder]
+        )
+        let selectedFile: DiskItem = root.children[0].children[0]
+        let state: TreemapViewState = TreemapViewState()
+
+        _ = state.configure(
+            source: ScanSource(path: "/scan", displayName: "scan"),
+            rootItem: root,
+            presentationMetrics: nil,
+            showsFreeSpace: false,
+            showsOtherSpace: false,
+            freeSpaceItem: nil,
+            otherSpaceItem: nil,
+            selectedItem: selectedFile
+        )
+        state.prepareLayout(in: NSRect(x: 0, y: 0, width: 536, height: 368))
+
+        let renderer: TreemapViewRenderer = try #require(state.renderer)
+        #expect(renderer.selectedItem?.path == "/scan/folder/file.txt")
+        #expect(renderer.itemRect(by: renderer.selectedCellID).isEmpty == false)
+    }
+
+    @Test func selectionOutsideTheZoomedTreemapClearsTheRenderedSelection() throws {
+        let visibleFile: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/folder/visible.txt"),
+            allocatedSizeValue: 100,
+            logicalSizeValue: 100
+        )
+        let zoomRoot: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/folder"),
+            isDirectory: true,
+            children: [visibleFile]
+        )
+        let outsideSelection: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/elsewhere.txt"),
+            allocatedSizeValue: 100,
+            logicalSizeValue: 100
+        )
+        let state: TreemapViewState = TreemapViewState()
+
+        _ = state.configure(
+            source: ScanSource(path: "/scan", displayName: "scan"),
+            rootItem: zoomRoot,
+            presentationMetrics: nil,
+            showsFreeSpace: false,
+            showsOtherSpace: false,
+            freeSpaceItem: nil,
+            otherSpaceItem: nil,
+            selectedItem: outsideSelection
+        )
+        state.prepareLayout(in: NSRect(x: 0, y: 0, width: 536, height: 368))
+
+        let renderer: TreemapViewRenderer = try #require(state.renderer)
+        #expect(renderer.selectedItem == nil)
+        #expect(renderer.selectedCellID == nil)
+    }
+
+    @Test func immediateOppositeArrowMoveRestoresTheOriginalSelection() {
+        let rootBuilder: DiskItemBuilder = DiskItemBuilder(
+            url: URL(fileURLWithPath: "/scan"),
+            isDirectory: true
+        )
+        for (name, size) in [("large.bin", 600), ("medium.bin", 300), ("small.bin", 100)] {
+            rootBuilder.appendChild(DiskItemBuilder(
+                url: URL(fileURLWithPath: "/scan/\(name)"),
+                allocatedSizeValue: UInt64(size),
+                logicalSizeValue: UInt64(size)
+            ), updateSize: false)
+        }
+        rootBuilder.recalculateSize(usePhysicalSize: true)
+        let root: DiskItem = rootBuilder.freeze()
+        let originalItem: DiskItem = root.children[0]
+        let state: TreemapViewState = TreemapViewState()
+
+        _ = state.configure(
+            source: ScanSource(path: "/scan", displayName: "scan"),
+            rootItem: root,
+            presentationMetrics: nil,
+            showsFreeSpace: false,
+            showsOtherSpace: false,
+            freeSpaceItem: nil,
+            otherSpaceItem: nil,
+            selectedItem: originalItem
+        )
+        state.prepareLayout(in: NSRect(x: 0, y: 0, width: 100, height: 100))
+
+        let movedItem: DiskItem? = state.selectNeighbor(in: .right)
+        let restoredItem: DiskItem? = state.selectNeighbor(in: .left)
+
+        #expect(movedItem != nil)
+        #expect(restoredItem === originalItem)
+        #expect(state.selectedItem === originalItem)
+    }
+}
+
 struct TreemapRasterGeometryTests {
 
     @Test func subpixelSelectionGetsAPixelAlignedVisibleMarker() {
