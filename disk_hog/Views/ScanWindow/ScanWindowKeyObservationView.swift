@@ -1,8 +1,9 @@
 @preconcurrency import AppKit
 import SwiftUI
 
+@MainActor
 struct ScanWindowKeyObservationView: NSViewRepresentable {
-    let onDidBecomeKey: @Sendable @MainActor () -> Void
+    let onDidBecomeKey: () -> Void
 
     func makeNSView(context: Context) -> ScanWindowKeyObservationNSView {
         ScanWindowKeyObservationNSView(onDidBecomeKey: onDidBecomeKey)
@@ -15,12 +16,12 @@ struct ScanWindowKeyObservationView: NSViewRepresentable {
 
 @MainActor
 final class ScanWindowKeyObservationNSView: NSView {
-    var onDidBecomeKey: @Sendable @MainActor () -> Void
+    var onDidBecomeKey: () -> Void
     private weak var observedWindow: NSWindow?
     private var didBecomeKeyObserver: NSObjectProtocol?
     private var pendingDidBecomeKey: DispatchWorkItem?
 
-    init(onDidBecomeKey: @escaping @Sendable @MainActor () -> Void) {
+    init(onDidBecomeKey: @escaping () -> Void) {
         self.onDidBecomeKey = onDidBecomeKey
         super.init(frame: .zero)
     }
