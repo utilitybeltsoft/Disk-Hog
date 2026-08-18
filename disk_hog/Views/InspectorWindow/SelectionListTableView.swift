@@ -109,7 +109,7 @@ struct SelectionListTableView: NSViewRepresentable {
             contextCoordinator?.activateBatchQueueCommand()
         }
         tableView.onResignFirstResponder = {
-            SelectionListBatchQueueCommandState.shared.deactivate()
+            AppCommandRouter.shared.deactivateSelectionListBatchQueue()
         }
         tableView.setDraggingSourceOperationMask([], forLocal: true)
         tableView.setDraggingSourceOperationMask(.copy, forLocal: false)
@@ -317,7 +317,7 @@ struct SelectionListTableView: NSViewRepresentable {
                 rows.indices.contains(row) ? rows[row] : nil
             }
             selectedItemIDs.wrappedValue = Set(selectedRows.map(\.id))
-            SelectionListBatchQueueCommandState.shared.activate(
+            AppCommandRouter.shared.activateSelectionListBatchQueue(
                 session: session,
                 items: selectedRows.map(\.item)
             )
@@ -392,7 +392,7 @@ struct SelectionListTableView: NSViewRepresentable {
             let selectedRows: [SelectionListRow] = tableView?.selectedRowIndexes.compactMap { row in
                 rows.indices.contains(row) ? rows[row] : nil
             } ?? []
-            SelectionListBatchQueueCommandState.shared.activate(
+            AppCommandRouter.shared.activateSelectionListBatchQueue(
                 session: session,
                 items: selectedRows.map(\.item)
             )
@@ -461,12 +461,12 @@ extension SelectionListTableView.Coordinator: NSMenuDelegate {
         activateBatchQueueCommand()
         menu.removeAllItems()
         let item: NSMenuItem = NSMenuItem(
-            title: SelectionListBatchQueueCommandState.shared.title,
+            title: AppCommandRouter.shared.selectionListBatchQueueTitle,
             action: #selector(SelectionListBatchQueueActionTarget.toggle(_:)),
             keyEquivalent: ""
         )
         item.target = batchQueueActionTarget
-        item.isEnabled = SelectionListBatchQueueCommandState.shared.canToggle
+        item.isEnabled = AppCommandRouter.shared.canToggleSelectionListBatchQueue
         menu.addItem(item)
     }
 }
@@ -474,7 +474,7 @@ extension SelectionListTableView.Coordinator: NSMenuDelegate {
 @MainActor
 private final class SelectionListBatchQueueActionTarget: NSObject {
     @objc func toggle(_ sender: NSMenuItem) {
-        SelectionListBatchQueueCommandState.shared.toggle()
+        AppCommandRouter.shared.toggleSelectionListBatchQueue()
     }
 }
 

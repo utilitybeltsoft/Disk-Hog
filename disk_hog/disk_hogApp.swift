@@ -87,7 +87,7 @@ final class DiskHogApplicationDelegate: NSObject, NSApplicationDelegate {
 private struct DiskHogCommands: Commands {
     @ObservedObject private var commandState: SourceWindowCommandState = .shared
     @ObservedObject private var scanWindowCommandState: ScanWindowCommandState = .shared
-    @ObservedObject private var selectionListBatchQueueCommandState: SelectionListBatchQueueCommandState = .shared
+    @ObservedObject private var appCommandRouter: AppCommandRouter = .shared
     @ObservedObject private var cleanupQueueStore: CleanupQueueStore = .shared
     @ObservedObject private var inspectorWindowController: InspectorWindowController = .shared
     @ObservedObject private var scanPreferences: ScanPreferences = .shared
@@ -120,20 +120,20 @@ private struct DiskHogCommands: Commands {
             .disabled(scanWindowCommandState.canRevealSelectedItem == false)
 
             Button(
-                selectionListBatchQueueCommandState.isActive
-                    ? selectionListBatchQueueCommandState.title
+                appCommandRouter.isSelectionListBatchQueueActive
+                    ? appCommandRouter.selectionListBatchQueueTitle
                     : scanWindowCommandState.selectedItemCleanupQueueCommandTitle
             ) {
-                if selectionListBatchQueueCommandState.isActive {
-                    selectionListBatchQueueCommandState.toggle()
+                if appCommandRouter.isSelectionListBatchQueueActive {
+                    appCommandRouter.toggleSelectionListBatchQueue()
                 } else {
                     ScanWindowCommandState.shared.toggleSelectedItemInCleanupQueue()
                 }
             }
             .keyboardShortcut("t", modifiers: .command)
             .disabled(
-                selectionListBatchQueueCommandState.isActive
-                    ? selectionListBatchQueueCommandState.canToggle == false
+                appCommandRouter.isSelectionListBatchQueueActive
+                    ? appCommandRouter.canToggleSelectionListBatchQueue == false
                     : scanWindowCommandState.canToggleSelectedItemInCleanupQueue == false
             )
         }

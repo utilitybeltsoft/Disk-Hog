@@ -606,6 +606,26 @@ struct ScanSourceBookmarkTests {
 }
 
 @MainActor
+struct AppCommandRouterTests {
+    @Test func selectionListBatchQueueContextActivatesAndDeactivates() {
+        let router: AppCommandRouter = AppCommandRouter()
+        let session: ScanSession = ScanSession(source: ScanSource(path: "/scan", displayName: "scan"))
+        let item: DiskItem = DiskItem(url: URL(fileURLWithPath: "/scan/file.txt"))
+
+        router.activateSelectionListBatchQueue(session: session, items: [item])
+
+        #expect(router.isSelectionListBatchQueueActive)
+        #expect(router.canToggleSelectionListBatchQueue)
+        #expect(router.selectionListBatchQueueTitle == "Add to Cleanup Queue")
+
+        router.deactivateSelectionListBatchQueue()
+
+        #expect(router.isSelectionListBatchQueueActive == false)
+        #expect(router.canToggleSelectionListBatchQueue == false)
+    }
+}
+
+@MainActor
 struct ScanWindowCommandStateSelectionTests {
     @Test func retainsCommandTargetWhenSelectionReplacesAnEqualFlyweight() {
         let commandState: ScanWindowCommandState = ScanWindowCommandState()
