@@ -221,13 +221,13 @@ final class ZStyleTreemapNSView: NSView {
         discoveryAnimationTarget = targetRect
         discoveryAnimationStartDate = Date()
         discoveryAnimationTimer?.invalidate()
-        discoveryAnimationTimer = Timer.scheduledTimer(
-            timeInterval: 1.0 / 60.0,
-            target: self,
-            selector: #selector(advanceDiscoveryAnimation),
-            userInfo: nil,
-            repeats: true
-        )
+        discoveryAnimationTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self] timer in
+            guard let self else {
+                timer.invalidate()
+                return
+            }
+            self.advanceDiscoveryAnimation()
+        }
         setNeedsDisplay(bounds)
     }
 
@@ -256,7 +256,7 @@ final class ZStyleTreemapNSView: NSView {
         return targetRect
     }
 
-    @objc private func advanceDiscoveryAnimation() {
+    private func advanceDiscoveryAnimation() {
         guard let discoveryAnimationStartDate else { return }
         let progress: CGFloat = min(CGFloat(Date().timeIntervalSince(discoveryAnimationStartDate) / 1.1), 1)
         setNeedsDisplay(bounds)
