@@ -372,10 +372,36 @@
       }
     },
     "↩" : {
-
+      "localizations" : {
+        "de" : {
+          "stringUnit" : { "state" : "translated", "value" : "↩" }
+        },
+        "es" : {
+          "stringUnit" : { "state" : "translated", "value" : "↩" }
+        },
+        "fr" : {
+          "stringUnit" : { "state" : "translated", "value" : "↩" }
+        },
+        "it" : {
+          "stringUnit" : { "state" : "translated", "value" : "↩" }
+        }
+      }
     },
     "⇧↩" : {
-
+      "localizations" : {
+        "de" : {
+          "stringUnit" : { "state" : "translated", "value" : "⇧↩" }
+        },
+        "es" : {
+          "stringUnit" : { "state" : "translated", "value" : "⇧↩" }
+        },
+        "fr" : {
+          "stringUnit" : { "state" : "translated", "value" : "⇧↩" }
+        },
+        "it" : {
+          "stringUnit" : { "state" : "translated", "value" : "⇧↩" }
+        }
+      }
     },
     "Access control list" : {
       "localizations" : {

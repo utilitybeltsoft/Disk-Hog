@@ -213,7 +213,8 @@ struct ScanWindowCommandStateSelectionTests {
         let coordinator: ScanWindowSelectionCoordinator = ScanWindowSelectionCoordinator()
         let commandContext: ScanWindowCommandContext = ScanWindowCommandContext(
             session: session,
-            selectionCoordinator: coordinator
+            selectionCoordinator: coordinator,
+            treemapNavigation: TreemapNavigationState()
         )
         var firstSelection: DiskItem? = DiskItem(
             url: URL(fileURLWithPath: "/scan/report.txt"),
@@ -245,11 +246,13 @@ struct ScanWindowCommandStateSelectionTests {
         let secondSession: ScanSession = ScanSession(source: ScanSource(path: "/second", displayName: "second"))
         let firstContext: ScanWindowCommandContext = ScanWindowCommandContext(
             session: firstSession,
-            selectionCoordinator: ScanWindowSelectionCoordinator()
+            selectionCoordinator: ScanWindowSelectionCoordinator(),
+            treemapNavigation: TreemapNavigationState()
         )
         let secondContext: ScanWindowCommandContext = ScanWindowCommandContext(
             session: secondSession,
-            selectionCoordinator: ScanWindowSelectionCoordinator()
+            selectionCoordinator: ScanWindowSelectionCoordinator(),
+            treemapNavigation: TreemapNavigationState()
         )
         let firstItem: DiskItem = DiskItem(url: URL(fileURLWithPath: "/first/file.txt"))
         let secondItem: DiskItem = DiskItem(
@@ -292,7 +295,9 @@ struct DiskItemOutlineIdentityTests {
             session: session,
             usePhysicalSize: true,
             selectionCoordinator: ScanWindowSelectionCoordinator(),
-            activePane: Binding<ScanWindowPane?>.constant(nil)
+            activePane: Binding<ScanWindowPane?>.constant(nil),
+            onActivateItem: { _ in },
+            onZoomOut: {}
         )
         let outlineView: NSOutlineView = NSOutlineView()
         let column: NSTableColumn = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("Name"))
@@ -337,7 +342,9 @@ struct DiskItemOutlineIdentityTests {
             session: ScanSession(source: ScanSource(path: "/scan", displayName: "scan")),
             usePhysicalSize: true,
             selectionCoordinator: ScanWindowSelectionCoordinator(),
-            activePane: Binding<ScanWindowPane?>.constant(nil)
+            activePane: Binding<ScanWindowPane?>.constant(nil),
+            onActivateItem: { _ in },
+            onZoomOut: {}
         )
         let outlineView: NSOutlineView = NSOutlineView()
         let column: NSTableColumn = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("Name"))
