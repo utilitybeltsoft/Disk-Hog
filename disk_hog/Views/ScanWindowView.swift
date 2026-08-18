@@ -51,7 +51,8 @@ struct ScanWindowView: View {
                 ) {
                     FilesPaneView(
                         session: session,
-                        selectionCoordinator: selectionCoordinator
+                        selectionCoordinator: selectionCoordinator,
+                        navigation: treemapNavigation
                     )
                         .environment(\.activeScanWindowPane, $activePane)
                 } second: {

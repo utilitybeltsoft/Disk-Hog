@@ -3,6 +3,7 @@ import SwiftUI
 struct FilesPaneView: View {
     @ObservedObject var session: ScanSession
     let selectionCoordinator: ScanWindowSelectionCoordinator
+    let navigation: TreemapNavigationState
     @Environment(\.activeScanWindowPane) private var activePane
 
     var body: some View {
@@ -11,7 +12,8 @@ struct FilesPaneView: View {
             rootItem: session.rootItem,
             usePhysicalSize: session.scanSettings.usePhysicalSize,
             selectionCoordinator: selectionCoordinator,
-            activePane: activePane
+            activePane: activePane,
+            onOpenFolder: { item in navigation.zoom(into: item) }
         )
         .background(Color(nsColor: .controlBackgroundColor))
         .overlay {

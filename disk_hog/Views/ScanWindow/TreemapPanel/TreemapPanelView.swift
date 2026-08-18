@@ -68,6 +68,11 @@ struct TreemapPanelView: View {
             }
             .disabled(navigation.canZoomOut == false)
 
+            Button { navigation.zoom(into: selectionCoordinator.selectedItem) } label: {
+                Label("Zoom In ↩", systemImage: "arrow.down.right.and.arrow.up.left")
+            }
+            .disabled(navigation.canZoom(into: selectionCoordinator.selectedItem) == false)
+
             ScrollViewReader { breadcrumbProxy in
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 4) {

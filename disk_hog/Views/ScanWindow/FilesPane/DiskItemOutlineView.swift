@@ -8,13 +8,15 @@ struct DiskItemOutlineView: NSViewRepresentable {
     let usePhysicalSize: Bool
     let selectionCoordinator: ScanWindowSelectionCoordinator
     let activePane: Binding<ScanWindowPane?>
+    let onOpenFolder: (DiskItem) -> Void
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
             session: session,
             usePhysicalSize: usePhysicalSize,
             selectionCoordinator: selectionCoordinator,
-            activePane: activePane
+            activePane: activePane,
+            onOpenFolder: onOpenFolder
         )
     }
 
@@ -75,6 +77,7 @@ struct DiskItemOutlineView: NSViewRepresentable {
         context.coordinator.session = session
         context.coordinator.selectionCoordinator = selectionCoordinator
         context.coordinator.activePane = activePane
+        context.coordinator.onOpenFolder = onOpenFolder
         context.coordinator.updateSizeMode(usePhysicalSize)
         context.coordinator.reloadIfNeeded(rootItem: rootItem)
         context.coordinator.syncSelectionIfNeeded(selectionCoordinator.selectedItem)
@@ -89,6 +92,7 @@ struct DiskItemOutlineView: NSViewRepresentable {
         private var usePhysicalSize: Bool
         var selectionCoordinator: ScanWindowSelectionCoordinator
         var activePane: Binding<ScanWindowPane?>
+        var onOpenFolder: (DiskItem) -> Void
         weak var outlineView: NSOutlineView?
         let contextMenu: NSMenu = NSMenu()
         private let contextMenuActionTarget: DiskItemContextMenuActionTarget
@@ -104,13 +108,15 @@ struct DiskItemOutlineView: NSViewRepresentable {
             session: ScanSession,
             usePhysicalSize: Bool,
             selectionCoordinator: ScanWindowSelectionCoordinator,
-            activePane: Binding<ScanWindowPane?>
+            activePane: Binding<ScanWindowPane?>,
+            onOpenFolder: @escaping (DiskItem) -> Void
         ) {
             self.session = session
             self.contextMenuActionTarget = DiskItemContextMenuActionTarget(session: session)
             self.usePhysicalSize = usePhysicalSize
             self.selectionCoordinator = selectionCoordinator
             self.activePane = activePane
+            self.onOpenFolder = onOpenFolder
             super.init()
             contextMenu.delegate = self
         }
@@ -273,27 +279,25 @@ struct DiskItemOutlineView: NSViewRepresentable {
         @objc func doubleClick(_ sender: Any?) {
             guard let outlineView: NSOutlineView = outlineView,
                   outlineView.clickedRow >= 0,
-                  let item: DiskItem = outlineView.item(atRow: outlineView.clickedRow) as? DiskItem,
-                  item.childCount > 0 else {
+                  let item: DiskItem = outlineView.item(atRow: outlineView.clickedRow) as? DiskItem else {
                 return
             }
-
-            if outlineView.isItemExpanded(item) {
-                outlineView.collapseItem(item)
-            } else {
-                outlineView.expandItem(item)
-            }
+            openFolder(item)
         }
 
         func openSelectedFolder() {
             guard let outlineView,
                   outlineView.selectedRow >= 0,
-                  let item: DiskItem = outlineView.item(atRow: outlineView.selectedRow) as? DiskItem,
-                  item.isFolder,
-                  item.childCount > 0 else {
+                  let item: DiskItem = outlineView.item(atRow: outlineView.selectedRow) as? DiskItem else {
                 return
             }
-            outlineView.expandItem(item)
+            openFolder(item)
+        }
+
+        private func openFolder(_ item: DiskItem) {
+            guard item.isFolder, item.childCount > 0 else { return }
+            outlineView?.expandItem(item)
+            onOpenFolder(item)
         }
 
         private func expandAncestors(of item: DiskItem) {
