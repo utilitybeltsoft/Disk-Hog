@@ -4112,10 +4112,15 @@ struct TreemapCushionRendererTests {
         renderer.setColor(NSColor(calibratedRed: 1, green: 0.8, blue: 0.2, alpha: 1))
         renderer.setSurface([0, 0, 0, 0])
         renderer.renderCushion(in: bitmap)
-        let legacyPixels: Data = Data(
-            bytes: try #require(bitmap.bitmapData),
-            count: bitmap.bytesPerRow * bitmap.pixelsHigh
-        )
+        let bitmapData: UnsafeMutablePointer<UInt8> = try #require(bitmap.bitmapData)
+        let rowPixelByteCount: Int = bitmap.pixelsWide * 3
+        var legacyPixels: Data = Data(capacity: rowPixelByteCount * bitmap.pixelsHigh)
+        for row: Int in 0..<bitmap.pixelsHigh {
+            legacyPixels.append(Data(
+                bytes: bitmapData + row * bitmap.bytesPerRow,
+                count: rowPixelByteCount
+            ))
+        }
 
         let backgroundPixels: Data = TreemapBitmapRasterizer.render(
             snapshots: [TreemapCushionSnapshot(
