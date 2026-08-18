@@ -222,6 +222,7 @@
       }
     },
     "%lld %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -369,6 +370,12 @@
           }
         }
       }
+    },
+    "↩" : {
+
+    },
+    "⇧↩" : {
+
     },
     "Access control list" : {
       "localizations" : {
@@ -3502,6 +3509,7 @@
       }
     },
     "Hover a folder to preview its contents." : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -5323,6 +5331,7 @@
       }
     },
     "Preview" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -5351,6 +5360,7 @@
       }
     },
     "Preview active — release Space to return" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
