@@ -7,7 +7,7 @@ final class AppCommandRouter: ObservableObject {
 
     @Published var canScanSelectedVolume: Bool = false
     private weak var selectionListSession: ScanSession?
-    private var selectionListItems: [DiskItem] = []
+    private var selectionListItemPaths: [String] = []
     @Published private(set) var isSelectionListBatchQueueActive: Bool = false
 
     init() {}
@@ -33,14 +33,14 @@ final class AppCommandRouter: ObservableObject {
 
     func activateSelectionListBatchQueue(session: ScanSession, items: [DiskItem]) {
         selectionListSession = session
-        selectionListItems = items
+        selectionListItemPaths = items.map(\.path)
         isSelectionListBatchQueueActive = true
     }
 
     func deactivateSelectionListBatchQueue() {
         guard isSelectionListBatchQueueActive else { return }
         selectionListSession = nil
-        selectionListItems = []
+        selectionListItemPaths = []
         isSelectionListBatchQueueActive = false
     }
 
@@ -58,6 +58,10 @@ final class AppCommandRouter: ObservableObject {
     }
 
     private var actionableSelectionListItems: [DiskItem] {
-        selectionListItems.filter { DiskItemDeletionPolicy.canDelete($0) }
+        guard let rootItem: DiskItem = selectionListSession?.rootItem else {
+            return []
+        }
+        return selectionListItemPaths.compactMap { rootItem.item(atPath: $0) }
+            .filter { DiskItemDeletionPolicy.canDelete($0) }
     }
 }

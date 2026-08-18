@@ -615,12 +615,29 @@ struct AppCommandRouterTests {
         router.activateSelectionListBatchQueue(session: session, items: [item])
 
         #expect(router.isSelectionListBatchQueueActive)
-        #expect(router.canToggleSelectionListBatchQueue)
+        #expect(router.canToggleSelectionListBatchQueue == false)
         #expect(router.selectionListBatchQueueTitle == "Add to Cleanup Queue")
 
         router.deactivateSelectionListBatchQueue()
 
         #expect(router.isSelectionListBatchQueueActive == false)
+        #expect(router.canToggleSelectionListBatchQueue == false)
+    }
+
+    @Test func selectionListContextDoesNotKeepItsScanSessionAlive() {
+        let router: AppCommandRouter = AppCommandRouter()
+        weak var sessionReference: ScanSession?
+
+        do {
+            let session: ScanSession = ScanSession(source: ScanSource(path: "/scan", displayName: "scan"))
+            sessionReference = session
+            router.activateSelectionListBatchQueue(
+                session: session,
+                items: [DiskItem(url: URL(fileURLWithPath: "/scan/file.txt"))]
+            )
+        }
+
+        #expect(sessionReference == nil)
         #expect(router.canToggleSelectionListBatchQueue == false)
     }
 }
