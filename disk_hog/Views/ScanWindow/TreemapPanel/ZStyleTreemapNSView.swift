@@ -12,7 +12,6 @@ final class ZStyleTreemapNSView: NSView {
     private let contextMenuActionTarget: DiskItemContextMenuActionTarget = DiskItemContextMenuActionTarget()
     private let state: TreemapViewState = TreemapViewState()
     private let trackingAreaController: TreemapTrackingAreaController = TreemapTrackingAreaController()
-    private var pendingSelectionDiagnostic: SelectionDiagnostic?
     private var pendingDiscoveryAnimation: Bool = false
     private var discoveryAnimationStartDate: Date?
     private var discoveryAnimationStartRect: NSRect = .zero
@@ -102,7 +101,6 @@ final class ZStyleTreemapNSView: NSView {
         )
         startDiscoveryAnimationIfNeeded()
         drawDiscoveryAnimation()
-        logPendingSelectionDiagnostic(dirtyRect: dirtyRect)
     }
 
     override func viewWillStartLiveResize() {
@@ -134,7 +132,7 @@ final class ZStyleTreemapNSView: NSView {
         guard let hitResult: TreemapHitResult = state.hitResult(at: point) else {
             return
         }
-        select(hitResult, cursorPoint: point)
+        select(hitResult)
         if event.clickCount == 2 {
             onZoomIn?(hitResult.item)
         }
@@ -194,7 +192,7 @@ final class ZStyleTreemapNSView: NSView {
         guard isInteractionEnabled else { return nil }
         let hitResult: TreemapHitResult? = hitResult(for: event)
         if let hitResult: TreemapHitResult = hitResult {
-            select(hitResult, cursorPoint: convert(event.locationInWindow, from: nil))
+            select(hitResult)
         }
 
         return DiskItemContextMenuBuilder.menu(
@@ -208,15 +206,10 @@ final class ZStyleTreemapNSView: NSView {
         state.hitResult(at: convert(event.locationInWindow, from: nil))
     }
 
-    private func select(_ hitResult: TreemapHitResult, cursorPoint: NSPoint) {
+    private func select(_ hitResult: TreemapHitResult) {
         let selectionChanged: Bool = state.selectedItem != hitResult.item
         state.select(hitResult)
         pendingDiscoveryAnimation = selectionChanged
-        pendingSelectionDiagnostic = SelectionDiagnostic(
-            cursorPoint: cursorPoint,
-            hitItemPath: hitResult.item.path,
-            hitRect: hitResult.cellID.rect
-        )
         onSelectItem?(hitResult.item)
         needsDisplay = true
     }
@@ -225,36 +218,6 @@ final class ZStyleTreemapNSView: NSView {
         guard let item: DiskItem = state.selectNeighbor(in: direction) else { return }
         onSelectItem?(item)
         needsDisplay = true
-    }
-
-    private func logPendingSelectionDiagnostic(dirtyRect: NSRect) {
-        guard let diagnostic: SelectionDiagnostic = pendingSelectionDiagnostic else { return }
-        defer { pendingSelectionDiagnostic = nil }
-
-        let selectedCellID: TreemapItemRenderer? = state.renderer?.selectedCellID
-        let selectedRect: NSRect = state.renderer?.itemRect(by: selectedCellID) ?? .zero
-        let outlineRect: NSRect = TreemapSelectionRect.visibleRect(
-            for: selectedRect,
-            in: bounds
-        )
-        let selectedPath: String = selectedCellID?.item.path ?? "<none>"
-        NSLog(
-            """
-            Treemap selection diagnostic
-              cursor point: \(NSStringFromPoint(diagnostic.cursorPoint))
-              hit item: \(diagnostic.hitItemPath)
-              hit rect: \(NSStringFromRect(diagnostic.hitRect))
-              selected item: \(selectedPath)
-              selected rect: \(NSStringFromRect(selectedRect))
-              outline rect: \(NSStringFromRect(outlineRect))
-              view bounds: \(NSStringFromRect(bounds))
-              view frame: \(NSStringFromRect(frame))
-              visible rect: \(NSStringFromRect(visibleRect))
-              dirty rect: \(NSStringFromRect(dirtyRect))
-              bounds in window: \(NSStringFromRect(convert(bounds, to: nil)))
-              bitmap: \(state.renderer?.bitmapDiagnosticsDescription ?? "no renderer")
-            """
-        )
     }
 
     private func drawCachedImage(
@@ -368,10 +331,4 @@ final class ZStyleTreemapNSView: NSView {
             height: start.height + (end.height - start.height) * progress
         )
     }
-}
-
-private struct SelectionDiagnostic {
-    let cursorPoint: NSPoint
-    let hitItemPath: String
-    let hitRect: NSRect
 }
