@@ -6,6 +6,7 @@ final class TreemapNavigationState: ObservableObject {
     @Published private(set) var zoomPath: [DiskItem] = []
     @Published private(set) var previewRoot: DiskItem?
     @Published private(set) var isPreviewActive: Bool = false
+    private var selectionAfterZoom: DiskItem?
 
     var zoomRoot: DiskItem? { zoomPath.last ?? baseRoot }
     var canZoomOut: Bool { zoomPath.count > 1 }
@@ -16,6 +17,7 @@ final class TreemapNavigationState: ObservableObject {
         zoomPath = baseRoot.map { [$0] } ?? []
         previewRoot = nil
         isPreviewActive = false
+        selectionAfterZoom = nil
     }
 
     func canZoom(into item: DiskItem?) -> Bool {
@@ -27,6 +29,7 @@ final class TreemapNavigationState: ObservableObject {
         zoomPath = baseRoot.descendantsMatchingAncestorPath(of: target)
         previewRoot = nil
         isPreviewActive = false
+        selectionAfterZoom = target
     }
 
     func zoomOut() {
@@ -34,6 +37,7 @@ final class TreemapNavigationState: ObservableObject {
         zoomPath.removeLast()
         previewRoot = nil
         isPreviewActive = false
+        selectionAfterZoom = zoomPath.last
     }
 
     func zoom(toPathIndex index: Int) {
@@ -41,6 +45,7 @@ final class TreemapNavigationState: ObservableObject {
         zoomPath = Array(zoomPath.prefix(through: index))
         previewRoot = nil
         isPreviewActive = false
+        selectionAfterZoom = zoomPath.last
     }
 
     func updatePreviewRoot(from item: DiskItem?) {
@@ -74,6 +79,12 @@ final class TreemapNavigationState: ObservableObject {
         zoomPath = Array(selectionPath.prefix(max(sharedPathLength, 1)))
         previewRoot = nil
         isPreviewActive = false
+        selectionAfterZoom = nil
+    }
+
+    func consumeSelectionAfterZoom() -> DiskItem? {
+        defer { selectionAfterZoom = nil }
+        return selectionAfterZoom
     }
 
     private func zoomTarget(for item: DiskItem?) -> DiskItem? {

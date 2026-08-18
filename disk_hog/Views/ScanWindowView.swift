@@ -109,6 +109,9 @@ struct ScanWindowView: View {
             updateScanWindowCommandState()
         }
         .onChange(of: treemapNavigation.zoomPath.map(\.id)) {
+            if let item: DiskItem = treemapNavigation.consumeSelectionAfterZoom() {
+                selectionCoordinator.setSelectedItem(item)
+            }
             updateScanWindowCommandState()
         }
         .onChange(of: hoveredItem?.id) {
