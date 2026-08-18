@@ -16,7 +16,7 @@ final class ZStyleTreemapNSView: NSView {
     private var pendingDiscoveryAnimation: Bool = false
     private var discoveryAnimationStartDate: Date?
     private var discoveryAnimationStartRect: NSRect = .zero
-    private var discoveryAnimationTargetRect: NSRect = .zero
+    private var discoveryAnimationTarget: NSRect = .zero
     private var discoveryAnimationTimer: Timer?
 
     override var isFlipped: Bool { true }
@@ -280,7 +280,7 @@ final class ZStyleTreemapNSView: NSView {
         pendingDiscoveryAnimation = false
         guard let targetRect: NSRect = discoveryAnimationTargetRect() else { return }
         discoveryAnimationStartRect = TreemapRasterGeometry.discoveryRect(around: targetRect, in: bounds)
-        discoveryAnimationTargetRect = targetRect
+        discoveryAnimationTarget = targetRect
         discoveryAnimationStartDate = Date()
         discoveryAnimationTimer?.invalidate()
         discoveryAnimationTimer = Timer.scheduledTimer(
@@ -337,12 +337,12 @@ final class ZStyleTreemapNSView: NSView {
         let easedProgress: CGFloat = 1 - pow(1 - progress, 3)
         let currentRect: NSRect = interpolatedRect(
             from: discoveryAnimationStartRect,
-            to: discoveryAnimationTargetRect,
+            to: discoveryAnimationTarget,
             progress: easedProgress
         )
         NSColor.yellow.withAlphaComponent(0.8 * (1 - progress)).setStroke()
         let guidePath: NSBezierPath = NSBezierPath()
-        for (start, end) in zip(rectCorners(discoveryAnimationStartRect), rectCorners(discoveryAnimationTargetRect)) {
+        for (start, end) in zip(rectCorners(discoveryAnimationStartRect), rectCorners(discoveryAnimationTarget)) {
             guidePath.move(to: start)
             guidePath.line(to: end)
         }
