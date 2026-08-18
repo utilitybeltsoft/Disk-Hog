@@ -38,12 +38,12 @@ final class CleanupQueueStore: ObservableObject {
     static let shared: CleanupQueueStore = CleanupQueueStore()
 
     @Published private(set) var items: [CleanupQueueItem] = []
-    private let trashItem: @Sendable (URL, Data?) throws -> Void
+    private let trashItem: @Sendable (URL, ScanSource) throws -> Void
     private let refreshSession: @MainActor (ScanSession) -> Void
     private var notificationCancellable: AnyCancellable?
 
     init(
-        trashItem: @escaping @Sendable (URL, Data?) throws -> Void = CleanupQueueStore.moveToFinderTrash,
+        trashItem: @escaping @Sendable (URL, ScanSource) throws -> Void = CleanupQueueStore.moveToFinderTrash,
         refreshSession: @escaping @MainActor (ScanSession) -> Void = { session in
             guard let rootItem: DiskItem = session.rootItem else { return }
             session.refresh(rootItem)
@@ -160,7 +160,7 @@ final class CleanupQueueStore: ObservableObject {
             updateStatus(.processing, for: item.id)
         }
 
-        let trashItem: @Sendable (URL, Data?) throws -> Void = trashItem
+        let trashItem: @Sendable (URL, ScanSource) throws -> Void = trashItem
         let refreshSession: @MainActor (ScanSession) -> Void = refreshSession
         Task { [trashItem, refreshSession] in
             var sessionsToRefresh: [ObjectIdentifier: ScanSession] = [:]
@@ -180,8 +180,9 @@ final class CleanupQueueStore: ObservableObject {
                     continue
                 }
 
+                let source: ScanSource = item.sessionReference.value?.source ?? item.source
                 let result: Result<Void, Error> = await Task.detached(priority: .userInitiated) {
-                    try trashItem(item.itemURL, item.source.bookmarkData)
+                    try trashItem(item.itemURL, source)
                 }.result
 
                 switch result {
@@ -213,24 +214,13 @@ final class CleanupQueueStore: ObservableObject {
 
     private nonisolated static func moveToFinderTrash(
         itemURL: URL,
-        sourceBookmarkData: Data?
+        source: ScanSource
     ) throws {
-        let sourceURL: URL?
-        if let sourceBookmarkData {
-            var isStale: Bool = false
-            sourceURL = try URL(
-                resolvingBookmarkData: sourceBookmarkData,
-                options: [.withSecurityScope],
-                relativeTo: nil,
-                bookmarkDataIsStale: &isStale
-            )
-        } else {
-            sourceURL = nil
-        }
-        let didStartAccessing: Bool = sourceURL?.startAccessingSecurityScopedResource() ?? false
+        let sourceURL: URL = try source.resolvingBookmark().url
+        let didStartAccessing: Bool = sourceURL.startAccessingSecurityScopedResource()
         defer {
             if didStartAccessing {
-                sourceURL?.stopAccessingSecurityScopedResource()
+                sourceURL.stopAccessingSecurityScopedResource()
             }
         }
 
