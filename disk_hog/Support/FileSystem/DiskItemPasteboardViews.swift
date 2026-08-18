@@ -46,7 +46,7 @@ final class DiskItemPasteboardOutlineView: NSOutlineView, DiskItemPasteboardProv
 
     override func keyDown(with event: NSEvent) {
         switch event.keyCode {
-        case 36, 76: // Return, keypad Enter
+        case AppKitKeyCode.returnKey, AppKitKeyCode.keypadEnter:
             if event.modifierFlags.contains(.shift) {
                 zoomOut?()
             } else {

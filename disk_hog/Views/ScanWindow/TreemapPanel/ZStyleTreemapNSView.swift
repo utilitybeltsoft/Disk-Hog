@@ -130,21 +130,21 @@ final class ZStyleTreemapNSView: NSView {
 
     override func keyDown(with event: NSEvent) {
         switch event.keyCode {
-        case 49: // Space
+        case AppKitKeyCode.space:
             return
-        case 123: // Left Arrow
+        case AppKitKeyCode.leftArrow:
             selectNeighbor(in: .left)
             return
-        case 124: // Right Arrow
+        case AppKitKeyCode.rightArrow:
             selectNeighbor(in: .right)
             return
-        case 125: // Down Arrow
+        case AppKitKeyCode.downArrow:
             selectNeighbor(in: .down)
             return
-        case 126: // Up Arrow
+        case AppKitKeyCode.upArrow:
             selectNeighbor(in: .up)
             return
-        case 36, 76: // Return, keypad Enter
+        case AppKitKeyCode.returnKey, AppKitKeyCode.keypadEnter:
             if event.modifierFlags.contains(.shift) {
                 onZoomOut?()
                 return
@@ -153,7 +153,7 @@ final class ZStyleTreemapNSView: NSView {
                 onZoomIn?(item)
                 return
             }
-        case 53: // Escape
+        case AppKitKeyCode.escape:
             onZoomOut?()
             return
         default:
