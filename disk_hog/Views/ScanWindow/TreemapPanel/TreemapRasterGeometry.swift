@@ -19,4 +19,11 @@ enum TreemapRasterGeometry {
         let y: CGFloat = min(max(rasterRect.midY - height / 2, bounds.minY), bounds.maxY - height)
         return NSRect(x: x, y: y, width: width, height: height)
     }
+
+    static func discoveryRect(around target: NSRect, in bounds: NSRect) -> NSRect {
+        let side: CGFloat = min(120, min(bounds.width, bounds.height))
+        let x: CGFloat = min(max(target.midX - side / 2, bounds.minX), bounds.maxX - side)
+        let y: CGFloat = min(max(target.midY - side / 2, bounds.minY), bounds.maxY - side)
+        return NSRect(x: x, y: y, width: side, height: side)
+    }
 }
