@@ -31,6 +31,123 @@ struct DiskItemIconCacheTests {
 }
 
 @MainActor
+struct KeyboardRoutingTests {
+    @Test func fileListReturnAndShiftReturnInvokeOnlyTheirExplicitActions() throws {
+        let outlineView: DiskItemPasteboardOutlineView = DiskItemPasteboardOutlineView()
+        var activationCount: Int = 0
+        var zoomOutCount: Int = 0
+        outlineView.activateSelectedItem = { activationCount += 1 }
+        outlineView.zoomOut = { zoomOutCount += 1 }
+
+        outlineView.keyDown(with: try #require(NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            characters: "\r",
+            charactersIgnoringModifiers: "\r",
+            isARepeat: false,
+            keyCode: 36
+        )))
+        outlineView.keyDown(with: try #require(NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: [.shift],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            characters: "\r",
+            charactersIgnoringModifiers: "\r",
+            isARepeat: false,
+            keyCode: 76
+        )))
+
+        #expect(activationCount == 1)
+        #expect(zoomOutCount == 1)
+    }
+
+    @Test func treemapShiftReturnAndEscapeRequestZoomOut() throws {
+        let treemap: ZStyleTreemapNSView = ZStyleTreemapNSView()
+        var zoomOutCount: Int = 0
+        treemap.onZoomOut = { zoomOutCount += 1 }
+
+        treemap.keyDown(with: try #require(NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: [.shift],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            characters: "\r",
+            charactersIgnoringModifiers: "\r",
+            isARepeat: false,
+            keyCode: 36
+        )))
+        treemap.keyDown(with: try #require(NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            characters: "\u{1B}",
+            charactersIgnoringModifiers: "\u{1B}",
+            isARepeat: false,
+            keyCode: 53
+        )))
+
+        #expect(zoomOutCount == 2)
+    }
+
+    @Test func treemapSpacePreviewIgnoresKeyRepeatsAndAlwaysReleases() throws {
+        let treemap: ZStyleTreemapNSView = ZStyleTreemapNSView()
+        var previewEvents: [Bool] = []
+        treemap.onPreviewSpaceChanged = { previewEvents.append($0) }
+
+        treemap.keyDown(with: try #require(NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            characters: " ",
+            charactersIgnoringModifiers: " ",
+            isARepeat: false,
+            keyCode: 49
+        )))
+        treemap.keyDown(with: try #require(NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            characters: " ",
+            charactersIgnoringModifiers: " ",
+            isARepeat: true,
+            keyCode: 49
+        )))
+        treemap.keyUp(with: try #require(NSEvent.keyEvent(
+            with: .keyUp,
+            location: .zero,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            characters: " ",
+            charactersIgnoringModifiers: " ",
+            isARepeat: false,
+            keyCode: 49
+        )))
+
+        #expect(previewEvents == [true, false])
+    }
+}
+
+@MainActor
 struct TreemapNavigationStateTests {
     @Test func zoomingBuildsBreadcrumbsAndReturnsToTheParent() {
         let file: DiskItem = DiskItem(url: URL(fileURLWithPath: "/scan/folder/file"))
