@@ -64,21 +64,29 @@ struct TreemapPanelView: View {
     private var navigationBar: some View {
         HStack(spacing: 4) {
             Button { navigation.zoomOut() } label: {
-                Label("Back", systemImage: "chevron.left")
+                Label("Back ⇧↩", systemImage: "chevron.left")
             }
             .disabled(navigation.canZoomOut == false)
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 4) {
-                    ForEach(Array(navigation.zoomPath.enumerated()), id: \.element.id) { index, item in
-                        if index > 0 {
-                            Image(systemName: "chevron.right")
-                                .foregroundStyle(.secondary)
-                                .font(.caption)
+            ScrollViewReader { breadcrumbProxy in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 4) {
+                        ForEach(Array(navigation.zoomPath.enumerated()), id: \.element.id) { index, item in
+                            if index > 0 {
+                                Image(systemName: "chevron.right")
+                                    .foregroundStyle(.secondary)
+                                    .font(.caption)
+                            }
+                            Button(item.displayName) { navigation.zoom(toPathIndex: index) }
+                                .buttonStyle(.plain)
+                                .foregroundStyle(index == navigation.zoomPath.indices.last ? .primary : .secondary)
                         }
-                        Button(item.displayName) { navigation.zoom(toPathIndex: index) }
-                            .buttonStyle(.plain)
-                            .foregroundStyle(index == navigation.zoomPath.indices.last ? .primary : .secondary)
+                    }
+                }
+                .onChange(of: navigation.zoomPath.last?.id) {
+                    guard let lastItem: DiskItem = navigation.zoomPath.last else { return }
+                    withAnimation(.easeOut(duration: 0.15)) {
+                        breadcrumbProxy.scrollTo(lastItem.id, anchor: .trailing)
                     }
                 }
             }

@@ -151,6 +151,10 @@ final class ZStyleTreemapNSView: NSView {
             selectNeighbor(in: .up)
             return
         case 36, 76: // Return, keypad Enter
+            if event.modifierFlags.contains(.shift) {
+                onZoomOut?()
+                return
+            }
             if let item: DiskItem = state.selectedItem {
                 onZoomIn?(item)
                 return
