@@ -235,9 +235,7 @@ final class ZStyleTreemapNSView: NSView {
         let selectedRect: NSRect = state.renderer?.itemRect(by: selectedCellID) ?? .zero
         let outlineRect: NSRect = TreemapSelectionRect.visibleRect(
             for: selectedRect,
-            in: bounds,
-            minimumSide: ScanWindowMetrics.treemapMinimumSelectionSide,
-            edgeInset: ScanWindowMetrics.treemapSelectionOuterLineWidth / 2
+            in: bounds
         )
         let selectedPath: String = selectedCellID?.item.path ?? "<none>"
         NSLog(
@@ -309,9 +307,7 @@ final class ZStyleTreemapNSView: NSView {
         } else {
             targetRect = TreemapSelectionRect.visibleRect(
                 for: selectedRect,
-                in: bounds,
-                minimumSide: ScanWindowMetrics.treemapMinimumSelectionSide,
-                edgeInset: ScanWindowMetrics.treemapSelectionOuterLineWidth / 2
+                in: bounds
             )
         }
         guard targetRect.isEmpty == false, min(targetRect.width, targetRect.height) <= 12 else {

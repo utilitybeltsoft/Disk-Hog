@@ -3,12 +3,9 @@ import AppKit
 nonisolated enum TreemapSelectionRect {
     static func visibleRect(
         for itemRect: NSRect,
-        in bounds: NSRect,
-        minimumSide: CGFloat,
-        edgeInset: CGFloat
+        in bounds: NSRect
     ) -> NSRect {
-        _ = minimumSide
-        _ = edgeInset
-        return itemRect.intersection(bounds)
+        let clippedRect: NSRect = itemRect.intersection(bounds)
+        return clippedRect.isNull ? .zero : clippedRect
     }
 }

@@ -3827,9 +3827,7 @@ struct TreemapViewRendererTests {
     @Test func wholeTreemapSelectionRectMatchesTheSelectedItem() {
         let visibleRect: NSRect = TreemapSelectionRect.visibleRect(
             for: NSRect(x: 0, y: 0, width: 200, height: 100),
-            in: NSRect(x: 0, y: 0, width: 200, height: 100),
-            minimumSide: 12,
-            edgeInset: 2.5
+            in: NSRect(x: 0, y: 0, width: 200, height: 100)
         )
 
         #expect(visibleRect == NSRect(x: 0, y: 0, width: 200, height: 100))
@@ -3838,12 +3836,20 @@ struct TreemapViewRendererTests {
     @Test func smallSelectionRectDoesNotExpandIntoNeighboringTiles() {
         let visibleRect: NSRect = TreemapSelectionRect.visibleRect(
             for: NSRect(x: 476, y: 129, width: 5, height: 13),
-            in: NSRect(x: 0, y: 0, width: 536, height: 368),
-            minimumSide: 12,
-            edgeInset: 2.5
+            in: NSRect(x: 0, y: 0, width: 536, height: 368)
         )
 
         #expect(visibleRect == NSRect(x: 476, y: 129, width: 5, height: 13))
+    }
+
+    @Test func selectionRectFullyOutsideTheTreemapIsZeroRatherThanNull() {
+        let visibleRect: NSRect = TreemapSelectionRect.visibleRect(
+            for: NSRect(x: 600, y: 400, width: 5, height: 13),
+            in: NSRect(x: 0, y: 0, width: 536, height: 368)
+        )
+
+        #expect(visibleRect == .zero)
+        #expect(visibleRect.isNull == false)
     }
 }
 

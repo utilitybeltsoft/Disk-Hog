@@ -53,9 +53,7 @@ enum TreemapViewPainter {
         }
         let rect: NSRect = TreemapSelectionRect.visibleRect(
             for: selectedRect,
-            in: bounds,
-            minimumSide: ScanWindowMetrics.treemapMinimumSelectionSide,
-            edgeInset: ScanWindowMetrics.treemapSelectionOuterLineWidth / 2
+            in: bounds
         )
         guard rect != .zero else {
             return
