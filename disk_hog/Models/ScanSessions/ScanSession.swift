@@ -13,6 +13,7 @@ final class ScanSession: ObservableObject {
     @Published private(set) var scannedFolderCount: Int
     @Published private(set) var scannedByteCount: UInt64
     @Published private(set) var currentPath: String
+    @Published private(set) var scanStage: DiskScanStage
     @Published private(set) var rootItem: DiskItem? {
         didSet {
             NotificationCenter.default.post(name: .scanSessionTreeDidChange, object: self)
@@ -60,6 +61,7 @@ final class ScanSession: ObservableObject {
         self.scannedFolderCount = 0
         self.scannedByteCount = 0
         self.currentPath = source.path
+        self.scanStage = .enumeratingRootItems
         self.rootItem = nil
         self.presentationMetrics = nil
         self.preferredSelection = nil
@@ -135,6 +137,7 @@ final class ScanSession: ObservableObject {
         scannedFolderCount = 0
         scannedByteCount = 0
         currentPath = source.path
+        scanStage = .enumeratingRootItems
         rootItem = nil
         presentationMetrics = nil
         preferredSelection = nil
@@ -161,6 +164,11 @@ final class ScanSession: ObservableObject {
                     progress: { progress in
                         await MainActor.run {
                             sessionReference.value?.applyProgress(progress, for: operation)
+                        }
+                    },
+                    stage: { stage in
+                        await MainActor.run {
+                            sessionReference.value?.applyScanStage(stage, for: operation)
                         }
                     },
                     willBuildTreemap: {
@@ -425,6 +433,15 @@ final class ScanSession: ObservableObject {
         scannedFolderCount = progress.scannedFolderCount
         scannedByteCount = progress.scannedByteCount
         currentPath = progress.currentPath
+    }
+
+    private func applyScanStage(_ stage: DiskScanStage, for operation: ScanSessionWorkOperation) {
+        guard state == .scanning,
+              rescanCoordinator.activeOperation == operation else {
+            return
+        }
+
+        scanStage = stage
     }
 
     private func finishScan(

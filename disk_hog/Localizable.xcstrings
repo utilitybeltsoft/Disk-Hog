@@ -2385,6 +2385,34 @@
         }
       }
     },
+    "Enumerating root items…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stammelemente werden aufgelistet…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enumerando elementos raíz…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Énumération des éléments racine…"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enumerazione degli elementi radice…"
+          }
+        }
+      }
+    },
     "Ejectable" : {
       "localizations" : {
         "de" : {
@@ -2633,6 +2661,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Non riuscito"
+          }
+        }
+      }
+    },
+    "Finalizing scan" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scan wird abgeschlossen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finalizando el análisis"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finalisation de l’analyse"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finalizzazione della scansione"
           }
         }
       }

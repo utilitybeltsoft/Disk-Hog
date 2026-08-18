@@ -1408,6 +1408,7 @@ private struct ImmediateScanWorker: ScanSessionScanning {
         source: ScanSource,
         settings: DiskScanSettings,
         progress: @escaping DiskInventoryZScanner.ProgressHandler,
+        stage: @escaping @Sendable (DiskScanStage) async -> Void,
         willBuildTreemap: @escaping @Sendable () async -> Void,
         treemapProgress: @escaping @Sendable (Double) async -> Void
     ) async throws -> ScanSessionScanResult {
@@ -1523,6 +1524,7 @@ private final class PendingRescanScanWorker: ScanSessionScanning, @unchecked Sen
         source: ScanSource,
         settings: DiskScanSettings,
         progress: @escaping DiskInventoryZScanner.ProgressHandler,
+        stage: @escaping @Sendable (DiskScanStage) async -> Void,
         willBuildTreemap: @escaping @Sendable () async -> Void,
         treemapProgress: @escaping @Sendable (Double) async -> Void
     ) async throws -> ScanSessionScanResult {
@@ -1745,6 +1747,7 @@ private final class PendingRescanStaleSizeModeScanWorker: ScanSessionScanning, @
         source: ScanSource,
         settings: DiskScanSettings,
         progress: @escaping DiskInventoryZScanner.ProgressHandler,
+        stage: @escaping @Sendable (DiskScanStage) async -> Void,
         willBuildTreemap: @escaping @Sendable () async -> Void,
         treemapProgress: @escaping @Sendable (Double) async -> Void
     ) async throws -> ScanSessionScanResult {
@@ -4351,6 +4354,27 @@ struct DiskInventoryZScannerTests {
         })
     }
 
+    @Test func scanReportsRootEnumerationScanningAndFinalizationStages() async throws {
+        let rootURL: URL = try Self.makeCrossTopLevelHardlinkFixture()
+        defer {
+            try? FileManager.default.removeItem(at: rootURL)
+        }
+        let stageRecorder: ScanStageRecorder = ScanStageRecorder()
+
+        _ = try await DiskInventoryZScanner().scan(
+            source: ScanSource(path: rootURL.path, displayName: rootURL.lastPathComponent),
+            stageHandler: { stage in
+                await stageRecorder.record(stage)
+            }
+        )
+
+        #expect(await stageRecorder.stages == [
+            .enumeratingRootItems,
+            .scanningFiles,
+            .finalizingScan
+        ])
+    }
+
     @Test func scanCancellationStopsConcurrentSubtreeWork() async throws {
         let rootURL: URL = try Self.makeCancellationFixture()
         defer {
@@ -4727,6 +4751,14 @@ private actor ProgressRecorder {
 
     func record(_ progress: DiskScanProgress) {
         byteCounts.append(progress.scannedByteCount)
+    }
+}
+
+private actor ScanStageRecorder {
+    private(set) var stages: [DiskScanStage] = []
+
+    func record(_ stage: DiskScanStage) {
+        stages.append(stage)
     }
 }
 

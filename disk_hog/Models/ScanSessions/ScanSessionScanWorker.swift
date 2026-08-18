@@ -12,6 +12,7 @@ nonisolated protocol ScanSessionScanning: Sendable {
         source: ScanSource,
         settings: DiskScanSettings,
         progress: @escaping DiskInventoryZScanner.ProgressHandler,
+        stage: @escaping @Sendable (DiskScanStage) async -> Void,
         willBuildTreemap: @escaping @Sendable () async -> Void,
         treemapProgress: @escaping @Sendable (Double) async -> Void
     ) async throws -> ScanSessionScanResult
@@ -22,6 +23,7 @@ nonisolated struct DiskInventoryZScanSessionWorker: ScanSessionScanning {
         source: ScanSource,
         settings: DiskScanSettings,
         progress: @escaping DiskInventoryZScanner.ProgressHandler,
+        stage: @escaping @Sendable (DiskScanStage) async -> Void,
         willBuildTreemap: @escaping @Sendable () async -> Void,
         treemapProgress: @escaping @Sendable (Double) async -> Void
     ) async throws -> ScanSessionScanResult {
@@ -33,6 +35,8 @@ nonisolated struct DiskInventoryZScanSessionWorker: ScanSessionScanning {
             settings: settings
         ) { scanProgress in
             await progress(scanProgress)
+        } stageHandler: { scanStage in
+            await stage(scanStage)
         }
         try Task.checkCancellation()
         await willBuildTreemap()

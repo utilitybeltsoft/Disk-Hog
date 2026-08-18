@@ -98,7 +98,22 @@ struct ZStatusFieldsView: View {
         case .ready, .scanning, .cancelled:
             return session.isBuildingTreemap
                 ? preparingTreemapStatus(referenceDate: referenceDate)
-                : session.state.title
+                : scanStatus
+        }
+    }
+
+    private var scanStatus: String {
+        guard session.state == .scanning else {
+            return session.state.title
+        }
+
+        switch session.scanStage {
+        case .enumeratingRootItems:
+            return String(localized: "Enumerating root items…")
+        case .scanningFiles:
+            return String(localized: "Scanning")
+        case .finalizingScan:
+            return String(localized: "Finalizing scan")
         }
     }
 

@@ -34,7 +34,8 @@ nonisolated final class DiskInventoryZScanner {
     func scan(
         source: ScanSource,
         settings: DiskScanSettings = .diskInventoryZDefault,
-        progressHandler: ProgressHandler? = nil
+        progressHandler: ProgressHandler? = nil,
+        stageHandler: (@Sendable (DiskScanStage) async -> Void)? = nil
     ) async throws -> DiskItem {
         try Task.checkCancellation()
 
@@ -45,6 +46,7 @@ nonisolated final class DiskInventoryZScanner {
         let rootBuilder: DiskItemBuilder = itemFactory.makeItem(url: rootURL, values: nil)
         var progressState: ScanProgressState = ScanProgressState(currentPath: rootURL.path)
 
+        await stageHandler?(.enumeratingRootItems)
         await progressHandler?(progressState.snapshot())
 
         let topLevelChildren: [URL]
@@ -85,6 +87,7 @@ nonisolated final class DiskInventoryZScanner {
         }
 
         var topLevelResults: [TopLevelScanResult] = []
+        await stageHandler?(.scanningFiles)
         try await withThrowingTaskGroup(of: TopLevelScanResult.self) { taskGroup in
             for workItem: TopLevelScanWorkItem in topLevelWorkItems {
                 let settings: DiskScanSettings = settings
@@ -116,6 +119,7 @@ nonisolated final class DiskInventoryZScanner {
             }
         }
 
+        await stageHandler?(.finalizingScan)
         topLevelResults.sort { first, second in
             DiskItemBuilderOrdering.areInOrder(
                 firstName: first.name,

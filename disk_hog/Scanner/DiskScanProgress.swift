@@ -1,5 +1,11 @@
 import Foundation
 
+nonisolated enum DiskScanStage: Equatable, Sendable {
+    case enumeratingRootItems
+    case scanningFiles
+    case finalizingScan
+}
+
 nonisolated struct DiskScanProgress: Sendable {
     let scannedFileCount: Int
     let scannedFolderCount: Int
