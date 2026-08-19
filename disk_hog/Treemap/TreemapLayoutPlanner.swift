@@ -6,18 +6,25 @@ nonisolated enum TreemapLayoutPlanner {
     static func makePlan(
         rootItem: DiskItem,
         bounds: TreemapLayoutRect,
-        usePhysicalSize: Bool
+        usePhysicalSize: Bool,
+        colorTable: TreemapPlanColorTable
     ) -> TreemapLayoutPlan {
         var entries: [TreemapLayoutEntry] = []
+        var snapshots: [TreemapCushionSnapshot] = []
         appendEntry(
             for: rootItem,
             parentPath: nil,
             rect: integral(bounds),
             unroundedRect: bounds,
             usePhysicalSize: usePhysicalSize,
-            entries: &entries
+            colorTable: colorTable,
+            parentSurface: nil,
+            parentRect: nil,
+            heightFactor: 0.5,
+            entries: &entries,
+            snapshots: &snapshots
         )
-        return TreemapLayoutPlan(bounds: bounds, entries: entries, cushionSnapshots: [])
+        return TreemapLayoutPlan(bounds: bounds, entries: entries, cushionSnapshots: snapshots)
     }
 
     private static func appendEntry(
@@ -26,7 +33,12 @@ nonisolated enum TreemapLayoutPlanner {
         rect: TreemapLayoutRect,
         unroundedRect: TreemapLayoutRect,
         usePhysicalSize: Bool,
-        entries: inout [TreemapLayoutEntry]
+        colorTable: TreemapPlanColorTable,
+        parentSurface: [Double]?,
+        parentRect: TreemapLayoutRect?,
+        heightFactor: Double,
+        entries: inout [TreemapLayoutEntry],
+        snapshots: inout [TreemapCushionSnapshot]
     ) {
         entries.append(TreemapLayoutEntry(
             itemPath: item.path,
@@ -35,10 +47,21 @@ nonisolated enum TreemapLayoutPlanner {
             unroundedRect: unroundedRect,
             isSpecialItem: item.isSpecialItem
         ))
-        guard rect.width >= 1,
-              rect.height >= 1,
-              item.isFolder,
-              item.isPackage == false else {
+        guard rect.width >= 1, rect.height >= 1 else {
+            return
+        }
+
+        var surface: [Double] = parentSurface ?? [0, 0, 0, 0]
+        if let parentRect {
+            let h4: Double = 4 * heightFactor
+            surface[2] += (h4 / parentRect.width) * (parentRect.x + parentRect.x + parentRect.width)
+            surface[0] -= h4 / parentRect.width
+            surface[3] += (h4 / parentRect.height) * (parentRect.y + parentRect.y + parentRect.height)
+            surface[1] -= h4 / parentRect.height
+        }
+        guard item.isFolder, item.isPackage == false else {
+            let color: TreemapRawColor = colorTable.color(for: item)
+            snapshots.append(TreemapCushionSnapshot(x: rect.x, y: rect.y, width: rect.width, height: rect.height, surface: surface, red: color.red, green: color.green, blue: color.blue))
             return
         }
 
@@ -57,7 +80,12 @@ nonisolated enum TreemapLayoutPlanner {
                 rect: childRect.rect,
                 unroundedRect: childRect.unroundedRect,
                 usePhysicalSize: usePhysicalSize,
-                entries: &entries
+                colorTable: colorTable,
+                parentSurface: surface,
+                parentRect: rect,
+                heightFactor: heightFactor * 0.9,
+                entries: &entries,
+                snapshots: &snapshots
             )
         }
     }

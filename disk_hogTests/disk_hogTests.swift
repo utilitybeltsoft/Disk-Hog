@@ -3517,12 +3517,18 @@ struct TreemapDiskItemDataSourceTests {
         let plan: TreemapLayoutPlan = TreemapLayoutPlanner.makePlan(
             rootItem: root,
             bounds: TreemapLayoutRect(x: 0, y: 0, width: 100, height: 100),
-            usePhysicalSize: true
+            usePhysicalSize: true,
+            colorTable: TreemapPlanColorTable(
+                orderedKinds: [],
+                sharesKindColors: false,
+                colorScheme: .diskHog
+            )
         )
 
         #expect(plan.entry(forPath: "/scan/file")?.rect.area == 10_000)
         #expect(plan.entry(forPath: "/scan/empty")?.rect.area == 0)
         #expect(plan.entry(forPath: "/scan/empty") != nil)
+        #expect(plan.cushionSnapshots.count == 1)
     }
 
     @Test func sharedKindColorsRemainStableAcrossDifferentRankings() {
