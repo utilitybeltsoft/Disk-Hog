@@ -4020,7 +4020,7 @@ struct TreemapViewStateTests {
         #expect(renderer.selectedCellID == nil)
     }
 
-    @Test func immediateOppositeArrowMoveRestoresTheOriginalSelection() {
+    @Test func oppositeArrowMovesBacktrackAcrossMultipleSteps() throws {
         let rootBuilder: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan"),
             isDirectory: true
@@ -4049,11 +4049,14 @@ struct TreemapViewStateTests {
         )
         state.prepareLayout(in: NSRect(x: 0, y: 0, width: 100, height: 100))
 
-        let movedItem: DiskItem? = state.selectNeighbor(in: .right)
-        let restoredItem: DiskItem? = state.selectNeighbor(in: .left)
+        let firstForwardItem: DiskItem = try #require(state.selectNeighbor(in: .right))
+        let secondForwardItem: DiskItem = try #require(state.selectNeighbor(in: .right))
+        let firstRestoredItem: DiskItem = try #require(state.selectNeighbor(in: .left))
+        let secondRestoredItem: DiskItem = try #require(state.selectNeighbor(in: .left))
 
-        #expect(movedItem != nil)
-        #expect(restoredItem === originalItem)
+        #expect(secondForwardItem !== firstForwardItem)
+        #expect(firstRestoredItem === firstForwardItem)
+        #expect(secondRestoredItem === originalItem)
         #expect(state.selectedItem === originalItem)
     }
 

@@ -13,7 +13,7 @@ final class TreemapViewState {
     private var showsOtherSpace: Bool = false
     private var freeSpaceItem: DiskItem?
     private var otherSpaceItem: DiskItem?
-    private var lastDirectionalMove: (origin: DiskItem, direction: TreemapNavigationDirection)?
+    private var directionalMoveHistory: [(origin: DiskItem, direction: TreemapNavigationDirection)] = []
 
     func configure(
         source: ScanSource,
@@ -40,12 +40,13 @@ final class TreemapViewState {
             self.showsOtherSpace = showsOtherSpace
             self.freeSpaceItem = freeSpaceItem
             self.otherSpaceItem = otherSpaceItem
+            directionalMoveHistory.removeAll(keepingCapacity: true)
             rebuildRenderer()
             needsDisplay = true
         }
 
         if self.selectedItem !== selectedItem {
-            lastDirectionalMove = nil
+            directionalMoveHistory.removeAll(keepingCapacity: true)
             self.selectedItem = selectedItem
             syncSelectionToRenderer()
             needsDisplay = true
@@ -58,31 +59,34 @@ final class TreemapViewState {
             return false
         }
 
-        lastDirectionalMove = nil
+        directionalMoveHistory.removeAll(keepingCapacity: true)
         self.selectedItem = selectedItem
         syncSelectionToRenderer()
         return true
     }
 
     func select(_ hitResult: TreemapHitResult) {
-        lastDirectionalMove = nil
+        directionalMoveHistory.removeAll(keepingCapacity: true)
         renderer?.selectItem(by: hitResult.cellID)
         selectedItem = hitResult.item
     }
 
     func selectNeighbor(in direction: TreemapNavigationDirection) -> DiskItem? {
-        if let lastDirectionalMove,
-           direction == lastDirectionalMove.direction.opposite,
-           renderer?.selectItem(byRenderedItem: lastDirectionalMove.origin) == true {
-            self.lastDirectionalMove = nil
-            selectedItem = lastDirectionalMove.origin
-            return lastDirectionalMove.origin
+        if let lastMove: (origin: DiskItem, direction: TreemapNavigationDirection) = directionalMoveHistory.last,
+           direction == lastMove.direction.opposite {
+            if renderer?.selectItem(byRenderedItem: lastMove.origin) == true {
+                _ = directionalMoveHistory.popLast()
+                selectedItem = lastMove.origin
+                return lastMove.origin
+            } else {
+                directionalMoveHistory.removeAll(keepingCapacity: true)
+            }
         }
         guard let origin: DiskItem = selectedItem else { return nil }
         let item: DiskItem? = renderer?.selectNeighbor(in: direction)
         guard let item else { return nil }
         selectedItem = item
-        lastDirectionalMove = (origin: origin, direction: direction)
+        directionalMoveHistory.append((origin: origin, direction: direction))
         return item
     }
 
