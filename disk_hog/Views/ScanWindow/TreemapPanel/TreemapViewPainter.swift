@@ -55,42 +55,12 @@ enum TreemapViewPainter {
         }
 
         let selectedRect: NSRect = renderer?.itemRect(by: selectedCellID) ?? .zero
-        if selectedRect.isEmpty {
-            let pixelRect: NSRect = TreemapRasterGeometry.pixelAlignedRect(
-                for: renderer?.selectedItemUnroundedRect() ?? .zero,
-                scale: backingScaleFactor
-            ).intersection(bounds)
-            guard pixelRect.isEmpty == false else { return }
-            NSColor.yellow.setFill()
-            TreemapRasterGeometry.visibleMarkerRect(
-                for: pixelRect,
-                in: bounds,
-                scale: backingScaleFactor
-            ).fill()
-            return
-        }
-        let rect: NSRect = TreemapSelectionRect.visibleRect(
-            for: selectedRect,
-            in: bounds
+        drawSelection(
+            selectedRect: selectedRect,
+            unroundedRect: renderer?.selectedItemUnroundedRect() ?? .zero,
+            in: bounds,
+            backingScaleFactor: backingScaleFactor
         )
-        guard rect != .zero else {
-            return
-        }
-
-        if rect.width <= 1 || rect.height <= 1 {
-            NSColor.yellow.setFill()
-            rect.fill()
-        } else if min(rect.width, rect.height) < ScanWindowMetrics.treemapMinimumSelectionSide {
-            NSColor.yellow.setStroke()
-            strokeContained(in: rect, lineWidth: 1)
-        } else {
-            NSColor.black.setStroke()
-            strokeContained(in: rect, lineWidth: ScanWindowMetrics.treemapSelectionOuterLineWidth)
-            NSColor.white.setStroke()
-            strokeContained(in: rect, lineWidth: ScanWindowMetrics.treemapSelectionMiddleLineWidth)
-            NSColor.yellow.setStroke()
-            strokeContained(in: rect, lineWidth: ScanWindowMetrics.treemapSelectionInnerLineWidth)
-        }
     }
 
     static func drawSelection(entry: TreemapLayoutEntry?, in bounds: NSRect, backingScaleFactor: CGFloat) {
@@ -98,10 +68,28 @@ enum TreemapViewPainter {
             return
         }
 
-        let selectedRect: NSRect = entry.rect.nsRect
+        drawSelection(
+            selectedRect: entry.rect.nsRect,
+            unroundedRect: entry.unroundedRect.nsRect,
+            in: bounds,
+            backingScaleFactor: backingScaleFactor
+        )
+    }
+
+    static func drawPlaceholder(in dirtyRect: NSRect) {
+        NSColor.textBackgroundColor.setFill()
+        dirtyRect.fill()
+    }
+
+    private static func drawSelection(
+        selectedRect: NSRect,
+        unroundedRect: NSRect,
+        in bounds: NSRect,
+        backingScaleFactor: CGFloat
+    ) {
         if selectedRect.isEmpty {
             let pixelRect: NSRect = TreemapRasterGeometry.pixelAlignedRect(
-                for: entry.unroundedRect.nsRect,
+                for: unroundedRect,
                 scale: backingScaleFactor
             ).intersection(bounds)
             guard pixelRect.isEmpty == false else { return }
@@ -135,11 +123,6 @@ enum TreemapViewPainter {
             NSColor.yellow.setStroke()
             strokeContained(in: rect, lineWidth: ScanWindowMetrics.treemapSelectionInnerLineWidth)
         }
-    }
-
-    static func drawPlaceholder(in dirtyRect: NSRect) {
-        NSColor.textBackgroundColor.setFill()
-        dirtyRect.fill()
     }
 
     private static func strokeContained(in rect: NSRect, lineWidth: CGFloat) {
