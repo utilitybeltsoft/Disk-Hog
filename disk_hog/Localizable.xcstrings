@@ -7775,6 +7775,118 @@
         }
       }
     },
+    "Disk Inventory Z Compatible" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disk-Inventory-Z-kompatibel"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compatible con Disk Inventory Z"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compatible avec Disk Inventory Z"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compatibile con Disk Inventory Z"
+          }
+        }
+      }
+    },
+    "Treemap Color Scheme" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Farbschema der Treemap"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esquema de colores del treemap"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Palette de couleurs de la treemap"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schema colori della treemap"
+          }
+        }
+      }
+    },
+    "Use Disk Hog’s vivid extended palette and optional matching across open windows." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verwenden Sie die lebendige erweiterte Palette von Disk Hog und die optionale Farbanpassung zwischen geöffneten Fenstern."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use la paleta ampliada y vibrante de Disk Hog y la coincidencia opcional entre ventanas abiertas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utilisez la palette étendue et vive de Disk Hog, ainsi que la correspondance facultative entre les fenêtres ouvertes."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa la vivace palette estesa di Disk Hog e la corrispondenza facoltativa tra le finestre aperte."
+          }
+        }
+      }
+    },
+    "Use Disk Inventory Z’s ranked palette and gray fallback for additional file kinds." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verwenden Sie die nach Rang geordnete Palette von Disk Inventory Z und den grauen Ersatz für zusätzliche Dateitypen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use la paleta ordenada por rango de Disk Inventory Z y el color gris de reserva para tipos de archivo adicionales."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utilisez la palette classée de Disk Inventory Z et le gris de remplacement pour les types de fichiers supplémentaires."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa la palette ordinata di Disk Inventory Z e il grigio di riserva per altri tipi di file."
+          }
+        }
+      }
+    },
     "Treemap" : {
       "localizations" : {
         "de" : {

@@ -4,6 +4,7 @@ import Foundation
 
 nonisolated enum ScanPreferenceDefaults {
     static let sharesKindColorsKey: String = "ShareKindColors"
+    static let treemapColorSchemeKey: String = "TreemapColorScheme"
 
     static var usesPhysicalSize: Bool {
         bool(
@@ -23,6 +24,14 @@ nonisolated enum ScanPreferenceDefaults {
         bool(forKey: sharesKindColorsKey, defaultValue: true)
     }
 
+    static var treemapColorScheme: TreemapColorScheme {
+        guard let rawValue: String = UserDefaults.standard.string(forKey: treemapColorSchemeKey),
+              let scheme: TreemapColorScheme = TreemapColorScheme(rawValue: rawValue) else {
+            return .diskHog
+        }
+        return scheme
+    }
+
     private static func bool(forKey key: String, defaultValue: Bool) -> Bool {
         guard UserDefaults.standard.object(forKey: key) != nil else {
             return defaultValue
@@ -38,6 +47,7 @@ final class ScanPreferences: ObservableObject {
     @Published private(set) var usesPhysicalSize: Bool
     @Published private(set) var showPackageContents: Bool
     @Published private(set) var sharesKindColors: Bool
+    @Published private(set) var treemapColorScheme: TreemapColorScheme
 
     private var pendingShowPackageContents: Bool?
 
@@ -45,6 +55,7 @@ final class ScanPreferences: ObservableObject {
         usesPhysicalSize = ScanPreferenceDefaults.usesPhysicalSize
         showPackageContents = ScanPreferenceDefaults.showPackageContents
         sharesKindColors = ScanPreferenceDefaults.sharesKindColors
+        treemapColorScheme = ScanPreferenceDefaults.treemapColorScheme
     }
 
     func requestShowPackageContentsChange(to newValue: Bool) {
@@ -89,7 +100,23 @@ final class ScanPreferences: ObservableObject {
 
         sharesKindColors = newValue
         UserDefaults.standard.set(newValue, forKey: ScanPreferenceDefaults.sharesKindColorsKey)
-        ScanWindowRegistry.shared.rebuildPresentationMetricsForColorPreference(newValue)
+        ScanWindowRegistry.shared.rebuildPresentationMetricsForColorPreference(
+            sharesKindColors: newValue,
+            colorScheme: treemapColorScheme
+        )
+    }
+
+    func setTreemapColorScheme(_ newValue: TreemapColorScheme) {
+        guard newValue != treemapColorScheme else {
+            return
+        }
+
+        treemapColorScheme = newValue
+        UserDefaults.standard.set(newValue.rawValue, forKey: ScanPreferenceDefaults.treemapColorSchemeKey)
+        ScanWindowRegistry.shared.rebuildPresentationMetricsForColorPreference(
+            sharesKindColors: sharesKindColors,
+            colorScheme: newValue
+        )
     }
 
     var scanSettings: DiskScanSettings {

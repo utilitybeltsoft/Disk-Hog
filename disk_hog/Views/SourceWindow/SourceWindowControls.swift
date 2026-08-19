@@ -28,6 +28,7 @@ struct SourceWindowActionBar: View {
     @Binding var showPackageContents: Bool
     @Binding var showPhysicalFileSize: Bool
     @Binding var shareKindColors: Bool
+    @Binding var treemapColorScheme: TreemapColorScheme
     let canScanSelectedVolume: Bool
     let onRefresh: () -> Void
     let onChooseFolder: () -> Void
@@ -46,7 +47,8 @@ struct SourceWindowActionBar: View {
                 ScanSettingsPopoverView(
                     showPackageContents: $showPackageContents,
                     showPhysicalFileSize: $showPhysicalFileSize,
-                    shareKindColors: $shareKindColors
+                    shareKindColors: $shareKindColors,
+                    treemapColorScheme: $treemapColorScheme
                 )
             }
 
@@ -90,6 +92,7 @@ private struct ScanSettingsPopoverView: View {
     @Binding var showPackageContents: Bool
     @Binding var showPhysicalFileSize: Bool
     @Binding var shareKindColors: Bool
+    @Binding var treemapColorScheme: TreemapColorScheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: Metrics.scanSettingsSpacing) {
@@ -106,8 +109,21 @@ private struct ScanSettingsPopoverView: View {
             ScanSettingsRowView(
                 title: "Match File-Kind Colors Across Open Windows",
                 description: "Use the same color for a file kind in every scan window. Turn this off to color each window by its own largest kinds.",
-                isOn: $shareKindColors
+                isOn: $shareKindColors,
+                isEnabled: treemapColorScheme == .diskHog
             )
+            VStack(alignment: .leading, spacing: Metrics.scanSettingsDescriptionSpacing) {
+                Picker("Treemap Color Scheme", selection: $treemapColorScheme) {
+                    Text("Disk Hog").tag(TreemapColorScheme.diskHog)
+                    Text("Disk Inventory Z Compatible").tag(TreemapColorScheme.diskInventoryZ)
+                }
+                .font(.system(size: Metrics.standardFontSize))
+                Text(colorSchemeDescription)
+                .font(.system(size: Metrics.standardFontSize))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.leading, Metrics.scanSettingsDescriptionIndent)
+            }
             Text("Package-content changes can rescan open windows. Size and color changes update open windows.")
                 .font(.system(size: Metrics.standardFontSize))
                 .foregroundStyle(.tertiary)
@@ -116,22 +132,34 @@ private struct ScanSettingsPopoverView: View {
         .padding(Metrics.scanSettingsPadding)
         .frame(width: Metrics.scanSettingsWidth, alignment: .leading)
     }
+
+    private var colorSchemeDescription: LocalizedStringKey {
+        switch treemapColorScheme {
+        case .diskHog:
+            return "Use Disk Hog’s vivid extended palette and optional matching across open windows."
+        case .diskInventoryZ:
+            return "Use Disk Inventory Z’s ranked palette and gray fallback for additional file kinds."
+        }
+    }
 }
 
 private struct ScanSettingsRowView: View {
     let title: LocalizedStringKey
     let description: LocalizedStringKey
     @Binding var isOn: Bool
+    var isEnabled: Bool = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: Metrics.scanSettingsDescriptionSpacing) {
             Toggle(title, isOn: $isOn)
                 .font(.system(size: Metrics.standardFontSize))
+                .disabled(isEnabled == false)
             Text(description)
                 .font(.system(size: Metrics.standardFontSize))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.leading, Metrics.scanSettingsDescriptionIndent)
+                .opacity(isEnabled ? 1 : 0.5)
         }
     }
 }

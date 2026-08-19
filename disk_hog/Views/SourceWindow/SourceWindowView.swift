@@ -39,6 +39,10 @@ struct SourceWindowView: View {
                     get: { scanPreferences.sharesKindColors },
                     set: { scanPreferences.setSharesKindColors($0) }
                 ),
+                treemapColorScheme: Binding(
+                    get: { scanPreferences.treemapColorScheme },
+                    set: { scanPreferences.setTreemapColorScheme($0) }
+                ),
                 canScanSelectedVolume: viewModel.selectedSource?.canScan == true,
                 onRefresh: refreshSources,
                 onChooseFolder: chooseFolder,

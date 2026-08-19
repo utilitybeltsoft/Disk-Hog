@@ -72,9 +72,15 @@ final class ScanWindowRegistry {
         }
     }
 
-    func rebuildPresentationMetricsForColorPreference(_ sharesKindColors: Bool) {
+    func rebuildPresentationMetricsForColorPreference(
+        sharesKindColors: Bool,
+        colorScheme: TreemapColorScheme
+    ) {
         for session: ScanSession in openSessions {
-            session.rebuildPresentationMetrics(sharesKindColors: sharesKindColors)
+            session.rebuildPresentationMetrics(
+                sharesKindColors: sharesKindColors,
+                colorScheme: colorScheme
+            )
         }
     }
 

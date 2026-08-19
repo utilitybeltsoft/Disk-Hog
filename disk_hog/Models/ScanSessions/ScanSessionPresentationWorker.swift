@@ -11,14 +11,16 @@ nonisolated protocol ScanSessionPresenting: Sendable {
     func presentationMetrics(
         rootItem: DiskItem,
         usePhysicalSize: Bool,
-        sharesKindColors: Bool
+        sharesKindColors: Bool,
+        colorScheme: TreemapColorScheme
     ) -> TreemapPresentationMetrics
 
     func sizeModeUpdate(
         rootItem: DiskItem,
         selectionPath: String,
         usePhysicalSize: Bool,
-        sharesKindColors: Bool
+        sharesKindColors: Bool,
+        colorScheme: TreemapColorScheme
     ) -> ScanSessionSizeModeUpdateResult
 }
 
@@ -26,12 +28,14 @@ nonisolated struct DiskInventoryZScanSessionPresentationWorker: ScanSessionPrese
     func presentationMetrics(
         rootItem: DiskItem,
         usePhysicalSize: Bool,
-        sharesKindColors: Bool
+        sharesKindColors: Bool,
+        colorScheme: TreemapColorScheme
     ) -> TreemapPresentationMetrics {
         TreemapPresentationMetrics(
             rootItem: rootItem,
             usePhysicalSize: usePhysicalSize,
-            sharesKindColors: sharesKindColors
+            sharesKindColors: sharesKindColors,
+            colorScheme: colorScheme
         )
     }
 
@@ -39,7 +43,8 @@ nonisolated struct DiskInventoryZScanSessionPresentationWorker: ScanSessionPrese
         rootItem: DiskItem,
         selectionPath: String,
         usePhysicalSize: Bool,
-        sharesKindColors: Bool
+        sharesKindColors: Bool,
+        colorScheme: TreemapColorScheme
     ) -> ScanSessionSizeModeUpdateResult {
         let reorderedRoot: DiskItem = DiskItemTreeEditor.reordered(rootItem, usePhysicalSize: usePhysicalSize)
         return ScanSessionSizeModeUpdateResult(
@@ -47,7 +52,8 @@ nonisolated struct DiskInventoryZScanSessionPresentationWorker: ScanSessionPrese
             presentationMetrics: presentationMetrics(
                 rootItem: reorderedRoot,
                 usePhysicalSize: usePhysicalSize,
-                sharesKindColors: sharesKindColors
+                sharesKindColors: sharesKindColors,
+                colorScheme: colorScheme
             ),
             selectionPath: selectionPath,
             usePhysicalSize: usePhysicalSize

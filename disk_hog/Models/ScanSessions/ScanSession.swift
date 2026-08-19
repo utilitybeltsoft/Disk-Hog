@@ -342,7 +342,10 @@ final class ScanSession: ObservableObject {
         } }
     }
 
-    func rebuildPresentationMetrics(sharesKindColors: Bool) {
+    func rebuildPresentationMetrics(
+        sharesKindColors: Bool,
+        colorScheme: TreemapColorScheme
+    ) {
         guard state == .complete,
               let rootItem: DiskItem else {
             return
@@ -354,7 +357,8 @@ final class ScanSession: ObservableObject {
             let metrics: TreemapPresentationMetrics = presentationWorker.presentationMetrics(
                 rootItem: rootItem,
                 usePhysicalSize: usePhysicalSize,
-                sharesKindColors: sharesKindColors
+                sharesKindColors: sharesKindColors,
+                colorScheme: colorScheme
             )
             guard !Task.isCancelled else {
                 await MainActor.run { [weak self] in
@@ -522,7 +526,8 @@ final class ScanSession: ObservableObject {
                 rootItem: rootItem,
                 selectionPath: selectionPath,
                 usePhysicalSize: usePhysicalSize,
-                sharesKindColors: ScanPreferenceDefaults.sharesKindColors
+                sharesKindColors: ScanPreferenceDefaults.sharesKindColors,
+                colorScheme: ScanPreferenceDefaults.treemapColorScheme
             )
             guard !Task.isCancelled else {
                 await MainActor.run { [weak self] in

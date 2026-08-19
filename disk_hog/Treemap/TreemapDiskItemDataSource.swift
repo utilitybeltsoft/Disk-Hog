@@ -102,6 +102,7 @@ nonisolated final class TreemapPresentationMetrics: @unchecked Sendable {
         rootItem: DiskItem,
         usePhysicalSize: Bool,
         sharesKindColors: Bool = false,
+        colorScheme: TreemapColorScheme = .diskHog,
         progress: (@Sendable (Double) -> Void)? = nil
     ) {
         let statisticsByKind: [String: TreemapKindAggregate] = TreemapKindCatalog.aggregates(
@@ -113,7 +114,8 @@ nonisolated final class TreemapPresentationMetrics: @unchecked Sendable {
         let orderedKinds: [String] = TreemapKindCatalog.orderedKinds(from: statisticsByKind)
         let colorTable: TreemapDiskItemColorTable = TreemapDiskItemColorTable(
             orderedKinds: orderedKinds,
-            sharesKindColors: sharesKindColors
+            sharesKindColors: sharesKindColors,
+            colorScheme: colorScheme
         )
         self.colorTable = colorTable
         self.kindStatistics = orderedKinds.map { kindName in
@@ -133,9 +135,13 @@ nonisolated final class TreemapDiskItemColorTable: @unchecked Sendable {
     private let colorsByKind: [String: NSColor]
     private let fallbackFolderColor: NSColor
 
-    init(orderedKinds: [String], sharesKindColors: Bool = false) {
+    init(
+        orderedKinds: [String],
+        sharesKindColors: Bool = false,
+        colorScheme: TreemapColorScheme = .diskHog
+    ) {
         var colorsByKind: [String: NSColor] = [:]
-        if sharesKindColors {
+        if sharesKindColors && colorScheme == .diskHog {
             for kindName: String in orderedKinds {
                 colorsByKind[kindName] = Self.color(
                     from: TreemapPalettePlan.rawColor(
@@ -144,7 +150,10 @@ nonisolated final class TreemapDiskItemColorTable: @unchecked Sendable {
                 )
             }
         } else {
-            let plan: TreemapPalettePlan = TreemapPalettePlan(orderedKinds: orderedKinds)
+            let plan: TreemapPalettePlan = TreemapPalettePlan(
+                orderedKinds: orderedKinds,
+                colorScheme: colorScheme
+            )
             for kindName: String in plan.orderedKinds {
                 colorsByKind[kindName] = Self.color(from: plan.rawColor(forKind: kindName))
             }

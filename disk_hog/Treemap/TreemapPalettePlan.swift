@@ -65,6 +65,11 @@ nonisolated struct TreemapRawColor: Sendable {
     let alpha: Double
 }
 
+nonisolated enum TreemapColorScheme: String, CaseIterable, Sendable {
+    case diskHog
+    case diskInventoryZ
+}
+
 nonisolated struct TreemapPalettePlan: Sendable {
     private static let goldenRatioConjugate: Double = 0.618_033_988_749_895
     private static let generatedSaturations: [Double] = [0.70, 0.85, 0.55]
@@ -75,22 +80,26 @@ nonisolated struct TreemapPalettePlan: Sendable {
     private let rawColorsByKind: [String: TreemapRawColor]
     let fallbackFolderColor: TreemapRawColor
 
-    init(orderedKinds: [String]) {
+    init(orderedKinds: [String], colorScheme: TreemapColorScheme = .diskHog) {
         self.orderedKinds = orderedKinds
         var rawColorsByKind: [String: TreemapRawColor] = [:]
         for (index, kindName) in orderedKinds.enumerated() {
-            rawColorsByKind[kindName] = Self.rawColor(at: index)
+            rawColorsByKind[kindName] = Self.rawColor(at: index, colorScheme: colorScheme)
         }
         self.rawColorsByKind = rawColorsByKind
-        fallbackFolderColor = Self.rawColor(at: orderedKinds.count)
+        fallbackFolderColor = Self.rawColor(at: orderedKinds.count, colorScheme: colorScheme)
     }
 
     func rawColor(forKind kindName: String) -> TreemapRawColor {
         rawColorsByKind[kindName] ?? fallbackFolderColor
     }
 
-    static func rawColor(at index: Int) -> TreemapRawColor {
+    static func rawColor(at index: Int, colorScheme: TreemapColorScheme = .diskHog) -> TreemapRawColor {
         guard index < predefinedColors.count else {
+            if colorScheme == .diskInventoryZ {
+                let component: Double = min(Double(index) * 0.05, 0.9)
+                return TreemapRawColor(red: component, green: component, blue: component, alpha: 1)
+            }
             return generatedColor(at: index - predefinedColors.count)
         }
         return predefinedColors[index]

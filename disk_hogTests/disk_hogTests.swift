@@ -1123,7 +1123,7 @@ struct ScanSessionWorkerIntegrationTests {
         try await Self.waitUntil(observing: session) { session.state == .complete }
         let originalMetricsID: ObjectIdentifier? = session.presentationMetrics.map(ObjectIdentifier.init)
 
-        session.rebuildPresentationMetrics(sharesKindColors: false)
+        session.rebuildPresentationMetrics(sharesKindColors: false, colorScheme: .diskHog)
 
         try await Self.waitUntil(observing: session) {
             session.presentationMetrics.map(ObjectIdentifier.init) != originalMetricsID
@@ -1462,12 +1462,14 @@ private struct ImmediatePresentationWorker: ScanSessionPresenting {
     func presentationMetrics(
         rootItem: DiskItem,
         usePhysicalSize: Bool,
-        sharesKindColors: Bool
+        sharesKindColors: Bool,
+        colorScheme: TreemapColorScheme
     ) -> TreemapPresentationMetrics {
         TreemapPresentationMetrics(
             rootItem: rootItem,
             usePhysicalSize: usePhysicalSize,
-            sharesKindColors: sharesKindColors
+            sharesKindColors: sharesKindColors,
+            colorScheme: colorScheme
         )
     }
 
@@ -1475,14 +1477,16 @@ private struct ImmediatePresentationWorker: ScanSessionPresenting {
         rootItem: DiskItem,
         selectionPath: String,
         usePhysicalSize: Bool,
-        sharesKindColors: Bool
+        sharesKindColors: Bool,
+        colorScheme: TreemapColorScheme
     ) -> ScanSessionSizeModeUpdateResult {
         ScanSessionSizeModeUpdateResult(
             rootItem: sizeModeRootItem,
             presentationMetrics: presentationMetrics(
                 rootItem: sizeModeRootItem,
                 usePhysicalSize: usePhysicalSize,
-                sharesKindColors: sharesKindColors
+                sharesKindColors: sharesKindColors,
+                colorScheme: colorScheme
             ),
             selectionPath: selectionPath,
             usePhysicalSize: usePhysicalSize
@@ -1788,12 +1792,14 @@ private struct DelayedSizeModePresentationWorker: ScanSessionPresenting {
     func presentationMetrics(
         rootItem: DiskItem,
         usePhysicalSize: Bool,
-        sharesKindColors: Bool
+        sharesKindColors: Bool,
+        colorScheme: TreemapColorScheme
     ) -> TreemapPresentationMetrics {
         TreemapPresentationMetrics(
             rootItem: rootItem,
             usePhysicalSize: usePhysicalSize,
-            sharesKindColors: sharesKindColors
+            sharesKindColors: sharesKindColors,
+            colorScheme: colorScheme
         )
     }
 
@@ -1801,7 +1807,8 @@ private struct DelayedSizeModePresentationWorker: ScanSessionPresenting {
         rootItem: DiskItem,
         selectionPath: String,
         usePhysicalSize: Bool,
-        sharesKindColors: Bool
+        sharesKindColors: Bool,
+        colorScheme: TreemapColorScheme
     ) -> ScanSessionSizeModeUpdateResult {
         if !usePhysicalSize {
             usleep(150_000)
@@ -1813,7 +1820,8 @@ private struct DelayedSizeModePresentationWorker: ScanSessionPresenting {
             presentationMetrics: presentationMetrics(
                 rootItem: resultRootItem,
                 usePhysicalSize: usePhysicalSize,
-                sharesKindColors: sharesKindColors
+                sharesKindColors: sharesKindColors,
+                colorScheme: colorScheme
             ),
             selectionPath: selectionPath,
             usePhysicalSize: usePhysicalSize
@@ -3503,6 +3511,22 @@ struct TreemapDiskItemDataSourceTests {
 
         #expect(distinctColorKeys.count == generatedColors.count)
         #expect(grayscaleColors.isEmpty)
+    }
+
+    @Test func diskInventoryZColorsUseItsGrayFallbackAfterCuratedPalette() {
+        let firstFallback: TreemapRawColor = TreemapPalettePlan.rawColor(
+            at: 30,
+            colorScheme: .diskInventoryZ
+        )
+        let laterFallback: TreemapRawColor = TreemapPalettePlan.rawColor(
+            at: 60,
+            colorScheme: .diskInventoryZ
+        )
+
+        #expect(firstFallback.red == 0.9)
+        #expect(firstFallback.red == firstFallback.green)
+        #expect(firstFallback.green == firstFallback.blue)
+        #expect(laterFallback.red == 0.9)
     }
 
     @Test func sharedKindColorRegistryCanUseGeneratedPaletteSlots() {
