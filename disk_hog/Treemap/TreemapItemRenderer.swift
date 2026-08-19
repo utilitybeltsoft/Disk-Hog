@@ -2,15 +2,12 @@ import AppKit
 
 @MainActor
 final class TreemapItemRenderer {
-    private static let cushionScaleFactor: CGFloat = 0.9
-
     private weak var dataSource: TreemapDiskItemDataSource?
     private weak var parentRenderer: TreemapItemRenderer?
     private var renderedItem: DiskItem
     private var rectValue: NSRect
     private var unroundedRectValue: NSRect
     private var childRenderers: [TreemapItemRenderer]?
-    private let cushionRenderer: TreemapCushionRenderer
     private var childRendererReconciliationCountValue: Int
 
     init(
@@ -23,7 +20,6 @@ final class TreemapItemRenderer {
         self.parentRenderer = parentRenderer
         self.rectValue = .zero
         self.unroundedRectValue = .zero
-        self.cushionRenderer = TreemapCushionRenderer()
         self.childRendererReconciliationCountValue = 0
     }
 
@@ -31,12 +27,7 @@ final class TreemapItemRenderer {
         renderedItem = item
         rectValue = .zero
         unroundedRectValue = .zero
-        cushionRenderer.setRect(.zero)
         childRenderers = nil
-    }
-
-    func setCushionColor(_ color: NSColor) {
-        cushionRenderer.setColor(color)
     }
 
     func calcLayout(_ proposedRect: NSRect) {
@@ -50,35 +41,12 @@ final class TreemapItemRenderer {
         assert(rect.size.width - CGFloat(Int(rect.size.width)) == 0.0)
         assert(rect.size.height - CGFloat(Int(rect.size.height)) == 0.0)
         rectValue = rect
-        cushionRenderer.setRect(rect)
         if rect.height < 1 || rect.width < 1 {
             return
         }
         if !isLeaf {
             layoutChilds()
         }
-    }
-
-    func drawCushion(in bitmap: NSBitmapImageRep, backingScaleFactor: CGFloat) {
-        drawCushion(
-            in: bitmap,
-            backingScaleFactor: backingScaleFactor,
-            parentCushion: nil,
-            cushionHeightFactor: 0.5
-        )
-    }
-
-    func cushionSnapshots(
-        navigationRenderers: inout [TreemapItemRenderer]
-    ) -> [TreemapCushionSnapshot] {
-        var snapshots: [TreemapCushionSnapshot] = []
-        appendCushionSnapshots(
-            parentSurface: nil,
-            heightFactor: 0.5,
-            to: &snapshots,
-            navigationRenderers: &navigationRenderers
-        )
-        return snapshots
     }
 
     var isLeaf: Bool {
@@ -218,72 +186,6 @@ final class TreemapItemRenderer {
             return self
         }
         return nil
-    }
-
-    private func drawCushion(in bitmap: NSBitmapImageRep, backingScaleFactor: CGFloat, parentCushion: TreemapCushionRenderer?, cushionHeightFactor heightFactor: CGFloat) {
-        if rectValue.height < 1 || rectValue.width < 1 {
-            return
-        }
-        if let parentCushion: TreemapCushionRenderer = parentCushion {
-            cushionRenderer.setSurface(parentCushion.surfaceValues())
-            cushionRenderer.addRidgeByHeightFactor(heightFactor)
-        }
-        if isLeaf {
-            dataSource?.prepareRenderer(self, for: renderedItem)
-            cushionRenderer.renderCushion(in: bitmap, backingScaleFactor: backingScaleFactor)
-        } else {
-            for childRenderer: TreemapItemRenderer in childEnumerator {
-                childRenderer.drawCushion(
-                    in: bitmap,
-                    backingScaleFactor: backingScaleFactor,
-                    parentCushion: cushionRenderer,
-                    cushionHeightFactor: heightFactor * Self.cushionScaleFactor
-                )
-            }
-        }
-    }
-
-    private func appendCushionSnapshots(
-        parentSurface: [CGFloat]?,
-        heightFactor: CGFloat,
-        to snapshots: inout [TreemapCushionSnapshot],
-        navigationRenderers: inout [TreemapItemRenderer]
-    ) {
-        guard rectValue.height >= 1, rectValue.width >= 1 else {
-            if navigationRect.isEmpty == false {
-                navigationRenderers.append(self)
-            }
-            return
-        }
-        var surface: [CGFloat] = parentSurface ?? cushionRenderer.surfaceValues()
-        if parentSurface != nil {
-            let h4: CGFloat = 4 * heightFactor
-            surface[2] += (h4 / rectValue.width) * (rectValue.maxX + rectValue.minX)
-            surface[0] -= h4 / rectValue.width
-            surface[3] += (h4 / rectValue.height) * (rectValue.maxY + rectValue.minY)
-            surface[1] -= h4 / rectValue.height
-        }
-        if isLeaf {
-            navigationRenderers.append(self)
-            cushionRenderer.setSurface(surface)
-            dataSource?.prepareRenderer(self, for: renderedItem)
-            let color: NSColor = cushionRenderer.color
-            snapshots.append(TreemapCushionSnapshot(
-                x: Double(rectValue.minX), y: Double(rectValue.minY),
-                width: Double(rectValue.width), height: Double(rectValue.height),
-                surface: surface.map(Double.init),
-                red: Double(color.redComponent), green: Double(color.greenComponent), blue: Double(color.blueComponent)
-            ))
-        } else {
-            for child: TreemapItemRenderer in childEnumerator {
-                child.appendCushionSnapshots(
-                    parentSurface: surface,
-                    heightFactor: heightFactor * Self.cushionScaleFactor,
-                    to: &snapshots,
-                    navigationRenderers: &navigationRenderers
-                )
-            }
-        }
     }
 
     private func layoutChilds() {

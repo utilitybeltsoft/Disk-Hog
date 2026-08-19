@@ -6,7 +6,6 @@ nonisolated final class TreemapDiskItemDataSource: @unchecked Sendable {
     private let showOtherSpace: Bool
     private let freeSpaceItem: DiskItem?
     private let otherSpaceItem: DiskItem?
-    private let colorTable: TreemapDiskItemColorTable
     private let usePhysicalSize: Bool
 
     init(rootItem: DiskItem, usePhysicalSize: Bool = true, showFreeSpace: Bool = false, showOtherSpace: Bool = false, freeSpaceItem: DiskItem? = nil, otherSpaceItem: DiskItem? = nil, presentationMetrics: TreemapPresentationMetrics? = nil) {
@@ -16,7 +15,7 @@ nonisolated final class TreemapDiskItemDataSource: @unchecked Sendable {
         self.showOtherSpace = showOtherSpace
         self.freeSpaceItem = freeSpaceItem
         self.otherSpaceItem = otherSpaceItem
-        self.colorTable = presentationMetrics?.colorTable ?? TreemapPresentationMetrics(rootItem: rootItem, usePhysicalSize: usePhysicalSize).colorTable
+        _ = presentationMetrics
     }
 
     var root: DiskItem {
@@ -59,12 +58,6 @@ nonisolated final class TreemapDiskItemDataSource: @unchecked Sendable {
             }
         }
         return size
-    }
-
-    @MainActor
-    func prepareRenderer(_ renderer: TreemapItemRenderer, for item: DiskItem) {
-        let color: NSColor = colorTable.color(for: item)
-        renderer.setCushionColor(color)
     }
 
     func shouldSelect(_ item: DiskItem) -> Bool {

@@ -20,35 +20,6 @@ enum TreemapViewPainter {
         )
     }
 
-    static func drawCachedImage(
-        renderer: TreemapViewRenderer?,
-        canvasSize: NSSize,
-        backingScaleFactor: CGFloat,
-        colorSpace: NSColorSpace?,
-        destinationRect: NSRect,
-        sourceRect: NSRect?,
-        fraction: CGFloat
-    ) -> Bool {
-        guard let imageRep: NSBitmapImageRep = renderer?.cachedImageOrRequestRendering(
-            size: canvasSize,
-            scale: backingScaleFactor
-        ) else {
-            return false
-        }
-
-        let image: NSImage = imageRep.treemapSuitableImage()
-        let sourceRect: NSRect = sourceRect ?? NSRect(origin: .zero, size: image.size)
-        image.draw(
-            in: destinationRect,
-            from: sourceRect,
-            operation: .copy,
-            fraction: fraction,
-            respectFlipped: true,
-            hints: nil
-        )
-        return true
-    }
-
     static func drawSelection(renderer: TreemapViewRenderer?, in bounds: NSRect, backingScaleFactor: CGFloat) {
         guard let selectedCellID: TreemapItemRenderer = renderer?.selectedCellID else {
             return

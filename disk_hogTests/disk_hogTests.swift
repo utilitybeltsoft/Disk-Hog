@@ -3899,60 +3899,6 @@ struct TreemapViewRendererTests {
         #expect(rect.height > 0)
     }
 
-    @Test func bitmapCacheRebuildsForBackingScaleAndColorSpace() throws {
-        let root: DiskItem = DiskItem(
-            url: URL(fileURLWithPath: "/scan/file.bin"),
-            allocatedSizeValue: 100,
-            logicalSizeValue: 100
-        )
-        let dataSource: TreemapDiskItemDataSource = TreemapDiskItemDataSource(rootItem: root)
-        let renderer: TreemapViewRenderer = TreemapViewRenderer(dataSource: dataSource)
-        renderer.reloadData()
-        #expect(renderer.rootCellID != nil)
-        renderer.calcLayout(NSRect(x: 0, y: 0, width: 50, height: 40))
-
-        let standardScale: NSBitmapImageRep = try #require(
-            renderer.drawInCache(size: NSSize(width: 50, height: 40), scale: 1, colorSpace: .genericRGB)
-        )
-        let retinaScale: NSBitmapImageRep = try #require(
-            renderer.drawInCache(size: NSSize(width: 50, height: 40), scale: 2, colorSpace: .genericRGB)
-        )
-        let displayP3: NSBitmapImageRep = try #require(
-            renderer.drawInCache(size: NSSize(width: 50, height: 40), scale: 2, colorSpace: .displayP3)
-        )
-
-        #expect(retinaScale !== standardScale)
-        #expect(retinaScale.pixelsWide == 100)
-        #expect(retinaScale.pixelsHigh == 80)
-        #expect(displayP3 !== retinaScale)
-        #expect(displayP3.colorSpace.isEqual(NSColorSpace.displayP3))
-    }
-
-    @Test func drawInCachePaintsTheFullPixelAreaOfARetinaBitmap() throws {
-        let root: DiskItem = DiskItem(
-            url: URL(fileURLWithPath: "/scan/file.bin"),
-            allocatedSizeValue: 100,
-            logicalSizeValue: 100,
-            kindName: "Binary"
-        )
-        let dataSource: TreemapDiskItemDataSource = TreemapDiskItemDataSource(rootItem: root)
-        let renderer: TreemapViewRenderer = TreemapViewRenderer(dataSource: dataSource)
-
-        renderer.reloadData()
-        #expect(renderer.rootCellID != nil)
-        renderer.calcLayout(NSRect(x: 0, y: 0, width: 100, height: 100))
-        let bitmap: NSBitmapImageRep = try #require(
-            renderer.drawInCache(size: NSSize(width: 100, height: 100), scale: 2, colorSpace: .genericRGB)
-        )
-
-        #expect(bitmap.pixelsWide == 200)
-        #expect(bitmap.pixelsHigh == 200)
-        let bytes: UnsafeMutablePointer<UInt8> = try #require(bitmap.bitmapData)
-        let lowerRightPixel: UnsafeMutablePointer<UInt8> = bytes + 150 * bitmap.bytesPerRow + 150 * 3
-        let lowerRightPixelBrightness: Int = Int(lowerRightPixel[0]) + Int(lowerRightPixel[1]) + Int(lowerRightPixel[2])
-        #expect(lowerRightPixelBrightness > 0)
-    }
-
     @Test func renderedItemSelectionWorksImmediatelyAfterReload() {
         let rootBuilder: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan"),
