@@ -62,7 +62,9 @@ final class TreemapViewState {
         if self.selectedItem !== selectedItem {
             directionalMoveHistory.removeAll(keepingCapacity: true)
             self.selectedItem = selectedItem
-            syncSelectionToRenderer()
+            if renderedPlan == nil {
+                syncSelectionToRenderer()
+            }
             needsDisplay = true
         }
         return needsDisplay
@@ -75,7 +77,9 @@ final class TreemapViewState {
 
         directionalMoveHistory.removeAll(keepingCapacity: true)
         self.selectedItem = selectedItem
-        syncSelectionToRenderer()
+        if renderedPlan == nil {
+            syncSelectionToRenderer()
+        }
         return true
     }
 
@@ -92,7 +96,6 @@ final class TreemapViewState {
            direction == lastMove.direction.opposite {
             if renderedPlan?.entry(for: lastMove.origin) != nil {
                 _ = directionalMoveHistory.popLast()
-                _ = renderer?.selectItem(byRenderedItem: lastMove.origin)
                 selectedItem = lastMove.origin
                 return lastMove.origin
             } else if renderer?.selectItem(byRenderedItem: lastMove.origin) == true {
@@ -106,7 +109,6 @@ final class TreemapViewState {
         guard let origin: DiskItem = selectedItem else { return nil }
         if let item: DiskItem = renderedPlan?.nearestEntry(from: origin, direction: direction)?.item {
             selectedItem = item
-            _ = renderer?.selectItem(byRenderedItem: item)
             directionalMoveHistory.append((origin: origin, direction: direction))
             return item
         }
