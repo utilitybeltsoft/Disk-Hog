@@ -3518,6 +3518,46 @@ struct TreemapDiskItemDataSourceTests {
         #expect(plan.hitEntry(x: 80, y: 80)?.itemPath == "/scan")
     }
 
+    @Test func layoutPlanHitTestingFindsLargeEntriesAwayFromTheirCenter() {
+        let rootItem: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan"),
+            allocatedSizeValue: 100,
+            logicalSizeValue: 100,
+            isDirectory: true
+        )
+        let childItem: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/child"),
+            allocatedSizeValue: 10,
+            logicalSizeValue: 10
+        )
+        let root: TreemapLayoutEntry = TreemapLayoutEntry(
+            item: rootItem,
+            itemPath: "/scan",
+            parentItem: nil,
+            parentPath: nil,
+            rect: TreemapLayoutRect(x: 0, y: 0, width: 100, height: 100),
+            unroundedRect: TreemapLayoutRect(x: 0, y: 0, width: 100, height: 100),
+            isSpecialItem: false
+        )
+        let child: TreemapLayoutEntry = TreemapLayoutEntry(
+            item: childItem,
+            itemPath: "/scan/child",
+            parentItem: rootItem,
+            parentPath: "/scan",
+            rect: TreemapLayoutRect(x: 90, y: 90, width: 5, height: 5),
+            unroundedRect: TreemapLayoutRect(x: 90, y: 90, width: 5, height: 5),
+            isSpecialItem: false
+        )
+        let plan: TreemapLayoutPlan = TreemapLayoutPlan(
+            bounds: TreemapLayoutRect(x: 0, y: 0, width: 100, height: 100),
+            entries: [root, child],
+            cushionSnapshots: []
+        )
+
+        #expect(plan.hitEntry(x: 95, y: 5)?.itemPath == "/scan")
+        #expect(plan.hitEntry(x: 92, y: 92)?.itemPath == "/scan/child")
+    }
+
     @Test func layoutPlanNavigatesBetweenSiblingItemsWithoutRenderers() throws {
         let leftItem: DiskItem = DiskItem(url: URL(fileURLWithPath: "/scan/left"), allocatedSizeValue: 1, logicalSizeValue: 1)
         let rightItem: DiskItem = DiskItem(url: URL(fileURLWithPath: "/scan/right"), allocatedSizeValue: 1, logicalSizeValue: 1)

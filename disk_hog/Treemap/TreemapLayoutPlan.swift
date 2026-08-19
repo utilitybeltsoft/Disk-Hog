@@ -60,6 +60,7 @@ nonisolated struct TreemapLayoutPlan: Sendable {
     private let entryIndexByPath: [String: Int]
     private let entryIndexByItem: [DiskItem: Int]
     private let childEntryIndicesByParent: [DiskItem: [Int]]
+    private let hitIndex: TreemapLayoutHitIndex?
     private let navigationIndex: TreemapLayoutNavigationIndex?
 
     init(
@@ -89,6 +90,11 @@ nonisolated struct TreemapLayoutPlan: Sendable {
         self.entryIndexByPath = entryIndexByPath
         self.entryIndexByItem = entryIndexByItem
         self.childEntryIndicesByParent = childEntryIndicesByParent
+        self.hitIndex = TreemapLayoutHitIndex(
+            entries: entries,
+            candidateIndices: navigableIndices,
+            bounds: bounds
+        )
         self.navigationIndex = TreemapLayoutNavigationIndex(
             entries: entries,
             candidateIndices: navigableIndices,
@@ -113,10 +119,11 @@ nonisolated struct TreemapLayoutPlan: Sendable {
     /// Resolves overlaps by choosing the smallest painted rectangle, which is
     /// the deepest visible descendant at the pointer location.
     func hitEntry(x: Double, y: Double) -> TreemapLayoutEntry? {
-        entries
-            .lazy
-            .filter { $0.isSpecialItem == false && $0.rect.contains(x: x, y: y) }
-            .min { $0.rect.area < $1.rect.area }
+        guard let hitIndex: TreemapLayoutHitIndex,
+              let index: Int = hitIndex.hitEntryIndex(entries: entries, x: x, y: y) else {
+            return nil
+        }
+        return entries[index]
     }
 
     func nearestEntry(from item: DiskItem, direction: TreemapNavigationDirection) -> TreemapLayoutEntry? {
@@ -201,6 +208,81 @@ nonisolated struct TreemapLayoutPlan: Sendable {
             return nil
         }
         return primaryDistance + crossDistance * 0.25
+    }
+}
+
+private nonisolated struct TreemapLayoutHitIndex: Sendable {
+    private let bounds: TreemapLayoutRect
+    private let gridSide: Int
+    private let entryIndicesByCell: [Int: [Int]]
+
+    init?(entries: [TreemapLayoutEntry], candidateIndices: [Int], bounds: TreemapLayoutRect) {
+        guard bounds.isEmpty == false, candidateIndices.isEmpty == false else {
+            return nil
+        }
+
+        self.bounds = bounds
+        gridSide = min(256, max(16, Int(Double(candidateIndices.count).squareRoot().rounded(.up))))
+        var entryIndicesByCell: [Int: [Int]] = [:]
+        entryIndicesByCell.reserveCapacity(min(candidateIndices.count, gridSide * gridSide))
+
+        for index: Int in candidateIndices {
+            let rect: TreemapLayoutRect = entries[index].rect
+            guard rect.isEmpty == false else { continue }
+            let startColumn: Int = Self.bin(
+                for: rect.x,
+                lower: bounds.x,
+                length: bounds.width,
+                gridSide: gridSide
+            )
+            let endColumn: Int = Self.bin(
+                for: (rect.x + rect.width).nextDown,
+                lower: bounds.x,
+                length: bounds.width,
+                gridSide: gridSide
+            )
+            let startRow: Int = Self.bin(
+                for: rect.y,
+                lower: bounds.y,
+                length: bounds.height,
+                gridSide: gridSide
+            )
+            let endRow: Int = Self.bin(
+                for: (rect.y + rect.height).nextDown,
+                lower: bounds.y,
+                length: bounds.height,
+                gridSide: gridSide
+            )
+
+            for column: Int in min(startColumn, endColumn)...max(startColumn, endColumn) {
+                for row: Int in min(startRow, endRow)...max(startRow, endRow) {
+                    entryIndicesByCell[column * gridSide + row, default: []].append(index)
+                }
+            }
+        }
+        self.entryIndicesByCell = entryIndicesByCell
+    }
+
+    func hitEntryIndex(entries: [TreemapLayoutEntry], x: Double, y: Double) -> Int? {
+        guard bounds.contains(x: x, y: y) else {
+            return nil
+        }
+        let cellIndex: Int = Self.cellIndex(x: x, y: y, bounds: bounds, gridSide: gridSide)
+        return entryIndicesByCell[cellIndex]?
+            .lazy
+            .filter { entries[$0].rect.contains(x: x, y: y) }
+            .min { entries[$0].rect.area < entries[$1].rect.area }
+    }
+
+    private static func cellIndex(x: Double, y: Double, bounds: TreemapLayoutRect, gridSide: Int) -> Int {
+        bin(for: x, lower: bounds.x, length: bounds.width, gridSide: gridSide) * gridSide
+            + bin(for: y, lower: bounds.y, length: bounds.height, gridSide: gridSide)
+    }
+
+    private static func bin(for value: Double, lower: Double, length: Double, gridSide: Int) -> Int {
+        guard length > 0 else { return 0 }
+        let normalized: Double = (value - lower) / length
+        return min(max(Int(normalized * Double(gridSide)), 0), gridSide - 1)
     }
 }
 
