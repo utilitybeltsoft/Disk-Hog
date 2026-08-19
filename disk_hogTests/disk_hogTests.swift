@@ -3477,15 +3477,30 @@ struct TreemapDiskItemDataSourceTests {
     }
 
     @Test func layoutPlanRetainsFractionalGeometryAndResolvesDeepestHit() {
+        let rootItem: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan"),
+            allocatedSizeValue: 100,
+            logicalSizeValue: 100,
+            isDirectory: true
+        )
+        let childItem: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/child"),
+            allocatedSizeValue: 100,
+            logicalSizeValue: 100
+        )
         let root: TreemapLayoutEntry = TreemapLayoutEntry(
+            item: rootItem,
             itemPath: "/scan",
+            parentItem: nil,
             parentPath: nil,
             rect: TreemapLayoutRect(x: 0, y: 0, width: 100, height: 100),
             unroundedRect: TreemapLayoutRect(x: 0, y: 0, width: 100, height: 100),
             isSpecialItem: false
         )
         let child: TreemapLayoutEntry = TreemapLayoutEntry(
+            item: childItem,
             itemPath: "/scan/child",
+            parentItem: rootItem,
             parentPath: "/scan",
             rect: TreemapLayoutRect(x: 20, y: 20, width: 10, height: 10),
             unroundedRect: TreemapLayoutRect(x: 20.25, y: 20.5, width: 9.5, height: 9.25),
@@ -3498,8 +3513,58 @@ struct TreemapDiskItemDataSourceTests {
         )
 
         #expect(plan.entry(forPath: "/scan/child")?.unroundedRect == child.unroundedRect)
+        #expect(plan.entry(for: childItem)?.item === childItem)
         #expect(plan.hitEntry(x: 25, y: 25)?.itemPath == "/scan/child")
         #expect(plan.hitEntry(x: 80, y: 80)?.itemPath == "/scan")
+    }
+
+    @Test func layoutPlanNavigatesBetweenSiblingItemsWithoutRenderers() throws {
+        let leftItem: DiskItem = DiskItem(url: URL(fileURLWithPath: "/scan/left"), allocatedSizeValue: 1, logicalSizeValue: 1)
+        let rightItem: DiskItem = DiskItem(url: URL(fileURLWithPath: "/scan/right"), allocatedSizeValue: 1, logicalSizeValue: 1)
+        let rootItem: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan"),
+            allocatedSizeValue: 2,
+            logicalSizeValue: 2,
+            isDirectory: true,
+            children: [leftItem, rightItem]
+        )
+        let plan: TreemapLayoutPlan = TreemapLayoutPlan(
+            bounds: TreemapLayoutRect(x: 0, y: 0, width: 100, height: 100),
+            entries: [
+                TreemapLayoutEntry(
+                    item: rootItem,
+                    itemPath: "/scan",
+                    parentItem: nil,
+                    parentPath: nil,
+                    rect: TreemapLayoutRect(x: 0, y: 0, width: 100, height: 100),
+                    unroundedRect: TreemapLayoutRect(x: 0, y: 0, width: 100, height: 100),
+                    isSpecialItem: false
+                ),
+                TreemapLayoutEntry(
+                    item: leftItem,
+                    itemPath: "/scan/left",
+                    parentItem: rootItem,
+                    parentPath: "/scan",
+                    rect: TreemapLayoutRect(x: 0, y: 0, width: 50, height: 100),
+                    unroundedRect: TreemapLayoutRect(x: 0, y: 0, width: 50, height: 100),
+                    isSpecialItem: false
+                ),
+                TreemapLayoutEntry(
+                    item: rightItem,
+                    itemPath: "/scan/right",
+                    parentItem: rootItem,
+                    parentPath: "/scan",
+                    rect: TreemapLayoutRect(x: 50, y: 0, width: 50, height: 100),
+                    unroundedRect: TreemapLayoutRect(x: 50, y: 0, width: 50, height: 100),
+                    isSpecialItem: false
+                ),
+            ],
+            cushionSnapshots: []
+        )
+
+        #expect(try #require(plan.nearestEntry(from: leftItem, direction: .right)).item === rightItem)
+        #expect(try #require(plan.nearestEntry(from: rightItem, direction: .left)).item === leftItem)
+        #expect(plan.nearestEntry(from: leftItem, direction: .left) == nil)
     }
 
     @Test func layoutPlannerKeepsZeroSizeItemsInThePlanWithoutGivingThemArea() {

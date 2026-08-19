@@ -7,19 +7,28 @@ nonisolated enum TreemapLayoutPlanner {
         rootItem: DiskItem,
         bounds: TreemapLayoutRect,
         usePhysicalSize: Bool,
-        colorTable: TreemapPlanColorTable
+        colorTable: TreemapPlanColorTable,
+        showsFreeSpace: Bool = false,
+        showsOtherSpace: Bool = false,
+        freeSpaceItem: DiskItem? = nil,
+        otherSpaceItem: DiskItem? = nil
     ) -> TreemapLayoutPlan {
         var entries: [TreemapLayoutEntry] = []
         var snapshots: [TreemapCushionSnapshot] = []
         appendEntry(
             for: rootItem,
+            parentItem: nil,
             parentPath: nil,
             rect: integral(bounds),
             unroundedRect: bounds,
             usePhysicalSize: usePhysicalSize,
             colorTable: colorTable,
+            rootItem: rootItem,
+            showsFreeSpace: showsFreeSpace,
+            showsOtherSpace: showsOtherSpace,
+            freeSpaceItem: freeSpaceItem,
+            otherSpaceItem: otherSpaceItem,
             parentSurface: nil,
-            parentRect: nil,
             heightFactor: 0.5,
             entries: &entries,
             snapshots: &snapshots
@@ -29,19 +38,26 @@ nonisolated enum TreemapLayoutPlanner {
 
     private static func appendEntry(
         for item: DiskItem,
+        parentItem: DiskItem?,
         parentPath: String?,
         rect: TreemapLayoutRect,
         unroundedRect: TreemapLayoutRect,
         usePhysicalSize: Bool,
         colorTable: TreemapPlanColorTable,
+        rootItem: DiskItem,
+        showsFreeSpace: Bool,
+        showsOtherSpace: Bool,
+        freeSpaceItem: DiskItem?,
+        otherSpaceItem: DiskItem?,
         parentSurface: [Double]?,
-        parentRect: TreemapLayoutRect?,
         heightFactor: Double,
         entries: inout [TreemapLayoutEntry],
         snapshots: inout [TreemapCushionSnapshot]
     ) {
         entries.append(TreemapLayoutEntry(
+            item: item,
             itemPath: item.path,
+            parentItem: parentItem,
             parentPath: parentPath,
             rect: rect,
             unroundedRect: unroundedRect,
@@ -52,12 +68,12 @@ nonisolated enum TreemapLayoutPlanner {
         }
 
         var surface: [Double] = parentSurface ?? [0, 0, 0, 0]
-        if let parentRect {
+        if parentSurface != nil {
             let h4: Double = 4 * heightFactor
-            surface[2] += (h4 / parentRect.width) * (parentRect.x + parentRect.x + parentRect.width)
-            surface[0] -= h4 / parentRect.width
-            surface[3] += (h4 / parentRect.height) * (parentRect.y + parentRect.y + parentRect.height)
-            surface[1] -= h4 / parentRect.height
+            surface[2] += (h4 / rect.width) * (rect.x + rect.x + rect.width)
+            surface[0] -= h4 / rect.width
+            surface[3] += (h4 / rect.height) * (rect.y + rect.y + rect.height)
+            surface[1] -= h4 / rect.height
         }
         guard item.isFolder, item.isPackage == false else {
             let color: TreemapRawColor = colorTable.color(for: item)
@@ -65,24 +81,44 @@ nonisolated enum TreemapLayoutPlanner {
             return
         }
 
-        let children: [DiskItem] = item.children
+        let children: [DiskItem] = children(
+            of: item,
+            rootItem: rootItem,
+            showsFreeSpace: showsFreeSpace,
+            showsOtherSpace: showsOtherSpace,
+            freeSpaceItem: freeSpaceItem,
+            otherSpaceItem: otherSpaceItem
+        )
         guard children.isEmpty == false else { return }
         let childRects: [(rect: TreemapLayoutRect, unroundedRect: TreemapLayoutRect)] = layoutChildren(
             children,
-            parentWeight: item.sizeValue(usePhysicalSize: usePhysicalSize),
+            parentWeight: weight(
+                of: item,
+                rootItem: rootItem,
+                usePhysicalSize: usePhysicalSize,
+                showsFreeSpace: showsFreeSpace,
+                showsOtherSpace: showsOtherSpace,
+                freeSpaceItem: freeSpaceItem,
+                otherSpaceItem: otherSpaceItem
+            ),
             rect: rect,
             usePhysicalSize: usePhysicalSize
         )
         for (child, childRect) in zip(children, childRects) {
             appendEntry(
                 for: child,
+                parentItem: item,
                 parentPath: item.path,
                 rect: childRect.rect,
                 unroundedRect: childRect.unroundedRect,
                 usePhysicalSize: usePhysicalSize,
                 colorTable: colorTable,
+                rootItem: rootItem,
+                showsFreeSpace: showsFreeSpace,
+                showsOtherSpace: showsOtherSpace,
+                freeSpaceItem: freeSpaceItem,
+                otherSpaceItem: otherSpaceItem,
                 parentSurface: surface,
-                parentRect: rect,
                 heightFactor: heightFactor * 0.9,
                 entries: &entries,
                 snapshots: &snapshots
@@ -180,6 +216,47 @@ nonisolated enum TreemapLayoutPlanner {
             unroundedSecondaryStart = unroundedSecondaryEnd
         }
         return result
+    }
+
+    private static func children(
+        of item: DiskItem,
+        rootItem: DiskItem,
+        showsFreeSpace: Bool,
+        showsOtherSpace: Bool,
+        freeSpaceItem: DiskItem?,
+        otherSpaceItem: DiskItem?
+    ) -> [DiskItem] {
+        var children: [DiskItem] = item.children
+        if item == rootItem {
+            if showsOtherSpace, let otherSpaceItem {
+                children.append(otherSpaceItem)
+            }
+            if showsFreeSpace, let freeSpaceItem {
+                children.append(freeSpaceItem)
+            }
+        }
+        return children
+    }
+
+    private static func weight(
+        of item: DiskItem,
+        rootItem: DiskItem,
+        usePhysicalSize: Bool,
+        showsFreeSpace: Bool,
+        showsOtherSpace: Bool,
+        freeSpaceItem: DiskItem?,
+        otherSpaceItem: DiskItem?
+    ) -> UInt64 {
+        var size: UInt64 = item.sizeValue(usePhysicalSize: usePhysicalSize)
+        if item == rootItem {
+            if showsFreeSpace, let freeSpaceItem {
+                size += freeSpaceItem.sizeValue(usePhysicalSize: usePhysicalSize)
+            }
+            if showsOtherSpace, let otherSpaceItem {
+                size += otherSpaceItem.sizeValue(usePhysicalSize: usePhysicalSize)
+            }
+        }
+        return size
     }
 
     private static func integral(_ rect: TreemapLayoutRect) -> TreemapLayoutRect {
