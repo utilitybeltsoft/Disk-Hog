@@ -1,14 +1,27 @@
 import AppKit
 
+nonisolated final class TreemapViewStateWeakReference: @unchecked Sendable {
+    weak var value: TreemapViewState?
+
+    init(_ value: TreemapViewState) {
+        self.value = value
+    }
+}
+
 @MainActor
 final class TreemapViewState {
     private(set) var source: ScanSource?
     private(set) var rootItem: DiskItem?
     private(set) var selectedItem: DiskItem?
     private(set) var renderer: TreemapViewRenderer?
+    var onRenderedImageReady: (() -> Void)?
 
     private var presentationMetrics: TreemapPresentationMetrics?
     private var rendererDataSource: TreemapDiskItemDataSource?
+    private var renderedPlan: TreemapLayoutPlan?
+    private var renderedBitmap: NSBitmapImageRep?
+    private var completedRenderRequest: TreemapRenderRequest?
+    private var pendingRenderRequest: TreemapRenderRequest?
     private var showsFreeSpace: Bool = false
     private var showsOtherSpace: Bool = false
     private var freeSpaceItem: DiskItem?
@@ -41,6 +54,7 @@ final class TreemapViewState {
             self.freeSpaceItem = freeSpaceItem
             self.otherSpaceItem = otherSpaceItem
             directionalMoveHistory.removeAll(keepingCapacity: true)
+            discardRenderedPlan()
             rebuildRenderer()
             needsDisplay = true
         }
@@ -67,14 +81,21 @@ final class TreemapViewState {
 
     func select(_ hitResult: TreemapHitResult) {
         directionalMoveHistory.removeAll(keepingCapacity: true)
-        renderer?.selectItem(by: hitResult.cellID)
+        if let cellID: TreemapItemRenderer = hitResult.cellID {
+            renderer?.selectItem(by: cellID)
+        }
         selectedItem = hitResult.item
     }
 
     func selectNeighbor(in direction: TreemapNavigationDirection) -> DiskItem? {
         if let lastMove: (origin: DiskItem, direction: TreemapNavigationDirection) = directionalMoveHistory.last,
            direction == lastMove.direction.opposite {
-            if renderer?.selectItem(byRenderedItem: lastMove.origin) == true {
+            if renderedPlan?.entry(for: lastMove.origin) != nil {
+                _ = directionalMoveHistory.popLast()
+                _ = renderer?.selectItem(byRenderedItem: lastMove.origin)
+                selectedItem = lastMove.origin
+                return lastMove.origin
+            } else if renderer?.selectItem(byRenderedItem: lastMove.origin) == true {
                 _ = directionalMoveHistory.popLast()
                 selectedItem = lastMove.origin
                 return lastMove.origin
@@ -83,6 +104,12 @@ final class TreemapViewState {
             }
         }
         guard let origin: DiskItem = selectedItem else { return nil }
+        if let item: DiskItem = renderedPlan?.nearestEntry(from: origin, direction: direction)?.item {
+            selectedItem = item
+            _ = renderer?.selectItem(byRenderedItem: item)
+            directionalMoveHistory.append((origin: origin, direction: direction))
+            return item
+        }
         let item: DiskItem? = renderer?.selectNeighbor(in: direction)
         guard let item else { return nil }
         selectedItem = item
@@ -91,12 +118,35 @@ final class TreemapViewState {
     }
 
     func hitResult(at point: NSPoint) -> TreemapHitResult? {
+        if let entry: TreemapLayoutEntry = renderedPlan?.hitEntry(x: Double(point.x), y: Double(point.y)) {
+            return TreemapHitResult(item: entry.item, cellID: nil, entry: entry)
+        }
         guard let cellID: TreemapItemRenderer = renderer?.cellID(by: point, inViewCoordinates: false),
               let item: DiskItem = renderer?.item(by: cellID),
               !item.isSpecialItem else {
             return nil
         }
-        return TreemapHitResult(item: item, cellID: cellID)
+        return TreemapHitResult(item: item, cellID: cellID, entry: nil)
+    }
+
+    func renderedImage(in bounds: NSRect, scale: CGFloat) -> NSBitmapImageRep? {
+        guard let request: TreemapRenderRequest = renderRequest(for: bounds, scale: scale) else {
+            return nil
+        }
+        if completedRenderRequest == request {
+            return renderedBitmap
+        }
+        if pendingRenderRequest != request {
+            startRender(for: request)
+        }
+        return nil
+    }
+
+    func selectedEntry() -> TreemapLayoutEntry? {
+        guard let selectedItem else {
+            return nil
+        }
+        return renderedPlan?.entry(for: selectedItem)
     }
 
     func prepareLayout(in bounds: NSRect) {
@@ -161,6 +211,95 @@ final class TreemapViewState {
 
         _ = renderer?.selectRenderedItem(byPathToItem: selectionPath)
     }
+
+    private func renderRequest(for bounds: NSRect, scale: CGFloat) -> TreemapRenderRequest? {
+        guard let rootItem: DiskItem = rootItem,
+              bounds.width >= ScanWindowMetrics.minimumRenderableTreemapSide,
+              bounds.height >= ScanWindowMetrics.minimumRenderableTreemapSide else {
+            return nil
+        }
+        let metrics: TreemapPresentationMetrics? = presentationMetrics
+        return TreemapRenderRequest(
+            rootItem: rootItem,
+            width: Double(bounds.width),
+            height: Double(bounds.height),
+            scale: Double(scale),
+            usePhysicalSize: source?.scanSettings?.usePhysicalSize
+                ?? DiskScanSettings.diskInventoryZDefault.usePhysicalSize,
+            orderedKindNames: metrics?.orderedKindNames ?? [],
+            sharesKindColors: metrics?.sharesKindColors ?? ScanPreferenceDefaults.sharesKindColors,
+            colorScheme: metrics?.colorScheme ?? ScanPreferenceDefaults.treemapColorScheme,
+            showsFreeSpace: showsFreeSpace,
+            showsOtherSpace: showsOtherSpace,
+            freeSpaceItem: freeSpaceItem,
+            otherSpaceItem: otherSpaceItem
+        )
+    }
+
+    private func startRender(for request: TreemapRenderRequest) {
+        pendingRenderRequest = request
+        let stateReference: TreemapViewStateWeakReference = TreemapViewStateWeakReference(self)
+        Task.detached(priority: .userInitiated) {
+            let result: TreemapRenderResult = TreemapRenderJob.render(request)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                stateReference.value?.installRenderResult(result)
+            }
+        }
+    }
+
+    private func installRenderResult(_ result: TreemapRenderResult) {
+        guard pendingRenderRequest == result.request else {
+            return
+        }
+        guard let bitmap: NSBitmapImageRep = bitmap(from: result) else {
+            pendingRenderRequest = nil
+            return
+        }
+        renderedPlan = result.plan
+        renderedBitmap = bitmap
+        completedRenderRequest = result.request
+        pendingRenderRequest = nil
+        onRenderedImageReady?()
+    }
+
+    private func bitmap(from result: TreemapRenderResult) -> NSBitmapImageRep? {
+        guard let bitmap: NSBitmapImageRep = NSBitmapImageRep.treemapImageRepCompatible(
+            withBounds: NSRect(
+                x: 0,
+                y: 0,
+                width: CGFloat(result.request.width),
+                height: CGFloat(result.request.height)
+            ),
+            backingScaleFactor: CGFloat(result.request.scale),
+            colorSpace: nil
+        ),
+              bitmap.pixelsWide == result.request.pixelsWide,
+              bitmap.pixelsHigh == result.request.pixelsHigh,
+              let destination: UnsafeMutablePointer<UInt8> = bitmap.bitmapData else {
+            return nil
+        }
+        result.pixels.withUnsafeBytes { source in
+            guard let sourceAddress: UnsafeRawPointer = source.baseAddress else { return }
+            let sourceBytesPerRow: Int = result.request.pixelsWide * 3
+            guard source.count == sourceBytesPerRow * result.request.pixelsHigh else { return }
+            for row: Int in 0..<result.request.pixelsHigh {
+                memcpy(
+                    destination.advanced(by: row * bitmap.bytesPerRow),
+                    sourceAddress.advanced(by: row * sourceBytesPerRow),
+                    sourceBytesPerRow
+                )
+            }
+        }
+        return bitmap
+    }
+
+    private func discardRenderedPlan() {
+        renderedPlan = nil
+        renderedBitmap = nil
+        completedRenderRequest = nil
+        pendingRenderRequest = nil
+    }
 }
 
 private extension TreemapNavigationDirection {
@@ -176,5 +315,6 @@ private extension TreemapNavigationDirection {
 
 struct TreemapHitResult {
     let item: DiskItem
-    let cellID: TreemapItemRenderer
+    let cellID: TreemapItemRenderer?
+    let entry: TreemapLayoutEntry?
 }

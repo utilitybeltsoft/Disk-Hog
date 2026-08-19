@@ -3596,6 +3596,45 @@ struct TreemapDiskItemDataSourceTests {
         #expect(plan.cushionSnapshots.count == 1)
     }
 
+    @Test func renderJobBuildsPlanAndPixelsWithoutRendererObjects() {
+        let root: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan"),
+            allocatedSizeValue: 100,
+            logicalSizeValue: 100,
+            isDirectory: true,
+            children: [
+                DiskItem(url: URL(fileURLWithPath: "/scan/file"), allocatedSizeValue: 100, logicalSizeValue: 100),
+            ]
+        )
+        let freeSpace: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan"),
+            itemType: .freeSpace,
+            allocatedSizeValue: 50,
+            logicalSizeValue: 50
+        )
+        let request: TreemapRenderRequest = TreemapRenderRequest(
+            rootItem: root,
+            width: 20,
+            height: 10,
+            scale: 2,
+            usePhysicalSize: true,
+            orderedKindNames: [],
+            sharesKindColors: false,
+            colorScheme: .diskHog,
+            showsFreeSpace: true,
+            showsOtherSpace: false,
+            freeSpaceItem: freeSpace,
+            otherSpaceItem: nil
+        )
+
+        let result: TreemapRenderResult = TreemapRenderJob.render(request)
+
+        #expect(result.plan.entry(for: root) != nil)
+        #expect(result.plan.entry(for: freeSpace) != nil)
+        #expect(result.plan.cushionSnapshots.count == 2)
+        #expect(result.pixels.count == request.pixelsWide * request.pixelsHigh * 3)
+    }
+
     @Test func sharedKindColorsRemainStableAcrossDifferentRankings() {
         let firstTable: TreemapDiskItemColorTable = TreemapDiskItemColorTable(
             orderedKinds: ["Plain Text", "Image"],

@@ -42,7 +42,7 @@ final class ZStyleTreemapNSView: NSView {
             pendingDiscoveryAnimation = true
             needsDisplay = true
         }
-        state.renderer?.onCachedBitmapReady = { [weak self] in
+        state.onRenderedImageReady = { [weak self] in
             self?.needsDisplay = true
         }
     }
@@ -70,7 +70,7 @@ final class ZStyleTreemapNSView: NSView {
         }
 
         if inLiveResize {
-            if drawCachedImage(
+            if drawRenderedImage(
                 destinationRect: bounds,
                 sourceRect: nil,
                 fraction: ScanWindowMetrics.treemapLiveResizeImageFraction
@@ -81,14 +81,17 @@ final class ZStyleTreemapNSView: NSView {
             return
         }
 
-        state.prepareLayout(in: bounds)
         let drawableRect: NSRect = dirtyRect.intersection(bounds)
         guard drawableRect.isEmpty == false else {
             return
         }
-        _ = drawCachedImage(destinationRect: drawableRect, sourceRect: drawableRect, fraction: 1)
+        if drawRenderedImage(destinationRect: drawableRect, sourceRect: drawableRect, fraction: 1) == false {
+            NSColor.windowBackgroundColor.setFill()
+            dirtyRect.fill()
+            return
+        }
         TreemapViewPainter.drawSelection(
-            renderer: state.renderer,
+            entry: state.selectedEntry(),
             in: bounds,
             backingScaleFactor: window?.backingScaleFactor ?? 1
         )
@@ -192,20 +195,24 @@ final class ZStyleTreemapNSView: NSView {
         needsDisplay = true
     }
 
-    private func drawCachedImage(
+    private func drawRenderedImage(
         destinationRect: NSRect,
         sourceRect: NSRect?,
         fraction: CGFloat
     ) -> Bool {
-        TreemapViewPainter.drawCachedImage(
-            renderer: state.renderer,
-            canvasSize: bounds.size,
-            backingScaleFactor: window?.backingScaleFactor ?? 1,
-            colorSpace: window?.colorSpace,
+        guard let imageRep: NSBitmapImageRep = state.renderedImage(
+            in: bounds,
+            scale: window?.backingScaleFactor ?? 1
+        ) else {
+            return false
+        }
+        TreemapViewPainter.drawRenderedImage(
+            imageRep,
             destinationRect: destinationRect,
             sourceRect: sourceRect,
             fraction: fraction
         )
+        return true
     }
 
     private func startDiscoveryAnimationIfNeeded() {
@@ -222,13 +229,23 @@ final class ZStyleTreemapNSView: NSView {
     }
 
     private func discoveryAnimationTargetRect() -> NSRect? {
-        guard let renderer: TreemapViewRenderer = state.renderer else { return nil }
-        let selectedRect: NSRect = renderer.itemRect(by: renderer.selectedCellID)
+        guard let entry: TreemapLayoutEntry = state.selectedEntry() else { return nil }
+        let selectedRect: NSRect = NSRect(
+            x: entry.rect.x,
+            y: entry.rect.y,
+            width: entry.rect.width,
+            height: entry.rect.height
+        )
         let targetRect: NSRect
         if selectedRect.isEmpty {
             targetRect = TreemapRasterGeometry.visibleMarkerRect(
                 for: TreemapRasterGeometry.pixelAlignedRect(
-                    for: renderer.selectedItemUnroundedRect(),
+                    for: NSRect(
+                        x: entry.unroundedRect.x,
+                        y: entry.unroundedRect.y,
+                        width: entry.unroundedRect.width,
+                        height: entry.unroundedRect.height
+                    ),
                     scale: window?.backingScaleFactor ?? 1
                 ).intersection(bounds),
                 in: bounds,

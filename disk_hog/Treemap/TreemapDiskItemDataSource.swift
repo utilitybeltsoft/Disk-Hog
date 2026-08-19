@@ -97,6 +97,9 @@ nonisolated struct TreemapKindStatistic: Identifiable, Sendable {
 nonisolated final class TreemapPresentationMetrics: @unchecked Sendable {
     let colorTable: TreemapDiskItemColorTable
     let kindStatistics: [TreemapKindStatistic]
+    let orderedKindNames: [String]
+    let sharesKindColors: Bool
+    let colorScheme: TreemapColorScheme
 
     init(
         rootItem: DiskItem,
@@ -118,6 +121,9 @@ nonisolated final class TreemapPresentationMetrics: @unchecked Sendable {
             colorScheme: colorScheme
         )
         self.colorTable = colorTable
+        self.orderedKindNames = orderedKinds
+        self.sharesKindColors = sharesKindColors
+        self.colorScheme = colorScheme
         self.kindStatistics = orderedKinds.map { kindName in
             let accumulator: TreemapKindAggregate = statisticsByKind[kindName] ?? TreemapKindAggregate()
             return TreemapKindStatistic(
