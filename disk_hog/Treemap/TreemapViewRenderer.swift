@@ -168,7 +168,7 @@ final class TreemapViewRenderer {
 
     func calcLayout(_ bounds: NSRect) {
         rootItemRenderer?.calcLayout(bounds)
-        directionalNavigationIndex = nil
+        rebuildDirectionalNavigationIndex()
         deallocContentCache()
     }
 
@@ -316,6 +316,19 @@ final class TreemapViewRenderer {
         default:
             false
         }
+    }
+
+    private func rebuildDirectionalNavigationIndex() {
+        guard let rootItemRenderer else {
+            directionalNavigationIndex = nil
+            return
+        }
+        var navigationRenderers: [TreemapItemRenderer] = []
+        rootItemRenderer.appendNavigableRenderers(to: &navigationRenderers)
+        directionalNavigationIndex = TreemapDirectionalNavigationIndex(
+            renderers: navigationRenderers,
+            bounds: rootItemRenderer.navigationRect
+        )
     }
 
     private func nearestNeighbor(

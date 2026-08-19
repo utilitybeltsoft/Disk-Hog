@@ -3978,6 +3978,30 @@ struct TreemapViewRendererTests {
         #expect(renderer.materializedRendererCount == 4)
     }
 
+    @Test func rendererDirectionalIndexIsReadyAfterLayoutForLargeSiblingGroups() {
+        let rootBuilder: DiskItemBuilder = DiskItemBuilder(
+            url: URL(fileURLWithPath: "/scan"),
+            isDirectory: true
+        )
+        for index: Int in 0..<300 {
+            rootBuilder.appendChild(DiskItemBuilder(
+                url: URL(fileURLWithPath: "/scan/file-\(index)"),
+                allocatedSizeValue: 1,
+                logicalSizeValue: 1
+            ), updateSize: false)
+        }
+        rootBuilder.recalculateSize(usePhysicalSize: true)
+        let root: DiskItem = rootBuilder.freeze()
+        let dataSource: TreemapDiskItemDataSource = TreemapDiskItemDataSource(rootItem: root)
+        let renderer: TreemapViewRenderer = TreemapViewRenderer(dataSource: dataSource)
+
+        renderer.reloadData()
+        renderer.calcLayout(NSRect(x: 0, y: 0, width: 600, height: 400))
+        #expect(renderer.selectItem(byRenderedItem: root.children[0]) == true)
+
+        #expect(renderer.selectNeighbor(in: .right) != nil)
+    }
+
     @Test func layoutDiagnosticsAccumulateDisplayPathDuringTraversal() {
         let rootBuilder: DiskItemBuilder = DiskItemBuilder(
             url: URL(fileURLWithPath: "/scan"),
