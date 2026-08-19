@@ -3502,6 +3502,29 @@ struct TreemapDiskItemDataSourceTests {
         #expect(plan.hitEntry(x: 80, y: 80)?.itemPath == "/scan")
     }
 
+    @Test func layoutPlannerKeepsZeroSizeItemsInThePlanWithoutGivingThemArea() {
+        let root: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan"),
+            allocatedSizeValue: 100,
+            logicalSizeValue: 100,
+            isDirectory: true,
+            children: [
+                DiskItem(url: URL(fileURLWithPath: "/scan/file"), allocatedSizeValue: 100, logicalSizeValue: 100),
+                DiskItem(url: URL(fileURLWithPath: "/scan/empty"), allocatedSizeValue: 0, logicalSizeValue: 0),
+            ]
+        )
+
+        let plan: TreemapLayoutPlan = TreemapLayoutPlanner.makePlan(
+            rootItem: root,
+            bounds: TreemapLayoutRect(x: 0, y: 0, width: 100, height: 100),
+            usePhysicalSize: true
+        )
+
+        #expect(plan.entry(forPath: "/scan/file")?.rect.area == 10_000)
+        #expect(plan.entry(forPath: "/scan/empty")?.rect.area == 0)
+        #expect(plan.entry(forPath: "/scan/empty") != nil)
+    }
+
     @Test func sharedKindColorsRemainStableAcrossDifferentRankings() {
         let firstTable: TreemapDiskItemColorTable = TreemapDiskItemColorTable(
             orderedKinds: ["Plain Text", "Image"],
