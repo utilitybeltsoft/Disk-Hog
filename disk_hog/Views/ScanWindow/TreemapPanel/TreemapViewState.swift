@@ -158,11 +158,12 @@ final class TreemapViewState {
         if renderer == nil {
             rebuildRenderer()
         }
-        guard renderer?.rootCellID?.rect != bounds else {
+        guard renderer?.rootCellID?.rect != bounds || renderedPlan == nil else {
             return
         }
 
         renderer?.calcLayout(bounds)
+        preparePlan(in: bounds)
         syncSelectionToRenderer()
         if let renderer: TreemapViewRenderer = renderer {
             TreemapLayoutDiagnostics.recordLayoutChange(
@@ -212,6 +213,30 @@ final class TreemapViewState {
         }
 
         _ = renderer?.selectRenderedItem(byPathToItem: selectionPath)
+    }
+
+    private func preparePlan(in bounds: NSRect) {
+        guard let request: TreemapRenderRequest = renderRequest(for: bounds, scale: 1) else {
+            renderedPlan = nil
+            return
+        }
+        renderedPlan = TreemapLayoutPlanner.makePlan(
+            rootItem: request.rootItem,
+            bounds: request.bounds,
+            usePhysicalSize: request.usePhysicalSize,
+            colorTable: TreemapPlanColorTable(
+                orderedKinds: request.orderedKindNames,
+                sharesKindColors: request.sharesKindColors,
+                colorScheme: request.colorScheme
+            ),
+            showsFreeSpace: request.showsFreeSpace,
+            showsOtherSpace: request.showsOtherSpace,
+            freeSpaceItem: request.freeSpaceItem,
+            otherSpaceItem: request.otherSpaceItem
+        )
+        completedRenderRequest = nil
+        pendingRenderRequest = nil
+        renderedBitmap = nil
     }
 
     private func renderRequest(for bounds: NSRect, scale: CGFloat) -> TreemapRenderRequest? {
