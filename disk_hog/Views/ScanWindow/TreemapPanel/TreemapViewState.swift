@@ -16,17 +16,23 @@ final class TreemapViewState {
     private(set) var renderer: TreemapViewRenderer?
     var onRenderedImageReady: (() -> Void)?
 
+    private let render: @Sendable (TreemapRenderRequest) -> TreemapRenderResult?
     private var presentationMetrics: TreemapPresentationMetrics?
     private var rendererDataSource: TreemapDiskItemDataSource?
     private var renderedPlan: TreemapLayoutPlan?
     private var renderedBitmap: NSBitmapImageRep?
     private var completedRenderRequest: TreemapRenderRequest?
     private var pendingRenderRequest: TreemapRenderRequest?
+    private var renderTask: Task<Void, Never>?
     private var showsFreeSpace: Bool = false
     private var showsOtherSpace: Bool = false
     private var freeSpaceItem: DiskItem?
     private var otherSpaceItem: DiskItem?
     private var directionalMoveHistory: [(origin: DiskItem, direction: TreemapNavigationDirection)] = []
+
+    init(render: @escaping @Sendable (TreemapRenderRequest) -> TreemapRenderResult? = TreemapRenderJob.renderIfNotCancelled) {
+        self.render = render
+    }
 
     func configure(
         source: ScanSource,
@@ -218,6 +224,9 @@ final class TreemapViewState {
     private func preparePlan(in bounds: NSRect) {
         guard let request: TreemapRenderRequest = renderRequest(for: bounds, scale: 1) else {
             renderedPlan = nil
+            renderedBitmap = nil
+            completedRenderRequest = nil
+            cancelPendingRender()
             return
         }
         renderedPlan = TreemapLayoutPlanner.makePlan(
@@ -234,8 +243,8 @@ final class TreemapViewState {
             freeSpaceItem: request.freeSpaceItem,
             otherSpaceItem: request.otherSpaceItem
         )
+        cancelPendingRender()
         completedRenderRequest = nil
-        pendingRenderRequest = nil
         renderedBitmap = nil
     }
 
@@ -264,10 +273,11 @@ final class TreemapViewState {
     }
 
     private func startRender(for request: TreemapRenderRequest) {
+        renderTask?.cancel()
         pendingRenderRequest = request
         let stateReference: TreemapViewStateWeakReference = TreemapViewStateWeakReference(self)
-        Task.detached(priority: .userInitiated) {
-            let result: TreemapRenderResult = TreemapRenderJob.render(request)
+        renderTask = Task.detached(priority: .userInitiated) { [render] in
+            guard let result: TreemapRenderResult = render(request) else { return }
             guard !Task.isCancelled else { return }
             await MainActor.run {
                 stateReference.value?.installRenderResult(result)
@@ -281,12 +291,14 @@ final class TreemapViewState {
         }
         guard let bitmap: NSBitmapImageRep = bitmap(from: result) else {
             pendingRenderRequest = nil
+            renderTask = nil
             return
         }
         renderedPlan = result.plan
         renderedBitmap = bitmap
         completedRenderRequest = result.request
         pendingRenderRequest = nil
+        renderTask = nil
         onRenderedImageReady?()
     }
 
@@ -325,6 +337,12 @@ final class TreemapViewState {
         renderedPlan = nil
         renderedBitmap = nil
         completedRenderRequest = nil
+        cancelPendingRender()
+    }
+
+    private func cancelPendingRender() {
+        renderTask?.cancel()
+        renderTask = nil
         pendingRenderRequest = nil
     }
 }

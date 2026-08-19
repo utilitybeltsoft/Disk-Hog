@@ -4297,6 +4297,50 @@ struct TreemapViewStateTests {
 
         #expect(state.selectNeighbor(in: .right) != nil)
     }
+
+    @Test func supersededRenderJobIsCancelled() throws {
+        let root: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan"),
+            isDirectory: true,
+            children: [
+                DiskItem(
+                    url: URL(fileURLWithPath: "/scan/file.bin"),
+                    allocatedSizeValue: 100,
+                    logicalSizeValue: 100
+                )
+            ]
+        )
+        let firstRenderStarted: DispatchSemaphore = DispatchSemaphore(value: 0)
+        let firstRenderCancelled: DispatchSemaphore = DispatchSemaphore(value: 0)
+        let render: @Sendable (TreemapRenderRequest) -> TreemapRenderResult? = { request in
+            if request.width == 100 {
+                firstRenderStarted.signal()
+                while Task.isCancelled == false {
+                    Thread.sleep(forTimeInterval: 0.001)
+                }
+                firstRenderCancelled.signal()
+                return nil
+            }
+            return TreemapRenderJob.render(request)
+        }
+        let state: TreemapViewState = TreemapViewState(render: render)
+
+        _ = state.configure(
+            source: ScanSource(path: "/scan", displayName: "scan"),
+            rootItem: root,
+            presentationMetrics: nil,
+            showsFreeSpace: false,
+            showsOtherSpace: false,
+            freeSpaceItem: nil,
+            otherSpaceItem: nil,
+            selectedItem: nil
+        )
+
+        #expect(state.renderedImage(in: NSRect(x: 0, y: 0, width: 100, height: 100), scale: 1) == nil)
+        #expect(firstRenderStarted.wait(timeout: .now() + 1) == .success)
+        #expect(state.renderedImage(in: NSRect(x: 0, y: 0, width: 101, height: 100), scale: 1) == nil)
+        #expect(firstRenderCancelled.wait(timeout: .now() + 1) == .success)
+    }
 }
 
 struct TreemapRasterGeometryTests {

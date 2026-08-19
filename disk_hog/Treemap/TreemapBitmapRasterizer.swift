@@ -18,16 +18,53 @@ nonisolated enum TreemapBitmapRasterizer {
         pixelsHigh: Int,
         scale: Double
     ) -> Data {
+        render(
+            snapshots: snapshots,
+            pixelsWide: pixelsWide,
+            pixelsHigh: pixelsHigh,
+            scale: scale,
+            isCancelled: { false }
+        )!
+    }
+
+    static func renderIfNotCancelled(
+        snapshots: [TreemapCushionSnapshot],
+        pixelsWide: Int,
+        pixelsHigh: Int,
+        scale: Double
+    ) -> Data? {
+        render(
+            snapshots: snapshots,
+            pixelsWide: pixelsWide,
+            pixelsHigh: pixelsHigh,
+            scale: scale,
+            isCancelled: { Task.isCancelled }
+        )
+    }
+
+    private static func render(
+        snapshots: [TreemapCushionSnapshot],
+        pixelsWide: Int,
+        pixelsHigh: Int,
+        scale: Double,
+        isCancelled: () -> Bool
+    ) -> Data? {
         var pixels: Data = Data(count: pixelsWide * pixelsHigh * 3)
+        var completed: Bool = true
         pixels.withUnsafeMutableBytes { rawBuffer in
             guard let pixels: UnsafeMutablePointer<UInt8> = rawBuffer.baseAddress?.assumingMemoryBound(to: UInt8.self) else {
+                completed = false
                 return
             }
             for snapshot: TreemapCushionSnapshot in snapshots {
-                render(snapshot, pixels: pixels, pixelsWide: pixelsWide, pixelsHigh: pixelsHigh, scale: scale)
+                guard isCancelled() == false,
+                      render(snapshot, pixels: pixels, pixelsWide: pixelsWide, pixelsHigh: pixelsHigh, scale: scale, isCancelled: isCancelled) else {
+                    completed = false
+                    return
+                }
             }
         }
-        return pixels
+        return completed ? pixels : nil
     }
 
     private static func render(
@@ -35,20 +72,24 @@ nonisolated enum TreemapBitmapRasterizer {
         pixels: UnsafeMutablePointer<UInt8>,
         pixelsWide: Int,
         pixelsHigh: Int,
-        scale: Double
-    ) {
-        guard snapshot.width > 0, snapshot.height > 0, snapshot.surface.count == 4 else { return }
+        scale: Double,
+        isCancelled: () -> Bool
+    ) -> Bool {
+        guard snapshot.width > 0, snapshot.height > 0, snapshot.surface.count == 4 else { return true }
         let xStart: Int = max(0, min(pixelsWide, Int((snapshot.x * scale).rounded(.down))))
         let xEnd: Int = max(xStart, min(pixelsWide, Int(((snapshot.x + snapshot.width) * scale).rounded(.up))))
         let yStart: Int = max(0, min(pixelsHigh, Int((snapshot.y * scale).rounded(.down))))
         let yEnd: Int = max(yStart, min(pixelsHigh, Int(((snapshot.y + snapshot.height) * scale).rounded(.up))))
-        guard xStart < xEnd, yStart < yEnd else { return }
+        guard xStart < xEnd, yStart < yEnd else { return true }
 
         let ambient: Double = 0.15
         let lightX: Double = -1 / sqrt(102)
         let lightY: Double = -1 / sqrt(102)
         let lightZ: Double = 10 / sqrt(102)
         for y: Int in yStart..<yEnd {
+            if y.isMultiple(of: 64), isCancelled() {
+                return false
+            }
             let pointY: Double = (Double(y) + 0.5) / scale
             let normalY: Double = -(2 * snapshot.surface[1] * pointY + snapshot.surface[3])
             for x: Int in xStart..<xEnd {
@@ -70,5 +111,6 @@ nonisolated enum TreemapBitmapRasterizer {
                 pixels[offset + 2] = TreemapColorNormalization.byte(from: blue)
             }
         }
+        return true
     }
 }

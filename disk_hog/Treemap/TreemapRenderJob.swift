@@ -35,6 +35,20 @@ nonisolated struct TreemapRenderResult: Sendable {
 
 nonisolated enum TreemapRenderJob {
     static func render(_ request: TreemapRenderRequest) -> TreemapRenderResult {
+        render(request, rasterize: TreemapBitmapRasterizer.render)!
+    }
+
+    static func renderIfNotCancelled(_ request: TreemapRenderRequest) -> TreemapRenderResult? {
+        guard Task.isCancelled == false else {
+            return nil
+        }
+        return render(request, rasterize: TreemapBitmapRasterizer.renderIfNotCancelled)
+    }
+
+    private static func render(
+        _ request: TreemapRenderRequest,
+        rasterize: ([TreemapCushionSnapshot], Int, Int, Double) -> Data?
+    ) -> TreemapRenderResult? {
         let plan: TreemapLayoutPlan = TreemapLayoutPlanner.makePlan(
             rootItem: request.rootItem,
             bounds: request.bounds,
@@ -49,12 +63,15 @@ nonisolated enum TreemapRenderJob {
             freeSpaceItem: request.freeSpaceItem,
             otherSpaceItem: request.otherSpaceItem
         )
-        let pixels: Data = TreemapBitmapRasterizer.render(
-            snapshots: plan.cushionSnapshots,
-            pixelsWide: request.pixelsWide,
-            pixelsHigh: request.pixelsHigh,
-            scale: request.scale
-        )
+        guard Task.isCancelled == false,
+              let pixels: Data = rasterize(
+                plan.cushionSnapshots,
+                request.pixelsWide,
+                request.pixelsHigh,
+                request.scale
+        ) else {
+            return nil
+        }
         return TreemapRenderResult(request: request, plan: plan, pixels: pixels)
     }
 }
