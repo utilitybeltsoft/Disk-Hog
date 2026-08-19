@@ -26,11 +26,11 @@ struct ZStatusFieldsView: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
                     .textSelection(.enabled)
-                Text(hoverStatusLine ?? String(localized: "Hovering on:"))
+                Text(secondaryStatusLine ?? String(localized: "Hovering on:"))
                     .lineLimit(1)
                     .truncationMode(.middle)
-                    .opacity(hoverStatusLine == nil ? 0 : 1)
-                    .accessibilityHidden(hoverStatusLine == nil)
+                    .opacity(secondaryStatusLine == nil ? 0 : 1)
+                    .accessibilityHidden(secondaryStatusLine == nil)
                     .textSelection(.enabled)
                 Text(progressSummary(referenceDate: referenceDate))
                     .lineLimit(1)
@@ -71,6 +71,19 @@ struct ZStatusFieldsView: View {
         }
 
         return nil
+    }
+
+    private var secondaryStatusLine: String? {
+        if let hoverStatusLine {
+            return hoverStatusLine
+        }
+
+        guard let selectedItem: DiskItem = selectedItem.wrappedValue,
+              selectedItem.sizeValue(usePhysicalSize: session.scanSettings.usePhysicalSize) == 0 else {
+            return nil
+        }
+
+        return String(localized: "Not shown in treemap: this item uses 0 bytes in the current size mode.")
     }
 
     private func statusLine(prefix: String, item: DiskItem) -> String {

@@ -4683,6 +4683,34 @@
         }
       }
     },
+    "Not shown in treemap: this item uses 0 bytes in the current size mode." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht in der Treemap angezeigt: Dieses Objekt belegt im aktuellen Größenmodus 0 Byte."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se muestra en el treemap: este elemento usa 0 bytes en el modo de tamaño actual."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non affiché dans le treemap : cet élément utilise 0 octet dans le mode de taille actuel."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non mostrato nel treemap: questo elemento usa 0 byte nella modalità di dimensione corrente."
+          }
+        }
+      }
+    },
     "Not Now" : {
       "localizations" : {
         "de" : {
