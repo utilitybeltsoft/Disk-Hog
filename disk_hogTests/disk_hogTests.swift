@@ -3476,6 +3476,32 @@ struct TreemapDiskItemDataSourceTests {
         #expect(metrics.kindStatistics.first?.kindName == "Plain Text")
     }
 
+    @Test func layoutPlanRetainsFractionalGeometryAndResolvesDeepestHit() {
+        let root: TreemapLayoutEntry = TreemapLayoutEntry(
+            itemPath: "/scan",
+            parentPath: nil,
+            rect: TreemapLayoutRect(x: 0, y: 0, width: 100, height: 100),
+            unroundedRect: TreemapLayoutRect(x: 0, y: 0, width: 100, height: 100),
+            isSpecialItem: false
+        )
+        let child: TreemapLayoutEntry = TreemapLayoutEntry(
+            itemPath: "/scan/child",
+            parentPath: "/scan",
+            rect: TreemapLayoutRect(x: 20, y: 20, width: 10, height: 10),
+            unroundedRect: TreemapLayoutRect(x: 20.25, y: 20.5, width: 9.5, height: 9.25),
+            isSpecialItem: false
+        )
+        let plan: TreemapLayoutPlan = TreemapLayoutPlan(
+            bounds: TreemapLayoutRect(x: 0, y: 0, width: 100, height: 100),
+            entries: [root, child],
+            cushionSnapshots: []
+        )
+
+        #expect(plan.entry(forPath: "/scan/child")?.unroundedRect == child.unroundedRect)
+        #expect(plan.hitEntry(x: 25, y: 25)?.itemPath == "/scan/child")
+        #expect(plan.hitEntry(x: 80, y: 80)?.itemPath == "/scan")
+    }
+
     @Test func sharedKindColorsRemainStableAcrossDifferentRankings() {
         let firstTable: TreemapDiskItemColorTable = TreemapDiskItemColorTable(
             orderedKinds: ["Plain Text", "Image"],
