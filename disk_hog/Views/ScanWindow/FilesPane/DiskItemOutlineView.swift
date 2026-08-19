@@ -198,6 +198,17 @@ struct DiskItemOutlineView: NSViewRepresentable {
                 return
             }
 
+            // A treemap click must not synchronously materialize a potentially
+            // enormous branch of the outline just to mirror its selection.
+            // The Files pane already owns its own visible selection; only it
+            // may expand ancestors to reveal an externally requested item.
+            guard activePane.wrappedValue == .files else {
+                selectionMutationGate.perform {
+                    outlineView.deselectAll(nil)
+                }
+                return
+            }
+
             expandAncestors(of: item)
             let row: Int = outlineView.row(forItem: item)
             guard row >= 0 else {
