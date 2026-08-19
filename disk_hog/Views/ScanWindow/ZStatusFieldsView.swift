@@ -99,6 +99,10 @@ struct ZStatusFieldsView: View {
     }
 
     private func progressSummary(referenceDate: Date) -> String {
+        if session.isBuildingTreemap {
+            return preparingTreemapStatus(referenceDate: referenceDate)
+        }
+
         switch session.state {
         case .complete:
             if let completedAt: Date = session.completedAt {
@@ -109,9 +113,7 @@ struct ZStatusFieldsView: View {
         case .failed:
             return session.failure?.statusMessage ?? String(localized: "Scan failed")
         case .ready, .scanning, .cancelled:
-            return session.isBuildingTreemap
-                ? preparingTreemapStatus(referenceDate: referenceDate)
-                : scanStatus
+            return scanStatus
         }
     }
 

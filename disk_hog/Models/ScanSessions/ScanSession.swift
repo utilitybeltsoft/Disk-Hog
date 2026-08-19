@@ -213,6 +213,16 @@ final class ScanSession: ObservableObject {
         taskCoordinator.cancel(.sizeModeUpdate)
     }
 
+    func markTreemapRendered(for rootItem: DiskItem?) {
+        guard isBuildingTreemap,
+              self.rootItem === rootItem else {
+            return
+        }
+
+        isBuildingTreemap = false
+        treemapPreparationProgress = nil
+    }
+
     func updatePackageContentsSynchronization(with showPackageContents: Bool) {
         isPackageContentsSettingOutOfSync = settings.lookInsidePackages != showPackageContents
     }
@@ -458,8 +468,8 @@ final class ScanSession: ObservableObject {
               rescanCoordinator.finish(operation) else {
             return
         }
-        isBuildingTreemap = false
-        treemapPreparationProgress = nil
+        isBuildingTreemap = true
+        treemapPreparationProgress = 1
         self.presentationMetrics = presentationMetrics
         updateSpaceItems(for: rootItem)
         preferredSelection = rootItem

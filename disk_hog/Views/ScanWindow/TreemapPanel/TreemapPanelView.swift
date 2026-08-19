@@ -39,7 +39,7 @@ struct TreemapPanelView: View {
             .overlay {
                 PaneBorderView(isActive: activePane.wrappedValue == .treemap)
             }
-            if session.rootItem == nil {
+            if session.rootItem == nil || session.isBuildingTreemap {
                 ScanPanePlaceholderView(
                     title: session.isBuildingTreemap ? "Preparing treemap" : "Treemap",
                     message: session.isBuildingTreemap

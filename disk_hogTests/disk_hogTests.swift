@@ -955,6 +955,30 @@ struct ScanSessionWorkerIntegrationTests {
         #expect(session.presentationMetrics != nil)
     }
 
+    @Test func scanRemainsInTreemapPreparationUntilFirstRenderedImageArrives() async throws {
+        let rootItem: DiskItem = Self.rootItem(fileSize: 12)
+        let session: ScanSession = ScanSession(
+            source: ScanSource(path: "/scan", displayName: "scan"),
+            scanWorker: ImmediateScanWorker(result: .success(Self.scanResult(rootItem: rootItem)))
+        )
+
+        session.startScan()
+
+        try await Self.waitUntil(observing: session) { session.state == .complete }
+        #expect(session.rootItem === rootItem)
+        #expect(session.isBuildingTreemap)
+        #expect(session.treemapPreparationProgress == 1)
+
+        session.markTreemapRendered(for: Self.rootItem(fileSize: 12))
+
+        #expect(session.isBuildingTreemap)
+
+        session.markTreemapRendered(for: rootItem)
+
+        #expect(session.isBuildingTreemap == false)
+        #expect(session.treemapPreparationProgress == nil)
+    }
+
     @Test func reportsScanFailureFromInjectedWorker() async throws {
         let session: ScanSession = ScanSession(
             source: ScanSource(path: "/scan", displayName: "scan"),

@@ -43,7 +43,9 @@ final class ZStyleTreemapNSView: NSView {
             needsDisplay = true
         }
         state.onRenderedImageReady = { [weak self] in
-            self?.needsDisplay = true
+            guard let self else { return }
+            self.session?.markTreemapRendered(for: self.state.rootItem)
+            self.needsDisplay = true
         }
     }
 
