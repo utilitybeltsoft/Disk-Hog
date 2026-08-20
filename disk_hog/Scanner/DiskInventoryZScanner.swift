@@ -52,43 +52,47 @@ nonisolated final class DiskInventoryZScanner {
         await stageHandler?(.enumeratingRootItems)
         await progressHandler?(progressState.snapshot())
 
-        let topLevelChildren: [URL]
+        let rootEnumerationPermit: ScanResourcePermit = await resourceBudget.acquireTraversalPermit()
+        var topLevelWorkItems: [TopLevelScanWorkItem] = []
         do {
-            topLevelChildren = try FileManager.default.contentsOfDirectory(
+            let topLevelChildren: [URL] = try FileManager.default.contentsOfDirectory(
                 at: rootURL,
                 includingPropertiesForKeys: DiskScanResourceKeys.item,
                 options: []
             )
+            for (sourceOrder, childURL) in topLevelChildren.enumerated() {
+                try Task.checkCancellation()
+                if DiskScanFileSystemRules.shouldSkip(childURL) {
+                    continue
+                }
+
+                let values: URLResourceValues
+                do {
+                    values = try recursiveResourceValuesProvider(childURL, Set(DiskScanResourceKeys.item))
+                } catch {
+                    continue
+                }
+                topLevelWorkItems.append(
+                    TopLevelScanWorkItem(
+                        sourceOrder: sourceOrder,
+                        item: itemFactory.makeItem(url: childURL, values: values),
+                        isDirectory: values.isDirectory ?? false,
+                        isPackage: values.isPackage ?? false,
+                        isVolume: values.isVolume ?? false,
+                        values: values
+                    )
+                )
+            }
+            await rootEnumerationPermit.release()
+        } catch is CancellationError {
+            await rootEnumerationPermit.release()
+            throw CancellationError()
         } catch {
+            await rootEnumerationPermit.release()
             throw DiskScannerError.topLevelEnumerationFailed(path: rootURL.path, underlyingDescription: error.localizedDescription)
         }
 
         let progressAggregator: ScanProgressAggregator = ScanProgressAggregator(currentPath: rootURL.path)
-        var topLevelWorkItems: [TopLevelScanWorkItem] = []
-        for (sourceOrder, childURL) in topLevelChildren.enumerated() {
-            try Task.checkCancellation()
-            if DiskScanFileSystemRules.shouldSkip(childURL) {
-                continue
-            }
-
-            let values: URLResourceValues
-            do {
-                values = try recursiveResourceValuesProvider(childURL, Set(DiskScanResourceKeys.item))
-            } catch {
-                continue
-            }
-            topLevelWorkItems.append(
-                TopLevelScanWorkItem(
-                    sourceOrder: sourceOrder,
-                    item: itemFactory.makeItem(url: childURL, values: values),
-                    isDirectory: values.isDirectory ?? false,
-                    isPackage: values.isPackage ?? false,
-                    isVolume: values.isVolume ?? false,
-                    values: values
-                )
-            )
-        }
-
         var topLevelResults: [TopLevelScanResult] = []
         await stageHandler?(.scanningFiles)
         try await withThrowingTaskGroup(of: TopLevelScanResult.self) { taskGroup in
