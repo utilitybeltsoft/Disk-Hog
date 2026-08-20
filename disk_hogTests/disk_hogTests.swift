@@ -982,6 +982,26 @@ struct ScanSessionWorkerIntegrationTests {
         #expect(session.completedAt != nil)
     }
 
+    @Test func elapsedTimeKeepsAdvancingUntilTreemapRenderCompletes() async throws {
+        let rootItem: DiskItem = Self.rootItem(fileSize: 12)
+        let session: ScanSession = ScanSession(
+            source: ScanSource(path: "/scan", displayName: "scan"),
+            scanWorker: ImmediateScanWorker(result: .success(Self.scanResult(rootItem: rootItem)))
+        )
+
+        session.startScan()
+
+        try await Self.waitUntil(observing: session) { session.state == .complete }
+        let startedAt: Date = try #require(session.startedAt)
+        #expect(session.completedAt == nil)
+        #expect(session.elapsedTime(referenceDate: startedAt.addingTimeInterval(10)) >= 10)
+
+        session.markTreemapRendered(for: rootItem)
+        let completedAt: Date = try #require(session.completedAt)
+
+        #expect(session.elapsedTime(referenceDate: completedAt.addingTimeInterval(10)) < 10)
+    }
+
     @Test func reportsScanFailureFromInjectedWorker() async throws {
         let session: ScanSession = ScanSession(
             source: ScanSource(path: "/scan", displayName: "scan"),

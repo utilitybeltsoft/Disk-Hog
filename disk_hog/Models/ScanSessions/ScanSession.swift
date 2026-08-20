@@ -148,7 +148,6 @@ final class ScanSession: ObservableObject {
         isUpdatingTree = false
         isBuildingTreemap = false
         treemapPreparationProgress = nil
-        completedAt = Date()
         if !preservingFailure {
             failure = nil
         }
@@ -222,6 +221,7 @@ final class ScanSession: ObservableObject {
 
         isBuildingTreemap = false
         treemapPreparationProgress = nil
+        completedAt = Date()
     }
 
     func updatePackageContentsSynchronization(with showPackageContents: Bool) {
