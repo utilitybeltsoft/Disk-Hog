@@ -3268,6 +3268,73 @@ struct KindStatisticTableViewTests {
         #expect(tableView.reloadCount == 1)
         #expect(coordinator.numberOfRows(in: tableView) == 3)
     }
+
+    @Test func selectedFileChoosesMatchingKindFilter() {
+        let item: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/readme.txt"),
+            kindName: "Plain Text"
+        )
+
+        #expect(
+            KindsPaneView.selectedFilter(
+                for: item,
+                statistics: [
+                    TreemapKindStatistic(
+                        kindName: "Plain Text",
+                        size: 4_096,
+                        fileCount: 1,
+                        color: .red
+                    )
+                ]
+            ) == .kind("Plain Text")
+        )
+    }
+
+    @Test func selectedPackageChoosesMatchingKindFilter() {
+        let item: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/App.app"),
+            kindName: "application",
+            isDirectory: true,
+            isPackage: true
+        )
+
+        #expect(
+            KindsPaneView.selectedFilter(
+                for: item,
+                statistics: [
+                    TreemapKindStatistic(
+                        kindName: "application",
+                        size: 4_096,
+                        fileCount: 1,
+                        color: .orange
+                    )
+                ]
+            ) == .kind("application")
+        )
+    }
+
+    @Test func selectedItemWithoutRepresentedKindClearsKindFilter() {
+        let folder: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/folder"),
+            isDirectory: true
+        )
+        let unknownKind: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/archive.bin"),
+            kindName: "Binary"
+        )
+        let statistics: [TreemapKindStatistic] = [
+            TreemapKindStatistic(
+                kindName: "Plain Text",
+                size: 4_096,
+                fileCount: 1,
+                color: .red
+            )
+        ]
+
+        #expect(KindsPaneView.selectedFilter(for: folder, statistics: statistics) == nil)
+        #expect(KindsPaneView.selectedFilter(for: unknownKind, statistics: statistics) == nil)
+        #expect(KindsPaneView.selectedFilter(for: nil, statistics: statistics) == nil)
+    }
 }
 
 private final class ReloadCountingTableView: NSTableView {

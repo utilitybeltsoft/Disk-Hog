@@ -36,9 +36,13 @@ struct KindsPaneView: View {
         .onChange(of: session.rootItem?.id) {
             updateKindStatistics()
         }
-        .onChange(of: selectedItem.wrappedValue?.id) {
+        .onChange(of: selectedKindSelectionKey) {
             updateSelectedKindName()
         }
+    }
+
+    private var selectedKindSelectionKey: SelectedKindSelectionKey {
+        SelectedKindSelectionKey(item: selectedItem.wrappedValue)
     }
 
     private func updateKindStatistics() {
@@ -52,14 +56,36 @@ struct KindsPaneView: View {
     }
 
     private func updateSelectedKindName() {
-        guard let item: DiskItem = selectedItem.wrappedValue,
-              !item.isFolder,
-              let kindName: String = item.kindName,
-              kindStatistics.contains(where: { $0.kindName == kindName }) else {
+        guard let filter: SelectionListFilter = Self.selectedFilter(
+            for: selectedItem.wrappedValue,
+            statistics: kindStatistics
+        ) else {
             selectedFilter = nil
             return
         }
 
-        selectedFilter = .kind(kindName)
+        selectedFilter = filter
+    }
+
+    static func selectedFilter(
+        for item: DiskItem?,
+        statistics: [TreemapKindStatistic]
+    ) -> SelectionListFilter? {
+        guard let kindName: String = item?.kindName,
+              statistics.contains(where: { $0.kindName == kindName }) else {
+            return nil
+        }
+
+        return .kind(kindName)
+    }
+}
+
+private struct SelectedKindSelectionKey: Equatable {
+    let path: String?
+    let kindName: String?
+
+    init(item: DiskItem?) {
+        path = item?.path
+        kindName = item?.kindName
     }
 }
