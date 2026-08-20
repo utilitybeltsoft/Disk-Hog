@@ -968,15 +968,18 @@ struct ScanSessionWorkerIntegrationTests {
         #expect(session.rootItem === rootItem)
         #expect(session.isBuildingTreemap)
         #expect(session.treemapPreparationProgress == 1)
+        #expect(session.completedAt == nil)
 
         session.markTreemapRendered(for: Self.rootItem(fileSize: 12))
 
         #expect(session.isBuildingTreemap)
+        #expect(session.completedAt == nil)
 
         session.markTreemapRendered(for: rootItem)
 
         #expect(session.isBuildingTreemap == false)
         #expect(session.treemapPreparationProgress == nil)
+        #expect(session.completedAt != nil)
     }
 
     @Test func reportsScanFailureFromInjectedWorker() async throws {

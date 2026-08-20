@@ -148,6 +148,7 @@ final class ScanSession: ObservableObject {
         isUpdatingTree = false
         isBuildingTreemap = false
         treemapPreparationProgress = nil
+        completedAt = Date()
         if !preservingFailure {
             failure = nil
         }
@@ -475,7 +476,6 @@ final class ScanSession: ObservableObject {
         preferredSelection = rootItem
         self.rootItem = rootItem
         state = .complete
-        completedAt = Date()
         currentPath = rootItem.path
         scannedByteCount = rootItem.sizeValue(usePhysicalSize: settings.usePhysicalSize)
         if builtUsingPhysicalSize != settings.usePhysicalSize {
