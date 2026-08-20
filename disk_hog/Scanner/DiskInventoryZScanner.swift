@@ -10,6 +10,7 @@ nonisolated final class DiskInventoryZScanner {
     private let itemFactory: any DiskItemBuilding
     private let packageSizer: any OpaquePackageSizing
     private let recursiveResourceValuesProvider: ResourceValuesProvider
+    private let resourceBudget: ScanResourceBudget
 
     init(
         recursiveResourceValuesProvider: @escaping ResourceValuesProvider = { url, keys in
@@ -17,12 +18,14 @@ nonisolated final class DiskInventoryZScanner {
         },
         hardlinkDeduplicator: any HardlinkDeduplicating = HardlinkDeduplicator(),
         itemFactory: any DiskItemBuilding = DiskItemBuilderFactory(),
-        packageSizer: any OpaquePackageSizing = FileSystemOpaquePackageSizer()
+        packageSizer: any OpaquePackageSizing = FileSystemOpaquePackageSizer(),
+        resourceBudget: ScanResourceBudget = .shared
     ) {
         self.recursiveResourceValuesProvider = recursiveResourceValuesProvider
         self.hardlinkDeduplicator = hardlinkDeduplicator
         self.itemFactory = itemFactory
         self.packageSizer = packageSizer
+        self.resourceBudget = resourceBudget
         self.directoryTraversal = DiskDirectoryTraversal(
             resourceValuesProvider: recursiveResourceValuesProvider,
             hardlinkDeduplicator: hardlinkDeduplicator,
@@ -97,20 +100,30 @@ nonisolated final class DiskInventoryZScanner {
                 let packageSizer: any OpaquePackageSizing = packageSizer
                 let progressAggregator: ScanProgressAggregator = progressAggregator
                 let progressHandler: ProgressHandler? = progressHandler
+                let resourceBudget: ScanResourceBudget = resourceBudget
 
                 taskGroup.addTask {
+                    let permit: ScanResourcePermit = await resourceBudget.acquireTraversalPermit()
                     let scanner: DiskInventoryZScanner = DiskInventoryZScanner(
                         recursiveResourceValuesProvider: recursiveResourceValuesProvider,
                         hardlinkDeduplicator: hardlinkDeduplicator,
                         itemFactory: itemFactory,
-                        packageSizer: packageSizer
+                        packageSizer: packageSizer,
+                        resourceBudget: resourceBudget
                     )
-                    return try await scanner.scanTopLevelWorkItem(
-                        workItem,
-                        settings: settings,
-                        progressAggregator: progressAggregator,
-                        progressHandler: progressHandler
-                    )
+                    do {
+                        let result: TopLevelScanResult = try await scanner.scanTopLevelWorkItem(
+                            workItem,
+                            settings: settings,
+                            progressAggregator: progressAggregator,
+                            progressHandler: progressHandler
+                        )
+                        await permit.release()
+                        return result
+                    } catch {
+                        await permit.release()
+                        throw error
+                    }
                 }
             }
 

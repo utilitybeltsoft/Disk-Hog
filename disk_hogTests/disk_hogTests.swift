@@ -4599,6 +4599,47 @@ struct DiskInventoryZScannerTests {
         #expect(Self.hardlinkDuplicateCount(in: root) == 1)
     }
 
+    @Test func simultaneousScansShareTheGlobalTraversalBudget() async throws {
+        let firstRootURL: URL = try Self.makeManyTopLevelDirectoryFixture(named: "first", directoryCount: 12)
+        let secondRootURL: URL = try Self.makeManyTopLevelDirectoryFixture(named: "second", directoryCount: 12)
+        defer {
+            try? FileManager.default.removeItem(at: firstRootURL)
+            try? FileManager.default.removeItem(at: secondRootURL)
+        }
+
+        let resourceBudget: ScanResourceBudget = ScanResourceBudget(maximumConcurrentFilesystemTraversals: 2)
+        let resourceReadTracker: ConcurrentResourceReadTracker = ConcurrentResourceReadTracker()
+        let provider: DiskInventoryZScanner.ResourceValuesProvider = { url, keys in
+            if url.lastPathComponent == "payload.dat" {
+                resourceReadTracker.enter()
+                Thread.sleep(forTimeInterval: 0.01)
+                resourceReadTracker.leave()
+            }
+
+            return try url.resourceValues(forKeys: keys)
+        }
+        let firstScanner: DiskInventoryZScanner = DiskInventoryZScanner(
+            recursiveResourceValuesProvider: provider,
+            resourceBudget: resourceBudget
+        )
+        let secondScanner: DiskInventoryZScanner = DiskInventoryZScanner(
+            recursiveResourceValuesProvider: provider,
+            resourceBudget: resourceBudget
+        )
+
+        async let firstScan: DiskItem = firstScanner.scan(
+            source: ScanSource(path: firstRootURL.path, displayName: firstRootURL.lastPathComponent)
+        )
+        async let secondScan: DiskItem = secondScanner.scan(
+            source: ScanSource(path: secondRootURL.path, displayName: secondRootURL.lastPathComponent)
+        )
+
+        _ = try await (firstScan, secondScan)
+
+        #expect(resourceReadTracker.maximumActiveCount <= 2)
+        #expect(resourceReadTracker.totalEntryCount == 24)
+    }
+
     @Test func scanProgressBytesDoNotMoveBackwards() async throws {
         let rootURL: URL = try Self.makeCrossTopLevelHardlinkFixture()
         defer {
@@ -4849,6 +4890,26 @@ struct DiskInventoryZScannerTests {
         return rootURL
     }
 
+    private static func makeManyTopLevelDirectoryFixture(
+        named name: String,
+        directoryCount: Int
+    ) throws -> URL {
+        let rootURL: URL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("disk-hog-budget-\(name)-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
+        for index: Int in 0..<directoryCount {
+            let folderURL: URL = rootURL.appendingPathComponent(
+                String(format: "folder-%02d", index),
+                isDirectory: true
+            )
+            try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+            try Data(repeating: UInt8(index), count: 8).write(
+                to: folderURL.appendingPathComponent("payload.dat")
+            )
+        }
+        return rootURL
+    }
+
     private static func makeCancellationFixture() throws -> URL {
         let rootURL: URL = FileManager.default.temporaryDirectory
             .appendingPathComponent("disk-hog-cancellation-\(UUID().uuidString)", isDirectory: true)
@@ -5039,6 +5100,39 @@ private final class LockedCounter: @unchecked Sendable {
     func increment() {
         lock.withLock {
             count += 1
+        }
+    }
+}
+
+private final class ConcurrentResourceReadTracker: @unchecked Sendable {
+    private let lock: NSLock = NSLock()
+    private var activeCount: Int = 0
+    private var lockedMaximumActiveCount: Int = 0
+    private var lockedTotalEntryCount: Int = 0
+
+    var maximumActiveCount: Int {
+        lock.withLock {
+            lockedMaximumActiveCount
+        }
+    }
+
+    var totalEntryCount: Int {
+        lock.withLock {
+            lockedTotalEntryCount
+        }
+    }
+
+    func enter() {
+        lock.withLock {
+            activeCount += 1
+            lockedTotalEntryCount += 1
+            lockedMaximumActiveCount = max(lockedMaximumActiveCount, activeCount)
+        }
+    }
+
+    func leave() {
+        lock.withLock {
+            activeCount -= 1
         }
     }
 }
