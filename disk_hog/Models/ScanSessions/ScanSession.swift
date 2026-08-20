@@ -470,7 +470,7 @@ final class ScanSession: ObservableObject {
             return
         }
         isBuildingTreemap = true
-        treemapPreparationProgress = 1
+        treemapPreparationProgress = nil
         self.presentationMetrics = presentationMetrics
         updateSpaceItems(for: rootItem)
         preferredSelection = rootItem

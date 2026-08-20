@@ -5383,6 +5383,34 @@
         }
       }
     },
+    "Preparing file distribution…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dateiverteilung wird vorbereitet…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preparando la distribución de archivos…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Préparation de la distribution des fichiers…"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preparazione della distribuzione dei file…"
+          }
+        }
+      }
+    },
     "Preparing treemap" : {
       "localizations" : {
         "de" : {

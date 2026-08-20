@@ -967,7 +967,7 @@ struct ScanSessionWorkerIntegrationTests {
         try await Self.waitUntil(observing: session) { session.state == .complete }
         #expect(session.rootItem === rootItem)
         #expect(session.isBuildingTreemap)
-        #expect(session.treemapPreparationProgress == 1)
+        #expect(session.treemapPreparationProgress == nil)
         #expect(session.completedAt == nil)
 
         session.markTreemapRendered(for: Self.rootItem(fileSize: 12))

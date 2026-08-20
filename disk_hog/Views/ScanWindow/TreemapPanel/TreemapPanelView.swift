@@ -43,7 +43,7 @@ struct TreemapPanelView: View {
                 ScanPanePlaceholderView(
                     title: session.isBuildingTreemap ? "Preparing treemap" : "Treemap",
                     message: session.isBuildingTreemap
-                        ? "Preparing file distribution: \(treemapPreparationPercentage)%"
+                        ? treemapPreparationMessage
                         : "Pending scan completion",
                     showsProgress: session.isBuildingTreemap,
                     progress: session.treemapPreparationProgress
@@ -55,6 +55,13 @@ struct TreemapPanelView: View {
 
     private var treemapPreparationPercentage: Int {
         Int(((session.treemapPreparationProgress ?? 0) * 100).rounded(.down))
+    }
+
+    private var treemapPreparationMessage: LocalizedStringKey {
+        guard session.treemapPreparationProgress != nil else {
+            return "Preparing file distribution…"
+        }
+        return "Preparing file distribution: \(treemapPreparationPercentage)%"
     }
 
     private var navigationBar: some View {
