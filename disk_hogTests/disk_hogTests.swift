@@ -4351,6 +4351,68 @@ struct TreemapViewStateTests {
         #expect(state.renderedImage(in: NSRect(x: 0, y: 0, width: 101, height: 100), scale: 1) == nil)
         #expect(firstRenderCancelled.wait(timeout: .now() + 1) == .success)
     }
+
+    @Test func renderJobWithoutResultClearsPendingRequestSoTheViewCanRetry() async throws {
+        let root: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan"),
+            isDirectory: true,
+            children: [
+                DiskItem(
+                    url: URL(fileURLWithPath: "/scan/file.bin"),
+                    allocatedSizeValue: 100,
+                    logicalSizeValue: 100
+                )
+            ]
+        )
+        let renderAttemptCount: LockedCounter = LockedCounter()
+        let render: @Sendable (TreemapRenderRequest) -> TreemapRenderResult? = { request in
+            renderAttemptCount.increment()
+            if renderAttemptCount.value == 1 {
+                return nil
+            }
+            return TreemapRenderJob.render(request)
+        }
+        let state: TreemapViewState = TreemapViewState(render: render)
+
+        _ = state.configure(
+            source: ScanSource(path: "/scan", displayName: "scan"),
+            rootItem: root,
+            presentationMetrics: nil,
+            showsFreeSpace: false,
+            showsOtherSpace: false,
+            freeSpaceItem: nil,
+            otherSpaceItem: nil,
+            selectedItem: nil
+        )
+
+        let bounds: NSRect = NSRect(x: 0, y: 0, width: 100, height: 100)
+        #expect(state.renderedImage(in: bounds, scale: 1) == nil)
+        try await Self.waitUntil { renderAttemptCount.value >= 1 }
+
+        var renderedImage: NSBitmapImageRep?
+        for _ in 0..<100 {
+            renderedImage = state.renderedImage(in: bounds, scale: 1)
+            if renderedImage != nil {
+                break
+            }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+
+        #expect(renderAttemptCount.value >= 2)
+        #expect(renderedImage != nil)
+    }
+
+    private static func waitUntil(
+        timeoutNanoseconds: UInt64 = 1_000_000_000,
+        condition: @escaping @MainActor () -> Bool
+    ) async throws {
+        let attempts: Int = Int(timeoutNanoseconds / 10_000_000)
+        for _ in 0..<attempts {
+            if condition() { return }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        #expect(condition())
+    }
 }
 
 struct TreemapRasterGeometryTests {

@@ -277,12 +277,25 @@ final class TreemapViewState {
         pendingRenderRequest = request
         let stateReference: TreemapViewStateWeakReference = TreemapViewStateWeakReference(self)
         renderTask = Task.detached(priority: .userInitiated) { [render] in
-            guard let result: TreemapRenderResult = render(request) else { return }
-            guard !Task.isCancelled else { return }
+            guard let result: TreemapRenderResult = render(request),
+                  !Task.isCancelled else {
+                await MainActor.run {
+                    stateReference.value?.finishRenderWithoutResult(for: request)
+                }
+                return
+            }
             await MainActor.run {
                 stateReference.value?.installRenderResult(result)
             }
         }
+    }
+
+    private func finishRenderWithoutResult(for request: TreemapRenderRequest) {
+        guard pendingRenderRequest == request else {
+            return
+        }
+        pendingRenderRequest = nil
+        renderTask = nil
     }
 
     private func installRenderResult(_ result: TreemapRenderResult) {
