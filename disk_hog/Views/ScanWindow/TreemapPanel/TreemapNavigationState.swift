@@ -17,13 +17,13 @@ final class TreemapNavigationState: ObservableObject {
     }
 
     func canZoom(into item: DiskItem?) -> Bool {
-        zoomTarget(for: item) != nil
+        zoomDestination(for: item) != nil
     }
 
     func zoom(into item: DiskItem?) {
-        guard let target: DiskItem = zoomTarget(for: item), let baseRoot else { return }
-        zoomPath = baseRoot.descendantsMatchingAncestorPath(of: target)
-        selectionAfterZoom = target
+        guard let destination: ZoomDestination = zoomDestination(for: item) else { return }
+        zoomPath = destination.path
+        selectionAfterZoom = destination.target
     }
 
     func zoomOut() {
@@ -61,23 +61,32 @@ final class TreemapNavigationState: ObservableObject {
         return selectionAfterZoom
     }
 
-    private func zoomTarget(for item: DiskItem?) -> DiskItem? {
+    private func zoomDestination(for item: DiskItem?) -> ZoomDestination? {
         guard let item, item.isSpecialItem == false, let baseRoot else { return nil }
-        let path: [DiskItem] = baseRoot.descendantsMatchingAncestorPath(of: item)
-        guard path.isEmpty == false else { return nil }
+        let itemPath: [DiskItem] = baseRoot.descendantsMatchingAncestorPath(of: item)
+        guard itemPath.isEmpty == false else { return nil }
         let target: DiskItem
+        let targetPath: [DiskItem]
         if item.isFolder, item.isPackage == false, item.childCount > 0 {
             target = item
-        } else if let parent: DiskItem = path.dropLast().last {
+            targetPath = itemPath
+        } else if let parent: DiskItem = itemPath.dropLast().last {
             target = parent
+            targetPath = Array(itemPath.dropLast())
         } else {
             return nil
         }
-        return target == zoomRoot ? nil : target
+        guard target != zoomRoot else { return nil }
+        return ZoomDestination(target: target, path: targetPath)
     }
 
     private func contains(_ itemPath: String, within rootPath: String) -> Bool {
         itemPath == rootPath
             || itemPath.hasPrefix(rootPath.hasSuffix("/") ? rootPath : rootPath + "/")
     }
+}
+
+private struct ZoomDestination {
+    let target: DiskItem
+    let path: [DiskItem]
 }
