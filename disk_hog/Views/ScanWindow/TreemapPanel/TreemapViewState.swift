@@ -147,6 +147,12 @@ final class TreemapViewState {
         if pendingRenderRequest != request {
             startRender(for: request)
         }
+        if let completedRenderRequest,
+           completedRenderRequest.width == request.width,
+           completedRenderRequest.height == request.height,
+           let renderedBitmap {
+            return renderedBitmap
+        }
         return nil
     }
 
@@ -348,8 +354,6 @@ final class TreemapViewState {
 
     private func discardRenderedPlan() {
         renderedPlan = nil
-        renderedBitmap = nil
-        completedRenderRequest = nil
         cancelPendingRender()
     }
 

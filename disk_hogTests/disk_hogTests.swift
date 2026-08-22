@@ -4492,6 +4492,78 @@ struct TreemapViewStateTests {
         #expect(renderedImage != nil)
     }
 
+    @Test func previousTreemapBitmapRemainsVisibleWhileNewRootRenders() async throws {
+        let firstRoot: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/first"),
+            isDirectory: true,
+            children: [
+                DiskItem(
+                    url: URL(fileURLWithPath: "/scan/first/file.bin"),
+                    allocatedSizeValue: 100,
+                    logicalSizeValue: 100
+                )
+            ]
+        )
+        let secondRoot: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/second"),
+            isDirectory: true,
+            children: [
+                DiskItem(
+                    url: URL(fileURLWithPath: "/scan/second/file.bin"),
+                    allocatedSizeValue: 100,
+                    logicalSizeValue: 100
+                )
+            ]
+        )
+        let secondRenderStartCount: LockedCounter = LockedCounter()
+        let render: @Sendable (TreemapRenderRequest) -> TreemapRenderResult? = { request in
+            if request.rootItem === secondRoot {
+                secondRenderStartCount.increment()
+                Thread.sleep(forTimeInterval: 0.05)
+                return nil
+            }
+            return TreemapRenderJob.render(request)
+        }
+        let state: TreemapViewState = TreemapViewState(render: render)
+        let bounds: NSRect = NSRect(x: 0, y: 0, width: 100, height: 100)
+
+        _ = state.configure(
+            source: ScanSource(path: "/scan", displayName: "scan"),
+            rootItem: firstRoot,
+            presentationMetrics: nil,
+            showsFreeSpace: false,
+            showsOtherSpace: false,
+            freeSpaceItem: nil,
+            otherSpaceItem: nil,
+            selectedItem: nil
+        )
+
+        #expect(state.renderedImage(in: bounds, scale: 1) == nil)
+        var firstBitmap: NSBitmapImageRep?
+        for _ in 0..<100 {
+            firstBitmap = state.renderedImage(in: bounds, scale: 1)
+            if firstBitmap != nil {
+                break
+            }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        let visibleBitmap: NSBitmapImageRep = try #require(firstBitmap)
+
+        _ = state.configure(
+            source: ScanSource(path: "/scan", displayName: "scan"),
+            rootItem: secondRoot,
+            presentationMetrics: nil,
+            showsFreeSpace: false,
+            showsOtherSpace: false,
+            freeSpaceItem: nil,
+            otherSpaceItem: nil,
+            selectedItem: nil
+        )
+
+        #expect(state.renderedImage(in: bounds, scale: 1) === visibleBitmap)
+        try await Self.waitUntil { secondRenderStartCount.value >= 1 }
+    }
+
     private static func waitUntil(
         timeoutNanoseconds: UInt64 = 1_000_000_000,
         condition: @escaping @MainActor () -> Bool
