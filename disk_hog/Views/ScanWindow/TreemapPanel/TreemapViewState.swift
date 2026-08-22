@@ -161,6 +161,7 @@ final class TreemapViewState {
             return nil
         }
         return renderedPlan?.entry(for: selectedItem)
+            ?? renderedPlan?.deepestRenderedAncestorEntry(containingPath: selectedItem.path)
     }
 
     func prepareLayout(in bounds: NSRect) {

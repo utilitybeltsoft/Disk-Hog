@@ -3632,6 +3632,53 @@ struct TreemapDiskItemDataSourceTests {
         #expect(plan.hitEntry(x: 80, y: 80)?.itemPath == "/scan")
     }
 
+    @Test func layoutPlanResolvesDeepestRenderedAncestorForCollapsedDescendant() {
+        let rootItem: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan"),
+            allocatedSizeValue: 100,
+            logicalSizeValue: 100,
+            isDirectory: true
+        )
+        let collapsedFolder: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/tiny"),
+            allocatedSizeValue: 1,
+            logicalSizeValue: 1,
+            isDirectory: true
+        )
+        let hiddenDescendant: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/tiny/deep/folder"),
+            allocatedSizeValue: 1,
+            logicalSizeValue: 1,
+            isDirectory: true
+        )
+        let root: TreemapLayoutEntry = TreemapLayoutEntry(
+            item: rootItem,
+            itemPath: "/scan",
+            parentItem: nil,
+            parentPath: nil,
+            rect: TreemapLayoutRect(x: 0, y: 0, width: 100, height: 100),
+            unroundedRect: TreemapLayoutRect(x: 0, y: 0, width: 100, height: 100),
+            isSpecialItem: false
+        )
+        let tiny: TreemapLayoutEntry = TreemapLayoutEntry(
+            item: collapsedFolder,
+            itemPath: "/scan/tiny",
+            parentItem: rootItem,
+            parentPath: "/scan",
+            rect: .zero,
+            unroundedRect: TreemapLayoutRect(x: 40.25, y: 80.75, width: 0.2, height: 0.3),
+            isSpecialItem: false
+        )
+        let plan: TreemapLayoutPlan = TreemapLayoutPlan(
+            bounds: TreemapLayoutRect(x: 0, y: 0, width: 100, height: 100),
+            entries: [root, tiny],
+            cushionSnapshots: []
+        )
+
+        #expect(plan.entry(for: hiddenDescendant) == nil)
+        #expect(plan.deepestRenderedAncestorEntry(containingPath: hiddenDescendant.path)?.item === collapsedFolder)
+    }
+
     @Test func layoutPlanHitTestingFindsLargeEntriesAwayFromTheirCenter() {
         let rootItem: DiskItem = DiskItem(
             url: URL(fileURLWithPath: "/scan"),

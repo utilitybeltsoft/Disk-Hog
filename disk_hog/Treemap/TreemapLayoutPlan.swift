@@ -116,6 +116,21 @@ nonisolated struct TreemapLayoutPlan: Sendable {
         return entries[index]
     }
 
+    func deepestRenderedAncestorEntry(containingPath path: String) -> TreemapLayoutEntry? {
+        var candidatePath: String = path
+        while candidatePath.isEmpty == false {
+            if let index: Int = entryIndexByPath[candidatePath] {
+                return entries[index]
+            }
+            let parentPath: String = (candidatePath as NSString).deletingLastPathComponent
+            guard parentPath != candidatePath else {
+                break
+            }
+            candidatePath = parentPath
+        }
+        return nil
+    }
+
     /// Resolves overlaps by choosing the smallest painted rectangle, which is
     /// the deepest visible descendant at the pointer location.
     func hitEntry(x: Double, y: Double) -> TreemapLayoutEntry? {
