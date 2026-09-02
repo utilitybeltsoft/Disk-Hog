@@ -31,6 +31,7 @@ final class ZStyleTreemapNSView: NSView {
     ) {
         self.session = session
         contextMenuActionTarget.session = session
+        let rootChanged: Bool = state.rootItem !== rootItem
         if state.configure(
             source: source,
             rootItem: rootItem,
@@ -44,11 +45,37 @@ final class ZStyleTreemapNSView: NSView {
             pendingDiscoveryAnimation = true
             needsDisplay = true
         }
+        if rootChanged {
+            // The hovered entry belongs to the previous root's layout plan
+            // (different coordinate space, possibly a different item entirely).
+            // AppKit won't redeliver a mouseMoved just because the content
+            // changed under a stationary cursor, so drop it now rather than
+            // let a stale rectangle linger until the pointer next moves.
+            updateHover(item: nil, entry: nil)
+        }
         state.onRenderedImageReady = { [weak self] in
             guard let self else { return }
             self.session?.markTreemapRendered(for: self.state.rootItem)
+            // The new root's layout plan just became available; resample
+            // whatever's currently under the pointer instead of waiting for
+            // the next mouse move, so hover reappears the moment it can.
+            self.refreshHoverForCurrentMouseLocation()
             self.needsDisplay = true
         }
+    }
+
+    private func refreshHoverForCurrentMouseLocation() {
+        guard let window else {
+            updateHover(item: nil, entry: nil)
+            return
+        }
+        let locationInView: NSPoint = convert(window.mouseLocationOutsideOfEventStream, from: nil)
+        guard bounds.contains(locationInView) else {
+            updateHover(item: nil, entry: nil)
+            return
+        }
+        let result: TreemapHitResult? = state.hitResult(at: locationInView)
+        updateHover(item: result?.item, entry: result?.entry)
     }
 
     func applySelectedItem(_ selectedItem: DiskItem?) {
