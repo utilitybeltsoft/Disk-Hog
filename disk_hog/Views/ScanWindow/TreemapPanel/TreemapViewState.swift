@@ -319,22 +319,33 @@ final class TreemapViewState {
         renderTask?.cancel()
         pendingRenderRequest = request
         let stateReference: TreemapViewStateWeakReference = TreemapViewStateWeakReference(self)
+        let startedAt: Date = Date()
+        Self.logRender("start root=\(request.rootItem.path) size=\(Int(request.width))x\(Int(request.height))")
         renderTask = Task.detached(priority: .userInitiated) { [render] in
             guard let result: TreemapRenderResult = render(request),
                   !Task.isCancelled else {
+                let elapsed: TimeInterval = Date().timeIntervalSince(startedAt)
+                Self.logRender("cancelled/no-result root=\(request.rootItem.path) after \(elapsed)s taskCancelled=\(Task.isCancelled)")
                 await MainActor.run {
                     stateReference.value?.finishRenderWithoutResult(for: request)
                 }
                 return
             }
+            let elapsed: TimeInterval = Date().timeIntervalSince(startedAt)
+            Self.logRender("computed root=\(request.rootItem.path) after \(elapsed)s, installing")
             await MainActor.run {
                 stateReference.value?.installRenderResult(result)
             }
         }
     }
 
+    private nonisolated static func logRender(_ message: String) {
+        NSLog("[TreemapRender] %@", message)
+    }
+
     private func finishRenderWithoutResult(for request: TreemapRenderRequest) {
         guard pendingRenderRequest == request else {
+            Self.logRender("finishRenderWithoutResult: stale request discarded root=\(request.rootItem.path) (pendingRenderRequest no longer matches)")
             return
         }
         pendingRenderRequest = nil
@@ -343,9 +354,11 @@ final class TreemapViewState {
 
     private func installRenderResult(_ result: TreemapRenderResult) {
         guard pendingRenderRequest == result.request else {
+            Self.logRender("installRenderResult: DROPPED completed render root=\(result.request.rootItem.path) because pendingRenderRequest no longer matches (superseded=\(pendingRenderRequest != nil))")
             return
         }
         guard let bitmap: NSBitmapImageRep = bitmap(from: result) else {
+            Self.logRender("installRenderResult: bitmap conversion failed root=\(result.request.rootItem.path)")
             pendingRenderRequest = nil
             renderTask = nil
             return
@@ -355,6 +368,7 @@ final class TreemapViewState {
         completedRenderRequest = result.request
         pendingRenderRequest = nil
         renderTask = nil
+        Self.logRender("installed root=\(result.request.rootItem.path)")
         onRenderedImageReady?()
     }
 

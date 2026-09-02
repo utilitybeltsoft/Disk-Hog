@@ -83,6 +83,7 @@ final class ZStyleTreemapNSView: NSView {
     private func reportRenderPending(_ isPending: Bool) {
         guard lastReportedRenderPending != isPending else { return }
         lastReportedRenderPending = isPending
+        NSLog("[TreemapRender] badge %@ for root=%@", isPending ? "SHOWN" : "cleared", state.rootItem?.path ?? "nil")
         onRenderPendingChange?(isPending)
     }
 
