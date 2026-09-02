@@ -27,9 +27,9 @@ struct AppKitTreemapView: NSViewRepresentable {
 
     func makeNSView(context: Context) -> ZStyleTreemapNSView {
         let view: ZStyleTreemapNSView = ZStyleTreemapNSView()
-        view.onSelectItem = { item in
+        view.onSelectItem = { item, ancestorChain in
             context.coordinator.activePane.wrappedValue = .treemap
-            context.coordinator.selectionCoordinator.setSelectedItem(item)
+            context.coordinator.selectionCoordinator.setSelectedItem(item, ancestorChain: ancestorChain)
         }
         view.onHoverItem = { item in
             context.coordinator.hoveredItem.wrappedValue = item

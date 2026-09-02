@@ -1,7 +1,7 @@
 import AppKit
 
 final class ZStyleTreemapNSView: NSView {
-    var onSelectItem: ((DiskItem?) -> Void)?
+    var onSelectItem: ((DiskItem, [DiskItem]) -> Void)?
     var onHoverItem: ((DiskItem?) -> Void)?
     var onZoomIn: ((DiskItem) -> Void)?
     var onZoomOut: (() -> Void)?
@@ -187,13 +187,13 @@ final class ZStyleTreemapNSView: NSView {
         let selectionChanged: Bool = state.selectedItem != hitResult.item
         state.select(hitResult)
         pendingDiscoveryAnimation = selectionChanged
-        onSelectItem?(hitResult.item)
+        onSelectItem?(hitResult.item, state.ancestorChain(for: hitResult.item))
         needsDisplay = true
     }
 
     private func selectNeighbor(in direction: TreemapNavigationDirection) {
         guard let item: DiskItem = state.selectNeighbor(in: direction) else { return }
-        onSelectItem?(item)
+        onSelectItem?(item, state.ancestorChain(for: item))
         needsDisplay = true
     }
 
@@ -232,36 +232,43 @@ final class ZStyleTreemapNSView: NSView {
 
     private func discoveryAnimationTargetRect() -> NSRect? {
         guard let entry: TreemapLayoutEntry = state.selectedEntry() else { return nil }
+        let scale: CGFloat = window?.backingScaleFactor ?? 1
         let selectedRect: NSRect = NSRect(
             x: entry.rect.x,
             y: entry.rect.y,
             width: entry.rect.width,
             height: entry.rect.height
         )
-        let targetRect: NSRect
+        let sourceRect: NSRect
         if selectedRect.isEmpty {
-            targetRect = TreemapRasterGeometry.visibleMarkerRect(
-                for: TreemapRasterGeometry.pixelAlignedRect(
-                    for: NSRect(
-                        x: entry.unroundedRect.x,
-                        y: entry.unroundedRect.y,
-                        width: entry.unroundedRect.width,
-                        height: entry.unroundedRect.height
-                    ),
-                    scale: window?.backingScaleFactor ?? 1
-                ).intersection(bounds),
-                in: bounds,
-                scale: window?.backingScaleFactor ?? 1
-            )
+            sourceRect = TreemapRasterGeometry.pixelAlignedRect(
+                for: NSRect(
+                    x: entry.unroundedRect.x,
+                    y: entry.unroundedRect.y,
+                    width: entry.unroundedRect.width,
+                    height: entry.unroundedRect.height
+                ),
+                scale: scale
+            ).intersection(bounds)
         } else {
-            targetRect = TreemapSelectionRect.visibleRect(
+            sourceRect = TreemapSelectionRect.visibleRect(
                 for: selectedRect,
                 in: bounds
             )
         }
-        guard targetRect.isEmpty == false, min(targetRect.width, targetRect.height) <= 12 else {
+        guard sourceRect.isEmpty == false,
+              min(sourceRect.width, sourceRect.height) <= ScanWindowMetrics.treemapMinimumSelectionSide else {
             return nil
         }
+        // Always enlarge to a guaranteed-visible marker, not just for the
+        // fully-collapsed case: a merely-tiny rect degenerates the animation's
+        // inset stroke and corner guide lines into near-zero-size geometry.
+        let targetRect: NSRect = TreemapRasterGeometry.visibleMarkerRect(
+            for: sourceRect,
+            in: bounds,
+            scale: scale
+        )
+        guard targetRect.isEmpty == false else { return nil }
         return targetRect
     }
 

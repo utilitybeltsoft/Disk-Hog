@@ -58,42 +58,39 @@ enum TreemapViewPainter {
         in bounds: NSRect,
         backingScaleFactor: CGFloat
     ) {
+        let sourceRect: NSRect
         if selectedRect.isEmpty {
-            let pixelRect: NSRect = TreemapRasterGeometry.pixelAlignedRect(
+            sourceRect = TreemapRasterGeometry.pixelAlignedRect(
                 for: unroundedRect,
                 scale: backingScaleFactor
             ).intersection(bounds)
-            guard pixelRect.isEmpty == false else { return }
+        } else {
+            sourceRect = TreemapSelectionRect.visibleRect(for: selectedRect, in: bounds)
+        }
+        guard sourceRect.isEmpty == false else {
+            return
+        }
+
+        // Below the minimum border size, a plain fill/stroke of the item's own
+        // (possibly sub-pixel) rect can be visually imperceptible. Enlarge to a
+        // guaranteed-visible marker instead of drawing the raw rect, for both the
+        // fully-collapsed case (selectedRect.isEmpty) and the merely-tiny case.
+        if min(sourceRect.width, sourceRect.height) < ScanWindowMetrics.treemapMinimumSelectionSide {
             NSColor.yellow.setFill()
             TreemapRasterGeometry.visibleMarkerRect(
-                for: pixelRect,
+                for: sourceRect,
                 in: bounds,
                 scale: backingScaleFactor
             ).fill()
             return
         }
-        let rect: NSRect = TreemapSelectionRect.visibleRect(
-            for: selectedRect,
-            in: bounds
-        )
-        guard rect != .zero else {
-            return
-        }
 
-        if rect.width <= 1 || rect.height <= 1 {
-            NSColor.yellow.setFill()
-            rect.fill()
-        } else if min(rect.width, rect.height) < ScanWindowMetrics.treemapMinimumSelectionSide {
-            NSColor.yellow.setStroke()
-            strokeContained(in: rect, lineWidth: 1)
-        } else {
-            NSColor.black.setStroke()
-            strokeContained(in: rect, lineWidth: ScanWindowMetrics.treemapSelectionOuterLineWidth)
-            NSColor.white.setStroke()
-            strokeContained(in: rect, lineWidth: ScanWindowMetrics.treemapSelectionMiddleLineWidth)
-            NSColor.yellow.setStroke()
-            strokeContained(in: rect, lineWidth: ScanWindowMetrics.treemapSelectionInnerLineWidth)
-        }
+        NSColor.black.setStroke()
+        strokeContained(in: sourceRect, lineWidth: ScanWindowMetrics.treemapSelectionOuterLineWidth)
+        NSColor.white.setStroke()
+        strokeContained(in: sourceRect, lineWidth: ScanWindowMetrics.treemapSelectionMiddleLineWidth)
+        NSColor.yellow.setStroke()
+        strokeContained(in: sourceRect, lineWidth: ScanWindowMetrics.treemapSelectionInnerLineWidth)
     }
 
     private static func strokeContained(in rect: NSRect, lineWidth: CGFloat) {

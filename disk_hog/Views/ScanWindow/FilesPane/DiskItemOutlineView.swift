@@ -86,7 +86,10 @@ struct DiskItemOutlineView: NSViewRepresentable {
         context.coordinator.onZoomOut = onZoomOut
         context.coordinator.updateSizeMode(usePhysicalSize)
         context.coordinator.reloadIfNeeded(rootItem: rootItem)
-        context.coordinator.syncSelectionIfNeeded(selectionCoordinator.selectedItem)
+        context.coordinator.syncSelectionIfNeeded(
+            selectionCoordinator.selectedItem,
+            ancestorChain: selectionCoordinator.lastKnownAncestorChain
+        )
     }
 
     final class Coordinator: NSObject, NSOutlineViewDataSource, NSOutlineViewDelegate {
@@ -132,7 +135,7 @@ struct DiskItemOutlineView: NSViewRepresentable {
 
         func observeSelection() {
             selectionCancellable = selectionCoordinator.$selectedItem.sink { [weak self] item in
-                self?.syncSelectionIfNeeded(item)
+                self?.syncSelectionIfNeeded(item, ancestorChain: self?.selectionCoordinator.lastKnownAncestorChain ?? [])
             }
         }
 
@@ -182,7 +185,7 @@ struct DiskItemOutlineView: NSViewRepresentable {
             outlineView?.reloadData()
         }
 
-        func syncSelectionIfNeeded(_ item: DiskItem?) {
+        func syncSelectionIfNeeded(_ item: DiskItem?, ancestorChain: [DiskItem] = []) {
             guard let outlineView: NSOutlineView = outlineView else {
                 return
             }
@@ -198,7 +201,7 @@ struct DiskItemOutlineView: NSViewRepresentable {
                 return
             }
 
-            expandAncestors(of: item)
+            expandAncestors(of: item, ancestorChain: ancestorChain)
             let row: Int = outlineView.row(forItem: item)
             guard row >= 0 else {
                 selectionMutationGate.perform {
@@ -310,12 +313,21 @@ struct DiskItemOutlineView: NSViewRepresentable {
             onActivateItem(item)
         }
 
-        private func expandAncestors(of item: DiskItem) {
+        private func expandAncestors(of item: DiskItem, ancestorChain: [DiskItem] = []) {
             guard let rootItem: DiskItem = rootItem else {
                 return
             }
 
-            let ancestors: [DiskItem] = rootItem.descendantsMatchingAncestorPath(of: item).dropLast()
+            // When the caller already knows the ancestor chain (e.g. a treemap
+            // click resolved it via the layout plan's item index), use it directly
+            // instead of re-deriving it with a path walk from the root. The chain
+            // is only trustworthy against this outline's current tree generation.
+            let ancestors: [DiskItem]
+            if ancestorChain.isEmpty == false, ancestorChain.allSatisfy({ $0.snapshot === rootItem.snapshot }) {
+                ancestors = ancestorChain
+            } else {
+                ancestors = rootItem.descendantsMatchingAncestorPath(of: item).dropLast()
+            }
             let collapsedAncestors: [DiskItem] = ancestors.filter {
                 outlineView?.isItemExpanded(canonicalItem($0)) == false
             }

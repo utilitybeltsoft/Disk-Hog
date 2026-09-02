@@ -164,6 +164,16 @@ final class TreemapViewState {
             ?? renderedPlan?.deepestRenderedAncestorEntry(containingPath: selectedItem.path)
     }
 
+    /// Root-to-parent chain for `item`, resolved via the rendered plan's item
+    /// index when available. Empty when the plan doesn't (yet) have an entry
+    /// for `item`, in which case callers should fall back to a path-based walk.
+    func ancestorChain(for item: DiskItem) -> [DiskItem] {
+        guard let renderedPlan, let entry: TreemapLayoutEntry = renderedPlan.entry(for: item) else {
+            return []
+        }
+        return renderedPlan.ancestorChain(for: entry)
+    }
+
     func prepareLayout(in bounds: NSRect) {
         guard let rootItem: DiskItem = rootItem else {
             return

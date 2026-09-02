@@ -116,6 +116,18 @@ nonisolated struct TreemapLayoutPlan: Sendable {
         return entries[index]
     }
 
+    /// Root-to-immediate-parent chain for `entry`, resolved via the plan's
+    /// item index rather than re-walking the tree from the root.
+    func ancestorChain(for entry: TreemapLayoutEntry) -> [DiskItem] {
+        var chain: [DiskItem] = []
+        var currentParent: DiskItem? = entry.parentItem
+        while let parent: DiskItem = currentParent {
+            chain.append(parent)
+            currentParent = entryIndexByItem[parent].map { entries[$0] }?.parentItem
+        }
+        return chain.reversed()
+    }
+
     func deepestRenderedAncestorEntry(containingPath path: String) -> TreemapLayoutEntry? {
         var candidatePath: String = path
         while candidatePath.isEmpty == false {

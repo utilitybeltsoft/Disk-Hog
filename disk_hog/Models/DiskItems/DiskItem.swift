@@ -176,6 +176,23 @@ nonisolated final class DiskItem: Identifiable, Hashable, Sendable, DiskItemTree
     var childCount: Int { snapshot.childCount(of: address) }
     var isRoot: Bool { record.isRoot }
 
+    // These shadow the DiskItemTreeNode default implementations, which go through
+    // `itemMetadata` and decode every string field (plus build a URL) just to read
+    // one value. Tree walks call these per node, so reading straight from the
+    // packed record avoids that cost on every visit.
+    var itemType: DiskItemType { record.itemType }
+    var allocatedSizeValue: UInt64 { record.allocatedSizeValue }
+    var logicalSizeValue: UInt64 { record.logicalSizeValue }
+    var isDirectory: Bool { record.isDirectory }
+    var isPackage: Bool { record.isPackage }
+    var isAliasOrSymbolicLink: Bool { record.isAliasOrSymbolicLink }
+    var isHardlinkDuplicate: Bool { record.isHardlinkDuplicate }
+    var isSpecialItem: Bool { record.itemType != .fileOrFolder }
+    var kindName: String? { snapshot.string(record.kindName, at: address) }
+    var path: String {
+        isSpecialItem ? "" : (snapshot.string(record.path, at: address) ?? "")
+    }
+
     func child(at index: Int) -> DiskItem {
         DiskItem(snapshot: snapshot, address: snapshot.child(of: address, at: index))
     }
