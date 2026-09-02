@@ -14,6 +14,7 @@ struct AppKitTreemapView: NSViewRepresentable {
     let selectionCoordinator: ScanWindowSelectionCoordinator
     let hoveredItem: Binding<DiskItem?>
     let activePane: Binding<ScanWindowPane?>
+    let isRecalculating: Binding<Bool>
     let onZoomIn: (DiskItem) -> Void
     let onZoomOut: () -> Void
 
@@ -21,7 +22,8 @@ struct AppKitTreemapView: NSViewRepresentable {
         Coordinator(
             selectionCoordinator: selectionCoordinator,
             hoveredItem: hoveredItem,
-            activePane: activePane
+            activePane: activePane,
+            isRecalculating: isRecalculating
         )
     }
 
@@ -33,6 +35,9 @@ struct AppKitTreemapView: NSViewRepresentable {
         }
         view.onHoverItem = { item in
             context.coordinator.hoveredItem.wrappedValue = item
+        }
+        view.onRenderPendingChange = { isPending in
+            context.coordinator.isRecalculating.wrappedValue = isPending
         }
         view.onZoomIn = onZoomIn
         view.onZoomOut = onZoomOut
@@ -56,6 +61,7 @@ struct AppKitTreemapView: NSViewRepresentable {
         context.coordinator.selectionCoordinator = selectionCoordinator
         context.coordinator.hoveredItem = hoveredItem
         context.coordinator.activePane = activePane
+        context.coordinator.isRecalculating = isRecalculating
         nsView.onZoomIn = onZoomIn
         nsView.onZoomOut = onZoomOut
         nsView.configure(
@@ -75,17 +81,20 @@ struct AppKitTreemapView: NSViewRepresentable {
         var selectionCoordinator: ScanWindowSelectionCoordinator
         var hoveredItem: Binding<DiskItem?>
         var activePane: Binding<ScanWindowPane?>
+        var isRecalculating: Binding<Bool>
         weak var view: ZStyleTreemapNSView?
         private var selectionCancellable: AnyCancellable?
 
         init(
             selectionCoordinator: ScanWindowSelectionCoordinator,
             hoveredItem: Binding<DiskItem?>,
-            activePane: Binding<ScanWindowPane?>
+            activePane: Binding<ScanWindowPane?>,
+            isRecalculating: Binding<Bool>
         ) {
             self.selectionCoordinator = selectionCoordinator
             self.hoveredItem = hoveredItem
             self.activePane = activePane
+            self.isRecalculating = isRecalculating
         }
 
         func observeSelection() {

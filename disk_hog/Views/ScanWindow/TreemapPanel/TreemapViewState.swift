@@ -156,6 +156,18 @@ final class TreemapViewState {
         return nil
     }
 
+    /// True once the visible bitmap belongs to a root other than the one
+    /// currently configured (or there's no bitmap at all yet) — i.e. a
+    /// zoom/root change is still waiting on its background re-render.
+    /// `renderedImage(in:scale:)` deliberately keeps showing the previous
+    /// root's bitmap while that happens, so callers that want to surface
+    /// this as a "recalculating" indicator can't tell from the image alone.
+    var isShowingStaleRoot: Bool {
+        guard let rootItem else { return false }
+        guard let completedRenderRequest else { return true }
+        return completedRenderRequest.rootItem !== rootItem
+    }
+
     func selectedEntry() -> TreemapLayoutEntry? {
         guard let selectedItem else {
             return nil

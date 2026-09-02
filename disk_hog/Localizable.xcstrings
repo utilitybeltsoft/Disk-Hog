@@ -5722,6 +5722,34 @@
         }
       }
     },
+    "Recalculating…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wird neu berechnet …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recalculando…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recalcul en cours…"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ricalcolo in corso…"
+          }
+        }
+      }
+    },
     "Reference count" : {
       "localizations" : {
         "de" : {

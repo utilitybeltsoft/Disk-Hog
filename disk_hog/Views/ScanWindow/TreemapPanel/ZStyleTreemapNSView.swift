@@ -5,6 +5,7 @@ final class ZStyleTreemapNSView: NSView {
     var onHoverItem: ((DiskItem?) -> Void)?
     var onZoomIn: ((DiskItem) -> Void)?
     var onZoomOut: (() -> Void)?
+    var onRenderPendingChange: ((Bool) -> Void)?
 
     private weak var session: ScanSession?
     private let contextMenuActionTarget: DiskItemContextMenuActionTarget = DiskItemContextMenuActionTarget()
@@ -14,6 +15,7 @@ final class ZStyleTreemapNSView: NSView {
     private var pendingDiscoveryAnimation: Bool = false
     private var hoveredItem: DiskItem?
     private var hoveredEntry: TreemapLayoutEntry?
+    private var lastReportedRenderPending: Bool = false
 
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
@@ -78,6 +80,12 @@ final class ZStyleTreemapNSView: NSView {
         updateHover(item: result?.item, entry: result?.entry)
     }
 
+    private func reportRenderPending(_ isPending: Bool) {
+        guard lastReportedRenderPending != isPending else { return }
+        lastReportedRenderPending = isPending
+        onRenderPendingChange?(isPending)
+    }
+
     func applySelectedItem(_ selectedItem: DiskItem?) {
         if state.applySelectedItem(selectedItem) {
             pendingDiscoveryAnimation = true
@@ -109,6 +117,8 @@ final class ZStyleTreemapNSView: NSView {
                 NSColor.windowBackgroundColor.setFill()
                 dirtyRect.fill()
             }
+            // Live resize already shows the previous bitmap at reduced opacity;
+            // a "recalculating" badge would just flicker throughout the drag.
             return
         }
 
@@ -119,8 +129,10 @@ final class ZStyleTreemapNSView: NSView {
         if drawRenderedImage(destinationRect: drawableRect, sourceRect: drawableRect, fraction: 1) == false {
             NSColor.windowBackgroundColor.setFill()
             dirtyRect.fill()
+            reportRenderPending(true)
             return
         }
+        reportRenderPending(state.isShowingStaleRoot)
         let scale: CGFloat = window?.backingScaleFactor ?? 1
         let selectedEntry: TreemapLayoutEntry? = state.selectedEntry()
         TreemapViewPainter.drawSelection(

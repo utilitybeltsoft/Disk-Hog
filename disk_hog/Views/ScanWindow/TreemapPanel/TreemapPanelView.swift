@@ -7,6 +7,8 @@ struct TreemapPanelView: View {
     @ObservedObject var navigation: TreemapNavigationState
     @Environment(\.hoveredScanItem) private var hoveredItem
     @Environment(\.activeScanWindowPane) private var activePane
+    @State private var isRecalculating: Bool = false
+    @State private var showsRecalculatingBadge: Bool = false
 
     var body: some View {
         GeometryReader { geometry in
@@ -33,11 +35,30 @@ struct TreemapPanelView: View {
                 selectionCoordinator: selectionCoordinator,
                 hoveredItem: hoveredItem,
                 activePane: activePane,
+                isRecalculating: $isRecalculating,
                 onZoomIn: { item in navigation.zoom(into: item) },
                 onZoomOut: { navigation.zoomOut() }
             )
             .overlay {
                 PaneBorderView(isActive: activePane.wrappedValue == .treemap)
+            }
+            .overlay(alignment: .top) {
+                if showsRecalculatingBadge {
+                    recalculatingBadge
+                }
+            }
+            .onChange(of: isRecalculating) { _, isRecalculating in
+                if isRecalculating {
+                    // Debounced so a fast re-render (most zooms) never flashes
+                    // the badge at all; only a genuinely slow one shows it.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                        if self.isRecalculating {
+                            showsRecalculatingBadge = true
+                        }
+                    }
+                } else {
+                    showsRecalculatingBadge = false
+                }
             }
             if session.rootItem == nil || session.isBuildingTreemap {
                 ScanPanePlaceholderView(
@@ -51,6 +72,21 @@ struct TreemapPanelView: View {
                 .padding(ScanWindowMetrics.inactivePaneBorderWidth)
             }
         }
+    }
+
+    private var recalculatingBadge: some View {
+        HStack(spacing: 6) {
+            ProgressView()
+                .controlSize(.small)
+            Text("Recalculating…")
+        }
+        .font(.system(size: ScanWindowMetrics.statusFieldFontSize))
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(.regularMaterial, in: Capsule())
+        .padding(.top, 8)
+        .transition(.opacity)
+        .allowsHitTesting(false)
     }
 
     private var treemapPreparationPercentage: Int {
