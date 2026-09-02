@@ -34,9 +34,18 @@ enum TreemapViewPainter {
         )
     }
 
-    static func drawSelection(entry: TreemapLayoutEntry?, in bounds: NSRect, backingScaleFactor: CGFloat) {
+    static func drawSelection(
+        entry: TreemapLayoutEntry?,
+        parentEntry: TreemapLayoutEntry? = nil,
+        in bounds: NSRect,
+        backingScaleFactor: CGFloat
+    ) {
         guard let entry else {
             return
+        }
+
+        if let parentEntry, parentEntry.item != entry.item {
+            drawParentContext(rect: parentEntry.rect.nsRect, color: .yellow, in: bounds)
         }
 
         drawSelection(
@@ -47,9 +56,69 @@ enum TreemapViewPainter {
         )
     }
 
+    /// A lighter, non-animated marker for the item under the pointer. Kept
+    /// visually distinct from `drawSelection` (black+white vs. the
+    /// selection's black+white+yellow) so hover and selection never look
+    /// like the same rectangle relocating.
+    static func drawHover(
+        entry: TreemapLayoutEntry,
+        parentEntry: TreemapLayoutEntry?,
+        in bounds: NSRect,
+        backingScaleFactor: CGFloat
+    ) {
+        let selectedRect: NSRect = entry.rect.nsRect
+        let unroundedRect: NSRect = entry.unroundedRect.nsRect
+        let sourceRect: NSRect
+        if selectedRect.isEmpty {
+            sourceRect = TreemapRasterGeometry.pixelAlignedRect(
+                for: unroundedRect,
+                scale: backingScaleFactor
+            ).intersection(bounds)
+        } else {
+            sourceRect = TreemapSelectionRect.visibleRect(for: selectedRect, in: bounds)
+        }
+        guard sourceRect.isEmpty == false else {
+            return
+        }
+
+        let isSmall: Bool = min(sourceRect.width, sourceRect.height) < ScanWindowMetrics.treemapMinimumSelectionSide
+        // Only draw hover's parent context when the hovered item is too small
+        // to place on its own; unlike selection (a single, deliberate, stable
+        // overlay), hover changes on every pointer move, so an unconditional
+        // parent rectangle would constantly compete with the selection's.
+        if isSmall, let parentEntry, parentEntry.item != entry.item {
+            drawParentContext(rect: parentEntry.rect.nsRect, color: .white, in: bounds)
+        }
+
+        let markerRect: NSRect = isSmall
+            ? TreemapRasterGeometry.visibleMarkerRect(for: sourceRect, in: bounds, scale: backingScaleFactor)
+            : sourceRect
+
+        NSColor.black.setStroke()
+        strokeContained(in: markerRect, lineWidth: ScanWindowMetrics.treemapHoverOuterLineWidth)
+        NSColor.white.setStroke()
+        strokeContained(in: markerRect, lineWidth: ScanWindowMetrics.treemapHoverInnerLineWidth)
+    }
+
     static func drawPlaceholder(in dirtyRect: NSRect) {
         NSColor.textBackgroundColor.setFill()
         dirtyRect.fill()
+    }
+
+    private static func drawParentContext(rect: NSRect, color: NSColor, in bounds: NSRect) {
+        let visibleRect: NSRect = rect.intersection(bounds)
+        guard visibleRect.isEmpty == false else {
+            return
+        }
+        color.withAlphaComponent(0.7).setStroke()
+        let path: NSBezierPath = NSBezierPath(rect: visibleRect.insetBy(dx: 0.5, dy: 0.5))
+        path.lineWidth = ScanWindowMetrics.treemapParentContextLineWidth
+        path.setLineDash(
+            [ScanWindowMetrics.treemapParentContextDashLength, ScanWindowMetrics.treemapParentContextDashGap],
+            count: 2,
+            phase: 0
+        )
+        path.stroke()
     }
 
     private static func drawSelection(

@@ -174,6 +174,20 @@ final class TreemapViewState {
         return renderedPlan.ancestorChain(for: entry)
     }
 
+    func entry(for item: DiskItem) -> TreemapLayoutEntry? {
+        renderedPlan?.entry(for: item)
+    }
+
+    /// The rendered entry for `entry`'s immediate parent, when the plan has
+    /// one. Nil when `entry` is the plan's root (no parent) or its parent
+    /// isn't part of the current zoomed-in tree.
+    func parentEntry(of entry: TreemapLayoutEntry?) -> TreemapLayoutEntry? {
+        guard let entry, let parentItem: DiskItem = entry.parentItem else {
+            return nil
+        }
+        return renderedPlan?.entry(for: parentItem)
+    }
+
     func prepareLayout(in bounds: NSRect) {
         guard let rootItem: DiskItem = rootItem else {
             return

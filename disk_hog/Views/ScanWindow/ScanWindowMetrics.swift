@@ -50,6 +50,11 @@ enum ScanWindowMetrics {
     static let treemapSelectionOuterLineWidth: CGFloat = 5
     static let treemapSelectionMiddleLineWidth: CGFloat = 3
     static let treemapSelectionInnerLineWidth: CGFloat = 1
+    static let treemapHoverOuterLineWidth: CGFloat = 3
+    static let treemapHoverInnerLineWidth: CGFloat = 1.5
+    static let treemapParentContextLineWidth: CGFloat = 1
+    static let treemapParentContextDashLength: CGFloat = 4
+    static let treemapParentContextDashGap: CGFloat = 3
     static let statusFieldSpacing: CGFloat = 2
     static let statusFieldControlSpacing: CGFloat = 8
     static let statusFieldFontSize: CGFloat = 11

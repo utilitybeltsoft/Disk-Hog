@@ -12,6 +12,8 @@ final class ZStyleTreemapNSView: NSView {
     private let trackingAreaController: TreemapTrackingAreaController = TreemapTrackingAreaController()
     private let discoveryAnimation: TreemapDiscoveryAnimation = TreemapDiscoveryAnimation()
     private var pendingDiscoveryAnimation: Bool = false
+    private var hoveredItem: DiskItem?
+    private var hoveredEntry: TreemapLayoutEntry?
 
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
@@ -92,11 +94,22 @@ final class ZStyleTreemapNSView: NSView {
             dirtyRect.fill()
             return
         }
+        let scale: CGFloat = window?.backingScaleFactor ?? 1
+        let selectedEntry: TreemapLayoutEntry? = state.selectedEntry()
         TreemapViewPainter.drawSelection(
-            entry: state.selectedEntry(),
+            entry: selectedEntry,
+            parentEntry: state.parentEntry(of: selectedEntry),
             in: bounds,
-            backingScaleFactor: window?.backingScaleFactor ?? 1
+            backingScaleFactor: scale
         )
+        if let hoveredEntry, hoveredItem != state.selectedItem {
+            TreemapViewPainter.drawHover(
+                entry: hoveredEntry,
+                parentEntry: state.parentEntry(of: hoveredEntry),
+                in: bounds,
+                backingScaleFactor: scale
+            )
+        }
         startDiscoveryAnimationIfNeeded()
         discoveryAnimation.draw()
     }
@@ -114,11 +127,19 @@ final class ZStyleTreemapNSView: NSView {
 
     override func mouseMoved(with event: NSEvent) {
         let hitResult: TreemapHitResult? = hitResult(for: event)
-        onHoverItem?(hitResult?.item)
+        updateHover(item: hitResult?.item, entry: hitResult?.entry)
     }
 
     override func mouseExited(with event: NSEvent) {
-        onHoverItem?(nil)
+        updateHover(item: nil, entry: nil)
+    }
+
+    private func updateHover(item: DiskItem?, entry: TreemapLayoutEntry?) {
+        guard hoveredItem != item else { return }
+        hoveredItem = item
+        hoveredEntry = entry
+        onHoverItem?(item)
+        needsDisplay = true
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -220,9 +241,10 @@ final class ZStyleTreemapNSView: NSView {
     private func startDiscoveryAnimationIfNeeded() {
         guard pendingDiscoveryAnimation else { return }
         pendingDiscoveryAnimation = false
-        guard let targetRect: NSRect = discoveryAnimationTargetRect() else { return }
+        guard let entry: TreemapLayoutEntry = state.selectedEntry(),
+              let targetRect: NSRect = discoveryAnimationTargetRect(for: entry) else { return }
         discoveryAnimation.start(
-            from: TreemapRasterGeometry.discoveryRect(around: targetRect, in: bounds),
+            from: discoveryStartRect(for: targetRect, parentEntry: state.parentEntry(of: entry)),
             to: targetRect
         ) { [weak self] in
             guard let self else { return }
@@ -230,8 +252,27 @@ final class ZStyleTreemapNSView: NSView {
         }
     }
 
-    private func discoveryAnimationTargetRect() -> NSRect? {
-        guard let entry: TreemapLayoutEntry = state.selectedEntry() else { return nil }
+    /// Prefers the selected item's actual containing folder as the pulse's
+    /// origin, so the animation reads as "here's where it lives" rather than
+    /// starting from an arbitrary spot. Falls back to a synthetic halo around
+    /// the target when there's no usable parent (e.g. the current zoom root).
+    private func discoveryStartRect(for targetRect: NSRect, parentEntry: TreemapLayoutEntry?) -> NSRect {
+        if let parentEntry {
+            let parentRect: NSRect = NSRect(
+                x: parentEntry.rect.x,
+                y: parentEntry.rect.y,
+                width: parentEntry.rect.width,
+                height: parentEntry.rect.height
+            )
+            let visibleParentRect: NSRect = TreemapSelectionRect.visibleRect(for: parentRect, in: bounds)
+            if visibleParentRect.isEmpty == false {
+                return visibleParentRect
+            }
+        }
+        return TreemapRasterGeometry.discoveryRect(around: targetRect, in: bounds)
+    }
+
+    private func discoveryAnimationTargetRect(for entry: TreemapLayoutEntry) -> NSRect? {
         let scale: CGFloat = window?.backingScaleFactor ?? 1
         let selectedRect: NSRect = NSRect(
             x: entry.rect.x,
