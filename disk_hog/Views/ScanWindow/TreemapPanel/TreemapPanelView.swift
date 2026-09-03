@@ -9,6 +9,7 @@ struct TreemapPanelView: View {
     @Environment(\.activeScanWindowPane) private var activePane
     @State private var isRecalculating: Bool = false
     @State private var showsRecalculatingBadge: Bool = false
+    @State private var renderProgress: Double?
 
     var body: some View {
         GeometryReader { geometry in
@@ -36,6 +37,7 @@ struct TreemapPanelView: View {
                 hoveredItem: hoveredItem,
                 activePane: activePane,
                 isRecalculating: $isRecalculating,
+                renderProgress: $renderProgress,
                 onZoomIn: { item in navigation.zoom(into: item) },
                 onZoomOut: { navigation.zoomOut() }
             )
@@ -67,7 +69,11 @@ struct TreemapPanelView: View {
                         ? treemapPreparationMessage
                         : "Pending scan completion",
                     showsProgress: session.isBuildingTreemap,
-                    progress: session.treemapPreparationProgress
+                    // Falls back to the treemap's own render progress once the file-kind-
+                    // distribution pass (session.treemapPreparationProgress) has finished and
+                    // reset to nil but the treemap's layout+rasterization is still running -
+                    // otherwise the progress bar itself would freeze/disappear here too.
+                    progress: session.treemapPreparationProgress ?? renderProgress
                 )
                 .padding(ScanWindowMetrics.inactivePaneBorderWidth)
             }
@@ -78,7 +84,7 @@ struct TreemapPanelView: View {
         HStack(spacing: 6) {
             ProgressView()
                 .controlSize(.small)
-            Text("Recalculating…")
+            Text(recalculatingBadgeMessage)
         }
         .font(.system(size: ScanWindowMetrics.statusFieldFontSize))
         .padding(.horizontal, 10)
@@ -97,12 +103,22 @@ struct TreemapPanelView: View {
         // treemapPreparationProgress tracks only the file-kind-distribution pass and is reset to
         // nil the moment that finishes (ScanSession.finishScan), which is also the point where
         // rootItem is set and the treemap's own layout+rasterization starts - a separate, often
-        // much longer step with no progress signal of its own. Without a distinct message here,
-        // that reset reads as the percentage breaking rather than a new phase starting.
+        // much longer step. Once that step's own (throttled, folder-count-based) progress starts
+        // reporting, show it instead of a static message so this doesn't read as a stall.
         guard session.treemapPreparationProgress != nil else {
-            return "Rendering treemap…"
+            guard let renderProgress else {
+                return "Rendering treemap…"
+            }
+            return "Rendering treemap: \(Int((renderProgress * 100).rounded(.down)))%"
         }
         return "Preparing file distribution: \(treemapPreparationPercentage)%"
+    }
+
+    private var recalculatingBadgeMessage: LocalizedStringKey {
+        guard let renderProgress else {
+            return "Recalculating…"
+        }
+        return "Recalculating: \(Int((renderProgress * 100).rounded(.down)))%"
     }
 
     private var navigationBar: some View {

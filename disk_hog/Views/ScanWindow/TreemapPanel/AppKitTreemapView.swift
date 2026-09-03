@@ -15,6 +15,7 @@ struct AppKitTreemapView: NSViewRepresentable {
     let hoveredItem: Binding<DiskItem?>
     let activePane: Binding<ScanWindowPane?>
     let isRecalculating: Binding<Bool>
+    let renderProgress: Binding<Double?>
     let onZoomIn: (DiskItem) -> Void
     let onZoomOut: () -> Void
 
@@ -23,7 +24,8 @@ struct AppKitTreemapView: NSViewRepresentable {
             selectionCoordinator: selectionCoordinator,
             hoveredItem: hoveredItem,
             activePane: activePane,
-            isRecalculating: isRecalculating
+            isRecalculating: isRecalculating,
+            renderProgress: renderProgress
         )
     }
 
@@ -38,6 +40,9 @@ struct AppKitTreemapView: NSViewRepresentable {
         }
         view.onRenderPendingChange = { isPending in
             context.coordinator.isRecalculating.wrappedValue = isPending
+        }
+        view.onRenderProgressChange = { fraction in
+            context.coordinator.renderProgress.wrappedValue = fraction
         }
         view.onZoomIn = onZoomIn
         view.onZoomOut = onZoomOut
@@ -62,6 +67,7 @@ struct AppKitTreemapView: NSViewRepresentable {
         context.coordinator.hoveredItem = hoveredItem
         context.coordinator.activePane = activePane
         context.coordinator.isRecalculating = isRecalculating
+        context.coordinator.renderProgress = renderProgress
         nsView.onZoomIn = onZoomIn
         nsView.onZoomOut = onZoomOut
         nsView.configure(
@@ -82,6 +88,7 @@ struct AppKitTreemapView: NSViewRepresentable {
         var hoveredItem: Binding<DiskItem?>
         var activePane: Binding<ScanWindowPane?>
         var isRecalculating: Binding<Bool>
+        var renderProgress: Binding<Double?>
         weak var view: ZStyleTreemapNSView?
         private var selectionCancellable: AnyCancellable?
 
@@ -89,12 +96,14 @@ struct AppKitTreemapView: NSViewRepresentable {
             selectionCoordinator: ScanWindowSelectionCoordinator,
             hoveredItem: Binding<DiskItem?>,
             activePane: Binding<ScanWindowPane?>,
-            isRecalculating: Binding<Bool>
+            isRecalculating: Binding<Bool>,
+            renderProgress: Binding<Double?>
         ) {
             self.selectionCoordinator = selectionCoordinator
             self.hoveredItem = hoveredItem
             self.activePane = activePane
             self.isRecalculating = isRecalculating
+            self.renderProgress = renderProgress
         }
 
         func observeSelection() {

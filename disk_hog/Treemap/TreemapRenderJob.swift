@@ -34,20 +34,27 @@ nonisolated struct TreemapRenderResult: Sendable {
 }
 
 nonisolated enum TreemapRenderJob {
-    static func render(_ request: TreemapRenderRequest) -> TreemapRenderResult {
-        render(request, rasterize: TreemapBitmapRasterizer.render)!
+    static func render(
+        _ request: TreemapRenderRequest,
+        progress: (@Sendable (Double) -> Void)? = nil
+    ) -> TreemapRenderResult {
+        render(request, rasterize: TreemapBitmapRasterizer.render, progress: progress)!
     }
 
-    static func renderIfNotCancelled(_ request: TreemapRenderRequest) -> TreemapRenderResult? {
+    static func renderIfNotCancelled(
+        _ request: TreemapRenderRequest,
+        progress: (@Sendable (Double) -> Void)? = nil
+    ) -> TreemapRenderResult? {
         guard Task.isCancelled == false else {
             return nil
         }
-        return render(request, rasterize: TreemapBitmapRasterizer.renderIfNotCancelled)
+        return render(request, rasterize: TreemapBitmapRasterizer.renderIfNotCancelled, progress: progress)
     }
 
     private static func render(
         _ request: TreemapRenderRequest,
-        rasterize: ([TreemapCushionSnapshot], Int, Int, Double) -> Data?
+        rasterize: ([TreemapCushionSnapshot], Int, Int, Double) -> Data?,
+        progress: (@Sendable (Double) -> Void)?
     ) -> TreemapRenderResult? {
         let planStart: Date = Date()
         let plan: TreemapLayoutPlan = TreemapLayoutPlanner.makePlan(
@@ -62,7 +69,8 @@ nonisolated enum TreemapRenderJob {
             showsFreeSpace: request.showsFreeSpace,
             showsOtherSpace: request.showsOtherSpace,
             freeSpaceItem: request.freeSpaceItem,
-            otherSpaceItem: request.otherSpaceItem
+            otherSpaceItem: request.otherSpaceItem,
+            progress: progress
         )
         let planElapsed: TimeInterval = Date().timeIntervalSince(planStart)
         NSLog(

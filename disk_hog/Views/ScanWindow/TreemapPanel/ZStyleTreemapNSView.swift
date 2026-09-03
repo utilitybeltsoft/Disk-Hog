@@ -6,6 +6,7 @@ final class ZStyleTreemapNSView: NSView {
     var onZoomIn: ((DiskItem) -> Void)?
     var onZoomOut: (() -> Void)?
     var onRenderPendingChange: ((Bool) -> Void)?
+    var onRenderProgressChange: ((Double?) -> Void)?
 
     private weak var session: ScanSession?
     private let contextMenuActionTarget: DiskItemContextMenuActionTarget = DiskItemContextMenuActionTarget()
@@ -54,6 +55,9 @@ final class ZStyleTreemapNSView: NSView {
             // changed under a stationary cursor, so drop it now rather than
             // let a stale rectangle linger until the pointer next moves.
             updateHover(item: nil, entry: nil)
+            // Clear any progress left over from whatever render this root's
+            // change is superseding.
+            onRenderProgressChange?(nil)
         }
         state.onRenderedImageReady = { [weak self] in
             guard let self else { return }
@@ -62,7 +66,11 @@ final class ZStyleTreemapNSView: NSView {
             // whatever's currently under the pointer instead of waiting for
             // the next mouse move, so hover reappears the moment it can.
             self.refreshHoverForCurrentMouseLocation()
+            self.onRenderProgressChange?(nil)
             self.needsDisplay = true
+        }
+        state.onRenderProgress = { [weak self] fraction in
+            self?.onRenderProgressChange?(fraction)
         }
     }
 

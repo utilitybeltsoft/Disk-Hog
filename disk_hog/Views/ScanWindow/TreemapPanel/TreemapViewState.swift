@@ -15,8 +15,15 @@ final class TreemapViewState {
     private(set) var selectedItem: DiskItem?
     private(set) var renderer: TreemapViewRenderer?
     var onRenderedImageReady: (() -> Void)?
+    /// Throttled progress (0...1) for the in-flight render, reported from
+    /// TreemapLayoutPlanner's recursive descent. Not called for renders that
+    /// complete before the reporting throttle would ever fire.
+    var onRenderProgress: ((Double) -> Void)?
 
-    private let render: @Sendable (TreemapRenderRequest) -> TreemapRenderResult?
+    private let render: @Sendable (
+        TreemapRenderRequest,
+        @escaping @Sendable (Double) -> Void
+    ) -> TreemapRenderResult?
     private var presentationMetrics: TreemapPresentationMetrics?
     private var rendererDataSource: TreemapDiskItemDataSource?
     private var renderedPlan: TreemapLayoutPlan?
@@ -30,7 +37,14 @@ final class TreemapViewState {
     private var otherSpaceItem: DiskItem?
     private var directionalMoveHistory: [(origin: DiskItem, direction: TreemapNavigationDirection)] = []
 
-    init(render: @escaping @Sendable (TreemapRenderRequest) -> TreemapRenderResult? = TreemapRenderJob.renderIfNotCancelled) {
+    init(
+        render: @escaping @Sendable (
+            TreemapRenderRequest,
+            @escaping @Sendable (Double) -> Void
+        ) -> TreemapRenderResult? = { request, progress in
+            TreemapRenderJob.renderIfNotCancelled(request, progress: progress)
+        }
+    ) {
         self.render = render
     }
 
@@ -322,7 +336,12 @@ final class TreemapViewState {
         let startedAt: Date = Date()
         Self.logRender("start root=\(request.rootItem.path) size=\(Int(request.width))x\(Int(request.height))")
         renderTask = Task.detached(priority: .userInitiated) { [render] in
-            guard let result: TreemapRenderResult = render(request),
+            let reportProgress: @Sendable (Double) -> Void = { fraction in
+                Task { @MainActor in
+                    stateReference.value?.updateRenderProgress(fraction, for: request)
+                }
+            }
+            guard let result: TreemapRenderResult = render(request, reportProgress),
                   !Task.isCancelled else {
                 let elapsed: TimeInterval = Date().timeIntervalSince(startedAt)
                 Self.logRender("cancelled/no-result root=\(request.rootItem.path) after \(elapsed)s taskCancelled=\(Task.isCancelled)")
@@ -341,6 +360,13 @@ final class TreemapViewState {
 
     private nonisolated static func logRender(_ message: String) {
         NSLog("[TreemapRender] %@", message)
+    }
+
+    private func updateRenderProgress(_ fraction: Double, for request: TreemapRenderRequest) {
+        guard pendingRenderRequest == request else {
+            return
+        }
+        onRenderProgress?(fraction)
     }
 
     private func finishRenderWithoutResult(for request: TreemapRenderRequest) {

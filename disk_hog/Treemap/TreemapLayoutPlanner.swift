@@ -1,12 +1,42 @@
 import Foundation
 
-/// Temporary diagnostic-only counters for TreemapLayoutPlanner.makePlan's recursive descent.
-/// A reference type purely so appendEntry doesn't need to thread several more inout parameters
-/// through every recursive call.
+/// Diagnostic counters plus throttled progress reporting for TreemapLayoutPlanner.makePlan's
+/// recursive descent. A reference type purely so appendEntry doesn't need to thread several more
+/// inout parameters through every recursive call.
 private final class TreemapLayoutDiagnosticStats {
     var maxDepth: Int = 0
     var recursedFolderCount: Int = 0
     var maxChildCountAtAnyFolder: Int = 0
+
+    private let totalFolders: Int
+    private let progress: (@Sendable (Double) -> Void)?
+    private var lastReportedAt: Date = .distantPast
+
+    init(totalFolders: Int, progress: (@Sendable (Double) -> Void)?) {
+        self.totalFolders = totalFolders
+        self.progress = progress
+    }
+
+    /// Folder-count-based rather than byte-weighted: the measured bottleneck is the number of
+    /// folders recursed into, not bytes or leaf count, so this tracks the actual expensive work.
+    /// totalFolders is scoped to whatever root is currently rendering (via DiskItem.scanCounts),
+    /// so this is correct for both the initial full-disk render and every zoomed-in re-render.
+    /// Cheap integer check first, then a clock check, so the cost of progress reporting stays
+    /// bounded by wall-clock rate rather than by how many folders exist.
+    func reportProgressIfDue() {
+        guard totalFolders > 0, let progress, recursedFolderCount.isMultiple(of: 1_000) else {
+            return
+        }
+        let now: Date = Date()
+        guard now.timeIntervalSince(lastReportedAt) >= 0.1 else {
+            return
+        }
+        lastReportedAt = now
+        // Pruned/aggregated folders are never individually recursed into, so this count never
+        // reaches totalFolders even at completion - cap it short and let the actual completion
+        // signal (not this) be what visibly finishes the indicator.
+        progress(min(Double(recursedFolderCount) / Double(totalFolders), 0.99))
+    }
 }
 
 /// Produces treemap geometry without AppKit renderer objects. The planner is
@@ -20,11 +50,16 @@ nonisolated enum TreemapLayoutPlanner {
         showsFreeSpace: Bool = false,
         showsOtherSpace: Bool = false,
         freeSpaceItem: DiskItem? = nil,
-        otherSpaceItem: DiskItem? = nil
+        otherSpaceItem: DiskItem? = nil,
+        progress: (@Sendable (Double) -> Void)? = nil
     ) -> TreemapLayoutPlan {
         var entries: [TreemapLayoutEntry] = []
         var snapshots: [TreemapCushionSnapshot] = []
-        let stats: TreemapLayoutDiagnosticStats = TreemapLayoutDiagnosticStats()
+        let totalFolders: Int = rootItem.scanCounts(includeSelf: false).folders
+        let stats: TreemapLayoutDiagnosticStats = TreemapLayoutDiagnosticStats(
+            totalFolders: totalFolders,
+            progress: progress
+        )
         let descendStart: Date = Date()
         appendEntry(
             for: rootItem,
@@ -125,6 +160,7 @@ nonisolated enum TreemapLayoutPlanner {
         guard children.isEmpty == false else { return }
         stats.recursedFolderCount += 1
         stats.maxChildCountAtAnyFolder = max(stats.maxChildCountAtAnyFolder, children.count)
+        stats.reportProgressIfDue()
         let childRects: [(rect: TreemapLayoutRect, unroundedRect: TreemapLayoutRect)] = layoutChildren(
             children,
             parentWeight: weight(

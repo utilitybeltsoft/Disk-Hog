@@ -4459,7 +4459,7 @@ struct TreemapViewStateTests {
         )
         let firstRenderStarted: DispatchSemaphore = DispatchSemaphore(value: 0)
         let firstRenderCancelled: DispatchSemaphore = DispatchSemaphore(value: 0)
-        let render: @Sendable (TreemapRenderRequest) -> TreemapRenderResult? = { request in
+        let render: @Sendable (TreemapRenderRequest, @escaping @Sendable (Double) -> Void) -> TreemapRenderResult? = { request, _ in
             if request.width == 100 {
                 firstRenderStarted.signal()
                 while Task.isCancelled == false {
@@ -4502,7 +4502,7 @@ struct TreemapViewStateTests {
             ]
         )
         let renderAttemptCount: LockedCounter = LockedCounter()
-        let render: @Sendable (TreemapRenderRequest) -> TreemapRenderResult? = { request in
+        let render: @Sendable (TreemapRenderRequest, @escaping @Sendable (Double) -> Void) -> TreemapRenderResult? = { request, _ in
             renderAttemptCount.increment()
             if renderAttemptCount.value == 1 {
                 return nil
@@ -4563,7 +4563,7 @@ struct TreemapViewStateTests {
             ]
         )
         let secondRenderStartCount: LockedCounter = LockedCounter()
-        let render: @Sendable (TreemapRenderRequest) -> TreemapRenderResult? = { request in
+        let render: @Sendable (TreemapRenderRequest, @escaping @Sendable (Double) -> Void) -> TreemapRenderResult? = { request, _ in
             if request.rootItem === secondRoot {
                 secondRenderStartCount.increment()
                 Thread.sleep(forTimeInterval: 0.05)
