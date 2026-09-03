@@ -199,11 +199,19 @@ nonisolated enum TreemapLayoutPlanner {
         var roundedSecondaryStart: Double = horizontal ? rect.y : rect.x
         var unroundedSecondaryStart: Double = roundedSecondaryStart
         let roundedSecondaryEnd: Double = horizontal ? rect.y + rect.height : rect.x + rect.width
+        // Zero-weight children each form their own singleton row (see above) and, since children
+        // are sorted by descending size, any such rows are always trailing. The "give the exact
+        // remainder to the last row" rule below exists purely to absorb floating-point rounding
+        // error - it must land on the last row that actually carries weight, not the literal last
+        // row, or a trailing zero-weight row inherits the entire leftover area instead of a
+        // zero-size sliver.
+        let lastNonZeroRowIndex: Int = rowHeights.lastIndex(where: { $0 > 0 }) ?? rowCounts.indices.last ?? 0
         for row: Int in rowCounts.indices {
-            let unroundedSecondaryEnd: Double = row == rowCounts.indices.last
+            let isLastWeightedRow: Bool = row == lastNonZeroRowIndex
+            let unroundedSecondaryEnd: Double = isLastWeightedRow
                 ? roundedSecondaryEnd
                 : unroundedSecondaryStart + rowHeights[row] * secondaryLength
-            let roundedSecondaryEndForRow: Double = row == rowCounts.indices.last
+            let roundedSecondaryEndForRow: Double = isLastWeightedRow
                 ? roundedSecondaryEnd
                 : (roundedSecondaryStart + (rowHeights[row] * secondaryLength).rounded()).rounded()
             var roundedPrimaryStart: Double = horizontal ? rect.x : rect.y
