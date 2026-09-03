@@ -15,6 +15,7 @@ nonisolated enum TreemapLayoutPlanner {
     ) -> TreemapLayoutPlan {
         var entries: [TreemapLayoutEntry] = []
         var snapshots: [TreemapCushionSnapshot] = []
+        let descendStart: Date = Date()
         appendEntry(
             for: rootItem,
             parentItem: nil,
@@ -33,7 +34,11 @@ nonisolated enum TreemapLayoutPlanner {
             entries: &entries,
             snapshots: &snapshots
         )
-        return TreemapLayoutPlan(bounds: bounds, entries: entries, cushionSnapshots: snapshots)
+        NSLog("[TreemapRender] appendEntry descent took %.3fs, entries=%d", Date().timeIntervalSince(descendStart), entries.count)
+        let indexStart: Date = Date()
+        let plan: TreemapLayoutPlan = TreemapLayoutPlan(bounds: bounds, entries: entries, cushionSnapshots: snapshots)
+        NSLog("[TreemapRender] TreemapLayoutPlan index build took %.3fs", Date().timeIntervalSince(indexStart))
+        return plan
     }
 
     private static func appendEntry(
