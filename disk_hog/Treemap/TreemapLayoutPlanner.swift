@@ -156,34 +156,33 @@ nonisolated enum TreemapLayoutPlanner {
             return
         }
 
-        let children: [DiskItem] = children(
+        let folderWeight: UInt64 = weight(
             of: item,
             rootItem: rootItem,
+            usePhysicalSize: usePhysicalSize,
             showsFreeSpace: showsFreeSpace,
             showsOtherSpace: showsOtherSpace,
             freeSpaceItem: freeSpaceItem,
             otherSpaceItem: otherSpaceItem
         )
-        guard children.isEmpty == false else { return }
-        stats.recursedFolderCount += 1
-        stats.maxChildCountAtAnyFolder = max(stats.maxChildCountAtAnyFolder, children.count)
-        let (layoutItems, explicitWeights): ([DiskItem], [Double]?) = cappedForLayout(
-            children,
+        let (layoutItems, explicitWeights): ([DiskItem], [Double]?) = layoutChildrenAndWeights(
+            for: item,
+            rootItem: rootItem,
             rect: rect,
-            usePhysicalSize: usePhysicalSize
+            usePhysicalSize: usePhysicalSize,
+            folderWeight: folderWeight,
+            showsFreeSpace: showsFreeSpace,
+            showsOtherSpace: showsOtherSpace,
+            freeSpaceItem: freeSpaceItem,
+            otherSpaceItem: otherSpaceItem
         )
+        guard layoutItems.isEmpty == false else { return }
+        stats.recursedFolderCount += 1
+        stats.maxChildCountAtAnyFolder = max(stats.maxChildCountAtAnyFolder, item.childCount)
         let childRects: [(rect: TreemapLayoutRect, unroundedRect: TreemapLayoutRect)] = layoutChildren(
             layoutItems,
             weights: explicitWeights,
-            parentWeight: weight(
-                of: item,
-                rootItem: rootItem,
-                usePhysicalSize: usePhysicalSize,
-                showsFreeSpace: showsFreeSpace,
-                showsOtherSpace: showsOtherSpace,
-                freeSpaceItem: freeSpaceItem,
-                otherSpaceItem: otherSpaceItem
-            ),
+            parentWeight: folderWeight,
             rect: rect,
             usePhysicalSize: usePhysicalSize
         )
@@ -213,34 +212,69 @@ nonisolated enum TreemapLayoutPlanner {
 
     /// A rect can only ever show as many distinguishable regions as it has pixels. Measured on a
     /// real scan: one folder with 636,120 direct children, contributing the overwhelming majority
-    /// of a >300s render, almost all of it wasted on individually laying out children whose
-    /// resulting rect could never be more than a fraction of a pixel. Children are already sorted
-    /// by descending size (DiskItemBuilderOrdering), so once count wildly exceeds what the rect
-    /// could show, keep the largest ones individually and fold the long, necessarily-invisible
-    /// tail into one representative entry sized to their combined weight - same total area as
-    /// laying them out individually would have covered, at a fraction of the cost.
-    private static func cappedForLayout(
-        _ children: [DiskItem],
+    /// of a >300s render. Simply capping how many got individually laid out wasn't enough on its
+    /// own: DiskItem.children unconditionally materializes every child as its own heap-allocated
+    /// object, and summing an excluded tail's weight by iterating over it costs just as much as
+    /// laying them out would have - both scale with the real child count regardless of the cap.
+    ///
+    /// Children are already sorted by descending size (DiskItemBuilderOrdering), so once the real
+    /// count wildly exceeds the pixel budget, fetch only the kept ones directly by index - the
+    /// tail is never materialized at all - and derive its combined weight by subtracting from the
+    /// folder's already-known total weight instead of summing it.
+    private static func layoutChildrenAndWeights(
+        for item: DiskItem,
+        rootItem: DiskItem,
         rect: TreemapLayoutRect,
-        usePhysicalSize: Bool
+        usePhysicalSize: Bool,
+        folderWeight: UInt64,
+        showsFreeSpace: Bool,
+        showsOtherSpace: Bool,
+        freeSpaceItem: DiskItem?,
+        otherSpaceItem: DiskItem?
     ) -> (items: [DiskItem], weights: [Double]?) {
+        let realChildCount: Int = item.childCount
         // Additive, not multiplicative: a x4 multiplier looked like a reasonable safety margin
         // for small rects, but for a large one (a dominant folder spanning a big share of the
         // canvas, e.g. ~100,000px) it inflates the cap right back up toward the original
         // problem size, barely capping anything in exactly the case this exists to fix.
         let pixelBudget: Int = max(Int(rect.width.rounded(.up)), 1) * max(Int(rect.height.rounded(.up)), 1)
         let cap: Int = max(pixelBudget + 256, 64)
-        guard children.count > cap else {
-            return (children, nil)
+
+        var items: [DiskItem]
+        var weights: [Double]?
+        if realChildCount > cap {
+            var kept: [DiskItem] = []
+            kept.reserveCapacity(cap - 1)
+            var keptWeights: [Double] = []
+            keptWeights.reserveCapacity(cap - 1)
+            var keptWeightSum: UInt64 = 0
+            for index: Int in 0..<(cap - 1) {
+                let child: DiskItem = item.child(at: index)
+                let childWeight: UInt64 = child.sizeValue(usePhysicalSize: usePhysicalSize)
+                kept.append(child)
+                keptWeights.append(Double(childWeight))
+                keptWeightSum += childWeight
+            }
+            let representative: DiskItem = item.child(at: cap - 1)
+            let tailWeight: Double = Double(folderWeight > keptWeightSum ? folderWeight - keptWeightSum : 0)
+            items = kept + [representative]
+            weights = keptWeights + [tailWeight]
+        } else {
+            items = item.children
+            weights = nil
         }
-        let kept: ArraySlice<DiskItem> = children.prefix(cap - 1)
-        let tail: ArraySlice<DiskItem> = children[kept.endIndex...]
-        guard let representative: DiskItem = tail.first else {
-            return (children, nil)
+
+        if item == rootItem {
+            if showsOtherSpace, let otherSpaceItem {
+                items.append(otherSpaceItem)
+                weights?.append(Double(otherSpaceItem.sizeValue(usePhysicalSize: usePhysicalSize)))
+            }
+            if showsFreeSpace, let freeSpaceItem {
+                items.append(freeSpaceItem)
+                weights?.append(Double(freeSpaceItem.sizeValue(usePhysicalSize: usePhysicalSize)))
+            }
         }
-        let keptWeights: [Double] = kept.map { Double($0.sizeValue(usePhysicalSize: usePhysicalSize)) }
-        let tailWeight: Double = tail.reduce(0) { $0 + Double($1.sizeValue(usePhysicalSize: usePhysicalSize)) }
-        return (Array(kept) + [representative], keptWeights + [tailWeight])
+        return (items, weights)
     }
 
     private static func layoutChildren(
@@ -342,26 +376,6 @@ nonisolated enum TreemapLayoutPlanner {
             unroundedSecondaryStart = unroundedSecondaryEnd
         }
         return result
-    }
-
-    private static func children(
-        of item: DiskItem,
-        rootItem: DiskItem,
-        showsFreeSpace: Bool,
-        showsOtherSpace: Bool,
-        freeSpaceItem: DiskItem?,
-        otherSpaceItem: DiskItem?
-    ) -> [DiskItem] {
-        var children: [DiskItem] = item.children
-        if item == rootItem {
-            if showsOtherSpace, let otherSpaceItem {
-                children.append(otherSpaceItem)
-            }
-            if showsFreeSpace, let freeSpaceItem {
-                children.append(freeSpaceItem)
-            }
-        }
-        return children
     }
 
     private static func weight(
