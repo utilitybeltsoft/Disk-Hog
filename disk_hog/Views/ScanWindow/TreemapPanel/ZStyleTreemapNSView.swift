@@ -49,15 +49,24 @@ final class ZStyleTreemapNSView: NSView {
             needsDisplay = true
         }
         if rootChanged {
-            // The hovered entry belongs to the previous root's layout plan
-            // (different coordinate space, possibly a different item entirely).
-            // AppKit won't redeliver a mouseMoved just because the content
-            // changed under a stationary cursor, so drop it now rather than
-            // let a stale rectangle linger until the pointer next moves.
-            updateHover(item: nil, entry: nil)
-            // Clear any progress left over from whatever render this root's
-            // change is superseding.
-            onRenderProgressChange?(nil)
+            // configure() runs synchronously inside SwiftUI's updateNSView, which is itself
+            // called during a view-update pass. onHoverItem/onRenderProgressChange mutate
+            // SwiftUI bindings (hoveredItem, renderProgress) - doing that synchronously from
+            // here trips "Modifying state during view update, this will cause undefined
+            // behavior" and can plausibly leave dependent UI (e.g. the breadcrumb bar) briefly
+            // showing a stale value. Defer to the next run loop turn, after this update commits.
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                // The hovered entry belongs to the previous root's layout plan (different
+                // coordinate space, possibly a different item entirely). AppKit won't
+                // redeliver a mouseMoved just because the content changed under a stationary
+                // cursor, so drop it now rather than let a stale rectangle linger until the
+                // pointer next moves.
+                self.updateHover(item: nil, entry: nil)
+                // Clear any progress left over from whatever render this root's change is
+                // superseding.
+                self.onRenderProgressChange?(nil)
+            }
         }
         state.onRenderedImageReady = { [weak self] in
             guard let self else { return }
