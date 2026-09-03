@@ -143,6 +143,10 @@ final class SourceWindowViewModel: ObservableObject {
         }
         sources = loadedSources
         reconcileSelection()
+        // Warm the icon cache off the main thread so selecting a volume - which fetches its icon
+        // synchronously, matching this app's convention elsewhere - doesn't stall on a slow lookup
+        // (a spun-down external drive, a network share) right as the user clicks it.
+        DiskItemIconCache.shared.prefetch(paths: loadedSources.map(\.url.path))
     }
 
     private func reconcileSelection() {

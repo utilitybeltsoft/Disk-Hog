@@ -96,7 +96,7 @@ private struct FileInformationContent: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 9) {
                 HStack(spacing: 8) {
-                    Image(nsImage: NSWorkspace.shared.icon(forFile: item.path))
+                    Image(nsImage: DiskItemIconCache.shared.icon(forFile: item.path))
                         .resizable()
                         .interpolation(.high)
                         .frame(width: 32, height: 32)

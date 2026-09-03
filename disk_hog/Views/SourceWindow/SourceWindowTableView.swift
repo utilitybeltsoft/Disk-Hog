@@ -193,7 +193,14 @@ private struct SourceVolumeMetadata {
     }
 
     var icon: NSImage {
-        let icon: NSImage = NSWorkspace.shared.icon(forFile: source.path)
+        // This is a computed property, re-evaluated on every SwiftUI body pass for this row -
+        // including on selection state changes, which is why merely selecting a row could stall
+        // on NSWorkspace.icon(forFile:) for a slow volume (a spun-down external drive, a network
+        // share). DiskItemIconCache.shared caches the fetch, but its cached instance is shared
+        // with other consumers (the outline, the selection list) that expect a different fixed
+        // size, so resize a copy rather than mutating the shared image in place.
+        let cachedIcon: NSImage = DiskItemIconCache.shared.icon(forFile: source.path)
+        let icon: NSImage = (cachedIcon.copy() as? NSImage) ?? cachedIcon
         icon.size = NSSize(width: Metrics.sourceIconWidth, height: Metrics.sourceIconWidth)
         return icon
     }
