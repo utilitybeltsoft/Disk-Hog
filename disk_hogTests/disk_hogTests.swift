@@ -3768,7 +3768,7 @@ struct TreemapDiskItemDataSourceTests {
         #expect(plan.nearestEntry(from: leftItem, direction: .left) == nil)
     }
 
-    @Test func layoutPlannerKeepsZeroSizeItemsInThePlanWithoutGivingThemArea() {
+    @Test func layoutPlannerKeepsZeroSizeItemsInThePlanWithoutGivingThemArea() throws {
         let root: DiskItem = DiskItem(
             url: URL(fileURLWithPath: "/scan"),
             allocatedSizeValue: 100,
@@ -3791,9 +3791,14 @@ struct TreemapDiskItemDataSourceTests {
             )
         )
 
+        // Zero-size items are still given a real (zero-area) entry in the plan, findable by
+        // item identity - but entries too small to ever be shown skip decoding their own path
+        // (a real cost on trees with hundreds of thousands of such entries), so they are no
+        // longer indexed by path the way a visible entry is.
+        let emptyItem: DiskItem = try #require(root.item(atPath: "/scan/empty"))
         #expect(plan.entry(forPath: "/scan/file")?.rect.area == 10_000)
-        #expect(plan.entry(forPath: "/scan/empty")?.rect.area == 0)
-        #expect(plan.entry(forPath: "/scan/empty") != nil)
+        #expect(plan.entry(for: emptyItem)?.rect.area == 0)
+        #expect(plan.entry(for: emptyItem) != nil)
         #expect(plan.cushionSnapshots.count == 1)
     }
 

@@ -119,16 +119,24 @@ nonisolated enum TreemapLayoutPlanner {
         stats.maxDepth = max(stats.maxDepth, depth)
         stats.entriesProcessed += 1
         stats.reportProgressIfDue()
+        let isVisible: Bool = rect.width >= 1 && rect.height >= 1
+        // item.path decodes a string from the packed buffer on every access (see DiskItem) -
+        // skip it for entries too small to ever be shown, which given the pixel-budget cap
+        // above is the large majority. TreemapLayoutPlan only indexes non-empty itemPaths
+        // (matching how special items already opt out), and the one thing that index is for -
+        // deepestRenderedAncestorEntry - walks upward from an external path looking for
+        // whichever ancestor is indexed; it never needs this exact (invisible) entry's own
+        // path, only some larger, visible ancestor's, which keeps its real path regardless.
         entries.append(TreemapLayoutEntry(
             item: item,
-            itemPath: item.path,
+            itemPath: isVisible ? item.path : "",
             parentItem: parentItem,
             parentPath: parentPath,
             rect: rect,
             unroundedRect: unroundedRect,
             isSpecialItem: item.isSpecialItem
         ))
-        guard rect.width >= 1, rect.height >= 1 else {
+        guard isVisible else {
             return
         }
 
@@ -186,11 +194,15 @@ nonisolated enum TreemapLayoutPlanner {
             rect: rect,
             usePhysicalSize: usePhysicalSize
         )
+        // item.path decodes a string from the packed buffer on every access (see DiskItem) - hoist
+        // it once rather than recomputing it, identically, on every one of this folder's
+        // (potentially hundreds of thousands of) children below.
+        let itemPath: String = item.path
         for (child, childRect) in zip(layoutItems, childRects) {
             appendEntry(
                 for: child,
                 parentItem: item,
-                parentPath: item.path,
+                parentPath: itemPath,
                 rect: childRect.rect,
                 unroundedRect: childRect.unroundedRect,
                 usePhysicalSize: usePhysicalSize,
