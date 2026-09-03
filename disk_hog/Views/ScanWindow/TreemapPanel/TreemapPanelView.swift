@@ -94,8 +94,13 @@ struct TreemapPanelView: View {
     }
 
     private var treemapPreparationMessage: LocalizedStringKey {
+        // treemapPreparationProgress tracks only the file-kind-distribution pass and is reset to
+        // nil the moment that finishes (ScanSession.finishScan), which is also the point where
+        // rootItem is set and the treemap's own layout+rasterization starts - a separate, often
+        // much longer step with no progress signal of its own. Without a distinct message here,
+        // that reset reads as the percentage breaking rather than a new phase starting.
         guard session.treemapPreparationProgress != nil else {
-            return "Preparing file distribution…"
+            return "Rendering treemap…"
         }
         return "Preparing file distribution: \(treemapPreparationPercentage)%"
     }

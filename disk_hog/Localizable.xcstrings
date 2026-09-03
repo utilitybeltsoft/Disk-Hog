@@ -6058,6 +6058,34 @@
         }
       }
     },
+    "Rendering treemap…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Treemap wird gerendert …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Renderizando el treemap…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rendu du treemap en cours…"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rendering del treemap in corso…"
+          }
+        }
+      }
+    },
     "Rescan" : {
       "localizations" : {
         "de" : {
