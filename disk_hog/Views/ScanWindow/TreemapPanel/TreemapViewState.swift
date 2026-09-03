@@ -8,6 +8,53 @@ nonisolated final class TreemapViewStateWeakReference: @unchecked Sendable {
     }
 }
 
+/// Small LRU cache of completed renders, keyed by request. Every zoom (in or, especially, back
+/// out) used to discard the previous layout entirely and recompute from scratch even when
+/// revisiting a level already rendered once this session - on a large, heavily-nested tree that
+/// meant re-paying the same tens-of-seconds cost every single time. TreemapRenderRequest already
+/// encodes root identity, bounds, and every setting that affects the result, and DiskItem's
+/// identity is scoped to its packed snapshot, so a request from a since-rebuilt tree (a rescan,
+/// a size-mode change) simply never matches a stale cache entry - no explicit invalidation needed,
+/// stale entries just age out via LRU eviction.
+@MainActor
+private final class TreemapRenderResultCache {
+    private struct Entry {
+        let result: TreemapRenderResult
+        let bitmap: NSBitmapImageRep
+    }
+
+    private let capacity: Int
+    private var order: [TreemapRenderRequest] = []
+    private var storage: [TreemapRenderRequest: Entry] = [:]
+
+    init(capacity: Int = 10) {
+        self.capacity = capacity
+    }
+
+    func entry(for request: TreemapRenderRequest) -> (result: TreemapRenderResult, bitmap: NSBitmapImageRep)? {
+        guard let entry: Entry = storage[request] else {
+            return nil
+        }
+        touch(request)
+        return (entry.result, entry.bitmap)
+    }
+
+    func insert(_ result: TreemapRenderResult, bitmap: NSBitmapImageRep) {
+        storage[result.request] = Entry(result: result, bitmap: bitmap)
+        touch(result.request)
+        while order.count > capacity {
+            storage.removeValue(forKey: order.removeFirst())
+        }
+    }
+
+    private func touch(_ request: TreemapRenderRequest) {
+        if let index: Int = order.firstIndex(of: request) {
+            order.remove(at: index)
+        }
+        order.append(request)
+    }
+}
+
 @MainActor
 final class TreemapViewState {
     private(set) var source: ScanSource?
@@ -31,6 +78,7 @@ final class TreemapViewState {
     private var completedRenderRequest: TreemapRenderRequest?
     private var pendingRenderRequest: TreemapRenderRequest?
     private var renderTask: Task<Void, Never>?
+    private let resultCache: TreemapRenderResultCache = TreemapRenderResultCache()
     private var showsFreeSpace: Bool = false
     private var showsOtherSpace: Bool = false
     private var freeSpaceItem: DiskItem?
@@ -157,6 +205,9 @@ final class TreemapViewState {
         }
         if completedRenderRequest == request {
             return renderedBitmap
+        }
+        if let cached: NSBitmapImageRep = applyCachedResultIfAvailable(for: request) {
+            return cached
         }
         if pendingRenderRequest != request {
             startRender(for: request)
@@ -378,6 +429,24 @@ final class TreemapViewState {
         renderTask = nil
     }
 
+    /// Serves an already-completed render for `request` from cache, if one exists, without
+    /// re-running the layout/rasterization pipeline at all. Bypasses the pendingRenderRequest
+    /// guard installRenderResult uses (this path never went through startRender), but is
+    /// otherwise the same install: updates renderedPlan/renderedBitmap/completedRenderRequest and
+    /// fires onRenderedImageReady so dependents (hover resample, "recalculating" badge) react the
+    /// same way they would to a freshly-computed render.
+    private func applyCachedResultIfAvailable(for request: TreemapRenderRequest) -> NSBitmapImageRep? {
+        guard let cached = resultCache.entry(for: request) else {
+            return nil
+        }
+        renderedPlan = cached.result.plan
+        renderedBitmap = cached.bitmap
+        completedRenderRequest = cached.result.request
+        Self.logRender("served from cache root=\(request.rootItem.path)")
+        onRenderedImageReady?()
+        return cached.bitmap
+    }
+
     private func installRenderResult(_ result: TreemapRenderResult) {
         guard pendingRenderRequest == result.request else {
             Self.logRender("installRenderResult: DROPPED completed render root=\(result.request.rootItem.path) because pendingRenderRequest no longer matches (superseded=\(pendingRenderRequest != nil))")
@@ -394,6 +463,7 @@ final class TreemapViewState {
         completedRenderRequest = result.request
         pendingRenderRequest = nil
         renderTask = nil
+        resultCache.insert(result, bitmap: bitmap)
         Self.logRender("installed root=\(result.request.rootItem.path)")
         onRenderedImageReady?()
     }
