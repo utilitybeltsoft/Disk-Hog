@@ -7,6 +7,7 @@ private final class TreemapLayoutDiagnosticStats {
     var maxDepth: Int = 0
     var recursedFolderCount: Int = 0
     var maxChildCountAtAnyFolder: Int = 0
+    var entriesProcessed: Int = 0
 
     private let totalFolders: Int
     private let progress: (@Sendable (Double) -> Void)?
@@ -17,14 +18,18 @@ private final class TreemapLayoutDiagnosticStats {
         self.progress = progress
     }
 
-    /// Folder-count-based rather than byte-weighted: the measured bottleneck is the number of
-    /// folders recursed into, not bytes or leaf count, so this tracks the actual expensive work.
-    /// totalFolders is scoped to whatever root is currently rendering (via DiskItem.scanCounts),
-    /// so this is correct for both the initial full-disk render and every zoomed-in re-render.
-    /// Cheap integer check first, then a clock check, so the cost of progress reporting stays
-    /// bounded by wall-clock rate rather than by how many folders exist.
+    /// The reported fraction is folder-count-based (recursedFolderCount / totalFolders), not
+    /// byte-weighted, since the measured bottleneck is folder-traversal work. But gating the
+    /// clock check on recursedFolderCount alone left a blind spot: a single folder with tens of
+    /// thousands of file children burns real time laying them out without incrementing that
+    /// counter at all (files never recurse), so the clock could go unchecked for the entire
+    /// burst. Gate on entriesProcessed instead - incremented for every item, file or folder -
+    /// so the throttle is actually checked at a steady rate regardless of what kind of work is
+    /// currently dominating. totalFolders is scoped to whatever root is currently rendering (via
+    /// DiskItem.scanCounts), so the reported fraction is correct for both the initial full-disk
+    /// render and every zoomed-in re-render.
     func reportProgressIfDue() {
-        guard totalFolders > 0, let progress, recursedFolderCount.isMultiple(of: 1_000) else {
+        guard totalFolders > 0, let progress, entriesProcessed.isMultiple(of: 200) else {
             return
         }
         let now: Date = Date()
@@ -112,6 +117,8 @@ nonisolated enum TreemapLayoutPlanner {
         snapshots: inout [TreemapCushionSnapshot]
     ) {
         stats.maxDepth = max(stats.maxDepth, depth)
+        stats.entriesProcessed += 1
+        stats.reportProgressIfDue()
         entries.append(TreemapLayoutEntry(
             item: item,
             itemPath: item.path,
@@ -160,7 +167,6 @@ nonisolated enum TreemapLayoutPlanner {
         guard children.isEmpty == false else { return }
         stats.recursedFolderCount += 1
         stats.maxChildCountAtAnyFolder = max(stats.maxChildCountAtAnyFolder, children.count)
-        stats.reportProgressIfDue()
         let (layoutItems, explicitWeights): ([DiskItem], [Double]?) = cappedForLayout(
             children,
             rect: rect,
@@ -218,8 +224,12 @@ nonisolated enum TreemapLayoutPlanner {
         rect: TreemapLayoutRect,
         usePhysicalSize: Bool
     ) -> (items: [DiskItem], weights: [Double]?) {
+        // Additive, not multiplicative: a x4 multiplier looked like a reasonable safety margin
+        // for small rects, but for a large one (a dominant folder spanning a big share of the
+        // canvas, e.g. ~100,000px) it inflates the cap right back up toward the original
+        // problem size, barely capping anything in exactly the case this exists to fix.
         let pixelBudget: Int = max(Int(rect.width.rounded(.up)), 1) * max(Int(rect.height.rounded(.up)), 1)
-        let cap: Int = max(pixelBudget * 4, 64)
+        let cap: Int = max(pixelBudget + 256, 64)
         guard children.count > cap else {
             return (children, nil)
         }
