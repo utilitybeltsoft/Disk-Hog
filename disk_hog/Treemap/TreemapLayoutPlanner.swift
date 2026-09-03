@@ -1,5 +1,14 @@
 import Foundation
 
+/// Temporary diagnostic-only counters for TreemapLayoutPlanner.makePlan's recursive descent.
+/// A reference type purely so appendEntry doesn't need to thread several more inout parameters
+/// through every recursive call.
+private final class TreemapLayoutDiagnosticStats {
+    var maxDepth: Int = 0
+    var recursedFolderCount: Int = 0
+    var maxChildCountAtAnyFolder: Int = 0
+}
+
 /// Produces treemap geometry without AppKit renderer objects. The planner is
 /// deliberately value-only so callers can run it in a detached task.
 nonisolated enum TreemapLayoutPlanner {
@@ -15,6 +24,7 @@ nonisolated enum TreemapLayoutPlanner {
     ) -> TreemapLayoutPlan {
         var entries: [TreemapLayoutEntry] = []
         var snapshots: [TreemapCushionSnapshot] = []
+        let stats: TreemapLayoutDiagnosticStats = TreemapLayoutDiagnosticStats()
         let descendStart: Date = Date()
         appendEntry(
             for: rootItem,
@@ -31,10 +41,15 @@ nonisolated enum TreemapLayoutPlanner {
             otherSpaceItem: otherSpaceItem,
             parentSurface: nil,
             heightFactor: 0.5,
+            depth: 0,
+            stats: stats,
             entries: &entries,
             snapshots: &snapshots
         )
-        NSLog("[TreemapRender] appendEntry descent took %.3fs, entries=%d", Date().timeIntervalSince(descendStart), entries.count)
+        NSLog(
+            "[TreemapRender] appendEntry descent took %.3fs, entries=%d, maxDepth=%d, recursedFolders=%d, maxChildCountAtAnyFolder=%d",
+            Date().timeIntervalSince(descendStart), entries.count, stats.maxDepth, stats.recursedFolderCount, stats.maxChildCountAtAnyFolder
+        )
         let indexStart: Date = Date()
         let plan: TreemapLayoutPlan = TreemapLayoutPlan(bounds: bounds, entries: entries, cushionSnapshots: snapshots)
         NSLog("[TreemapRender] TreemapLayoutPlan index build took %.3fs", Date().timeIntervalSince(indexStart))
@@ -56,9 +71,12 @@ nonisolated enum TreemapLayoutPlanner {
         otherSpaceItem: DiskItem?,
         parentSurface: [Double]?,
         heightFactor: Double,
+        depth: Int,
+        stats: TreemapLayoutDiagnosticStats,
         entries: inout [TreemapLayoutEntry],
         snapshots: inout [TreemapCushionSnapshot]
     ) {
+        stats.maxDepth = max(stats.maxDepth, depth)
         entries.append(TreemapLayoutEntry(
             item: item,
             itemPath: item.path,
@@ -105,6 +123,8 @@ nonisolated enum TreemapLayoutPlanner {
             otherSpaceItem: otherSpaceItem
         )
         guard children.isEmpty == false else { return }
+        stats.recursedFolderCount += 1
+        stats.maxChildCountAtAnyFolder = max(stats.maxChildCountAtAnyFolder, children.count)
         let childRects: [(rect: TreemapLayoutRect, unroundedRect: TreemapLayoutRect)] = layoutChildren(
             children,
             parentWeight: weight(
@@ -135,6 +155,8 @@ nonisolated enum TreemapLayoutPlanner {
                 otherSpaceItem: otherSpaceItem,
                 parentSurface: surface,
                 heightFactor: heightFactor * 0.9,
+                depth: depth + 1,
+                stats: stats,
                 entries: &entries,
                 snapshots: &snapshots
             )
