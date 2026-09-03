@@ -80,7 +80,17 @@ nonisolated enum TreemapLayoutPlanner {
             surface[3] += (h4 / rect.height) * (rect.y + rect.y + rect.height)
             surface[1] -= h4 / rect.height
         }
-        guard item.isFolder, item.isPackage == false else {
+        // A folder's children can only ever partition its own unrounded (pre-pixel-snapped)
+        // area. Once that area itself is under one real pixel wide or tall, no descendant can
+        // legitimately claim a full pixel either, no matter how layout subdivides it further -
+        // pixel-snapping alone can still round such a folder's own rect up to a nominal 1px,
+        // which previously let recursion continue for many more levels than anything visible
+        // could justify. Render it as a single aggregate region instead, same as a package.
+        let canSubdivide: Bool = item.isFolder
+            && item.isPackage == false
+            && unroundedRect.width >= 1
+            && unroundedRect.height >= 1
+        guard canSubdivide else {
             let color: TreemapRawColor = colorTable.color(for: item)
             snapshots.append(TreemapCushionSnapshot(x: rect.x, y: rect.y, width: rect.width, height: rect.height, surface: surface, red: color.red, green: color.green, blue: color.blue))
             return
