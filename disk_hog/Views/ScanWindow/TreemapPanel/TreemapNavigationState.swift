@@ -23,7 +23,7 @@ final class TreemapNavigationState: ObservableObject {
     func zoom(into item: DiskItem?) {
         guard let destination: ZoomDestination = zoomDestination(for: item) else { return }
         zoomPath = destination.path
-        selectionAfterZoom = destination.target
+        selectionAfterZoom = destination.path.last
     }
 
     func zoomOut() {
@@ -62,22 +62,16 @@ final class TreemapNavigationState: ObservableObject {
     }
 
     private func zoomDestination(for item: DiskItem?) -> ZoomDestination? {
-        guard let item, item.isSpecialItem == false, let baseRoot else { return nil }
+        guard let item,
+              item.isSpecialItem == false,
+              item.isFolder,
+              item.isPackage == false,
+              item.childCount > 0,
+              item != zoomRoot,
+              let baseRoot else { return nil }
         let itemPath: [DiskItem] = baseRoot.descendantsMatchingAncestorPath(of: item)
         guard itemPath.isEmpty == false else { return nil }
-        let target: DiskItem
-        let targetPath: [DiskItem]
-        if item.isFolder, item.isPackage == false, item.childCount > 0 {
-            target = item
-            targetPath = itemPath
-        } else if let parent: DiskItem = itemPath.dropLast().last {
-            target = parent
-            targetPath = Array(itemPath.dropLast())
-        } else {
-            return nil
-        }
-        guard target != zoomRoot else { return nil }
-        return ZoomDestination(target: target, path: targetPath)
+        return ZoomDestination(path: itemPath)
     }
 
     private func contains(_ itemPath: String, within rootPath: String) -> Bool {
@@ -87,6 +81,5 @@ final class TreemapNavigationState: ObservableObject {
 }
 
 private struct ZoomDestination {
-    let target: DiskItem
     let path: [DiskItem]
 }

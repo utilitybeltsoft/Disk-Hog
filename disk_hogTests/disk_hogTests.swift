@@ -174,7 +174,7 @@ struct TreemapNavigationStateTests {
         #expect(navigation.zoomRoot?.path == "/scan")
     }
 
-    @Test func directFileZoomsToItsParentFolder() {
+    @Test func directFileNeverZooms() {
         let file: DiskItem = DiskItem(url: URL(fileURLWithPath: "/scan/folder/file"))
         let folder: DiskItem = DiskItem(
             url: URL(fileURLWithPath: "/scan/folder"),
@@ -189,11 +189,12 @@ struct TreemapNavigationStateTests {
         let navigation: TreemapNavigationState = TreemapNavigationState()
         navigation.configure(baseRoot: root)
 
-        navigation.zoom(into: root.children[0])
+        #expect(navigation.canZoom(into: folder.children[0]) == false)
+        navigation.zoom(into: folder.children[0])
 
-        #expect(navigation.zoomRoot?.path == "/scan/folder")
-        #expect(navigation.zoomPath.map(\.path) == ["/scan", "/scan/folder"])
-        #expect(navigation.canZoomOut)
+        #expect(navigation.zoomRoot?.path == "/scan")
+        #expect(navigation.canZoomOut == false)
+        #expect(navigation.consumeSelectionAfterZoom() == nil)
     }
 
     @Test func directFileAtTheCurrentRootDoesNotOfferADeadEndZoom() {
