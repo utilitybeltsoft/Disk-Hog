@@ -161,8 +161,14 @@ nonisolated enum TreemapLayoutPlanner {
         stats.recursedFolderCount += 1
         stats.maxChildCountAtAnyFolder = max(stats.maxChildCountAtAnyFolder, children.count)
         stats.reportProgressIfDue()
-        let childRects: [(rect: TreemapLayoutRect, unroundedRect: TreemapLayoutRect)] = layoutChildren(
+        let (layoutItems, explicitWeights): ([DiskItem], [Double]?) = cappedForLayout(
             children,
+            rect: rect,
+            usePhysicalSize: usePhysicalSize
+        )
+        let childRects: [(rect: TreemapLayoutRect, unroundedRect: TreemapLayoutRect)] = layoutChildren(
+            layoutItems,
+            weights: explicitWeights,
             parentWeight: weight(
                 of: item,
                 rootItem: rootItem,
@@ -175,7 +181,7 @@ nonisolated enum TreemapLayoutPlanner {
             rect: rect,
             usePhysicalSize: usePhysicalSize
         )
-        for (child, childRect) in zip(children, childRects) {
+        for (child, childRect) in zip(layoutItems, childRects) {
             appendEntry(
                 for: child,
                 parentItem: item,
@@ -199,8 +205,37 @@ nonisolated enum TreemapLayoutPlanner {
         }
     }
 
+    /// A rect can only ever show as many distinguishable regions as it has pixels. Measured on a
+    /// real scan: one folder with 636,120 direct children, contributing the overwhelming majority
+    /// of a >300s render, almost all of it wasted on individually laying out children whose
+    /// resulting rect could never be more than a fraction of a pixel. Children are already sorted
+    /// by descending size (DiskItemBuilderOrdering), so once count wildly exceeds what the rect
+    /// could show, keep the largest ones individually and fold the long, necessarily-invisible
+    /// tail into one representative entry sized to their combined weight - same total area as
+    /// laying them out individually would have covered, at a fraction of the cost.
+    private static func cappedForLayout(
+        _ children: [DiskItem],
+        rect: TreemapLayoutRect,
+        usePhysicalSize: Bool
+    ) -> (items: [DiskItem], weights: [Double]?) {
+        let pixelBudget: Int = max(Int(rect.width.rounded(.up)), 1) * max(Int(rect.height.rounded(.up)), 1)
+        let cap: Int = max(pixelBudget * 4, 64)
+        guard children.count > cap else {
+            return (children, nil)
+        }
+        let kept: ArraySlice<DiskItem> = children.prefix(cap - 1)
+        let tail: ArraySlice<DiskItem> = children[kept.endIndex...]
+        guard let representative: DiskItem = tail.first else {
+            return (children, nil)
+        }
+        let keptWeights: [Double] = kept.map { Double($0.sizeValue(usePhysicalSize: usePhysicalSize)) }
+        let tailWeight: Double = tail.reduce(0) { $0 + Double($1.sizeValue(usePhysicalSize: usePhysicalSize)) }
+        return (Array(kept) + [representative], keptWeights + [tailWeight])
+    }
+
     private static func layoutChildren(
         _ children: [DiskItem],
+        weights explicitWeights: [Double]? = nil,
         parentWeight: UInt64,
         rect: TreemapLayoutRect,
         usePhysicalSize: Bool
@@ -209,7 +244,7 @@ nonisolated enum TreemapLayoutPlanner {
         let primaryLength: Double = horizontal ? rect.width : rect.height
         let secondaryLength: Double = horizontal ? rect.height : rect.width
         let aspectWidth: Double = secondaryLength > 0 ? primaryLength / secondaryLength : 1
-        let weights: [Double] = children.map { Double($0.sizeValue(usePhysicalSize: usePhysicalSize)) }
+        let weights: [Double] = explicitWeights ?? children.map { Double($0.sizeValue(usePhysicalSize: usePhysicalSize)) }
         let effectiveWeights: [Double] = parentWeight == 0
             ? Array(repeating: 1, count: children.count)
             : weights
