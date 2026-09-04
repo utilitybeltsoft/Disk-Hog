@@ -16,14 +16,21 @@ final class TreemapNavigationState: ObservableObject {
         selectionAfterZoom = nil
     }
 
-    func canZoom(into item: DiskItem?) -> Bool {
-        zoomDestination(for: item) != nil
+    /// - Parameter allowingFileFallback: When `item` is not itself a zoomable
+    ///   folder, whether to zoom to its parent instead. Activation gestures
+    ///   (double-click, outline `doubleAction`) pass `false` so a file behaves
+    ///   identically to a plain click. The explicit "Zoom In" command (toolbar
+    ///   button, its Return-key equivalent, and the menu command) passes
+    ///   `true`, since selecting a file and asking to zoom in has nowhere else
+    ///   to go but the file's parent.
+    func canZoom(into item: DiskItem?, allowingFileFallback: Bool = false) -> Bool {
+        zoomDestination(for: item, allowingFileFallback: allowingFileFallback) != nil
     }
 
-    func zoom(into item: DiskItem?) {
-        guard let destination: ZoomDestination = zoomDestination(for: item) else { return }
+    func zoom(into item: DiskItem?, allowingFileFallback: Bool = false) {
+        guard let destination: ZoomDestination = zoomDestination(for: item, allowingFileFallback: allowingFileFallback) else { return }
         zoomPath = destination.path
-        selectionAfterZoom = destination.path.last
+        selectionAfterZoom = destination.selection
     }
 
     func zoomOut() {
@@ -61,17 +68,22 @@ final class TreemapNavigationState: ObservableObject {
         return selectionAfterZoom
     }
 
-    private func zoomDestination(for item: DiskItem?) -> ZoomDestination? {
-        guard let item,
-              item.isSpecialItem == false,
-              item.isFolder,
-              item.isPackage == false,
-              item.childCount > 0,
-              item != zoomRoot,
-              let baseRoot else { return nil }
+    private func zoomDestination(for item: DiskItem?, allowingFileFallback: Bool) -> ZoomDestination? {
+        guard let item, item.isSpecialItem == false, let baseRoot else { return nil }
         let itemPath: [DiskItem] = baseRoot.descendantsMatchingAncestorPath(of: item)
         guard itemPath.isEmpty == false else { return nil }
-        return ZoomDestination(path: itemPath)
+
+        if item.isFolder, item.isPackage == false, item.childCount > 0 {
+            guard item != zoomRoot else { return nil }
+            return ZoomDestination(path: itemPath, selection: item)
+        }
+
+        guard allowingFileFallback,
+              let parent: DiskItem = itemPath.dropLast().last,
+              parent != zoomRoot else {
+            return nil
+        }
+        return ZoomDestination(path: Array(itemPath.dropLast()), selection: item)
     }
 
     private func contains(_ itemPath: String, within rootPath: String) -> Bool {
@@ -82,4 +94,5 @@ final class TreemapNavigationState: ObservableObject {
 
 private struct ZoomDestination {
     let path: [DiskItem]
+    let selection: DiskItem
 }

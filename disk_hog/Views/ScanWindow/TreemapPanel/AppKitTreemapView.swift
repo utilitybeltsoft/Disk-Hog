@@ -16,7 +16,7 @@ struct AppKitTreemapView: NSViewRepresentable {
     let activePane: Binding<ScanWindowPane?>
     let isRecalculating: Binding<Bool>
     let renderProgress: Binding<Double?>
-    let onZoomIn: (DiskItem) -> Void
+    let onZoomIn: (DiskItem, Bool) -> Void
     let onZoomOut: () -> Void
 
     func makeCoordinator() -> Coordinator {

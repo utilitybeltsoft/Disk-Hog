@@ -38,7 +38,7 @@ struct TreemapPanelView: View {
                 activePane: activePane,
                 isRecalculating: $isRecalculating,
                 renderProgress: $renderProgress,
-                onZoomIn: { item in navigation.zoom(into: item) },
+                onZoomIn: { item, allowingFileFallback in navigation.zoom(into: item, allowingFileFallback: allowingFileFallback) },
                 onZoomOut: { navigation.zoomOut() }
             )
             .overlay {
@@ -123,7 +123,7 @@ struct TreemapPanelView: View {
 
     private var navigationBar: some View {
         HStack(spacing: 4) {
-            Button { navigation.zoom(into: selectionCoordinator.selectedItem) } label: {
+            Button { navigation.zoom(into: selectionCoordinator.selectedItem, allowingFileFallback: true) } label: {
                 HStack(spacing: 3) {
                     Image(systemName: "arrow.down.right.and.arrow.up.left")
                     Text("Zoom In")
@@ -131,7 +131,7 @@ struct TreemapPanelView: View {
                 }
                 .fixedSize()
             }
-            .disabled(navigation.canZoom(into: selectionCoordinator.selectedItem) == false)
+            .disabled(navigation.canZoom(into: selectionCoordinator.selectedItem, allowingFileFallback: true) == false)
 
             Button { navigation.zoomOut() } label: {
                 HStack(spacing: 3) {

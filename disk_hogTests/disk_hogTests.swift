@@ -189,12 +189,37 @@ struct TreemapNavigationStateTests {
         let navigation: TreemapNavigationState = TreemapNavigationState()
         navigation.configure(baseRoot: root)
 
-        #expect(navigation.canZoom(into: folder.children[0]) == false)
-        navigation.zoom(into: folder.children[0])
+        let fileInTree: DiskItem = root.children[0].children[0]
+        #expect(navigation.canZoom(into: fileInTree) == false)
+        navigation.zoom(into: fileInTree)
 
         #expect(navigation.zoomRoot?.path == "/scan")
         #expect(navigation.canZoomOut == false)
         #expect(navigation.consumeSelectionAfterZoom() == nil)
+    }
+
+    @Test func fileFallbackZoomsToTheParentButSelectsTheFileItself() {
+        let file: DiskItem = DiskItem(url: URL(fileURLWithPath: "/scan/folder/file"))
+        let folder: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/folder"),
+            isDirectory: true,
+            children: [file]
+        )
+        let root: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan"),
+            isDirectory: true,
+            children: [folder]
+        )
+        let navigation: TreemapNavigationState = TreemapNavigationState()
+        navigation.configure(baseRoot: root)
+
+        let fileInTree: DiskItem = root.children[0].children[0]
+        #expect(navigation.canZoom(into: fileInTree, allowingFileFallback: true))
+        navigation.zoom(into: fileInTree, allowingFileFallback: true)
+
+        #expect(navigation.zoomRoot?.path == "/scan/folder")
+        #expect(navigation.canZoomOut)
+        #expect(navigation.consumeSelectionAfterZoom()?.path == "/scan/folder/file")
     }
 
     @Test func directFileAtTheCurrentRootDoesNotOfferADeadEndZoom() {
@@ -207,8 +232,8 @@ struct TreemapNavigationStateTests {
         let navigation: TreemapNavigationState = TreemapNavigationState()
         navigation.configure(baseRoot: root)
 
-        #expect(navigation.canZoom(into: root.children[0]) == false)
-        navigation.zoom(into: root.children[0])
+        #expect(navigation.canZoom(into: root.children[0], allowingFileFallback: true) == false)
+        navigation.zoom(into: root.children[0], allowingFileFallback: true)
         #expect(navigation.zoomRoot?.path == "/scan")
         #expect(navigation.canZoomOut == false)
     }

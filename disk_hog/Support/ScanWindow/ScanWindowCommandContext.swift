@@ -103,7 +103,7 @@ final class ScanWindowCommandContext: ObservableObject {
     }
 
     func zoomIn() {
-        treemapNavigation?.zoom(into: selectedItem)
+        treemapNavigation?.zoom(into: selectedItem, allowingFileFallback: true)
         updateSelectedItemAvailability(selectedItem)
     }
 
@@ -136,7 +136,7 @@ final class ScanWindowCommandContext: ObservableObject {
         let canActOnItem: Bool = item?.isSpecialItem == false
         canOpenSelectedItem = canActOnItem
         canRevealSelectedItem = canActOnItem
-        canZoomIn = treemapNavigation?.canZoom(into: item) ?? false
+        canZoomIn = treemapNavigation?.canZoom(into: item, allowingFileFallback: true) ?? false
         canZoomOut = treemapNavigation?.canZoomOut ?? false
         if let session: ScanSession,
            let rootItem: DiskItem = session.rootItem,

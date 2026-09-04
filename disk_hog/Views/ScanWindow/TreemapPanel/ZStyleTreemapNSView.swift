@@ -3,7 +3,8 @@ import AppKit
 final class ZStyleTreemapNSView: NSView {
     var onSelectItem: ((DiskItem, [DiskItem]) -> Void)?
     var onHoverItem: ((DiskItem?) -> Void)?
-    var onZoomIn: ((DiskItem) -> Void)?
+    /// Second parameter is `allowingFileFallback` — see `TreemapNavigationState.zoom(into:allowingFileFallback:)`.
+    var onZoomIn: ((DiskItem, Bool) -> Void)?
     var onZoomOut: (() -> Void)?
     var onRenderPendingChange: ((Bool) -> Void)?
     var onRenderProgressChange: ((Double?) -> Void)?
@@ -207,7 +208,7 @@ final class ZStyleTreemapNSView: NSView {
         }
         select(hitResult)
         if event.clickCount == 2 {
-            onZoomIn?(hitResult.item)
+            onZoomIn?(hitResult.item, false)
         }
     }
 
@@ -233,7 +234,7 @@ final class ZStyleTreemapNSView: NSView {
                 return
             }
             if let item: DiskItem = state.selectedItem {
-                onZoomIn?(item)
+                onZoomIn?(item, true)
                 return
             }
         case AppKitKeyCode.escape:
