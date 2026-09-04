@@ -3431,7 +3431,7 @@ private actor ControllableSourceLoader {
     }
 }
 
-struct TreemapDiskItemDataSourceTests {
+struct TreemapKindAggregationTests {
 
     @Test func kindAggregationHandlesDeepDirectoryTreesIteratively() {
         let rootBuilder: DiskItemBuilder = DiskItemBuilder(
@@ -3500,67 +3500,6 @@ struct TreemapDiskItemDataSourceTests {
         #expect(aggregates["Odd Binary"]?.fileCount == itemCount / 2)
         #expect(aggregates["Even Binary"]?.size == UInt64(itemCount / 2))
         #expect(aggregates["Odd Binary"]?.size == UInt64(itemCount / 2))
-    }
-
-    @Test func weightUsesSelectedPhysicalOrLogicalSizeMode() {
-        let root: DiskItem = DiskItem(
-            url: URL(fileURLWithPath: "/scan"),
-            allocatedSizeValue: 4096,
-            logicalSizeValue: 12
-        )
-
-        let physicalDataSource: TreemapDiskItemDataSource = TreemapDiskItemDataSource(
-            rootItem: root,
-            usePhysicalSize: true
-        )
-        let logicalDataSource: TreemapDiskItemDataSource = TreemapDiskItemDataSource(
-            rootItem: root,
-            usePhysicalSize: false
-        )
-
-        #expect(physicalDataSource.weight(of: root) == 4096)
-        #expect(logicalDataSource.weight(of: root) == 12)
-    }
-
-    @Test func omitsUnavailableSpecialSpaceItemsFromTreeChildren() {
-        let root: DiskItem = DiskItem(
-            url: URL(fileURLWithPath: "/scan"),
-            isDirectory: true
-        )
-        let dataSource: TreemapDiskItemDataSource = TreemapDiskItemDataSource(
-            rootItem: root,
-            showFreeSpace: true,
-            showOtherSpace: true
-        )
-
-        #expect(dataSource.numberOfChildren(of: root) == root.childCount)
-    }
-
-    @Test func kindStatisticsUseSelectedPhysicalOrLogicalSizeMode() {
-        let rootBuilder: DiskItemBuilder = DiskItemBuilder(
-            url: URL(fileURLWithPath: "/scan"),
-            isDirectory: true
-        )
-        let textFile: DiskItemBuilder = DiskItemBuilder(
-            url: URL(fileURLWithPath: "/scan/file.txt"),
-            allocatedSizeValue: 4096,
-            logicalSizeValue: 12,
-            kindName: "Plain Text"
-        )
-        rootBuilder.appendChild(textFile)
-        let root: DiskItem = rootBuilder.freeze()
-
-        let physicalStatistics: [TreemapKindStatistic] = TreemapDiskItemDataSource.kindStatistics(
-            for: root,
-            usePhysicalSize: true
-        )
-        let logicalStatistics: [TreemapKindStatistic] = TreemapDiskItemDataSource.kindStatistics(
-            for: root,
-            usePhysicalSize: false
-        )
-
-        #expect(physicalStatistics.map(\.size) == [4096])
-        #expect(logicalStatistics.map(\.size) == [12])
     }
 
     @Test func sizeModeReordersExistingTreeWithoutChangingItsMeasurements() {
@@ -3939,7 +3878,7 @@ struct TreemapDiskItemDataSourceTests {
         #expect(colorComponents(firstTable.colorForKind("Plain Text")) != colorComponents(secondTable.colorForKind("Plain Text")))
     }
 
-    @Test func visibleVolumeSpaceItemsAreAppendedAndIncludedInRootWeight() {
+    @Test func layoutPlannerIncludesVisibleVolumeSpaceItemsInRootAreaAllocation() throws {
         let file: DiskItem = DiskItem(
             url: URL(fileURLWithPath: "/scan/file.dat"),
             allocatedSizeValue: 40,
@@ -3965,18 +3904,35 @@ struct TreemapDiskItemDataSourceTests {
             allocatedSizeValue: 10,
             logicalSizeValue: 10
         )
-        let dataSource: TreemapDiskItemDataSource = TreemapDiskItemDataSource(
+
+        let plan: TreemapLayoutPlan = TreemapLayoutPlanner.makePlan(
             rootItem: root,
-            showFreeSpace: true,
-            showOtherSpace: true,
+            bounds: TreemapLayoutRect(x: 0, y: 0, width: 100, height: 100),
+            usePhysicalSize: true,
+            colorTable: TreemapPlanColorTable(
+                orderedKinds: [],
+                sharesKindColors: false,
+                colorScheme: .diskHog
+            ),
+            showsFreeSpace: true,
+            showsOtherSpace: true,
             freeSpaceItem: freeSpace,
             otherSpaceItem: otherSpace
         )
 
-        #expect(dataSource.numberOfChildren(of: root) == 3)
-        #expect(dataSource.child(1, of: root).itemType == .otherSpace)
-        #expect(dataSource.child(2, of: root).itemType == .freeSpace)
-        #expect(dataSource.weight(of: root) == 100)
+        // Root weight (100 total: 40 file + 50 free + 10 other) is fully allocated
+        // across its three children's areas on a 100x100 (10,000-area) bounds - free
+        // and other space are included in the root's weight, not just appended as
+        // zero-area decoration.
+        // `file` is looked up via root's own copy (nesting it into `children:` at
+        // construction copies it into root's packed snapshot under a new identity),
+        // matching the pattern used elsewhere in this file for the same reason.
+        let fileEntry: TreemapLayoutEntry = try #require(plan.entry(for: root.children[0]))
+        let freeSpaceEntry: TreemapLayoutEntry = try #require(plan.entry(for: freeSpace))
+        let otherSpaceEntry: TreemapLayoutEntry = try #require(plan.entry(for: otherSpace))
+        #expect(fileEntry.rect.area == 4_000)
+        #expect(freeSpaceEntry.rect.area == 5_000)
+        #expect(otherSpaceEntry.rect.area == 1_000)
     }
 
     private func colorComponents(_ color: NSColor) -> [CGFloat] {
@@ -4019,288 +3975,7 @@ private final class TreemapProgressRecorder: @unchecked Sendable {
 }
 
 @MainActor
-struct TreemapViewRendererTests {
-
-    @Test func selectingPackageDescendantFailsWithoutCrashingWhenPackageIsTreemapLeaf() {
-        let packageFile: DiskItem = DiskItem(
-            url: URL(fileURLWithPath: "/scan/App.app/Contents/file.txt"),
-            allocatedSizeValue: 10,
-            logicalSizeValue: 10,
-            isRoot: false
-        )
-        let package: DiskItem = DiskItem(
-            url: URL(fileURLWithPath: "/scan/App.app"),
-            isDirectory: true,
-            isPackage: true,
-            children: [packageFile],
-            isRoot: false
-        )
-        let sibling: DiskItem = DiskItem(
-            url: URL(fileURLWithPath: "/scan/sibling.txt"),
-            allocatedSizeValue: 10,
-            logicalSizeValue: 10,
-            isRoot: false
-        )
-        let root: DiskItem = DiskItem(
-            url: URL(fileURLWithPath: "/scan"),
-            isDirectory: true,
-            children: [package, sibling]
-        )
-        let renderer: TreemapViewRenderer = TreemapViewRenderer(
-            dataSource: TreemapDiskItemDataSource(rootItem: root)
-        )
-
-        renderer.reloadData()
-
-        #expect(renderer.selectItem(byRenderedItem: root.child(at: 0).child(at: 0)) == false)
-    }
-
-    @Test func zeroWeightChildBeforeSizedSiblingProducesFiniteLayout() {
-        let rootBuilder: DiskItemBuilder = DiskItemBuilder(
-            url: URL(fileURLWithPath: "/scan"),
-            isDirectory: true
-        )
-        let zeroWeightChild: DiskItemBuilder = DiskItemBuilder(
-            url: URL(fileURLWithPath: "/scan/empty"),
-            allocatedSizeValue: 0,
-            logicalSizeValue: 0,
-            kindName: "Empty"
-        )
-        let sizedChild: DiskItemBuilder = DiskItemBuilder(
-            url: URL(fileURLWithPath: "/scan/file.bin"),
-            allocatedSizeValue: 100,
-            logicalSizeValue: 100,
-            kindName: "Binary"
-        )
-        rootBuilder.appendChild(zeroWeightChild)
-        rootBuilder.appendChild(sizedChild)
-        let root: DiskItem = rootBuilder.freeze()
-        let sizedChildIndex: Int = root.children.firstIndex { $0.path == "/scan/file.bin" }!
-        let dataSource: TreemapDiskItemDataSource = TreemapDiskItemDataSource(rootItem: root)
-        let renderer: TreemapViewRenderer = TreemapViewRenderer(
-            dataSource: dataSource
-        )
-
-        renderer.reloadData()
-        renderer.calcLayout(NSRect(x: 0, y: 0, width: 100, height: 100))
-
-        let rect: NSRect = renderer.itemRect(by: renderer.rootCellID?.child(at: sizedChildIndex))
-        #expect(rect.width.isFinite)
-        #expect(rect.height.isFinite)
-        #expect(rect.width > 0)
-        #expect(rect.height > 0)
-    }
-
-    @Test func renderedItemSelectionWorksImmediatelyAfterReload() {
-        let rootBuilder: DiskItemBuilder = DiskItemBuilder(
-            url: URL(fileURLWithPath: "/scan"),
-            isDirectory: true
-        )
-        let childBuilder: DiskItemBuilder = DiskItemBuilder(
-            url: URL(fileURLWithPath: "/scan/file.txt"),
-            allocatedSizeValue: 4096,
-            logicalSizeValue: 12,
-            kindName: "Plain Text"
-        )
-        rootBuilder.appendChild(childBuilder)
-        let root: DiskItem = rootBuilder.freeze()
-        let child: DiskItem = root.child(at: 0)
-
-        let dataSource: TreemapDiskItemDataSource = TreemapDiskItemDataSource(rootItem: root)
-        let renderer: TreemapViewRenderer = TreemapViewRenderer(dataSource: dataSource)
-
-        renderer.reloadData()
-
-        #expect(renderer.selectItem(byRenderedItem: child) == true)
-        #expect(renderer.selectedItem == child)
-    }
-
-    @Test func rendererReloadDoesNotMaterializeFullTree() {
-        let rootBuilder: DiskItemBuilder = DiskItemBuilder(
-            url: URL(fileURLWithPath: "/scan"),
-            isDirectory: true
-        )
-        let selectedFolder: DiskItemBuilder = DiskItemBuilder(
-            url: URL(fileURLWithPath: "/scan/selected"),
-            isDirectory: true
-        )
-        let selectedFile: DiskItemBuilder = DiskItemBuilder(
-            url: URL(fileURLWithPath: "/scan/selected/file.txt"),
-            allocatedSizeValue: 100,
-            logicalSizeValue: 100
-        )
-        let siblingFolder: DiskItemBuilder = DiskItemBuilder(
-            url: URL(fileURLWithPath: "/scan/sibling"),
-            isDirectory: true
-        )
-        let siblingFile: DiskItemBuilder = DiskItemBuilder(
-            url: URL(fileURLWithPath: "/scan/sibling/file.txt"),
-            allocatedSizeValue: 100,
-            logicalSizeValue: 100
-        )
-        selectedFolder.appendChild(selectedFile)
-        siblingFolder.appendChild(siblingFile)
-        rootBuilder.appendChild(selectedFolder)
-        rootBuilder.appendChild(siblingFolder)
-        let root: DiskItem = rootBuilder.freeze()
-        let frozenSelectedFile: DiskItem = root.child(at: 0).child(at: 0)
-
-        let dataSource: TreemapDiskItemDataSource = TreemapDiskItemDataSource(rootItem: root)
-        let renderer: TreemapViewRenderer = TreemapViewRenderer(dataSource: dataSource)
-
-        renderer.reloadData()
-
-        #expect(renderer.materializedRendererCount == 1)
-        #expect(renderer.selectItem(byRenderedItem: frozenSelectedFile) == true)
-        #expect(renderer.selectedItem == frozenSelectedFile)
-        #expect(renderer.materializedRendererCount == 4)
-    }
-
-    @Test func rendererDirectionalIndexIsReadyAfterLayoutForLargeSiblingGroups() {
-        let rootBuilder: DiskItemBuilder = DiskItemBuilder(
-            url: URL(fileURLWithPath: "/scan"),
-            isDirectory: true
-        )
-        for index: Int in 0..<300 {
-            rootBuilder.appendChild(DiskItemBuilder(
-                url: URL(fileURLWithPath: "/scan/file-\(index)"),
-                allocatedSizeValue: 1,
-                logicalSizeValue: 1
-            ), updateSize: false)
-        }
-        rootBuilder.recalculateSize(usePhysicalSize: true)
-        let root: DiskItem = rootBuilder.freeze()
-        let dataSource: TreemapDiskItemDataSource = TreemapDiskItemDataSource(rootItem: root)
-        let renderer: TreemapViewRenderer = TreemapViewRenderer(dataSource: dataSource)
-
-        renderer.reloadData()
-        renderer.calcLayout(NSRect(x: 0, y: 0, width: 600, height: 400))
-        #expect(renderer.selectItem(byRenderedItem: root.children[0]) == true)
-
-        #expect(renderer.selectNeighbor(in: .right) != nil)
-    }
-
-    @Test func layoutDiagnosticsAccumulateDisplayPathDuringTraversal() {
-        let rootBuilder: DiskItemBuilder = DiskItemBuilder(
-            url: URL(fileURLWithPath: "/scan"),
-            isDirectory: true
-        )
-        let folderBuilder: DiskItemBuilder = DiskItemBuilder(
-            url: URL(fileURLWithPath: "/scan/folder"),
-            isDirectory: true
-        )
-        let fileBuilder: DiskItemBuilder = DiskItemBuilder(
-            url: URL(fileURLWithPath: "/scan/folder/file.txt"),
-            allocatedSizeValue: 100,
-            logicalSizeValue: 100
-        )
-        folderBuilder.appendChild(fileBuilder)
-        rootBuilder.appendChild(folderBuilder)
-        rootBuilder.recalculateSize(usePhysicalSize: true)
-        let root: DiskItem = rootBuilder.freeze()
-
-        let dataSource: TreemapDiskItemDataSource = TreemapDiskItemDataSource(rootItem: root)
-        let renderer: TreemapViewRenderer = TreemapViewRenderer(dataSource: dataSource)
-
-        renderer.reloadData()
-        renderer.calcLayout(NSRect(x: 0, y: 0, width: 100, height: 100))
-
-        let displayPaths: [String] = renderer.layoutDiagnosticsRows().compactMap { row in
-            row["displayPath"] as? String
-        }
-        #expect(displayPaths == ["scan", "scan/folder", "scan/folder/file.txt"])
-    }
-
-    @Test func squarifiedLayoutArrangesRowsByDescendingWeight() {
-        let rootBuilder: DiskItemBuilder = DiskItemBuilder(
-            url: URL(fileURLWithPath: "/scan"),
-            isDirectory: true
-        )
-        let large: DiskItemBuilder = DiskItemBuilder(
-            url: URL(fileURLWithPath: "/scan/large.bin"),
-            allocatedSizeValue: 600,
-            logicalSizeValue: 600
-        )
-        let medium: DiskItemBuilder = DiskItemBuilder(
-            url: URL(fileURLWithPath: "/scan/medium.bin"),
-            allocatedSizeValue: 300,
-            logicalSizeValue: 300
-        )
-        let small: DiskItemBuilder = DiskItemBuilder(
-            url: URL(fileURLWithPath: "/scan/small.bin"),
-            allocatedSizeValue: 100,
-            logicalSizeValue: 100
-        )
-        rootBuilder.appendChild(large, updateSize: false)
-        rootBuilder.appendChild(medium, updateSize: false)
-        rootBuilder.appendChild(small, updateSize: false)
-        rootBuilder.recalculateSize(usePhysicalSize: true)
-        let root: DiskItem = rootBuilder.freeze()
-        let frozenLarge: DiskItem = root.child(at: 0)
-        let frozenMedium: DiskItem = root.child(at: 1)
-        let frozenSmall: DiskItem = root.child(at: 2)
-
-        let dataSource: TreemapDiskItemDataSource = TreemapDiskItemDataSource(rootItem: root)
-        let renderer: TreemapViewRenderer = TreemapViewRenderer(dataSource: dataSource)
-
-        renderer.reloadData()
-        renderer.calcLayout(NSRect(x: 0, y: 0, width: 100, height: 100))
-
-        #expect(renderer.itemRect(byPathToItem: [root, frozenLarge]) == NSRect(x: 0, y: 0, width: 100, height: 60))
-        #expect(renderer.itemRect(byPathToItem: [root, frozenMedium]) == NSRect(x: 0, y: 60, width: 75, height: 40))
-        #expect(renderer.itemRect(byPathToItem: [root, frozenSmall]) == NSRect(x: 75, y: 60, width: 25, height: 40))
-    }
-
-    @Test func wideFlatDirectoryLayoutReconcilesChildrenOnce() {
-        let rootBuilder: DiskItemBuilder = DiskItemBuilder(
-            url: URL(fileURLWithPath: "/scan"),
-            isDirectory: true
-        )
-        for index: Int in 0..<2_000 {
-            let child: DiskItemBuilder = DiskItemBuilder(
-                url: URL(fileURLWithPath: "/scan/file-\(index).bin"),
-                allocatedSizeValue: 1,
-                logicalSizeValue: 1
-            )
-            rootBuilder.appendChild(child, updateSize: false)
-        }
-        rootBuilder.recalculateSize(usePhysicalSize: true)
-        let root: DiskItem = rootBuilder.freeze()
-
-        let dataSource: TreemapDiskItemDataSource = TreemapDiskItemDataSource(rootItem: root)
-        let renderer: TreemapViewRenderer = TreemapViewRenderer(dataSource: dataSource)
-
-        renderer.reloadData()
-        renderer.calcLayout(NSRect(x: 0, y: 0, width: 1_000, height: 1_000))
-
-        #expect(renderer.materializedRendererCount == 2_001)
-        #expect(renderer.childRendererReconciliationCount == 1)
-    }
-
-    @Test func emptyFolderCanBeMappedToItsTreemapRectWhenItHasArea() {
-        let rootBuilder: DiskItemBuilder = DiskItemBuilder(
-            url: URL(fileURLWithPath: "/scan"),
-            isDirectory: true
-        )
-        let emptyFolderBuilder: DiskItemBuilder = DiskItemBuilder(
-            url: URL(fileURLWithPath: "/scan/empty"),
-            isDirectory: true
-        )
-        rootBuilder.appendChild(emptyFolderBuilder)
-        let root: DiskItem = rootBuilder.freeze()
-        let emptyFolder: DiskItem = root.child(at: 0)
-
-        let dataSource: TreemapDiskItemDataSource = TreemapDiskItemDataSource(rootItem: root)
-        let renderer: TreemapViewRenderer = TreemapViewRenderer(dataSource: dataSource)
-        let bounds: NSRect = NSRect(x: 0, y: 0, width: 200, height: 100)
-
-        renderer.reloadData()
-        renderer.calcLayout(bounds)
-
-        #expect(renderer.selectItem(byRenderedItem: emptyFolder) == true)
-        #expect(renderer.itemRect(by: renderer.selectedCellID) == bounds)
-        #expect(renderer.item(by: renderer.cellID(by: NSPoint(x: 100, y: 50), inViewCoordinates: false)!) == emptyFolder)
-    }
+struct TreemapSelectionRectTests {
 
     @Test func wholeTreemapSelectionRectMatchesTheSelectedItem() {
         let visibleRect: NSRect = TreemapSelectionRect.visibleRect(
@@ -4365,9 +4040,9 @@ struct TreemapViewStateTests {
         )
         state.prepareLayout(in: NSRect(x: 0, y: 0, width: 536, height: 368))
 
-        let renderer: TreemapViewRenderer = try #require(state.renderer)
-        #expect(renderer.selectedItem?.path == "/scan/folder/file.txt")
-        #expect(renderer.itemRect(by: renderer.selectedCellID).isEmpty == false)
+        let entry: TreemapLayoutEntry = try #require(state.selectedEntry())
+        #expect(entry.item.path == "/scan/folder/file.txt")
+        #expect(entry.rect.isEmpty == false)
     }
 
     @Test func selectionOutsideTheZoomedTreemapClearsTheRenderedSelection() throws {
@@ -4400,9 +4075,7 @@ struct TreemapViewStateTests {
         )
         state.prepareLayout(in: NSRect(x: 0, y: 0, width: 536, height: 368))
 
-        let renderer: TreemapViewRenderer = try #require(state.renderer)
-        #expect(renderer.selectedItem == nil)
-        #expect(renderer.selectedCellID == nil)
+        #expect(state.selectedEntry() == nil)
     }
 
     @Test func oppositeArrowMovesBacktrackAcrossMultipleSteps() throws {
@@ -4432,7 +4105,11 @@ struct TreemapViewStateTests {
             otherSpaceItem: nil,
             selectedItem: originalItem
         )
-        state.prepareLayout(in: NSRect(x: 0, y: 0, width: 100, height: 100))
+        // A wide, short bounds strongly favors a single horizontal row regardless of the
+        // exact weight split (splitting into multiple rows would only worsen the aspect
+        // ratio), so all three siblings land side by side left-to-right - the layout this
+        // test needs to exercise two genuine, unambiguous rightward hops.
+        state.prepareLayout(in: NSRect(x: 0, y: 0, width: 300, height: 60))
 
         let firstForwardItem: DiskItem = try #require(state.selectNeighbor(in: .right))
         let secondForwardItem: DiskItem = try #require(state.selectNeighbor(in: .right))

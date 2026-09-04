@@ -128,6 +128,13 @@ nonisolated struct TreemapLayoutPlan: Sendable {
         return chain.reversed()
     }
 
+    /// `entry(for:)`, degrading to the nearest rendered ancestor when `item`
+    /// itself isn't indexed - e.g. a folder's child-count cap can leave items
+    /// past the cap with no entry of their own at all.
+    func entryOrNearestAncestor(for item: DiskItem) -> TreemapLayoutEntry? {
+        entry(for: item) ?? deepestRenderedAncestorEntry(containingPath: item.path)
+    }
+
     func deepestRenderedAncestorEntry(containingPath path: String) -> TreemapLayoutEntry? {
         var candidatePath: String = path
         while candidatePath.isEmpty == false {
@@ -154,7 +161,8 @@ nonisolated struct TreemapLayoutPlan: Sendable {
     }
 
     func nearestEntry(from item: DiskItem, direction: TreemapNavigationDirection) -> TreemapLayoutEntry? {
-        guard let selectedIndex: Int = entryIndexByItem[item] else {
+        guard let anchorEntry: TreemapLayoutEntry = entryOrNearestAncestor(for: item),
+              let selectedIndex: Int = entryIndexByItem[anchorEntry.item] else {
             return nil
         }
         let selectedEntry: TreemapLayoutEntry = entries[selectedIndex]

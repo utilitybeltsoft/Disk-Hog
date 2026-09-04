@@ -20,20 +20,6 @@ enum TreemapViewPainter {
         )
     }
 
-    static func drawSelection(renderer: TreemapViewRenderer?, in bounds: NSRect, backingScaleFactor: CGFloat) {
-        guard let selectedCellID: TreemapItemRenderer = renderer?.selectedCellID else {
-            return
-        }
-
-        let selectedRect: NSRect = renderer?.itemRect(by: selectedCellID) ?? .zero
-        drawSelection(
-            selectedRect: selectedRect,
-            unroundedRect: renderer?.selectedItemUnroundedRect() ?? .zero,
-            in: bounds,
-            backingScaleFactor: backingScaleFactor
-        )
-    }
-
     static func drawSelection(
         entry: TreemapLayoutEntry?,
         parentEntry: TreemapLayoutEntry? = nil,
