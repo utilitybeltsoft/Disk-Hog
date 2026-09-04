@@ -58,26 +58,27 @@ enum InspectorWindowTab: String, CaseIterable, Identifiable {
     }
 
     var layout: InspectorWindowLayout {
-        switch self {
+        let tabBarWidth: CGFloat = InspectorWindowLayout.minimumTabBarWidth
+        return switch self {
         case .information:
             InspectorWindowLayout(
                 preferredContentSize: NSSize(width: 720, height: 720),
-                minimumContentSize: NSSize(width: 480, height: 360)
+                minimumContentSize: NSSize(width: tabBarWidth, height: 360)
             )
         case .diskUsage:
             InspectorWindowLayout(
-                preferredContentSize: NSSize(width: 460, height: 420),
-                minimumContentSize: NSSize(width: 400, height: 400)
+                preferredContentSize: NSSize(width: tabBarWidth, height: 420),
+                minimumContentSize: NSSize(width: tabBarWidth, height: 400)
             )
         case .selectionList:
             InspectorWindowLayout(
                 preferredContentSize: NSSize(width: 720, height: 440),
-                minimumContentSize: NSSize(width: 520, height: 320)
+                minimumContentSize: NSSize(width: tabBarWidth, height: 320)
             )
         case .cleanupQueue:
             InspectorWindowLayout(
                 preferredContentSize: NSSize(width: 780, height: 520),
-                minimumContentSize: NSSize(width: 600, height: 380)
+                minimumContentSize: NSSize(width: max(600, tabBarWidth), height: 380)
             )
         }
     }
@@ -87,9 +88,15 @@ struct InspectorWindowLayout {
     let preferredContentSize: NSSize
     let minimumContentSize: NSSize
 
+    /// Every tab shares the same tab-switcher row at the top of the Inspector
+    /// window (Information / Disk Usage / Selection List / Cleanup Queue), so
+    /// no tab's width may go narrower than what that row needs to show all
+    /// four labels without truncating them.
+    static let minimumTabBarWidth: CGFloat = 560
+
     static let compactDiskUsage: InspectorWindowLayout = InspectorWindowLayout(
-        preferredContentSize: NSSize(width: 460, height: 350),
-        minimumContentSize: NSSize(width: 400, height: 340)
+        preferredContentSize: NSSize(width: minimumTabBarWidth, height: 350),
+        minimumContentSize: NSSize(width: minimumTabBarWidth, height: 340)
     )
 }
 

@@ -12,6 +12,7 @@ struct InspectorWindowView: View {
                         controller.selectedTab = tab
                     } label: {
                         Label(tab.title, systemImage: tab.systemImage)
+                            .fixedSize()
                     }
                     .buttonStyle(
                         InspectorTabButtonStyle(isSelected: controller.selectedTab == tab)
