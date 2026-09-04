@@ -13,10 +13,6 @@ enum SourceFolderChooser {
     }()
     private static var activePanel: NSOpenPanel?
 
-    static func prepare() {
-        _ = preparedPanel
-    }
-
     static func chooseSource(completion: @escaping @MainActor (ScanSource?) -> Void) {
         guard activePanel == nil else {
             activePanel?.makeKeyAndOrderFront(nil)

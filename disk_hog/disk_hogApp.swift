@@ -31,10 +31,6 @@ final class DiskHogApplicationDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         SourceWindowController.shared.show()
-        // Cold NSOpenPanel creation can block its ViewBridge service inside a click.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-            SourceFolderChooser.prepare()
-        }
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
