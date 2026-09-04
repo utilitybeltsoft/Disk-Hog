@@ -69,15 +69,27 @@ private struct SourceTableHeaderView: View {
     }
 }
 
+@MainActor
 private struct SourceTableRowView: View {
     let source: ScanSource
     let isAlternateRow: Bool
     let isSelected: Bool
 
+    @State private var icon: NSImage
+
+    init(source: ScanSource, isAlternateRow: Bool, isSelected: Bool) {
+        self.source = source
+        self.isAlternateRow = isAlternateRow
+        self.isSelected = isSelected
+        _icon = State(initialValue: SourceVolumeMetadata.resizedIcon(
+            DiskItemIconCache.shared.cachedIcon(forFile: source.path)
+        ))
+    }
+
     var body: some View {
         SourceTableColumns {
             HStack(spacing: Metrics.sourceRowSpacing) {
-                Image(nsImage: metadata.icon)
+                Image(nsImage: icon)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .frame(width: Metrics.sourceIconWidth)
@@ -118,6 +130,11 @@ private struct SourceTableRowView: View {
         .padding(.horizontal, Metrics.tableHorizontalPadding)
         .background(rowBackground)
         .help(source.canScan ? "" : metadata.accessHelp)
+        .task(id: source.path) {
+            icon = SourceVolumeMetadata.resizedIcon(
+                await DiskItemIconCache.shared.loadIconAsync(forFile: source.path)
+            )
+        }
     }
 
     private var metadata: SourceVolumeMetadata {
@@ -192,15 +209,17 @@ private struct SourceVolumeMetadata {
         "Enable Disk Hog in System Settings > Privacy & Security > Full Disk Access, then relaunch Disk Hog."
     }
 
-    var icon: NSImage {
-        // This is a computed property, re-evaluated on every SwiftUI body pass for this row -
-        // including on selection state changes, which is why merely selecting a row could stall
-        // on NSWorkspace.icon(forFile:) for a slow volume (a spun-down external drive, a network
-        // share). DiskItemIconCache.shared caches the fetch, but its cached instance is shared
-        // with other consumers (the outline, the selection list) that expect a different fixed
-        // size, so resize a copy rather than mutating the shared image in place.
-        let cachedIcon: NSImage = DiskItemIconCache.shared.icon(forFile: source.path)
-        let icon: NSImage = (cachedIcon.copy() as? NSImage) ?? cachedIcon
+    /// The icon cache's instance is shared with other consumers (the outline, the
+    /// selection list) that expect a different fixed size, so this resizes a copy
+    /// rather than mutating the shared image in place. `image` is nil on a genuine
+    /// cache miss (no synchronous fetch attempted, to avoid blocking the caller on
+    /// a slow volume - a spun-down external drive, a network share), in which case
+    /// this falls back to a generic placeholder pending the real icon.
+    static func resizedIcon(_ image: NSImage?) -> NSImage {
+        let base: NSImage = image
+            ?? NSImage(systemSymbolName: "externaldrive", accessibilityDescription: nil)
+            ?? NSImage()
+        let icon: NSImage = (base.copy() as? NSImage) ?? base
         icon.size = NSSize(width: Metrics.sourceIconWidth, height: Metrics.sourceIconWidth)
         return icon
     }

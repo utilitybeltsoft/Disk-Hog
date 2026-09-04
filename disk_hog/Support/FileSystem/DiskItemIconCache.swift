@@ -34,6 +34,32 @@ final class DiskItemIconCache {
         return icon
     }
 
+    /// Non-blocking cache peek: nil on a miss rather than falling back to a
+    /// synchronous fetch. Callers that can't afford to block the main thread
+    /// on a cold path (a spun-down external drive, a network share) should
+    /// use this for an immediate result and `loadIconAsync` to fill it in.
+    func cachedIcon(forFile path: String) -> NSImage? {
+        cache.object(forKey: path as NSString)
+    }
+
+    /// Like `icon(forFile:)`, but the underlying fetch runs off the main
+    /// thread on a cache miss instead of blocking the caller.
+    func loadIconAsync(forFile path: String) async -> NSImage {
+        if let cachedIcon: NSImage = cachedIcon(forFile: path) {
+            return cachedIcon
+        }
+
+        let loadIcon: IconLoader = loadIcon
+        let icon: NSImage = await Task.detached(priority: .userInitiated) {
+            loadIcon(path)
+        }.value
+        let key: NSString = path as NSString
+        if cache.object(forKey: key) == nil {
+            cache.setObject(icon, forKey: key)
+        }
+        return icon
+    }
+
     /// Warms the cache for paths not yet loaded, off the main thread. Volume root icons in
     /// particular can be slow to resolve (spun-down external drives, network shares), and callers
     /// that fetch icons synchronously on first use (matching the rest of this app's convention)
