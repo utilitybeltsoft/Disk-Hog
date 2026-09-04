@@ -230,7 +230,7 @@ final class TreemapViewState {
     var isShowingStaleRoot: Bool {
         guard let rootItem else { return false }
         guard let completedRenderRequest else { return true }
-        return completedRenderRequest.rootItem !== rootItem
+        return completedRenderRequest.rootItem != rootItem
     }
 
     func selectedEntry() -> TreemapLayoutEntry? {
