@@ -1,0 +1,18 @@
+# Xcode
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xcscmblueprint
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# Code coverage / profiling artifacts
+*.profraw
+*.profdata
+*.xcresult
+
+# macOS
+.DS_Store
