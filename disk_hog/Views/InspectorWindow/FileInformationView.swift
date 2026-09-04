@@ -86,17 +86,30 @@ struct VolumeInformationView: View {
     }
 }
 
+@MainActor
 private struct FileInformationContent: View {
     let item: DiskItem
     let kindDescription: String
     let snapshot: FileInformationSnapshot?
     let isLoading: Bool
 
+    @State private var icon: NSImage
+
+    init(item: DiskItem, kindDescription: String, snapshot: FileInformationSnapshot?, isLoading: Bool) {
+        self.item = item
+        self.kindDescription = kindDescription
+        self.snapshot = snapshot
+        self.isLoading = isLoading
+        _icon = State(initialValue: FileInformationContent.resizedIcon(
+            DiskItemIconCache.shared.cachedIcon(forFile: item.path)
+        ))
+    }
+
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 9) {
                 HStack(spacing: 8) {
-                    Image(nsImage: DiskItemIconCache.shared.icon(forFile: item.path))
+                    Image(nsImage: icon)
                         .resizable()
                         .interpolation(.high)
                         .frame(width: 32, height: 32)
@@ -143,6 +156,20 @@ private struct FileInformationContent: View {
                 kindDescription: kindDescription
             )
         }
+        .task(id: item.path) {
+            icon = FileInformationContent.resizedIcon(
+                await DiskItemIconCache.shared.loadIconAsync(forFile: item.path)
+            )
+        }
+    }
+
+    private static func resizedIcon(_ image: NSImage?) -> NSImage {
+        let base: NSImage = image
+            ?? NSImage(systemSymbolName: "doc", accessibilityDescription: nil)
+            ?? NSImage()
+        let icon: NSImage = (base.copy() as? NSImage) ?? base
+        icon.size = NSSize(width: 32, height: 32)
+        return icon
     }
 
     private func informationSection(_ section: FileInformationSection) -> some View {
