@@ -25,6 +25,12 @@ final class SourceWindowViewModel: ObservableObject {
     typealias SourceLoader = @Sendable () async -> [ScanSource]
 
     @Published private(set) var sources: [ScanSource]
+    /// True once a refresh has been running longer than `loadingIndicatorDelay` - not
+    /// simply "a refresh is in flight" - so a fast (typically local-only) load never
+    /// flashes a placeholder that would just flicker by and vanish. Only meaningful
+    /// alongside an empty `sources`; a refresh of an already-populated list keeps
+    /// showing the previous results and never sets this.
+    @Published private(set) var isLoading: Bool = false
     @Published var selectedSourceID: ScanSource.ID? {
         didSet {
             guard selectedSourceID != oldValue else {
@@ -37,6 +43,10 @@ final class SourceWindowViewModel: ObservableObject {
     private let sourceLoader: SourceLoader
     private var refreshGeneration: Int = 0
     private var refreshTask: Task<Void, Never>?
+
+    /// How long a refresh must run before `isLoading` shows a placeholder - long enough
+    /// that an ordinary local-only load never shows it at all.
+    private static let loadingIndicatorDelay: Duration = .milliseconds(350)
 
     nonisolated static func defaultSourceLoader() async -> [ScanSource] {
         await Task.detached(priority: .utility) {
@@ -124,6 +134,7 @@ final class SourceWindowViewModel: ObservableObject {
     func refresh() -> Task<Void, Never> {
         refreshGeneration += 1
         let generation: Int = refreshGeneration
+        isLoading = false
         let sourceLoader: SourceLoader = sourceLoader
         let task: Task<Void, Never> = Task { [weak self] in
             let loadedSources: [ScanSource] = await sourceLoader()
@@ -134,6 +145,14 @@ final class SourceWindowViewModel: ObservableObject {
         }
         refreshTask?.cancel()
         refreshTask = task
+
+        Task { [weak self] in
+            try? await Task.sleep(for: Self.loadingIndicatorDelay)
+            guard !Task.isCancelled, let self, self.refreshGeneration == generation else {
+                return
+            }
+            self.isLoading = true
+        }
         return task
     }
 
@@ -142,6 +161,7 @@ final class SourceWindowViewModel: ObservableObject {
             return
         }
         sources = loadedSources
+        isLoading = false
         reconcileSelection()
         // Warm the icon cache off the main thread so selecting a volume - which fetches its icon
         // synchronously, matching this app's convention elsewhere - doesn't stall on a slow lookup

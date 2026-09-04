@@ -4,6 +4,7 @@ import SwiftUI
 struct SourceTableView: View {
     let sources: [ScanSource]
     let selectedSourceID: ScanSource.ID?
+    let isLoading: Bool
     let onSelect: (ScanSource.ID?) -> Void
     let onOpen: (ScanSource) -> Void
 
@@ -18,23 +19,34 @@ struct SourceTableView: View {
                     }
                     .frame(maxWidth: .infinity, minHeight: Metrics.volumeListHeight)
 
-                    LazyVStack(spacing: 0) {
-                        ForEach(Array(sources.enumerated()), id: \.element.id) { index, source in
-                            SourceTableRowView(
-                                source: source,
-                                isAlternateRow: index.isMultiple(of: 2) == false,
-                                isSelected: selectedSourceID == source.id
-                            )
-                            .contentShape(Rectangle())
-                            .overlay {
-                                SourceRowClickCatcherView(
-                                    onSingleClick: { onSelect(source.id) },
-                                    onDoubleClick: {
-                                        if source.canScan {
-                                            onOpen(source)
-                                        }
-                                    }
+                    if isLoading && sources.isEmpty {
+                        VStack(spacing: 8) {
+                            ProgressView()
+                                .controlSize(.small)
+                            Text("Loading Volumes…")
+                                .font(.system(size: Metrics.standardFontSize))
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: Metrics.volumeListHeight, alignment: .center)
+                    } else {
+                        LazyVStack(spacing: 0) {
+                            ForEach(Array(sources.enumerated()), id: \.element.id) { index, source in
+                                SourceTableRowView(
+                                    source: source,
+                                    isAlternateRow: index.isMultiple(of: 2) == false,
+                                    isSelected: selectedSourceID == source.id
                                 )
+                                .contentShape(Rectangle())
+                                .overlay {
+                                    SourceRowClickCatcherView(
+                                        onSingleClick: { onSelect(source.id) },
+                                        onDoubleClick: {
+                                            if source.canScan {
+                                                onOpen(source)
+                                            }
+                                        }
+                                    )
+                                }
                             }
                         }
                     }

@@ -13,6 +13,7 @@ struct SourceWindowView: View {
             SourceTableView(
                 sources: viewModel.filteredSources,
                 selectedSourceID: viewModel.selectedSourceID,
+                isLoading: viewModel.isLoading,
                 onSelect: selectSource,
                 onOpen: openSource
             )
