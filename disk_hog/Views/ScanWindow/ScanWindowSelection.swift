@@ -10,7 +10,7 @@ final class ScanWindowSelectionCoordinator: ObservableObject {
     private(set) var lastKnownAncestorChain: [DiskItem] = []
 
     func setSelectedItem(_ item: DiskItem?, ancestorChain: [DiskItem] = []) {
-        guard selectedItem !== item else {
+        guard selectedItem != item else {
             return
         }
 

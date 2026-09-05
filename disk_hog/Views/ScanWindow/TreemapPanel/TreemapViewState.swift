@@ -108,12 +108,12 @@ final class TreemapViewState {
         self.source = source
         var needsDisplay: Bool = false
 
-        if self.rootItem !== rootItem
+        if self.rootItem != rootItem
             || self.presentationMetrics !== presentationMetrics
             || self.showsFreeSpace != showsFreeSpace
             || self.showsOtherSpace != showsOtherSpace
-            || self.freeSpaceItem !== freeSpaceItem
-            || self.otherSpaceItem !== otherSpaceItem {
+            || self.freeSpaceItem != freeSpaceItem
+            || self.otherSpaceItem != otherSpaceItem {
             self.rootItem = rootItem
             self.presentationMetrics = presentationMetrics
             self.showsFreeSpace = showsFreeSpace
@@ -125,7 +125,7 @@ final class TreemapViewState {
             needsDisplay = true
         }
 
-        if self.selectedItem !== selectedItem {
+        if self.selectedItem != selectedItem {
             directionalMoveHistory.removeAll(keepingCapacity: true)
             self.selectedItem = selectedItem
             needsDisplay = true
@@ -134,7 +134,7 @@ final class TreemapViewState {
     }
 
     func applySelectedItem(_ selectedItem: DiskItem?) -> Bool {
-        guard self.selectedItem !== selectedItem else {
+        guard self.selectedItem != selectedItem else {
             return false
         }
 

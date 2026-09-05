@@ -197,8 +197,6 @@ nonisolated final class DiskItem: Identifiable, Hashable, Sendable, DiskItemTree
         DiskItem(snapshot: snapshot, address: snapshot.child(of: address, at: index))
     }
 
-    func sameNode(as other: DiskItem) -> Bool { self == other }
-
     static func chunkedRoot(rootChunk: PackedDiskItemChunk, childChunks: [PackedDiskItemChunk]) -> DiskItem {
         let chunks: [PackedDiskItemChunk] = [rootChunk] + childChunks
         let rootAddress: PackedDiskItemAddress = PackedDiskItemAddress(chunkIndex: 0, recordIndex: 0)
@@ -285,6 +283,20 @@ nonisolated final class DiskItem: Identifiable, Hashable, Sendable, DiskItemTree
     static func == (lhs: DiskItem, rhs: DiskItem) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
+
+// DiskItem is a flyweight: `.children`/`.child(at:)` mint a fresh object for the same
+// logical node on every call, so two DiskItems can be == (same snapshot + address)
+// while being different object instances. `===`/`!==` compare object identity, not the
+// packed-tree identity `==` does - using them here has repeatedly been a real, if
+// currently-latent, bug (a stuck "Recalculating" badge from exactly this mistake).
+// These overloads shadow the stdlib's generic AnyObject `===`/`!==` for DiskItem
+// specifically and make using them here a compile error instead of a landmine, so
+// there's exactly one way to compare two DiskItems: `==`/`!=`.
+@available(*, deprecated, message: "DiskItem is a flyweight - use == instead of ===, which compares object identity rather than the packed-tree node it wraps.")
+func === (lhs: DiskItem?, rhs: DiskItem?) -> Bool { lhs == rhs }
+
+@available(*, deprecated, message: "DiskItem is a flyweight - use != instead of !==, which compares object identity rather than the packed-tree node it wraps.")
+func !== (lhs: DiskItem?, rhs: DiskItem?) -> Bool { lhs != rhs }
 
 nonisolated enum DiskItemType: Hashable, Sendable {
     case fileOrFolder

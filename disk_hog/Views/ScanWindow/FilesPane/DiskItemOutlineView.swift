@@ -140,7 +140,7 @@ struct DiskItemOutlineView: NSViewRepresentable {
         }
 
         func reloadIfNeeded(rootItem: DiskItem?) {
-            guard self.rootItem !== rootItem else {
+            guard self.rootItem != rootItem else {
                 return
             }
 

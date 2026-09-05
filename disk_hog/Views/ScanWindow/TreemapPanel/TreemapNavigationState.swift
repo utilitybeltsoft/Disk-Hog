@@ -10,7 +10,7 @@ final class TreemapNavigationState: ObservableObject {
     var canZoomOut: Bool { zoomPath.count > 1 }
 
     func configure(baseRoot: DiskItem?) {
-        guard self.baseRoot !== baseRoot else { return }
+        guard self.baseRoot != baseRoot else { return }
         self.baseRoot = baseRoot
         zoomPath = baseRoot.map { [$0] } ?? []
         selectionAfterZoom = nil

@@ -215,7 +215,7 @@ final class ScanSession: ObservableObject {
 
     func markTreemapRendered(for rootItem: DiskItem?) {
         guard isBuildingTreemap,
-              self.rootItem === rootItem else {
+              self.rootItem == rootItem else {
             return
         }
 

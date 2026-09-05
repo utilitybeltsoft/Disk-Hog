@@ -35,7 +35,7 @@ final class ZStyleTreemapNSView: NSView {
     ) {
         self.session = session
         contextMenuActionTarget.session = session
-        let rootChanged: Bool = state.rootItem !== rootItem
+        let rootChanged: Bool = state.rootItem != rootItem
         if state.configure(
             source: source,
             rootItem: rootItem,
