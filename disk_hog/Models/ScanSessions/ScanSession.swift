@@ -264,42 +264,14 @@ final class ScanSession: ObservableObject {
             return
         }
 
-        let operation: ScanSessionWorkOperation = beginTreeUpdate()
-        let source: ScanSource = source
-        let settings: DiskScanSettings = settings
-        let treeWorker: any ScanSessionTreeUpdating = treeWorker
-        let sessionReference: ScanSessionWeakReference = ScanSessionWeakReference(self)
-
-        _ = taskCoordinator.start(.treeUpdate, operationID: operation.id) { _ in Task.detached(priority: .userInitiated) { [sessionReference] in
-            do {
-                let result: ScanSessionTreeUpdateResult = try await treeWorker.refresh(
-                    item: item,
-                    currentRoot: currentRoot,
-                    source: source,
-                    settings: settings
-                )
-                await MainActor.run {
-                    sessionReference.value?.source = result.source
-                    sessionReference.value?.finishTreeUpdate(
-                        rootItem: result.rootItem,
-                        presentationMetrics: result.presentationMetrics,
-                        selectionPath: result.selectionPath,
-                        builtUsingPhysicalSize: result.builtUsingPhysicalSize,
-                        operation: operation
-                    )
-                }
-            } catch is CancellationError {
-                await MainActor.run { sessionReference.value?.finishTreeUpdateCancellation(for: operation) }
-            } catch {
-                await MainActor.run {
-                    sessionReference.value?.finishTreeUpdateFailure(
-                        error,
-                        operation: .refresh(itemName: item.displayName),
-                        workOperation: operation
-                    )
-                }
-            }
-        } }
+        performTreeUpdate(failureDescription: .refresh(itemName: item.displayName)) { treeWorker, source, settings in
+            try await treeWorker.refresh(
+                item: item,
+                currentRoot: currentRoot,
+                source: source,
+                settings: settings
+            )
+        }
     }
 
     func delete(_ item: DiskItem, using deletionMethod: DiskItemDeletionMethod) {
@@ -311,6 +283,29 @@ final class ScanSession: ObservableObject {
             return
         }
 
+        performTreeUpdate(failureDescription: .deletion(itemName: item.displayName, method: deletionMethod)) { treeWorker, source, settings in
+            try await treeWorker.delete(
+                item: item,
+                deletionMethod: deletionMethod,
+                currentRoot: currentRoot,
+                source: source,
+                settings: settings
+            )
+        }
+    }
+
+    /// Shared Task.detached/finish scaffolding for `refresh`/`delete`, which are
+    /// otherwise identical apart from which treeWorker method they call and which
+    /// operation describes a failure. Not shared with `startScan`, which has a
+    /// meaningfully different shape (more callbacks, a different success path).
+    private func performTreeUpdate(
+        failureDescription: ScanSessionOperation,
+        work: @escaping @Sendable (
+            _ treeWorker: any ScanSessionTreeUpdating,
+            _ source: ScanSource,
+            _ settings: DiskScanSettings
+        ) async throws -> ScanSessionTreeUpdateResult
+    ) {
         let operation: ScanSessionWorkOperation = beginTreeUpdate()
         let source: ScanSource = source
         let settings: DiskScanSettings = settings
@@ -319,13 +314,7 @@ final class ScanSession: ObservableObject {
 
         _ = taskCoordinator.start(.treeUpdate, operationID: operation.id) { _ in Task.detached(priority: .userInitiated) { [sessionReference] in
             do {
-                let result: ScanSessionTreeUpdateResult = try await treeWorker.delete(
-                    item: item,
-                    deletionMethod: deletionMethod,
-                    currentRoot: currentRoot,
-                    source: source,
-                    settings: settings
-                )
+                let result: ScanSessionTreeUpdateResult = try await work(treeWorker, source, settings)
                 await MainActor.run {
                     sessionReference.value?.source = result.source
                     sessionReference.value?.finishTreeUpdate(
@@ -342,10 +331,7 @@ final class ScanSession: ObservableObject {
                 await MainActor.run {
                     sessionReference.value?.finishTreeUpdateFailure(
                         error,
-                        operation: .deletion(
-                            itemName: item.displayName,
-                            method: deletionMethod
-                        ),
+                        operation: failureDescription,
                         workOperation: operation
                     )
                 }
@@ -465,8 +451,7 @@ final class ScanSession: ObservableObject {
         builtUsingPhysicalSize: Bool,
         operation: ScanSessionWorkOperation
     ) {
-        guard taskCoordinator.finish(.scan, operationID: operation.id),
-              rescanCoordinator.finish(operation) else {
+        guard finishWorkOperation(.scan, operation: operation) else {
             return
         }
         isBuildingTreemap = true
@@ -508,8 +493,7 @@ final class ScanSession: ObservableObject {
         builtUsingPhysicalSize: Bool,
         operation: ScanSessionWorkOperation
     ) {
-        guard taskCoordinator.finish(.treeUpdate, operationID: operation.id),
-              rescanCoordinator.finish(operation) else {
+        guard finishWorkOperation(.treeUpdate, operation: operation) else {
             return
         }
         let counts: (files: Int, folders: Int) = rootItem.scanCounts(includeSelf: false)
@@ -603,8 +587,7 @@ final class ScanSession: ObservableObject {
     }
 
     private func finishTreeUpdateCancellation(for operation: ScanSessionWorkOperation) {
-        guard taskCoordinator.finish(.treeUpdate, operationID: operation.id),
-              rescanCoordinator.finish(operation) else {
+        guard finishWorkOperation(.treeUpdate, operation: operation) else {
             return
         }
         isUpdatingTree = false
@@ -616,8 +599,7 @@ final class ScanSession: ObservableObject {
         operation: ScanSessionOperation,
         workOperation: ScanSessionWorkOperation
     ) {
-        guard taskCoordinator.finish(.treeUpdate, operationID: workOperation.id),
-              rescanCoordinator.finish(workOperation) else {
+        guard finishWorkOperation(.treeUpdate, operation: workOperation) else {
             return
         }
         isUpdatingTree = false
@@ -626,8 +608,7 @@ final class ScanSession: ObservableObject {
     }
 
     private func finishCancellation(for operation: ScanSessionWorkOperation) {
-        guard taskCoordinator.finish(.scan, operationID: operation.id),
-              rescanCoordinator.finish(operation) else {
+        guard finishWorkOperation(.scan, operation: operation) else {
             return
         }
         isBuildingTreemap = false
@@ -638,8 +619,7 @@ final class ScanSession: ObservableObject {
     }
 
     private func finishFailure(_ error: Error, for operation: ScanSessionWorkOperation) {
-        guard taskCoordinator.finish(.scan, operationID: operation.id),
-              rescanCoordinator.finish(operation) else {
+        guard finishWorkOperation(.scan, operation: operation) else {
             return
         }
         isBuildingTreemap = false
@@ -651,6 +631,24 @@ final class ScanSession: ObservableObject {
             operation: .scan(itemName: source.displayName)
         )
         startPendingRescanIfNeeded()
+    }
+
+    /// Both coordinators need clearing when a scan/tree-update task finishes, in
+    /// this exact order - if the task is stale (already superseded by a newer one
+    /// of the same kind), taskCoordinator.finish says so and rescanCoordinator is
+    /// deliberately left untouched, since it's now tracking whatever superseded
+    /// it. Collapsed into one call so a future finish path can't do only one half
+    /// and leave rescanCoordinator permanently stuck, tripping the precondition
+    /// in its next begin() call.
+    private func finishWorkOperation(
+        _ kind: ScanSessionTaskCoordinator.Kind,
+        operation: ScanSessionWorkOperation
+    ) -> Bool {
+        guard taskCoordinator.finish(kind, operationID: operation.id),
+              rescanCoordinator.finish(operation) else {
+            return false
+        }
+        return true
     }
 
     private func beginTreemapPreparation(for operation: ScanSessionWorkOperation) {
