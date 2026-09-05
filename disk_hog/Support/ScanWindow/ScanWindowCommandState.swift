@@ -29,20 +29,21 @@ final class ScanWindowCommandState: ObservableObject {
         guard let item: DiskItem = commandSelectedItem,
               item.isSpecialItem == false,
               let session: ScanSession = activeContext?.actionSession,
-              session.isUpdatingTree == false,
-              DiskItemDeletionPolicy.canDelete(item) else {
+              session.isUpdatingTree == false else {
             return false
         }
-        return CleanupQueueStore.shared.isDirectlyQueued(item)
-            || CleanupQueueStore.shared.contains(item) == false
+        return CleanupQueueMenuPresentation.isEnabled(
+            item: item,
+            isDirectlyQueued: CleanupQueueStore.shared.isDirectlyQueued(item),
+            isAlreadyQueued: CleanupQueueStore.shared.contains(item)
+        )
     }
 
     var selectedItemCleanupQueueCommandTitle: String {
-        guard let item: DiskItem = commandSelectedItem,
-              CleanupQueueStore.shared.isDirectlyQueued(item) else {
-            return String(localized: "Add to Cleanup Queue")
+        guard let item: DiskItem = commandSelectedItem else {
+            return CleanupQueueMenuPresentation.addTitle
         }
-        return String(localized: "Already Queued for Finder Trash: Undo")
+        return CleanupQueueMenuPresentation.title(isDirectlyQueued: CleanupQueueStore.shared.isDirectlyQueued(item))
     }
 
     func activate(_ context: ScanWindowCommandContext) {

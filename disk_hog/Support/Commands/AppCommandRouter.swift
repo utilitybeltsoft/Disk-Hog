@@ -41,13 +41,13 @@ final class AppCommandRouter: ObservableObject {
     var selectionListBatchQueueTitle: String {
         let targets: [SelectionListQueueTarget] = selectionListQueueTargets
         guard targets.isEmpty == false else {
-            return String(localized: "Add to Cleanup Queue")
+            return CleanupQueueMenuPresentation.addTitle
         }
         if targets.allSatisfy({ CleanupQueueStore.shared.isDirectlyQueued(at: $0.itemURL) }) {
-            return String(localized: "Already Queued for Finder Trash: Undo")
+            return CleanupQueueMenuPresentation.undoTitle
         }
         return targets.count == 1
-            ? String(localized: "Add to Cleanup Queue")
+            ? CleanupQueueMenuPresentation.addTitle
             : String(localized: "Add \(targets.count) Items to Cleanup Queue")
     }
 
