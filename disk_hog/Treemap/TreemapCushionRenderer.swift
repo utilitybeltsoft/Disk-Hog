@@ -2,7 +2,7 @@ import AppKit
 
 @MainActor
 final class TreemapCushionRenderer {
-    private nonisolated static let baseBrightness: CGFloat = 1.8
+    private nonisolated static let baseBrightness: CGFloat = CGFloat(TreemapCushionLighting.baseBrightness)
     private static let defaultCushionColor: NSColor = TreemapCushionRenderer.normalizeColor(NSColor(calibratedRed: 0, green: 0, blue: 0.9, alpha: 1))
 
     private(set) var rect: NSRect
@@ -68,15 +68,6 @@ final class TreemapCushionRenderer {
         let rect: NSRect = self.rect
         let surface: [CGFloat] = self.surface
         let baseColor: NSColor = self.color
-        let ambientLight: Double = 0.15
-        let lightX: Double = -1
-        let lightY: Double = -1
-        let lightZ: Double = 10
-        let brightnessLight: Double = 1 - ambientLight
-        let lightLength: Double = sqrt(lightX * lightX + lightY * lightY + lightZ * lightZ)
-        let normalizedLightX: Double = lightX / lightLength
-        let normalizedLightY: Double = lightY / lightLength
-        let normalizedLightZ: Double = lightZ / lightLength
         let baseRed: CGFloat = baseColor.redComponent
         let baseGreen: CGFloat = baseColor.greenComponent
         let baseBlue: CGFloat = baseColor.blueComponent
@@ -113,11 +104,7 @@ final class TreemapCushionRenderer {
             for x: Int in xStart..<xEnd {
                 let pointX: Double = (Double(x) + 0.5) / Double(backingScaleFactor)
                 let normalX: Double = -(2 * Double(surface[0]) * pointX + Double(surface[2]))
-                let cosine: Double = (normalX * normalizedLightX + normalY * normalizedLightY + normalizedLightZ) / sqrt(normalX * normalX + normalY * normalY + 1.0)
-                var brightness: Double = brightnessLight * cosine
-                brightness = brightness < 0 ? ambientLight : (brightness + ambientLight)
-                assert(brightness <= 1.0)
-                brightness *= 2.5 / Double(Self.baseBrightness)
+                let brightness: Double = TreemapCushionLighting.brightness(normalX: normalX, normalY: normalY)
                 var red: CGFloat = baseRed * CGFloat(brightness)
                 var green: CGFloat = baseGreen * CGFloat(brightness)
                 var blue: CGFloat = baseBlue * CGFloat(brightness)

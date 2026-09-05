@@ -82,10 +82,6 @@ nonisolated enum TreemapBitmapRasterizer {
         let yEnd: Int = max(yStart, min(pixelsHigh, Int(((snapshot.y + snapshot.height) * scale).rounded(.up))))
         guard xStart < xEnd, yStart < yEnd else { return true }
 
-        let ambient: Double = 0.15
-        let lightX: Double = -1 / sqrt(102)
-        let lightY: Double = -1 / sqrt(102)
-        let lightZ: Double = 10 / sqrt(102)
         for y: Int in yStart..<yEnd {
             if y.isMultiple(of: 64), isCancelled() {
                 return false
@@ -95,8 +91,7 @@ nonisolated enum TreemapBitmapRasterizer {
             for x: Int in xStart..<xEnd {
                 let pointX: Double = (Double(x) + 0.5) / scale
                 let normalX: Double = -(2 * snapshot.surface[0] * pointX + snapshot.surface[2])
-                let cosine: Double = (normalX * lightX + normalY * lightY + lightZ) / sqrt(normalX * normalX + normalY * normalY + 1)
-                let brightness: Double = max(ambient, (1 - ambient) * cosine + ambient) * (2.5 / 1.8)
+                let brightness: Double = TreemapCushionLighting.brightness(normalX: normalX, normalY: normalY)
                 let offset: Int = (y * pixelsWide + x) * 3
                 var red: Double = snapshot.red * brightness
                 var green: Double = snapshot.green * brightness
