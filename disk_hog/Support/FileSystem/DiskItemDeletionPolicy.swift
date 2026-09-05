@@ -7,6 +7,17 @@ nonisolated enum DiskItemDeletionMethod: Sendable {
 }
 
 nonisolated enum DiskItemDeletionPolicy {
+    /// Caches the resolved trash directory per volume. `FileManager.url(for:
+    /// .trashDirectory...)` is real filesystem work (slow on a spun-down external
+    /// drive or a network share), and `canDelete` runs on hot UI paths - every
+    /// right-click's context menu, every Commands menu validation on selection
+    /// change - so repeating it on every touch was exactly the class of main-thread
+    /// stall already fixed once this session for a cold NSOpenPanel. A volume's
+    /// trash directory doesn't move during a session, so once resolved for a given
+    /// volume it never needs resolving again. (NSCache is thread-safe, so this needs
+    /// no lock despite this type having no actor isolation of its own.)
+    private static let trashDirectoryCache: NSCache<NSString, NSURL> = NSCache()
+
     static func canDelete(
         _ item: DiskItem,
         trashDirectoryURL: URL? = nil
@@ -36,16 +47,27 @@ nonisolated enum DiskItemDeletionPolicy {
     }
 
     private static func trashDirectory(for itemURL: URL) -> URL? {
-        if let volumeTrashURL: URL = try? FileManager.default.url(
+        let cacheKey: NSString = volumeIdentifier(for: itemURL) as NSString
+        if let cached: NSURL = trashDirectoryCache.object(forKey: cacheKey) {
+            return cached as URL
+        }
+
+        let resolved: URL = (try? FileManager.default.url(
             for: .trashDirectory,
             in: .userDomainMask,
             appropriateFor: itemURL,
             create: false
-        ) {
-            return volumeTrashURL
-        }
+        )) ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".Trash")
+        trashDirectoryCache.setObject(resolved as NSURL, forKey: cacheKey)
+        return resolved
+    }
 
-        return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".Trash")
+    /// A cheap-enough-to-call-per-touch stand-in for "which volume is this on,"
+    /// used only to group cache entries - falls back to the item's own path (still
+    /// correct, just grouped per-item instead of per-volume) if the resource value
+    /// can't be read.
+    private static func volumeIdentifier(for itemURL: URL) -> String {
+        (try? itemURL.resourceValues(forKeys: [.volumeURLKey]))?.volume?.path ?? itemURL.path
     }
 
     private static func standardizedComponents(of url: URL) -> [String] {
