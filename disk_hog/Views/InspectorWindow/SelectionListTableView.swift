@@ -502,6 +502,8 @@ private final class SelectionListBatchActionTableView: DiskItemPasteboardTableVi
 private final class SelectionListNameCellView: NSTableCellView {
     private let iconView: NSImageView = NSImageView()
     private let label: NSTextField = NSTextField(labelWithString: "")
+    private var iconLoadTask: Task<Void, Never>?
+    private var currentIconPath: String?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -514,7 +516,22 @@ private final class SelectionListNameCellView: NSTableCellView {
     }
 
     func configure(row: SelectionListRow) {
-        iconView.image = DiskItemIconCache.shared.icon(for: row.item)
+        let path: String = row.item.path
+        currentIconPath = path
+        iconLoadTask?.cancel()
+        // This view is reused across rows during scroll, so a synchronous, cache-miss-
+        // blocking fetch here (a spun-down external drive, a network share) would stall
+        // scrolling itself - the most scroll-sensitive spot in the app for that bug.
+        // Seed from a non-blocking cache peek, then resolve the real icon asynchronously,
+        // reapplying it only if this cell hasn't since been recycled for a different row.
+        iconView.image = DiskItemIconCache.shared.cachedIcon(forFile: path)
+        iconLoadTask = Task { @MainActor [weak self] in
+            let icon: NSImage = await DiskItemIconCache.shared.loadIconAsync(forFile: path)
+            guard let self, !Task.isCancelled, self.currentIconPath == path else {
+                return
+            }
+            self.iconView.image = icon
+        }
         label.stringValue = row.name
     }
 

@@ -109,9 +109,18 @@ private struct CleanupQueueVolumeGroup: Identifiable {
     var volumeName: String { source.displayName }
 }
 
+@MainActor
 private struct CleanupQueueRow: View {
     let item: CleanupQueueItem
     @ObservedObject private var store: CleanupQueueStore = .shared
+    @State private var icon: NSImage
+
+    init(item: CleanupQueueItem) {
+        self.item = item
+        _icon = State(initialValue: CleanupQueueRow.resizedIcon(
+            DiskItemIconCache.shared.cachedIcon(forFile: item.itemURL.path)
+        ))
+    }
 
     var body: some View {
         HStack(spacing: 10) {
@@ -125,7 +134,7 @@ private struct CleanupQueueRow: View {
             }
             .labelsHidden()
 
-            Image(nsImage: NSWorkspace.shared.icon(forFile: item.itemURL.path))
+            Image(nsImage: icon)
                 .resizable()
                 .frame(width: 20, height: 20)
 
@@ -150,6 +159,20 @@ private struct CleanupQueueRow: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 7)
+        .task(id: item.itemURL.path) {
+            icon = CleanupQueueRow.resizedIcon(
+                await DiskItemIconCache.shared.loadIconAsync(forFile: item.itemURL.path)
+            )
+        }
+    }
+
+    private static func resizedIcon(_ image: NSImage?) -> NSImage {
+        let base: NSImage = image
+            ?? NSImage(systemSymbolName: "doc", accessibilityDescription: nil)
+            ?? NSImage()
+        let icon: NSImage = (base.copy() as? NSImage) ?? base
+        icon.size = NSSize(width: 20, height: 20)
+        return icon
     }
 
     private var statusTitle: String {
