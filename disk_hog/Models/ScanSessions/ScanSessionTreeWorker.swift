@@ -28,6 +28,24 @@ nonisolated protocol ScanSessionTreeUpdating: Sendable {
 }
 
 nonisolated struct DiskInventoryZScanSessionTreeWorker: ScanSessionTreeUpdating {
+    typealias PerformDeletion = @Sendable (URL, DiskItemDeletionMethod) throws -> Void
+
+    private let performDeletion: PerformDeletion
+
+    init(
+        performDeletion: @escaping PerformDeletion = { url, deletionMethod in
+            switch deletionMethod {
+            case .deletePermanently:
+                try FileManager.default.removeItem(at: url)
+            case .moveToTrash:
+                var resultingURL: NSURL?
+                try FileManager.default.trashItem(at: url, resultingItemURL: &resultingURL)
+            }
+        }
+    ) {
+        self.performDeletion = performDeletion
+    }
+
     func refresh(
         item: DiskItem,
         currentRoot: DiskItem,
@@ -87,19 +105,18 @@ nonisolated struct DiskInventoryZScanSessionTreeWorker: ScanSessionTreeUpdating 
         source: ScanSource,
         settings: DiskScanSettings
     ) async throws -> ScanSessionTreeUpdateResult {
+        // Cancellation is only honored before the filesystem mutation below, which
+        // is irreversible - once the item is actually deleted/trashed, the in-memory
+        // tree must always be reconciled to match, never dropped as "cancelled"
+        // while the file itself stays gone.
+        try Task.checkCancellation()
+
         let resolvedSource: ScanSource = try refreshingStaleBookmark(in: source)
         let rootURL: URL = try resolvedSource.resolvedURL()
         let didStartSecurityScopedAccess: Bool = rootURL.startAccessingSecurityScopedResource()
         defer { if didStartSecurityScopedAccess { rootURL.stopAccessingSecurityScopedResource() } }
 
-        switch deletionMethod {
-        case .deletePermanently:
-            try FileManager.default.removeItem(at: item.url)
-        case .moveToTrash:
-            var resultingURL: NSURL?
-            try FileManager.default.trashItem(at: item.url, resultingItemURL: &resultingURL)
-        }
-        try Task.checkCancellation()
+        try performDeletion(item.url, deletionMethod)
 
         guard let updatedRoot: DiskItem = DiskItemTreeEditor.removingSubtree(
             from: currentRoot,
