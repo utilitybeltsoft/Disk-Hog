@@ -35,6 +35,11 @@ struct BreadcrumbScrollView: NSViewRepresentable {
         stackView.alignment = .centerY
         stackView.spacing = 4
         stackView.translatesAutoresizingMaskIntoConstraints = true
+        // The document view must be allowed to grow beyond the clip view. Otherwise
+        // NSStackView compresses the first and last breadcrumb buttons to the
+        // viewport width, which replaces both names with ellipses.
+        stackView.setContentHuggingPriority(.required, for: .horizontal)
+        stackView.setContentCompressionResistancePriority(.required, for: .horizontal)
 
         scrollView.documentView = stackView
         context.coordinator.stackView = stackView
@@ -91,6 +96,12 @@ struct BreadcrumbScrollView: NSViewRepresentable {
                 button.tag = index
                 button.isBordered = false
                 button.focusRingType = .none
+                // A path segment is navigation, not a label that may abbreviate
+                // itself. Keep its intrinsic width and let the horizontal scroller
+                // expose any overflow instead of rendering an ellipsis.
+                button.lineBreakMode = .byClipping
+                button.setContentHuggingPriority(.required, for: .horizontal)
+                button.setContentCompressionResistancePriority(.required, for: .horizontal)
                 button.attributedTitle = NSAttributedString(
                     string: item.displayName,
                     attributes: [
