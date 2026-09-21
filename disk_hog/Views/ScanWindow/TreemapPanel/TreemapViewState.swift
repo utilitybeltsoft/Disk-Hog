@@ -14,37 +14,55 @@ nonisolated final class TreemapViewStateWeakReference: @unchecked Sendable {
 /// meant re-paying the same tens-of-seconds cost every single time. TreemapRenderRequest already
 /// encodes root identity, bounds, and every setting that affects the result, and DiskItem's
 /// identity is scoped to its packed snapshot, so a request from a since-rebuilt tree (a rescan,
-/// a size-mode change) simply never matches a stale cache entry - no explicit invalidation needed,
-/// stale entries just age out via LRU eviction.
+/// a size-mode change) simply never matches a stale cache entry.
+///
+/// Evicts by total retained bytes rather than entry count: a Retina or large window's bitmaps
+/// can each run tens of MB, so a fixed slot count could still add up to hundreds of MB. Only the
+/// bitmap is retained per entry (never the raw rasterized `Data` it was built from - once copied
+/// into the bitmap's own backing buffer, that source data serves no further purpose), so the
+/// cache never holds two full copies of the same pixels. `removeAll()` is called on root/snapshot
+/// replacement so a superseded tree's entries are freed immediately instead of lingering until
+/// LRU eviction happens to push them out.
 @MainActor
 private final class TreemapRenderResultCache {
     private struct Entry {
-        let result: TreemapRenderResult
+        let plan: TreemapLayoutPlan
         let bitmap: NSBitmapImageRep
+        let byteSize: Int
     }
 
-    private let capacity: Int
+    private let byteBudget: Int
     private var order: [TreemapRenderRequest] = []
     private var storage: [TreemapRenderRequest: Entry] = [:]
+    private var totalBytes: Int = 0
 
-    init(capacity: Int = 10) {
-        self.capacity = capacity
+    init(byteBudget: Int = 96 * 1024 * 1024) {
+        self.byteBudget = byteBudget
     }
 
-    func entry(for request: TreemapRenderRequest) -> (result: TreemapRenderResult, bitmap: NSBitmapImageRep)? {
+    func entry(for request: TreemapRenderRequest) -> (plan: TreemapLayoutPlan, bitmap: NSBitmapImageRep)? {
         guard let entry: Entry = storage[request] else {
             return nil
         }
         touch(request)
-        return (entry.result, entry.bitmap)
+        return (entry.plan, entry.bitmap)
     }
 
-    func insert(_ result: TreemapRenderResult, bitmap: NSBitmapImageRep) {
-        storage[result.request] = Entry(result: result, bitmap: bitmap)
-        touch(result.request)
-        while order.count > capacity {
-            storage.removeValue(forKey: order.removeFirst())
+    func insert(plan: TreemapLayoutPlan, bitmap: NSBitmapImageRep, for request: TreemapRenderRequest) {
+        let byteSize: Int = bitmap.bytesPerRow * bitmap.pixelsHigh
+        if let existing: Entry = storage[request] {
+            totalBytes -= existing.byteSize
         }
+        storage[request] = Entry(plan: plan, bitmap: bitmap, byteSize: byteSize)
+        totalBytes += byteSize
+        touch(request)
+        evictIfNeeded()
+    }
+
+    func removeAll() {
+        order.removeAll()
+        storage.removeAll()
+        totalBytes = 0
     }
 
     private func touch(_ request: TreemapRenderRequest) {
@@ -52,6 +70,19 @@ private final class TreemapRenderResultCache {
             order.remove(at: index)
         }
         order.append(request)
+    }
+
+    private func evictIfNeeded() {
+        // Always keep at least the just-inserted entry, even if it alone
+        // exceeds the budget (e.g. a single very large/high-scale window) -
+        // evicting it too would leave nothing to serve on the next request
+        // for the exact same bounds.
+        while totalBytes > byteBudget, order.count > 1 {
+            let oldestRequest: TreemapRenderRequest = order.removeFirst()
+            if let removed: Entry = storage.removeValue(forKey: oldestRequest) {
+                totalBytes -= removed.byteSize
+            }
+        }
     }
 }
 
@@ -122,6 +153,10 @@ final class TreemapViewState {
             self.otherSpaceItem = otherSpaceItem
             directionalMoveHistory.removeAll(keepingCapacity: true)
             discardRenderedPlan()
+            // Every one of the changed fields above is part of TreemapRenderRequest, so
+            // any cache entry from before this change can never be matched by a future
+            // request - free its bitmap now instead of leaving it to LRU eviction.
+            resultCache.removeAll()
             needsDisplay = true
         }
 
@@ -351,9 +386,9 @@ final class TreemapViewState {
         guard let cached = resultCache.entry(for: request) else {
             return nil
         }
-        renderedPlan = cached.result.plan
+        renderedPlan = cached.plan
         renderedBitmap = cached.bitmap
-        completedRenderRequest = cached.result.request
+        completedRenderRequest = request
         onRenderedImageReady?()
         return cached.bitmap
     }
@@ -372,7 +407,7 @@ final class TreemapViewState {
         completedRenderRequest = result.request
         pendingRenderRequest = nil
         renderTask = nil
-        resultCache.insert(result, bitmap: bitmap)
+        resultCache.insert(plan: result.plan, bitmap: bitmap, for: result.request)
         onRenderedImageReady?()
     }
 
