@@ -8,7 +8,7 @@ struct DiskItemOutlineView: NSViewRepresentable {
     let usePhysicalSize: Bool
     let selectionCoordinator: ScanWindowSelectionCoordinator
     let activePane: Binding<ScanWindowPane?>
-    let onActivateItem: (DiskItem) -> Void
+    let onActivateItem: (DiskItem, Bool) -> Void
     let onZoomOut: () -> Void
 
     func makeCoordinator() -> Coordinator {
@@ -101,7 +101,7 @@ struct DiskItemOutlineView: NSViewRepresentable {
         private var usePhysicalSize: Bool
         var selectionCoordinator: ScanWindowSelectionCoordinator
         var activePane: Binding<ScanWindowPane?>
-        var onActivateItem: (DiskItem) -> Void
+        var onActivateItem: (DiskItem, Bool) -> Void
         var onZoomOut: () -> Void
         weak var outlineView: NSOutlineView?
         let contextMenu: NSMenu = NSMenu()
@@ -119,7 +119,7 @@ struct DiskItemOutlineView: NSViewRepresentable {
             usePhysicalSize: Bool,
             selectionCoordinator: ScanWindowSelectionCoordinator,
             activePane: Binding<ScanWindowPane?>,
-            onActivateItem: @escaping (DiskItem) -> Void,
+            onActivateItem: @escaping (DiskItem, Bool) -> Void,
             onZoomOut: @escaping () -> Void
         ) {
             self.session = session
@@ -294,7 +294,9 @@ struct DiskItemOutlineView: NSViewRepresentable {
                   let item: DiskItem = outlineView.item(atRow: outlineView.clickedRow) as? DiskItem else {
                 return
             }
-            activate(item)
+            // A file behaves like a plain click here, matching the treemap's
+            // double-click convention - no fallback to the parent.
+            activate(item, allowingFileFallback: false)
         }
 
         func activateSelectedItem() {
@@ -303,14 +305,18 @@ struct DiskItemOutlineView: NSViewRepresentable {
                   let item: DiskItem = outlineView.item(atRow: outlineView.selectedRow) as? DiskItem else {
                 return
             }
-            activate(item)
+            // Unlike double-click, Return has no other way to act on a selected file -
+            // there's nothing left for it to do if it silently no-ops the way double-click
+            // does, so it falls back to zooming into the file's parent, matching the
+            // toolbar/menu Zoom In command and the treemap's own Return-key handling.
+            activate(item, allowingFileFallback: true)
         }
 
-        private func activate(_ item: DiskItem) {
+        private func activate(_ item: DiskItem, allowingFileFallback: Bool) {
             if item.isFolder, item.childCount > 0 {
                 outlineView?.expandItem(item)
             }
-            onActivateItem(item)
+            onActivateItem(item, allowingFileFallback)
         }
 
         private func expandAncestors(of item: DiskItem, ancestorChain: [DiskItem] = []) {

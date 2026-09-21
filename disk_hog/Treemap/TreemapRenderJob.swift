@@ -56,6 +56,7 @@ nonisolated enum TreemapRenderJob {
         rasterize: ([TreemapCushionSnapshot], Int, Int, Double) -> Data?,
         progress: (@Sendable (Double) -> Void)?
     ) -> TreemapRenderResult? {
+        let planStart: Date = Date()
         let plan: TreemapLayoutPlan = TreemapLayoutPlanner.makePlan(
             rootItem: request.rootItem,
             bounds: request.bounds,
@@ -71,6 +72,8 @@ nonisolated enum TreemapRenderJob {
             otherSpaceItem: request.otherSpaceItem,
             progress: progress
         )
+        let planElapsed: TimeInterval = Date().timeIntervalSince(planStart)
+        let rasterStart: Date = Date()
         guard Task.isCancelled == false,
               let pixels: Data = rasterize(
                 plan.cushionSnapshots,
@@ -80,6 +83,9 @@ nonisolated enum TreemapRenderJob {
         ) else {
             return nil
         }
+        let rasterElapsed: TimeInterval = Date().timeIntervalSince(rasterStart)
+        NSLog("DIAGHOG renderTiming root=%@ entries=%d snapshots=%d planSeconds=%.3f rasterSeconds=%.3f",
+              request.rootItem.path, plan.entries.count, plan.cushionSnapshots.count, planElapsed, rasterElapsed)
         return TreemapRenderResult(request: request, plan: plan, pixels: pixels)
     }
 }

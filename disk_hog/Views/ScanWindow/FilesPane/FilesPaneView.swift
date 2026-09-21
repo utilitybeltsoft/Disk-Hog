@@ -13,7 +13,9 @@ struct FilesPaneView: View {
             usePhysicalSize: session.scanSettings.usePhysicalSize,
             selectionCoordinator: selectionCoordinator,
             activePane: activePane,
-            onActivateItem: { item in navigation.zoom(into: item) },
+            onActivateItem: { item, allowingFileFallback in
+                navigation.zoom(into: item, allowingFileFallback: allowingFileFallback)
+            },
             onZoomOut: { navigation.zoomOut() }
         )
         .background(Color(nsColor: .controlBackgroundColor))

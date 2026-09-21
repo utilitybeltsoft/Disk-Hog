@@ -14,6 +14,7 @@ final class ZStyleTreemapNSView: NSView {
     private let state: TreemapViewState = TreemapViewState()
     private let trackingAreaController: TreemapTrackingAreaController = TreemapTrackingAreaController()
     private let discoveryAnimation: TreemapDiscoveryAnimation = TreemapDiscoveryAnimation()
+    private let zoomAnimation: TreemapZoomAnimation = TreemapZoomAnimation()
     private var pendingDiscoveryAnimation: Bool = false
     private var hoveredItem: DiskItem?
     private var hoveredEntry: TreemapLayoutEntry?
@@ -46,7 +47,25 @@ final class ZStyleTreemapNSView: NSView {
             otherSpaceItem: otherSpaceItem,
             selectedItem: selectedItem
         ) {
-            pendingDiscoveryAnimation = true
+            zoomAnimation.cancel() // drop any transition superseded by this new configure
+            if let zoomTransition: TreemapZoomTransition = state.consumeZoomTransition(),
+               NSWorkspace.shared.accessibilityDisplayShouldReduceMotion == false {
+                zoomAnimation.start(zoomTransition) { [weak self] in
+                    guard let self else { return }
+                    self.setNeedsDisplay(self.bounds)
+                }
+                if zoomTransition.toBitmap != nil {
+                    // A zoom-out cache hit paints from a bitmap fetched straight out of
+                    // the render cache, bypassing the state's own completedRenderRequest/
+                    // renderedPlan bookkeeping. Without this, isShowingStaleRoot stays
+                    // true forever once the animation ends - nothing else re-syncs it -
+                    // leaving the "recalculating" badge stuck even though the correct
+                    // picture is already on screen.
+                    _ = state.renderedImage(in: bounds, scale: window?.backingScaleFactor ?? 1)
+                }
+            } else {
+                pendingDiscoveryAnimation = true
+            }
             needsDisplay = true
         }
         if rootChanged {
@@ -71,6 +90,17 @@ final class ZStyleTreemapNSView: NSView {
         }
         state.onRenderedImageReady = { [weak self] in
             guard let self else { return }
+            if self.zoomAnimation.isActive,
+               let bitmap: NSBitmapImageRep = self.state.renderedImage(
+                in: self.bounds,
+                scale: self.window?.backingScaleFactor ?? 1
+               ) {
+                self.zoomAnimation.resolvePendingBitmap(
+                    toBitmap: bitmap,
+                    toBounds: NSRect(origin: .zero, size: self.bounds.size),
+                    anchorEntryLookup: { item in self.state.entry(for: item)?.navigationRect.nsRect }
+                )
+            }
             self.session?.markTreemapRendered(for: self.state.rootItem)
             // The new root's layout plan just became available; resample
             // whatever's currently under the pointer instead of waiting for
@@ -144,35 +174,51 @@ final class ZStyleTreemapNSView: NSView {
         guard drawableRect.isEmpty == false else {
             return
         }
-        if drawRenderedImage(destinationRect: drawableRect, sourceRect: drawableRect, fraction: 1) == false {
+        if zoomAnimation.isPlaying {
+            zoomAnimation.draw(in: bounds)
+        } else if drawRenderedImage(destinationRect: drawableRect, sourceRect: drawableRect, fraction: 1) == false {
             NSColor.windowBackgroundColor.setFill()
             dirtyRect.fill()
             reportRenderPending(true)
             return
         }
-        reportRenderPending(state.isShowingStaleRoot)
-        let scale: CGFloat = window?.backingScaleFactor ?? 1
-        let selectedEntry: TreemapLayoutEntry? = state.selectedEntry()
-        TreemapViewPainter.drawSelection(
-            entry: selectedEntry,
-            parentEntry: state.parentEntry(of: selectedEntry),
-            in: bounds,
-            backingScaleFactor: scale
-        )
-        if let hoveredEntry, hoveredItem != state.selectedItem {
-            TreemapViewPainter.drawHover(
-                entry: hoveredEntry,
-                parentEntry: state.parentEntry(of: hoveredEntry),
+        // While a zoom transition is merely pending (waiting on the destination
+        // bitmap, not yet playing), the ordinary bitmap above is still what's on
+        // screen, so isShowingStaleRoot's "recalculating" signal would be correct -
+        // except a transition IS in flight, which is exactly what that signal
+        // exists to detect, so this isn't a bug needing that indicator; suppress
+        // it whenever the animation is active at all, not just while playing.
+        reportRenderPending(zoomAnimation.isActive ? false : state.isShowingStaleRoot)
+        // Selection/hover overlays and the discovery pulse target a specific plan's
+        // coordinate space, which doesn't correspond to anything coherent on a
+        // blended intermediate zoom-animation frame - suppress them only once actual
+        // animated frames are being painted (not just pending, in which case the
+        // ordinary bitmap - and therefore these overlays - are still perfectly valid).
+        if zoomAnimation.isPlaying == false {
+            let scale: CGFloat = window?.backingScaleFactor ?? 1
+            let selectedEntry: TreemapLayoutEntry? = state.selectedEntry()
+            TreemapViewPainter.drawSelection(
+                entry: selectedEntry,
+                parentEntry: state.parentEntry(of: selectedEntry),
                 in: bounds,
                 backingScaleFactor: scale
             )
+            if let hoveredEntry, hoveredItem != state.selectedItem {
+                TreemapViewPainter.drawHover(
+                    entry: hoveredEntry,
+                    parentEntry: state.parentEntry(of: hoveredEntry),
+                    in: bounds,
+                    backingScaleFactor: scale
+                )
+            }
+            startDiscoveryAnimationIfNeeded()
+            discoveryAnimation.draw()
         }
-        startDiscoveryAnimationIfNeeded()
-        discoveryAnimation.draw()
     }
 
     override func viewWillStartLiveResize() {
         super.viewWillStartLiveResize()
+        zoomAnimation.cancel()
         trackingAreaController.discard(from: self)
     }
 

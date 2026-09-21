@@ -76,9 +76,24 @@ final class DiskItemPasteboardOutlineView: NSOutlineView, DiskItemPasteboardProv
 
 class DiskItemPasteboardTableView: NSTableView, DiskItemPasteboardProviding {
     var pasteboardItemProvider: (() -> DiskItem?)?
+    var activateSelectedItem: (() -> Void)?
+    var zoomOut: (() -> Void)?
 
     @objc func copy(_ sender: Any?) {
         copySelectedItem()
+    }
+
+    override func keyDown(with event: NSEvent) {
+        switch event.keyCode {
+        case AppKitKeyCode.returnKey, AppKitKeyCode.keypadEnter:
+            if event.modifierFlags.contains(.shift) {
+                zoomOut?()
+            } else {
+                activateSelectedItem?()
+            }
+        default:
+            super.keyDown(with: event)
+        }
     }
 
     override func validRequestor(

@@ -104,6 +104,12 @@ struct SelectionListTableView: NSViewRepresentable {
         tableView.pasteboardItemProvider = { [weak contextCoordinator = context.coordinator] in
             contextCoordinator?.selectedItemForPasteboard()
         }
+        tableView.activateSelectedItem = { [weak contextCoordinator = context.coordinator] in
+            contextCoordinator?.activateSelectedItem()
+        }
+        tableView.zoomOut = { [weak contextCoordinator = context.coordinator] in
+            contextCoordinator?.zoomOut()
+        }
         tableView.menu = context.coordinator.contextMenu
         tableView.onBecomeFirstResponder = { [weak contextCoordinator = context.coordinator] in
             contextCoordinator?.activateBatchQueueCommand()
@@ -263,6 +269,18 @@ struct SelectionListTableView: NSViewRepresentable {
                 return nil
             }
             return rows[tableView.selectedRow].item
+        }
+
+        // Mirrors DiskItemPasteboardOutlineView's Return-key handling (the Files pane
+        // outline "tree"), which this list otherwise lacked entirely - selecting a row
+        // here only ever routed into ScanWindowCommandContext via onSelect, so Return
+        // did nothing until keyboard focus moved to the outline or the treemap itself.
+        func activateSelectedItem() {
+            ScanWindowCommandState.shared.zoomIn()
+        }
+
+        func zoomOut() {
+            ScanWindowCommandState.shared.zoomOut()
         }
 
         func tableView(

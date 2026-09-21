@@ -188,6 +188,16 @@ nonisolated final class DiskItem: Identifiable, Hashable, Sendable, DiskItemTree
     var isAliasOrSymbolicLink: Bool { record.isAliasOrSymbolicLink }
     var isHardlinkDuplicate: Bool { record.isHardlinkDuplicate }
     var isSpecialItem: Bool { record.itemType != .fileOrFolder }
+    // Shadows the DiskItemTreeNode default the same way as the properties above - that
+    // default reads itemMetadata, which decodes four strings and builds a URL just to
+    // reach one integer field. sizeValue is called at least twice per node during
+    // layout (once for its own weight, once again from its parent when laying out
+    // sibling weights), so on a large tree this was the dominant cost of planning a
+    // treemap - confirmed via direct timing to take seconds where rasterizing the same
+    // plan takes tens of milliseconds.
+    func sizeValue(usePhysicalSize: Bool) -> UInt64 {
+        usePhysicalSize ? record.allocatedSizeValue : record.logicalSizeValue
+    }
     var kindName: String? { snapshot.string(record.kindName, at: address) }
     var path: String {
         isSpecialItem ? "" : (snapshot.string(record.path, at: address) ?? "")

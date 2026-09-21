@@ -268,6 +268,50 @@ struct TreemapNavigationStateTests {
         #expect(navigation.consumeSelectionAfterZoom() == nil)
     }
 
+    @Test func externalSelectionInADeeplyNestedBranchZoomsAllTheWayToItsOwnParent() {
+        let deepFile: DiskItem = DiskItem(url: URL(fileURLWithPath: "/scan/otherFolder/sub/deepFile"))
+        let subFolder: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/otherFolder/sub"),
+            isDirectory: true,
+            children: [deepFile]
+        )
+        let otherFolder: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/otherFolder"),
+            isDirectory: true,
+            children: [subFolder]
+        )
+        let nestedFile: DiskItem = DiskItem(url: URL(fileURLWithPath: "/scan/folder/nested/file"))
+        let nestedFolder: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/folder/nested"),
+            isDirectory: true,
+            children: [nestedFile]
+        )
+        let folder: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/folder"),
+            isDirectory: true,
+            children: [nestedFolder]
+        )
+        let root: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan"),
+            isDirectory: true,
+            children: [folder, otherFolder]
+        )
+        let navigation: TreemapNavigationState = TreemapNavigationState()
+        navigation.configure(baseRoot: root)
+        navigation.zoom(into: root.children[0])
+        navigation.zoom(into: root.children[0].children[0])
+
+        let target: DiskItem = root.children[1].children[0].children[0]
+        navigation.revealSelection(target)
+
+        // The nearest ancestor shared with the old zoom path is just "/scan" - landing
+        // there would leave deepFile still out of view. It should land on deepFile's own
+        // parent ("/scan/otherFolder/sub") instead.
+        #expect(navigation.zoomRoot?.path == "/scan/otherFolder/sub")
+        #expect(navigation.zoomPath.map(\.path) == ["/scan", "/scan/otherFolder", "/scan/otherFolder/sub"])
+        #expect(navigation.consumeSelectionAfterZoom() == nil)
+    }
+
     @Test func zoomOutPublishesItsNewRootOnlyOnceForListSynchronization() {
         let file: DiskItem = DiskItem(url: URL(fileURLWithPath: "/scan/folder/file"))
         let folder: DiskItem = DiskItem(
@@ -759,7 +803,7 @@ struct DiskItemOutlineIdentityTests {
             usePhysicalSize: true,
             selectionCoordinator: ScanWindowSelectionCoordinator(),
             activePane: Binding<ScanWindowPane?>.constant(nil),
-            onActivateItem: { _ in },
+            onActivateItem: { _, _ in },
             onZoomOut: {}
         )
         let outlineView: NSOutlineView = NSOutlineView()
@@ -806,7 +850,7 @@ struct DiskItemOutlineIdentityTests {
             usePhysicalSize: true,
             selectionCoordinator: ScanWindowSelectionCoordinator(),
             activePane: Binding<ScanWindowPane?>.constant(nil),
-            onActivateItem: { _ in },
+            onActivateItem: { _, _ in },
             onZoomOut: {}
         )
         let outlineView: NSOutlineView = NSOutlineView()
@@ -4404,90 +4448,358 @@ struct TreemapViewStateTests {
         try await Self.waitUntil { secondRenderStartCount.value >= 1 }
     }
 
-    @Test func returningToAPreviousRootAfterVisitingAnotherRootAlwaysReRenders() async throws {
-        let rootA: DiskItem = DiskItem(
-            url: URL(fileURLWithPath: "/scan/a"),
+    @Test func zoomingBackToAPreviouslyRenderedLevelReusesTheCache() async throws {
+        let child: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/child"),
             isDirectory: true,
-            children: [
-                DiskItem(url: URL(fileURLWithPath: "/scan/a/file.bin"), allocatedSizeValue: 100, logicalSizeValue: 100)
-            ]
+            children: [DiskItem(url: URL(fileURLWithPath: "/scan/child/file.bin"), allocatedSizeValue: 100, logicalSizeValue: 100)]
         )
-        let rootB: DiskItem = DiskItem(
-            url: URL(fileURLWithPath: "/scan/b"),
-            isDirectory: true,
-            children: [
-                DiskItem(url: URL(fileURLWithPath: "/scan/b/file.bin"), allocatedSizeValue: 100, logicalSizeValue: 100)
-            ]
-        )
-        let renderCountForA: LockedCounter = LockedCounter()
+        let root: DiskItem = DiskItem(url: URL(fileURLWithPath: "/scan"), isDirectory: true, children: [child])
+        let rootRenderCount: LockedCounter = LockedCounter()
         let render: @Sendable (TreemapRenderRequest, @escaping @Sendable (Double) -> Void) -> TreemapRenderResult? = { request, _ in
-            if request.rootItem === rootA {
-                renderCountForA.increment()
+            if request.rootItem == root {
+                rootRenderCount.increment()
             }
-            // Switching roots legitimately cancels an in-flight render, so this must
-            // tolerate cancellation (unlike TreemapRenderJob.render, which force-unwraps
-            // and would crash the test process on exactly that case).
             return TreemapRenderJob.renderIfNotCancelled(request)
         }
         let state: TreemapViewState = TreemapViewState(render: render)
-        let bounds: NSRect = NSRect(x: 0, y: 0, width: 100, height: 100)
+        let bounds: NSRect = NSRect(x: 0, y: 0, width: 200, height: 200)
+        let metrics: TreemapPresentationMetrics = TreemapPresentationMetrics(
+            rootItem: root,
+            usePhysicalSize: true,
+            sharesKindColors: false
+        )
 
         _ = state.configure(
             source: ScanSource(path: "/scan", displayName: "scan"),
-            rootItem: rootA,
-            presentationMetrics: nil,
-            showsFreeSpace: false,
-            showsOtherSpace: false,
-            freeSpaceItem: nil,
-            otherSpaceItem: nil,
-            selectedItem: nil
+            rootItem: root, presentationMetrics: metrics,
+            showsFreeSpace: false, showsOtherSpace: false,
+            freeSpaceItem: nil, otherSpaceItem: nil, selectedItem: nil
         )
         for _ in 0..<100 {
             if state.renderedImage(in: bounds, scale: 1) != nil { break }
             try await Task.sleep(nanoseconds: 10_000_000)
         }
-        try await Self.waitUntil { renderCountForA.value == 1 }
+        #expect(rootRenderCount.value == 1)
+
+        // Zoom into child, then immediately back out to root - the same
+        // presentationMetrics instance throughout, so this is ordinary navigation
+        // within the same snapshot, not a rescan.
+        _ = state.configure(
+            source: ScanSource(path: "/scan", displayName: "scan"),
+            rootItem: child, presentationMetrics: metrics,
+            showsFreeSpace: false, showsOtherSpace: false,
+            freeSpaceItem: nil, otherSpaceItem: nil, selectedItem: nil
+        )
+        _ = state.configure(
+            source: ScanSource(path: "/scan", displayName: "scan"),
+            rootItem: root, presentationMetrics: metrics,
+            showsFreeSpace: false, showsOtherSpace: false,
+            freeSpaceItem: nil, otherSpaceItem: nil, selectedItem: nil
+        )
+
+        #expect(state.renderedImage(in: bounds, scale: 1) != nil)
+        #expect(rootRenderCount.value == 1) // still 1 - served from resultCache, not re-rendered
+    }
+
+    @Test func rescanStillClearsTheRenderCache() async throws {
+        let child: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/child"),
+            isDirectory: true,
+            children: [DiskItem(url: URL(fileURLWithPath: "/scan/child/file.bin"), allocatedSizeValue: 100, logicalSizeValue: 100)]
+        )
+        let root: DiskItem = DiskItem(url: URL(fileURLWithPath: "/scan"), isDirectory: true, children: [child])
+        // A rescan always produces a genuinely new DiskItem/snapshot for the same
+        // path, never the literal same object - a fresh instance here (rather than
+        // reusing `root`) matches that.
+        let refreshedRoot: DiskItem = DiskItem(url: URL(fileURLWithPath: "/scan"), isDirectory: true, children: [child])
+        let rootRenderCount: LockedCounter = LockedCounter()
+        let render: @Sendable (TreemapRenderRequest, @escaping @Sendable (Double) -> Void) -> TreemapRenderResult? = { request, _ in
+            if request.rootItem.path == "/scan" {
+                rootRenderCount.increment()
+            }
+            return TreemapRenderJob.renderIfNotCancelled(request)
+        }
+        let state: TreemapViewState = TreemapViewState(render: render)
+        let bounds: NSRect = NSRect(x: 0, y: 0, width: 200, height: 200)
+        let firstMetrics: TreemapPresentationMetrics = TreemapPresentationMetrics(
+            rootItem: root, usePhysicalSize: true, sharesKindColors: false
+        )
+        let secondMetrics: TreemapPresentationMetrics = TreemapPresentationMetrics(
+            rootItem: refreshedRoot, usePhysicalSize: true, sharesKindColors: false
+        )
 
         _ = state.configure(
             source: ScanSource(path: "/scan", displayName: "scan"),
-            rootItem: rootB,
-            presentationMetrics: nil,
-            showsFreeSpace: false,
-            showsOtherSpace: false,
-            freeSpaceItem: nil,
-            otherSpaceItem: nil,
-            selectedItem: nil
+            rootItem: root, presentationMetrics: firstMetrics,
+            showsFreeSpace: false, showsOtherSpace: false,
+            freeSpaceItem: nil, otherSpaceItem: nil, selectedItem: nil
         )
-        // `renderedImage` deliberately keeps returning rootA's bitmap as a "stale
-        // root" fallback while rootB's render is still pending (same behavior
-        // `previousTreemapBitmapRemainsVisibleWhileNewRootRenders` covers above), so
-        // a plain non-nil check here would pass before rootB's own render - and
-        // therefore its cache entry - actually exists. `isShowingStaleRoot` becoming
-        // false is the real signal that rootB's render completed.
-        try await Self.waitUntil {
-            _ = state.renderedImage(in: bounds, scale: 1)
-            return state.isShowingStaleRoot == false
+        for _ in 0..<100 {
+            if state.renderedImage(in: bounds, scale: 1) != nil { break }
+            try await Task.sleep(nanoseconds: 10_000_000)
         }
+        #expect(rootRenderCount.value == 1)
 
-        // Root/snapshot replacement must drop the whole render cache, not just the
-        // visible bitmap - otherwise revisiting rootA here would be served straight
-        // from a still-cached entry with no new call into `render` at all, leaking
-        // its bitmap in memory indefinitely instead of being freed when rootA was
-        // superseded by rootB.
+        // A different TreemapPresentationMetrics instance (paired with a fresh
+        // DiskItem for the same path) signals a genuine rescan.
         _ = state.configure(
             source: ScanSource(path: "/scan", displayName: "scan"),
-            rootItem: rootA,
-            presentationMetrics: nil,
-            showsFreeSpace: false,
-            showsOtherSpace: false,
-            freeSpaceItem: nil,
-            otherSpaceItem: nil,
-            selectedItem: nil
+            rootItem: refreshedRoot, presentationMetrics: secondMetrics,
+            showsFreeSpace: false, showsOtherSpace: false,
+            freeSpaceItem: nil, otherSpaceItem: nil, selectedItem: nil
         )
-        try await Self.waitUntil {
+        // `renderedImage` deliberately keeps returning the old (root's) bitmap as a
+        // "stale root" fallback while refreshedRoot's own render is still pending
+        // (same width/height, so that fallback applies) - a plain non-nil check
+        // would pass immediately, before refreshedRoot's own render - and the
+        // second render count - actually happens. `isShowingStaleRoot` becoming
+        // false is the real completion signal.
+        for _ in 0..<100 {
             _ = state.renderedImage(in: bounds, scale: 1)
-            return renderCountForA.value == 2
+            if state.isShowingStaleRoot == false { break }
+            try await Task.sleep(nanoseconds: 10_000_000)
         }
+
+        #expect(rootRenderCount.value == 2) // re-rendered - the cache was correctly cleared
+    }
+
+    @Test func zoomInDetectsATransitionAnchoredAtTheChildsRectInTheOldPlan() async throws {
+        let root: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan"),
+            isDirectory: true,
+            children: [
+                DiskItem(
+                    url: URL(fileURLWithPath: "/scan/child"),
+                    isDirectory: true,
+                    children: [DiskItem(url: URL(fileURLWithPath: "/scan/child/file.bin"), allocatedSizeValue: 100, logicalSizeValue: 100)]
+                )
+            ]
+        )
+        // DiskItem(url:children:) re-packs each child into the parent's own new
+        // snapshot, so the child actually present within `root`'s tree - the one any
+        // lookup or zoom target must use - is `root.children[0]`, not a standalone
+        // reference to whatever was passed into that initializer.
+        let childInRoot: DiskItem = root.children[0]
+        let state: TreemapViewState = TreemapViewState(render: { request, _ in TreemapRenderJob.renderIfNotCancelled(request) })
+        let bounds: NSRect = NSRect(x: 0, y: 0, width: 200, height: 200)
+        let metrics: TreemapPresentationMetrics = TreemapPresentationMetrics(
+            rootItem: root, usePhysicalSize: true, sharesKindColors: false
+        )
+
+        _ = state.configure(
+            source: ScanSource(path: "/scan", displayName: "scan"),
+            rootItem: root, presentationMetrics: metrics,
+            showsFreeSpace: false, showsOtherSpace: false,
+            freeSpaceItem: nil, otherSpaceItem: nil, selectedItem: nil
+        )
+        for _ in 0..<100 {
+            if state.renderedImage(in: bounds, scale: 1) != nil { break }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        let rootEntryForChild: TreemapLayoutEntry = try #require(state.entry(for: childInRoot))
+
+        _ = state.configure(
+            source: ScanSource(path: "/scan", displayName: "scan"),
+            rootItem: childInRoot, presentationMetrics: metrics,
+            showsFreeSpace: false, showsOtherSpace: false,
+            freeSpaceItem: nil, otherSpaceItem: nil, selectedItem: nil
+        )
+
+        let transition: TreemapZoomTransition = try #require(state.pendingZoomTransition)
+        #expect(transition.direction == .zoomIn)
+        #expect(transition.anchorRect == rootEntryForChild.navigationRect.nsRect)
+    }
+
+    @Test func zoomOutReusesTheCachedParentAndProducesAnAnchoredTransition() async throws {
+        let root: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan"),
+            isDirectory: true,
+            children: [
+                DiskItem(
+                    url: URL(fileURLWithPath: "/scan/child"),
+                    isDirectory: true,
+                    children: [DiskItem(url: URL(fileURLWithPath: "/scan/child/file.bin"), allocatedSizeValue: 100, logicalSizeValue: 100)]
+                )
+            ]
+        )
+        let childInRoot: DiskItem = root.children[0]
+        let state: TreemapViewState = TreemapViewState(render: { request, _ in TreemapRenderJob.renderIfNotCancelled(request) })
+        let bounds: NSRect = NSRect(x: 0, y: 0, width: 200, height: 200)
+        let metrics: TreemapPresentationMetrics = TreemapPresentationMetrics(
+            rootItem: root, usePhysicalSize: true, sharesKindColors: false
+        )
+
+        _ = state.configure(
+            source: ScanSource(path: "/scan", displayName: "scan"),
+            rootItem: root, presentationMetrics: metrics,
+            showsFreeSpace: false, showsOtherSpace: false,
+            freeSpaceItem: nil, otherSpaceItem: nil, selectedItem: nil
+        )
+        for _ in 0..<100 {
+            if state.renderedImage(in: bounds, scale: 1) != nil { break }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        let rootEntryForChild: TreemapLayoutEntry = try #require(state.entry(for: childInRoot))
+
+        _ = state.configure(
+            source: ScanSource(path: "/scan", displayName: "scan"),
+            rootItem: childInRoot, presentationMetrics: metrics,
+            showsFreeSpace: false, showsOtherSpace: false,
+            freeSpaceItem: nil, otherSpaceItem: nil, selectedItem: nil
+        )
+        // Same bounds as root's render, so `renderedImage` would otherwise return
+        // root's still-stale bitmap as a fallback before childInRoot's own render
+        // (and its plan/bitmap installation) actually completes.
+        for _ in 0..<100 {
+            _ = state.renderedImage(in: bounds, scale: 1)
+            if state.isShowingStaleRoot == false { break }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+
+        _ = state.configure(
+            source: ScanSource(path: "/scan", displayName: "scan"),
+            rootItem: root, presentationMetrics: metrics,
+            showsFreeSpace: false, showsOtherSpace: false,
+            freeSpaceItem: nil, otherSpaceItem: nil, selectedItem: nil
+        )
+
+        let transition: TreemapZoomTransition = try #require(state.pendingZoomTransition)
+        #expect(transition.direction == .zoomOut)
+        #expect(transition.toBitmap != nil)
+        #expect(transition.anchorRect == rootEntryForChild.navigationRect.nsRect)
+    }
+
+    @Test func zoomOutDefersWhenTheParentIsNotCachedAtTheCurrentBounds() async throws {
+        let child: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/child"),
+            isDirectory: true,
+            children: [DiskItem(url: URL(fileURLWithPath: "/scan/child/file.bin"), allocatedSizeValue: 100, logicalSizeValue: 100)]
+        )
+        let root: DiskItem = DiskItem(url: URL(fileURLWithPath: "/scan"), isDirectory: true, children: [child])
+        let state: TreemapViewState = TreemapViewState(render: { request, _ in TreemapRenderJob.renderIfNotCancelled(request) })
+        let smallBounds: NSRect = NSRect(x: 0, y: 0, width: 200, height: 200)
+        let largeBounds: NSRect = NSRect(x: 0, y: 0, width: 300, height: 300)
+        let metrics: TreemapPresentationMetrics = TreemapPresentationMetrics(
+            rootItem: root, usePhysicalSize: true, sharesKindColors: false
+        )
+
+        _ = state.configure(
+            source: ScanSource(path: "/scan", displayName: "scan"),
+            rootItem: root, presentationMetrics: metrics,
+            showsFreeSpace: false, showsOtherSpace: false,
+            freeSpaceItem: nil, otherSpaceItem: nil, selectedItem: nil
+        )
+        for _ in 0..<100 {
+            // root is only ever cached at smallBounds.
+            if state.renderedImage(in: smallBounds, scale: 1) != nil { break }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+
+        _ = state.configure(
+            source: ScanSource(path: "/scan", displayName: "scan"),
+            rootItem: child, presentationMetrics: metrics,
+            showsFreeSpace: false, showsOtherSpace: false,
+            freeSpaceItem: nil, otherSpaceItem: nil, selectedItem: nil
+        )
+        for _ in 0..<100 {
+            // child completes at a different bounds, so the reconstructed
+            // "prospective" root request below won't match root's cached entry.
+            if state.renderedImage(in: largeBounds, scale: 1) != nil { break }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+
+        _ = state.configure(
+            source: ScanSource(path: "/scan", displayName: "scan"),
+            rootItem: root, presentationMetrics: metrics,
+            showsFreeSpace: false, showsOtherSpace: false,
+            freeSpaceItem: nil, otherSpaceItem: nil, selectedItem: nil
+        )
+
+        let transition: TreemapZoomTransition = try #require(state.pendingZoomTransition)
+        #expect(transition.direction == .zoomOut)
+        #expect(transition.toBitmap == nil)
+        #expect(transition.pendingAnchorItem == child)
+    }
+
+    @Test func divergentRootJumpProducesNoTransition() async throws {
+        let child: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/child"),
+            isDirectory: true,
+            children: [DiskItem(url: URL(fileURLWithPath: "/scan/child/file.bin"), allocatedSizeValue: 100, logicalSizeValue: 100)]
+        )
+        let root: DiskItem = DiskItem(url: URL(fileURLWithPath: "/scan"), isDirectory: true, children: [child])
+        let unrelatedRoot: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/elsewhere"),
+            isDirectory: true,
+            children: [DiskItem(url: URL(fileURLWithPath: "/elsewhere/file.bin"), allocatedSizeValue: 100, logicalSizeValue: 100)]
+        )
+        let state: TreemapViewState = TreemapViewState(render: { request, _ in TreemapRenderJob.renderIfNotCancelled(request) })
+        let bounds: NSRect = NSRect(x: 0, y: 0, width: 200, height: 200)
+        let metrics: TreemapPresentationMetrics = TreemapPresentationMetrics(
+            rootItem: root, usePhysicalSize: true, sharesKindColors: false
+        )
+
+        _ = state.configure(
+            source: ScanSource(path: "/scan", displayName: "scan"),
+            rootItem: root, presentationMetrics: metrics,
+            showsFreeSpace: false, showsOtherSpace: false,
+            freeSpaceItem: nil, otherSpaceItem: nil, selectedItem: nil
+        )
+        for _ in 0..<100 {
+            if state.renderedImage(in: bounds, scale: 1) != nil { break }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+
+        _ = state.configure(
+            source: ScanSource(path: "/elsewhere", displayName: "elsewhere"),
+            rootItem: unrelatedRoot, presentationMetrics: metrics,
+            showsFreeSpace: false, showsOtherSpace: false,
+            freeSpaceItem: nil, otherSpaceItem: nil, selectedItem: nil
+        )
+
+        #expect(state.pendingZoomTransition == nil)
+    }
+
+    @Test func rescanNeverProducesATransitionEvenWhenRootItemChanges() async throws {
+        let root: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan"),
+            isDirectory: true,
+            children: [DiskItem(url: URL(fileURLWithPath: "/scan/file.bin"), allocatedSizeValue: 100, logicalSizeValue: 100)]
+        )
+        let refreshedRoot: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan"),
+            isDirectory: true,
+            children: [DiskItem(url: URL(fileURLWithPath: "/scan/file.bin"), allocatedSizeValue: 200, logicalSizeValue: 200)]
+        )
+        let state: TreemapViewState = TreemapViewState(render: { request, _ in TreemapRenderJob.renderIfNotCancelled(request) })
+        let bounds: NSRect = NSRect(x: 0, y: 0, width: 200, height: 200)
+        let firstMetrics: TreemapPresentationMetrics = TreemapPresentationMetrics(
+            rootItem: root, usePhysicalSize: true, sharesKindColors: false
+        )
+        let secondMetrics: TreemapPresentationMetrics = TreemapPresentationMetrics(
+            rootItem: refreshedRoot, usePhysicalSize: true, sharesKindColors: false
+        )
+
+        _ = state.configure(
+            source: ScanSource(path: "/scan", displayName: "scan"),
+            rootItem: root, presentationMetrics: firstMetrics,
+            showsFreeSpace: false, showsOtherSpace: false,
+            freeSpaceItem: nil, otherSpaceItem: nil, selectedItem: nil
+        )
+        for _ in 0..<100 {
+            if state.renderedImage(in: bounds, scale: 1) != nil { break }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+
+        _ = state.configure(
+            source: ScanSource(path: "/scan", displayName: "scan"),
+            rootItem: refreshedRoot, presentationMetrics: secondMetrics,
+            showsFreeSpace: false, showsOtherSpace: false,
+            freeSpaceItem: nil, otherSpaceItem: nil, selectedItem: nil
+        )
+
+        #expect(state.pendingZoomTransition == nil)
     }
 
     private static func waitUntil(

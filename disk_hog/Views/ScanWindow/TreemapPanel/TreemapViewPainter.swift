@@ -10,10 +10,15 @@ enum TreemapViewPainter {
     ) {
         let image: NSImage = imageRep.treemapSuitableImage()
         let sourceRect: NSRect = sourceRect ?? NSRect(origin: .zero, size: image.size)
+        // .sourceOver, not .copy: this can be one of two (or more) layered draws in the
+        // same pass at fraction < 1 (the zoom animation's fading overlay, live-resize
+        // dimming) - .copy replaces the destination outright at the given alpha instead
+        // of blending with whatever was just painted underneath, punching a translucent
+        // hole through to the window's background rather than fading over the layer below.
         image.draw(
             in: destinationRect,
             from: sourceRect,
-            operation: .copy,
+            operation: .sourceOver,
             fraction: fraction,
             respectFlipped: true,
             hints: nil
@@ -158,7 +163,7 @@ enum TreemapViewPainter {
     }
 }
 
-private extension TreemapLayoutRect {
+extension TreemapLayoutRect {
     var nsRect: NSRect {
         NSRect(x: x, y: y, width: width, height: height)
     }

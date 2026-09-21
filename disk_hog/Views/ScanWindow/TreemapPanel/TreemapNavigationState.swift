@@ -55,11 +55,13 @@ final class TreemapNavigationState: ObservableObject {
         }
         let selectionPath: [DiskItem] = baseRoot.descendantsMatchingAncestorPath(of: item)
         guard selectionPath.isEmpty == false else { return }
-        let sharedPathLength: Int = zip(zoomPath, selectionPath)
-            .prefix { pair in pair.0 == pair.1 }
-            .count
-        guard sharedPathLength < zoomPath.count else { return }
-        zoomPath = Array(selectionPath.prefix(max(sharedPathLength, 1)))
+        // Land on the selected item's own parent folder (or the item itself, if it's
+        // already the base root) rather than merely the nearest ancestor shared with
+        // the current zoom - stopping at the shared ancestor can leave the item itself
+        // still out of view, requiring a second, manual zoom to actually see it.
+        let targetPath: [DiskItem] = selectionPath.count > 1 ? Array(selectionPath.dropLast()) : selectionPath
+        guard targetPath != zoomPath else { return }
+        zoomPath = targetPath
         selectionAfterZoom = nil
     }
 

@@ -143,29 +143,8 @@ struct TreemapPanelView: View {
             }
             .disabled(navigation.canZoomOut == false)
 
-            ScrollViewReader { breadcrumbProxy in
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 4) {
-                        ForEach(Array(navigation.zoomPath.enumerated()), id: \.element.id) { index, item in
-                            if index > 0 {
-                                Image(systemName: "chevron.right")
-                                    .foregroundStyle(.secondary)
-                                    .font(.caption)
-                            }
-                            Button(item.displayName) { navigation.zoom(toPathIndex: index) }
-                                .buttonStyle(.plain)
-                                .foregroundStyle(index == navigation.zoomPath.indices.last ? .primary : .secondary)
-                        }
-                    }
-                }
-                .onChange(of: navigation.zoomPath.last?.id) {
-                    guard let lastItem: DiskItem = navigation.zoomPath.last else { return }
-                    withAnimation(.easeOut(duration: 0.15)) {
-                        breadcrumbProxy.scrollTo(lastItem.id, anchor: .trailing)
-                    }
-                }
-                .frame(minWidth: 0, maxWidth: .infinity)
-                .layoutPriority(1)
+            BreadcrumbScrollView(zoomPath: navigation.zoomPath) { index in
+                navigation.zoom(toPathIndex: index)
             }
             .frame(minWidth: 0, maxWidth: .infinity)
             .layoutPriority(1)

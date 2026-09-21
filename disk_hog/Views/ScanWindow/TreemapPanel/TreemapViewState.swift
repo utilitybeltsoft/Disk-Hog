@@ -1,5 +1,39 @@
 import AppKit
 
+enum DiagHogPixelCheck {
+    static func nonWhiteFraction(of data: Data) -> Double {
+        guard data.isEmpty == false else { return -1 }
+        var nonWhite: Int = 0
+        var samples: Int = 0
+        let stride: Int = max(1, data.count / 3000)
+        data.withUnsafeBytes { (buf: UnsafeRawBufferPointer) in
+            var i: Int = 0
+            while i < buf.count {
+                if buf[i] < 250 { nonWhite += 1 }
+                samples += 1
+                i += stride
+            }
+        }
+        return samples > 0 ? Double(nonWhite) / Double(samples) : -1
+    }
+
+    static func nonWhiteFraction(of bitmap: NSBitmapImageRep) -> Double {
+        guard let base: UnsafeMutablePointer<UInt8> = bitmap.bitmapData else { return -1 }
+        let count: Int = bitmap.bytesPerRow * bitmap.pixelsHigh
+        let buf: UnsafeBufferPointer<UInt8> = UnsafeBufferPointer(start: base, count: count)
+        var nonWhite: Int = 0
+        var samples: Int = 0
+        let stride: Int = max(1, count / 3000)
+        var i: Int = 0
+        while i < count {
+            if buf[i] < 250 { nonWhite += 1 }
+            samples += 1
+            i += stride
+        }
+        return samples > 0 ? Double(nonWhite) / Double(samples) : -1
+    }
+}
+
 nonisolated final class TreemapViewStateWeakReference: @unchecked Sendable {
     weak var value: TreemapViewState?
 
@@ -20,9 +54,11 @@ nonisolated final class TreemapViewStateWeakReference: @unchecked Sendable {
 /// can each run tens of MB, so a fixed slot count could still add up to hundreds of MB. Only the
 /// bitmap is retained per entry (never the raw rasterized `Data` it was built from - once copied
 /// into the bitmap's own backing buffer, that source data serves no further purpose), so the
-/// cache never holds two full copies of the same pixels. `removeAll()` is called on root/snapshot
-/// replacement so a superseded tree's entries are freed immediately instead of lingering until
-/// LRU eviction happens to push them out.
+/// cache never holds two full copies of the same pixels. `removeAll()` is called only on a
+/// genuine rescan (a fresh `TreemapPresentationMetrics` instance) - ordinary zoom navigation
+/// within the same snapshot leaves the cache alone, since those entries remain perfectly valid
+/// and are exactly what makes revisiting a level (including the zoom-out animation's anchor
+/// lookup) cheap.
 @MainActor
 private final class TreemapRenderResultCache {
     private struct Entry {
@@ -45,6 +81,8 @@ private final class TreemapRenderResultCache {
             return nil
         }
         touch(request)
+        NSLog("DIAGHOG cacheHit root=%@ nonWhiteFraction=%.3f",
+              request.rootItem.path, DiagHogPixelCheck.nonWhiteFraction(of: entry.bitmap))
         return (entry.plan, entry.bitmap)
     }
 
@@ -53,6 +91,8 @@ private final class TreemapRenderResultCache {
         if let existing: Entry = storage[request] {
             totalBytes -= existing.byteSize
         }
+        NSLog("DIAGHOG cacheInsert root=%@ nonWhiteFraction=%.3f",
+              request.rootItem.path, DiagHogPixelCheck.nonWhiteFraction(of: bitmap))
         storage[request] = Entry(plan: plan, bitmap: bitmap, byteSize: byteSize)
         totalBytes += byteSize
         touch(request)
@@ -114,6 +154,7 @@ final class TreemapViewState {
     private var freeSpaceItem: DiskItem?
     private var otherSpaceItem: DiskItem?
     private var directionalMoveHistory: [(origin: DiskItem, direction: TreemapNavigationDirection)] = []
+    private(set) var pendingZoomTransition: TreemapZoomTransition?
 
     init(
         render: @escaping @Sendable (
@@ -139,12 +180,25 @@ final class TreemapViewState {
         self.source = source
         var needsDisplay: Bool = false
 
+        if self.rootItem != rootItem {
+            pendingZoomTransition = makeZoomTransition(
+                oldRootItem: self.rootItem,
+                newRootItem: rootItem,
+                isGenuineRescan: self.presentationMetrics !== presentationMetrics
+            )
+            NSLog("DIAGHOG configure rootChange old=%@ new=%@ transition=%@ toBitmap=%@",
+                  self.rootItem?.path ?? "nil", rootItem?.path ?? "nil",
+                  pendingZoomTransition == nil ? "nil" : (pendingZoomTransition!.direction == .zoomIn ? "zoomIn" : "zoomOut"),
+                  pendingZoomTransition?.toBitmap == nil ? "nil" : "set")
+        }
+
         if self.rootItem != rootItem
             || self.presentationMetrics !== presentationMetrics
             || self.showsFreeSpace != showsFreeSpace
             || self.showsOtherSpace != showsOtherSpace
             || self.freeSpaceItem != freeSpaceItem
             || self.otherSpaceItem != otherSpaceItem {
+            let isGenuineRescan: Bool = self.presentationMetrics !== presentationMetrics
             self.rootItem = rootItem
             self.presentationMetrics = presentationMetrics
             self.showsFreeSpace = showsFreeSpace
@@ -153,10 +207,14 @@ final class TreemapViewState {
             self.otherSpaceItem = otherSpaceItem
             directionalMoveHistory.removeAll(keepingCapacity: true)
             discardRenderedPlan()
-            // Every one of the changed fields above is part of TreemapRenderRequest, so
-            // any cache entry from before this change can never be matched by a future
-            // request - free its bitmap now instead of leaving it to LRU eviction.
-            resultCache.removeAll()
+            // Only a genuine rescan (a fresh TreemapPresentationMetrics instance) ever
+            // invalidates every cache entry. Ordinary zoom navigation revisits levels
+            // within the same snapshot, whose entries are still perfectly valid -
+            // clearing them here would force a full re-render on every zoom step,
+            // including zooming back out to somewhere already rendered this session.
+            if isGenuineRescan {
+                resultCache.removeAll()
+            }
             needsDisplay = true
         }
 
@@ -166,6 +224,98 @@ final class TreemapViewState {
             needsDisplay = true
         }
         return needsDisplay
+    }
+
+    /// One-shot consume, mirroring `TreemapNavigationState.consumeSelectionAfterZoom()`.
+    func consumeZoomTransition() -> TreemapZoomTransition? {
+        defer { pendingZoomTransition = nil }
+        return pendingZoomTransition
+    }
+
+    /// Computed synchronously, before any state below is mutated, since this is the
+    /// only moment `renderedPlan` still reflects the *old* root - a few lines later
+    /// `discardRenderedPlan()` clears it. Every zoom trigger in the app (double-click,
+    /// keyboard, toolbar, breadcrumb, menu commands, Files-pane outline, and indirect
+    /// selection-driven zoom-out) funnels through this one function via SwiftUI's
+    /// `updateNSView`, so this is the single place that can see both the old and new
+    /// root together.
+    private func makeZoomTransition(
+        oldRootItem: DiskItem?,
+        newRootItem: DiskItem?,
+        isGenuineRescan: Bool
+    ) -> TreemapZoomTransition? {
+        guard isGenuineRescan == false,
+              let oldRootItem, let newRootItem,
+              let renderedBitmap, let renderedPlan else {
+            return nil
+        }
+        let fromBounds: NSRect = renderedPlan.bounds.nsRect
+
+        // Zoom in: the destination is a folder currently visible within the old plan.
+        if let entry: TreemapLayoutEntry = renderedPlan.entry(for: newRootItem),
+           entry.navigationRect.isEmpty == false {
+            return TreemapZoomTransition(
+                direction: .zoomIn,
+                fromBitmap: renderedBitmap,
+                fromBounds: fromBounds,
+                anchorRect: entry.navigationRect.nsRect,
+                toBitmap: nil,
+                toBounds: nil,
+                pendingAnchorItem: nil
+            )
+        }
+
+        // Zoom out: only when the new root is a genuine ancestor of the old one -
+        // covers zoomOut(), zoom(toPathIndex:), and revealSelection()'s indirect
+        // zoom-out identically, since all three just present a different rootItem
+        // to this same function. A rescan's refreshed root shares its old path
+        // string too, but that's already excluded above by isGenuineRescan.
+        guard Self.isAncestorPath(newRootItem.path, of: oldRootItem.path),
+              let completedRenderRequest else {
+            return nil // divergent jump (e.g. Files-pane double-click into an
+                        // unrelated branch) - no coherent relationship, cut as today.
+        }
+        let prospectiveRequest = TreemapRenderRequest(
+            rootItem: newRootItem,
+            width: completedRenderRequest.width,
+            height: completedRenderRequest.height,
+            scale: completedRenderRequest.scale,
+            usePhysicalSize: completedRenderRequest.usePhysicalSize,
+            orderedKindNames: completedRenderRequest.orderedKindNames,
+            sharesKindColors: completedRenderRequest.sharesKindColors,
+            colorScheme: completedRenderRequest.colorScheme,
+            showsFreeSpace: completedRenderRequest.showsFreeSpace,
+            showsOtherSpace: completedRenderRequest.showsOtherSpace,
+            freeSpaceItem: completedRenderRequest.freeSpaceItem,
+            otherSpaceItem: completedRenderRequest.otherSpaceItem
+        )
+        if let cached = resultCache.entry(for: prospectiveRequest),
+           let anchorEntry: TreemapLayoutEntry = cached.plan.entry(for: oldRootItem),
+           anchorEntry.navigationRect.isEmpty == false {
+            return TreemapZoomTransition(
+                direction: .zoomOut,
+                fromBitmap: renderedBitmap,
+                fromBounds: fromBounds,
+                anchorRect: anchorEntry.navigationRect.nsRect,
+                toBitmap: cached.bitmap,
+                toBounds: cached.plan.bounds.nsRect,
+                pendingAnchorItem: nil
+            )
+        }
+        return TreemapZoomTransition(
+            direction: .zoomOut,
+            fromBitmap: renderedBitmap,
+            fromBounds: fromBounds,
+            anchorRect: nil,
+            toBitmap: nil,
+            toBounds: nil,
+            pendingAnchorItem: oldRootItem
+        )
+    }
+
+    private static func isAncestorPath(_ ancestorPath: String, of path: String) -> Bool {
+        path == ancestorPath
+            || path.hasPrefix(ancestorPath.hasSuffix("/") ? ancestorPath : ancestorPath + "/")
     }
 
     func applySelectedItem(_ selectedItem: DiskItem?) -> Bool {
@@ -221,6 +371,11 @@ final class TreemapViewState {
             return cached
         }
         if pendingRenderRequest != request {
+            NSLog("DIAGHOG renderedImage MISS root=%@ w=%.1f h=%.1f (completed:%@ pending:%@) staleFallbackSizeMatch=%@",
+                  request.rootItem.path, request.width, request.height,
+                  completedRenderRequest == nil ? "nil" : "w=\(completedRenderRequest!.width) h=\(completedRenderRequest!.height) root=\(completedRenderRequest!.rootItem.path)",
+                  pendingRenderRequest == nil ? "nil" : "w=\(pendingRenderRequest!.width) h=\(pendingRenderRequest!.height) root=\(pendingRenderRequest!.rootItem.path)",
+                  (completedRenderRequest?.width == request.width && completedRenderRequest?.height == request.height) ? "yes" : "no")
             startRender(for: request)
         }
         if let completedRenderRequest,
@@ -339,6 +494,10 @@ final class TreemapViewState {
     }
 
     private func startRender(for request: TreemapRenderRequest) {
+        NSLog("DIAGHOG startRender root=%@ w=%.1f h=%.1f scale=%.2f cancellingPrior=%@ priorRoot=%@",
+              request.rootItem.path, request.width, request.height, request.scale,
+              renderTask == nil ? "no" : "yes",
+              pendingRenderRequest?.rootItem.path ?? "nil")
         renderTask?.cancel()
         pendingRenderRequest = request
         let stateReference: TreemapViewStateWeakReference = TreemapViewStateWeakReference(self)
@@ -369,6 +528,8 @@ final class TreemapViewState {
     }
 
     private func finishRenderWithoutResult(for request: TreemapRenderRequest) {
+        NSLog("DIAGHOG finishRenderWithoutResult root=%@ stillCurrent=%@",
+              request.rootItem.path, pendingRenderRequest == request ? "yes" : "no")
         guard pendingRenderRequest == request else {
             return
         }
@@ -394,6 +555,9 @@ final class TreemapViewState {
     }
 
     private func installRenderResult(_ result: TreemapRenderResult) {
+        NSLog("DIAGHOG installRenderResult root=%@ stillCurrent=%@ rawNonWhiteFraction=%.3f entryCount=%d",
+              result.request.rootItem.path, pendingRenderRequest == result.request ? "yes" : "no",
+              DiagHogPixelCheck.nonWhiteFraction(of: result.pixels), result.plan.entries.count)
         guard pendingRenderRequest == result.request else {
             return
         }
@@ -402,6 +566,8 @@ final class TreemapViewState {
             renderTask = nil
             return
         }
+        NSLog("DIAGHOG installRenderResult convertedBitmapNonWhiteFraction=%.3f",
+              DiagHogPixelCheck.nonWhiteFraction(of: bitmap))
         renderedPlan = result.plan
         renderedBitmap = bitmap
         completedRenderRequest = result.request
