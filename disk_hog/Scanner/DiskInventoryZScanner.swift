@@ -98,6 +98,19 @@ nonisolated final class DiskInventoryZScanner {
         }
 
         let progressAggregator: ScanProgressAggregator = ScanProgressAggregator(currentPath: rootURL.path)
+        let (packagingUpdates, packagingContinuation) = AsyncStream<Int>.makeStream(bufferingPolicy: .bufferingNewest(1))
+        let packagingProgress = ScanPackagingProgress(subtreeCount: topLevelWorkItems.count, continuation: packagingContinuation)
+        // One consumer preserves publication order and bounds pending UI work.
+        let packagingReporter = Task {
+            for await percent in packagingUpdates {
+                guard !Task.isCancelled else { break }
+                await stageHandler?(.packagingScanResults(percent: percent))
+            }
+        }
+        defer {
+            packagingContinuation.finish()
+            packagingReporter.cancel()
+        }
         var topLevelResults: [TopLevelScanResult] = []
         await stageHandler?(.scanningFiles)
         try await withThrowingTaskGroup(of: TopLevelScanResult.self) { taskGroup in
@@ -137,7 +150,7 @@ nonisolated final class DiskInventoryZScanner {
                             settings: settings,
                             progressAggregator: progressAggregator,
                             progressHandler: progressHandler,
-                            stageHandler: stageHandler
+                            packagingProgress: packagingProgress
                         )
                         await permit.release()
                         return result
@@ -167,6 +180,8 @@ nonisolated final class DiskInventoryZScanner {
             }
         }
 
+        packagingContinuation.finish()
+        await packagingReporter.value
         await stageHandler?(.finalizingScan)
         topLevelResults.sort { first, second in
             DiskItemBuilderOrdering.areInOrder(
@@ -249,13 +264,9 @@ nonisolated final class DiskInventoryZScanner {
         settings: DiskScanSettings,
         progressAggregator: ScanProgressAggregator,
         progressHandler: ProgressHandler?,
-        stageHandler: (@Sendable (DiskScanStage) async -> Void)?
+        packagingProgress: ScanPackagingProgress
     ) async throws -> TopLevelScanResult {
         try Task.checkCancellation()
-        // A concurrent sibling may have just finished packaging. Reassert the
-        // active traversal phase when this worker begins so the status describes
-        // current work rather than leaving a stale packaging message onscreen.
-        await stageHandler?(.scanningFiles)
 
         var progressState: ScanProgressState = ScanProgressState(currentPath: workItem.item.path)
         progressState.recordItem(workItem.item)
@@ -295,11 +306,15 @@ nonisolated final class DiskInventoryZScanner {
             progress: progressState.snapshot()
         )
         await progressHandler?(aggregateProgress)
-        await stageHandler?(.packagingScanResults)
+        // Each top-level builder owns its entire arena: this is the exact number
+        // of items the four packing passes will visit.
+        packagingProgress.finishTraversal(itemCount: workItem.item.arena.records.count)
         try Task.checkCancellation()
 
         return TopLevelScanResult(
-            chunk: workItem.item.packedChunk(isRoot: false),
+            chunk: workItem.item.packedChunk(isRoot: false) { units in
+                packagingProgress.advance(by: units)
+            },
             name: workItem.item.name,
             allocatedSizeValue: workItem.item.allocatedSizeValue,
             logicalSizeValue: workItem.item.logicalSizeValue,

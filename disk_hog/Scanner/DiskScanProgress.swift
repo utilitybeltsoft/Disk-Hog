@@ -3,8 +3,47 @@ import Foundation
 nonisolated enum DiskScanStage: Equatable, Sendable {
     case enumeratingRootItems
     case scanningFiles
-    case packagingScanResults
+    case packagingScanResults(percent: Int)
     case finalizingScan
+}
+
+/// Combines all subtree packing work, publishing only once traversal has fixed
+/// the grand total. Work completed before that point still counts.
+nonisolated final class ScanPackagingProgress: @unchecked Sendable {
+    private let lock = NSLock()
+    private var remainingTraversals: Int
+    private var totalUnits = 0
+    private var completedUnits = 0
+    private var lastPercent = -1
+    private let continuation: AsyncStream<Int>.Continuation
+
+    init(subtreeCount: Int, continuation: AsyncStream<Int>.Continuation) {
+        remainingTraversals = subtreeCount
+        self.continuation = continuation
+    }
+
+    func finishTraversal(itemCount: Int) {
+        lock.withLock {
+            totalUnits += itemCount * 4
+            remainingTraversals -= 1
+            publishIfNeeded()
+        }
+    }
+
+    func advance(by units: Int) {
+        lock.withLock {
+            completedUnits += units
+            publishIfNeeded()
+        }
+    }
+
+    private func publishIfNeeded() {
+        guard remainingTraversals == 0, totalUnits > 0 else { return }
+        let percent = Int(Double(completedUnits) / Double(totalUnits) * 100)
+        guard percent > lastPercent else { return }
+        lastPercent = percent
+        continuation.yield(percent)
+    }
 }
 
 nonisolated struct DiskScanProgress: Sendable {

@@ -12,6 +12,36 @@ import SwiftUI
 import Testing
 @testable import disk_hog
 
+struct ScanPackagingProgressTests {
+    @Test func grandTotalIncludesPreviouslyPackedItemsAndWeightsByItemCount() async {
+        let (updates, continuation) = AsyncStream<Int>.makeStream()
+        let progress = ScanPackagingProgress(subtreeCount: 2, continuation: continuation)
+        progress.finishTraversal(itemCount: 100)
+        progress.advance(by: 400)
+        // Nothing may be published before the second subtree fixes the total.
+        progress.finishTraversal(itemCount: 300)
+        progress.advance(by: 400)
+        progress.advance(by: 800)
+        continuation.finish()
+        var percentages: [Int] = []
+        for await percent in updates { percentages.append(percent) }
+        #expect(percentages == [25, 50, 100])
+    }
+
+    @Test func packingReportsAllFourPassesIncludingTheFinalPartialBatch() {
+        let builder = DiskItemBuilder(url: URL(fileURLWithPath: "/scan"), isDirectory: true)
+        for index in 0..<1_100 {
+            let child = builder.makeChild(url: URL(fileURLWithPath: "/scan/\(index)"), allocatedSizeValue: 1)
+            builder.appendChild(child)
+        }
+        var batches: [Int] = []
+        let chunk = builder.packedChunk(isRoot: true) { batches.append($0) }
+        #expect(batches == [4_096, 308])
+        #expect(chunk.records.count == 1_101)
+        #expect(chunk.records.first?.fileCount == 1_100)
+    }
+}
+
 @MainActor
 struct DiskItemIconCacheTests {
     @Test func reusesLoadedIconsForTheSamePath() {
@@ -5192,7 +5222,12 @@ struct DiskInventoryZScannerTests {
         let stages: [DiskScanStage] = await stageRecorder.stages
         #expect(stages.first == .enumeratingRootItems)
         #expect(stages.dropFirst().first == .scanningFiles)
-        #expect(stages.contains(.packagingScanResults))
+        let percentages: [Int] = stages.compactMap {
+            if case .packagingScanResults(let percent) = $0 { return percent }
+            return nil
+        }
+        #expect(percentages.last == 100)
+        #expect(zip(percentages, percentages.dropFirst()).allSatisfy { $0 <= $1 })
         #expect(stages.last == .finalizingScan)
     }
 

@@ -130,6 +130,9 @@ struct ZStatusFieldsView: View {
         case .failed:
             return session.failure?.statusMessage ?? String(localized: "Scan failed")
         case .ready, .scanning, .cancelled:
+            if session.state == .scanning, case .packagingScanResults = session.scanStage {
+                return scanStatus
+            }
             return session.state == .scanning
                 ? animatedActivityStatus(scanStatus, referenceDate: referenceDate)
                 : scanStatus
@@ -146,8 +149,8 @@ struct ZStatusFieldsView: View {
             return String(localized: "Enumerating root items…")
         case .scanningFiles:
             return String(localized: "Scanning files…")
-        case .packagingScanResults:
-            return String(localized: "Packaging scan results…")
+        case .packagingScanResults(let percent):
+            return String(localized: "Packaging scan results: \(percent)%")
         case .finalizingScan:
             return String(localized: "Finalizing scan…")
         }

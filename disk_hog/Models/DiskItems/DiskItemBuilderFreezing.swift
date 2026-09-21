@@ -11,17 +11,32 @@ extension DiskItemBuilder {
         )
     }
 
-    nonisolated func packedChunk(isRoot: Bool) -> PackedDiskItemChunk {
+    /// Reports incremental item visits across traversal, address mapping, counting,
+    /// and encoding: four work units per item, independent of elapsed time.
+    nonisolated func packedChunk(isRoot: Bool, workCompleted: ((Int) -> Void)? = nil) -> PackedDiskItemChunk {
+        var unpublishedUnits = 0
+        func recordWork() {
+            guard workCompleted != nil else { return }
+            unpublishedUnits += 1
+            if unpublishedUnits == 4_096 {
+                workCompleted?(unpublishedUnits)
+                unpublishedUnits = 0
+            }
+        }
         var sourceIndices: [Int] = []
         var pending: [Int] = [index]
         while let sourceIndex: Int = pending.popLast() {
             sourceIndices.append(sourceIndex)
             pending.append(contentsOf: arena.childIndices(of: sourceIndex).reversed())
+            recordWork()
         }
 
-        let destinationBySource: [Int: Int] = Dictionary(
-            uniqueKeysWithValues: sourceIndices.enumerated().map { ($0.element, $0.offset) }
-        )
+        var destinationBySource: [Int: Int] = [:]
+        destinationBySource.reserveCapacity(sourceIndices.count)
+        for (destination, source) in sourceIndices.enumerated() {
+            destinationBySource[source] = destination
+            recordWork()
+        }
         var countsBySource: [Int: (files: Int, folders: Int)] = [:]
         for sourceIndex: Int in sourceIndices.reversed() {
             let metadata: DiskItemMetadata = arena.records[sourceIndex].metadata
@@ -34,6 +49,7 @@ extension DiskItemBuilder {
                 folders += childCounts.folders
             }
             countsBySource[sourceIndex] = (files, folders)
+            recordWork()
         }
 
         var encoder: PackedDiskItemStringEncoder = PackedDiskItemStringEncoder()
@@ -66,7 +82,9 @@ extension DiskItemBuilder {
                 isHardlinkDuplicate: metadata.isHardlinkDuplicate,
                 isRoot: sourceIndex == index && isRoot
             ))
+            recordWork()
         }
+        workCompleted?(unpublishedUnits)
         return PackedDiskItemChunk(records: records, childIndices: childIndices, stringBytes: encoder.data)
     }
 }
