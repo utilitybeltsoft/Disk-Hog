@@ -38,7 +38,7 @@ nonisolated enum TreemapRenderJob {
         _ request: TreemapRenderRequest,
         progress: (@Sendable (Double) -> Void)? = nil
     ) -> TreemapRenderResult {
-        render(request, rasterize: TreemapBitmapRasterizer.render, progress: progress)!
+        render(request, rasterize: TreemapBitmapRasterizer.render, progress: progress, respectsCancellation: false)!
     }
 
     static func renderIfNotCancelled(
@@ -54,10 +54,11 @@ nonisolated enum TreemapRenderJob {
     private static func render(
         _ request: TreemapRenderRequest,
         rasterize: ([TreemapCushionSnapshot], Int, Int, Double) -> Data?,
-        progress: (@Sendable (Double) -> Void)?
+        progress: (@Sendable (Double) -> Void)?,
+        respectsCancellation: Bool = true
     ) -> TreemapRenderResult? {
         let planStart = TreemapPerformance.now
-        let plan: TreemapLayoutPlan = TreemapLayoutPlanner.makePlan(
+        guard let plan = try? TreemapLayoutPlanner.makePlanCheckingCancellation(
             rootItem: request.rootItem,
             bounds: request.bounds,
             usePhysicalSize: request.usePhysicalSize,
@@ -70,11 +71,17 @@ nonisolated enum TreemapRenderJob {
             showsOtherSpace: request.showsOtherSpace,
             freeSpaceItem: request.freeSpaceItem,
             otherSpaceItem: request.otherSpaceItem,
-            progress: progress
-        )
+            progress: progress,
+            checkCancellation: {
+                if respectsCancellation { try Task.checkCancellation() }
+            }
+        ) else {
+            TreemapPerformance.event("cancelled-during-geometry")
+            return nil
+        }
         TreemapPerformance.phase("layout-total", since: planStart, count: plan.entries.count)
         let rasterStart = TreemapPerformance.now
-        guard Task.isCancelled == false,
+        guard !respectsCancellation || !Task.isCancelled,
               let pixels: Data = rasterize(
                 plan.cushionSnapshots,
                 request.pixelsWide,

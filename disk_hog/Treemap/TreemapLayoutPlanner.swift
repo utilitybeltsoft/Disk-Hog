@@ -56,6 +56,28 @@ nonisolated enum TreemapLayoutPlanner {
         otherSpaceItem: DiskItem? = nil,
         progress: (@Sendable (Double) -> Void)? = nil
     ) -> TreemapLayoutPlan {
+        // The synchronous API deliberately ignores task cancellation.
+        makePlanCheckingCancellation(
+            rootItem: rootItem, bounds: bounds, usePhysicalSize: usePhysicalSize,
+            colorTable: colorTable, showsFreeSpace: showsFreeSpace,
+            showsOtherSpace: showsOtherSpace, freeSpaceItem: freeSpaceItem,
+            otherSpaceItem: otherSpaceItem, progress: progress, checkCancellation: {}
+        )
+    }
+
+    static func makePlanCheckingCancellation(
+        rootItem: DiskItem,
+        bounds: TreemapLayoutRect,
+        usePhysicalSize: Bool,
+        colorTable: TreemapPlanColorTable,
+        showsFreeSpace: Bool = false,
+        showsOtherSpace: Bool = false,
+        freeSpaceItem: DiskItem? = nil,
+        otherSpaceItem: DiskItem? = nil,
+        progress: (@Sendable (Double) -> Void)? = nil,
+        checkCancellation: () throws -> Void = { try Task.checkCancellation() }
+    ) rethrows -> TreemapLayoutPlan {
+        try checkCancellation()
         let geometryStart = TreemapPerformance.now
         var entries: [TreemapLayoutEntry] = []
         var snapshots: [TreemapCushionSnapshot] = []
@@ -64,7 +86,7 @@ nonisolated enum TreemapLayoutPlanner {
             totalFolders: totalFolders,
             progress: progress
         )
-        appendEntry(
+        try appendEntry(
             for: rootItem,
             parentItem: nil,
             parentPath: nil,
@@ -80,10 +102,12 @@ nonisolated enum TreemapLayoutPlanner {
             parentSurface: nil,
             heightFactor: 0.5,
             stats: stats,
+            checkCancellation: checkCancellation,
             entries: &entries,
             snapshots: &snapshots
         )
         TreemapPerformance.phase("geometry", since: geometryStart, count: entries.count)
+        try checkCancellation()
         return TreemapLayoutPlan(bounds: bounds, entries: entries, cushionSnapshots: snapshots)
     }
 
@@ -103,9 +127,11 @@ nonisolated enum TreemapLayoutPlanner {
         parentSurface: [Double]?,
         heightFactor: Double,
         stats: TreemapLayoutDiagnosticStats,
+        checkCancellation: () throws -> Void,
         entries: inout [TreemapLayoutEntry],
         snapshots: inout [TreemapCushionSnapshot]
-    ) {
+    ) rethrows {
+        try checkCancellation()
         stats.entriesProcessed += 1
         stats.reportProgressIfDue()
         let isVisible: Bool = rect.width >= 1 && rect.height >= 1
@@ -162,7 +188,7 @@ nonisolated enum TreemapLayoutPlanner {
             freeSpaceItem: freeSpaceItem,
             otherSpaceItem: otherSpaceItem
         )
-        let (layoutItems, explicitWeights): ([DiskItem], [Double]?) = layoutChildrenAndWeights(
+        let (layoutItems, explicitWeights): ([DiskItem], [Double]?) = try layoutChildrenAndWeights(
             for: item,
             rootItem: rootItem,
             rect: rect,
@@ -171,23 +197,25 @@ nonisolated enum TreemapLayoutPlanner {
             showsFreeSpace: showsFreeSpace,
             showsOtherSpace: showsOtherSpace,
             freeSpaceItem: freeSpaceItem,
-            otherSpaceItem: otherSpaceItem
+            otherSpaceItem: otherSpaceItem,
+            checkCancellation: checkCancellation
         )
         guard layoutItems.isEmpty == false else { return }
         stats.recursedFolderCount += 1
-        let childRects: [(rect: TreemapLayoutRect, unroundedRect: TreemapLayoutRect)] = layoutChildren(
+        let childRects: [(rect: TreemapLayoutRect, unroundedRect: TreemapLayoutRect)] = try layoutChildren(
             layoutItems,
             weights: explicitWeights,
             parentWeight: folderWeight,
             rect: rect,
-            usePhysicalSize: usePhysicalSize
+            usePhysicalSize: usePhysicalSize,
+            checkCancellation: checkCancellation
         )
         // item.path decodes a string from the packed buffer on every access (see DiskItem) - hoist
         // it once rather than recomputing it, identically, on every one of this folder's
         // (potentially hundreds of thousands of) children below.
         let itemPath: String = item.path
         for (child, childRect) in zip(layoutItems, childRects) {
-            appendEntry(
+            try appendEntry(
                 for: child,
                 parentItem: item,
                 parentPath: itemPath,
@@ -203,6 +231,7 @@ nonisolated enum TreemapLayoutPlanner {
                 parentSurface: surface,
                 heightFactor: heightFactor * 0.9,
                 stats: stats,
+                checkCancellation: checkCancellation,
                 entries: &entries,
                 snapshots: &snapshots
             )
@@ -229,8 +258,9 @@ nonisolated enum TreemapLayoutPlanner {
         showsFreeSpace: Bool,
         showsOtherSpace: Bool,
         freeSpaceItem: DiskItem?,
-        otherSpaceItem: DiskItem?
-    ) -> (items: [DiskItem], weights: [Double]?) {
+        otherSpaceItem: DiskItem?,
+        checkCancellation: () throws -> Void
+    ) rethrows -> (items: [DiskItem], weights: [Double]?) {
         let realChildCount: Int = item.childCount
         // Additive, not multiplicative: a x4 multiplier looked like a reasonable safety margin
         // for small rects, but for a large one (a dominant folder spanning a big share of the
@@ -248,6 +278,7 @@ nonisolated enum TreemapLayoutPlanner {
             keptWeights.reserveCapacity(cap - 1)
             var keptWeightSum: UInt64 = 0
             for index: Int in 0..<(cap - 1) {
+                if index.isMultiple(of: 256) { try checkCancellation() }
                 let child: DiskItem = item.child(at: index)
                 let childWeight: UInt64 = child.sizeValue(usePhysicalSize: usePhysicalSize)
                 kept.append(child)
@@ -259,7 +290,12 @@ nonisolated enum TreemapLayoutPlanner {
             items = kept + [representative]
             weights = keptWeights + [tailWeight]
         } else {
-            items = item.children
+            items = []
+            items.reserveCapacity(realChildCount)
+            for index in 0..<realChildCount {
+                if index.isMultiple(of: 256) { try checkCancellation() }
+                items.append(item.child(at: index))
+            }
             weights = nil
         }
 
@@ -281,13 +317,22 @@ nonisolated enum TreemapLayoutPlanner {
         weights explicitWeights: [Double]? = nil,
         parentWeight: UInt64,
         rect: TreemapLayoutRect,
-        usePhysicalSize: Bool
-    ) -> [(rect: TreemapLayoutRect, unroundedRect: TreemapLayoutRect)] {
+        usePhysicalSize: Bool,
+        checkCancellation: () throws -> Void
+    ) rethrows -> [(rect: TreemapLayoutRect, unroundedRect: TreemapLayoutRect)] {
         let horizontal: Bool = rect.width >= rect.height
         let primaryLength: Double = horizontal ? rect.width : rect.height
         let secondaryLength: Double = horizontal ? rect.height : rect.width
         let aspectWidth: Double = secondaryLength > 0 ? primaryLength / secondaryLength : 1
-        let weights: [Double] = explicitWeights ?? children.map { Double($0.sizeValue(usePhysicalSize: usePhysicalSize)) }
+        let weights: [Double]
+        if let explicitWeights {
+            weights = explicitWeights
+        } else {
+            weights = try children.enumerated().map { index, child in
+                if index.isMultiple(of: 256) { try checkCancellation() }
+                return Double(child.sizeValue(usePhysicalSize: usePhysicalSize))
+            }
+        }
         let effectiveWeights: [Double] = parentWeight == 0
             ? Array(repeating: 1, count: children.count)
             : weights
@@ -298,6 +343,7 @@ nonisolated enum TreemapLayoutPlanner {
         var start: Int = 0
 
         while start < children.count {
+            try checkCancellation()
             if effectiveWeights[start] == 0 {
                 rowCounts.append(1)
                 rowHeights.append(0)
@@ -310,6 +356,7 @@ nonisolated enum TreemapLayoutPlanner {
             var usedWeight: Double = 0
             var rowHeight: Double = 0
             while end < children.count, effectiveWeights[end] > 0 {
+                if end.isMultiple(of: 256) { try checkCancellation() }
                 usedWeight += effectiveWeights[end]
                 let proposedHeight: Double = usedWeight / totalWeight
                 let proposedWidth: Double = effectiveWeights[end] / totalWeight * aspectWidth / proposedHeight
@@ -325,6 +372,7 @@ nonisolated enum TreemapLayoutPlanner {
             rowHeights.append(rowHeight)
             let rowWeight: Double = max(usedWeight, 1)
             for index: Int in start..<(start + count) {
+                if index.isMultiple(of: 256) { try checkCancellation() }
                 childWidths.append(effectiveWeights[index] / rowWeight)
             }
             start += count
@@ -343,6 +391,7 @@ nonisolated enum TreemapLayoutPlanner {
         // zero-size sliver.
         let lastNonZeroRowIndex: Int = rowHeights.lastIndex(where: { $0 > 0 }) ?? rowCounts.indices.last ?? 0
         for row: Int in rowCounts.indices {
+            try checkCancellation()
             let isLastWeightedRow: Bool = row == lastNonZeroRowIndex
             let unroundedSecondaryEnd: Double = isLastWeightedRow
                 ? roundedSecondaryEnd
@@ -354,6 +403,7 @@ nonisolated enum TreemapLayoutPlanner {
             var unroundedPrimaryStart: Double = roundedPrimaryStart
             let roundedPrimaryEnd: Double = horizontal ? rect.x + rect.width : rect.y + rect.height
             for column: Int in 0..<rowCounts[row] {
+                if column.isMultiple(of: 256) { try checkCancellation() }
                 let unroundedPrimaryEnd: Double = column == rowCounts[row] - 1
                     ? roundedPrimaryEnd
                     : unroundedPrimaryStart + childWidths[childIndex] * primaryLength
