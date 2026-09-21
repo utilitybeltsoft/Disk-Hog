@@ -981,6 +981,25 @@ struct ScanSessionWorkerIntegrationTests {
         #expect(session.presentationMetrics != nil)
     }
 
+    @Test func surfacesSkippedItemsFromInjectedWorker() async throws {
+        let rootItem: DiskItem = Self.rootItem(fileSize: 12)
+        let skippedItems: [ScanSkippedItem] = [
+            ScanSkippedItem(path: "/scan/locked", reason: "Permission denied")
+        ]
+        let session: ScanSession = ScanSession(
+            source: ScanSource(path: "/scan", displayName: "scan"),
+            scanWorker: ImmediateScanWorker(
+                result: .success(Self.scanResult(rootItem: rootItem, skippedItems: skippedItems))
+            )
+        )
+
+        session.startScan()
+
+        try await Self.waitUntil(observing: session) { session.state == .complete }
+        #expect(session.hasIncompleteResults)
+        #expect(session.skippedItems == skippedItems)
+    }
+
     @Test func scanRemainsInTreemapPreparationUntilFirstRenderedImageArrives() async throws {
         let rootItem: DiskItem = Self.rootItem(fileSize: 12)
         let session: ScanSession = ScanSession(
@@ -1083,6 +1102,39 @@ struct ScanSessionWorkerIntegrationTests {
         #expect(session.rootItem?.item(atPath: "/scan/file.txt")?.allocatedSizeValue == 24)
         #expect(session.preferredSelection?.path == "/scan/file.txt")
         #expect(session.failure == nil)
+    }
+
+    @Test func refreshClearsStaleSkippedItemsUnderRefreshedSubtreeOnly() async throws {
+        let originalRoot: DiskItem = Self.rootItem(fileSize: 12)
+        let refreshedRoot: DiskItem = Self.rootItem(fileSize: 24)
+        let initialSkippedItems: [ScanSkippedItem] = [
+            ScanSkippedItem(path: "/scan/sub/locked.dat", reason: "Permission denied"),
+            ScanSkippedItem(path: "/scan/other/locked.dat", reason: "Permission denied")
+        ]
+        let treeWorker: ImmediateTreeWorker = ImmediateTreeWorker(
+            refreshResult: .success(Self.treeResult(
+                rootItem: refreshedRoot,
+                selectionPath: "/scan/file.txt",
+                skippedItems: [],
+                refreshedSubtreePath: "/scan/sub"
+            ))
+        )
+        let session: ScanSession = ScanSession(
+            source: ScanSource(path: "/scan", displayName: "scan"),
+            scanWorker: ImmediateScanWorker(
+                result: .success(Self.scanResult(rootItem: originalRoot, skippedItems: initialSkippedItems))
+            ),
+            treeWorker: treeWorker
+        )
+        session.startScan()
+        try await Self.waitUntil(observing: session) { session.state == .complete }
+        #expect(session.skippedItems.count == 2)
+        let item: DiskItem = try #require(session.rootItem?.item(atPath: "/scan/file.txt"))
+
+        session.refresh(item)
+
+        try await Self.waitUntil(observing: session) { session.isUpdatingTree == false && session.scannedByteCount == 24 }
+        #expect(session.skippedItems.map(\.path) == ["/scan/other/locked.dat"])
     }
 
     @Test func reportsTreeFailureWithoutDroppingCompletedScan() async throws {
@@ -1346,25 +1398,33 @@ struct ScanSessionWorkerIntegrationTests {
         )
     }
 
-    static func scanResult(rootItem: DiskItem) -> ScanSessionScanResult {
+    static func scanResult(
+        rootItem: DiskItem,
+        skippedItems: [ScanSkippedItem] = []
+    ) -> ScanSessionScanResult {
         ScanSessionScanResult(
             source: ScanSource(path: "/scan", displayName: "scan"),
             rootItem: rootItem,
             presentationMetrics: metrics(rootItem: rootItem),
-            builtUsingPhysicalSize: true
+            builtUsingPhysicalSize: true,
+            skippedItems: skippedItems
         )
     }
 
     private static func treeResult(
         rootItem: DiskItem,
-        selectionPath: String
+        selectionPath: String,
+        skippedItems: [ScanSkippedItem] = [],
+        refreshedSubtreePath: String? = nil
     ) -> ScanSessionTreeUpdateResult {
         ScanSessionTreeUpdateResult(
             source: ScanSource(path: "/scan", displayName: "scan"),
             rootItem: rootItem,
             presentationMetrics: metrics(rootItem: rootItem),
             selectionPath: selectionPath,
-            builtUsingPhysicalSize: true
+            builtUsingPhysicalSize: true,
+            skippedItems: skippedItems,
+            refreshedSubtreePath: refreshedSubtreePath ?? selectionPath
         )
     }
 
@@ -1852,7 +1912,8 @@ private final class PendingRescanStaleSizeModeScanWorker: ScanSessionScanning, @
                 usePhysicalSize: settings.usePhysicalSize,
                 sharesKindColors: ScanPreferenceDefaults.sharesKindColors
             ),
-            builtUsingPhysicalSize: builtUsingPhysicalSize
+            builtUsingPhysicalSize: builtUsingPhysicalSize,
+            skippedItems: []
         )
     }
 }
@@ -2118,6 +2179,30 @@ struct InspectorWindowLayoutTests {
 
         #expect(layoutCoordinator.slot(for: .diskUsage, context: nil) == .compactDiskUsage)
         #expect(layoutCoordinator.slot(for: .diskUsage, context: context) == .fullDiskUsage)
+    }
+
+    @Test func emptyTabsShareOneSizeInsteadOfEachTabsOwnContentSize() {
+        let layoutCoordinator: InspectorWindowLayoutCoordinator = InspectorWindowLayoutCoordinator()
+        let source: ScanSource = ScanSource(path: "/scan", displayName: "scan")
+        let session: ScanSession = ScanSession(source: source)
+        let context: InspectorWindowContext = InspectorWindowContext(
+            session: session,
+            selectionCoordinator: ScanWindowSelectionCoordinator()
+        )
+
+        for tab: InspectorWindowTab in [.information, .selectionList, .scanIssues] {
+            #expect(layoutCoordinator.slot(for: tab, context: nil) == .empty)
+            #expect(layoutCoordinator.slot(for: tab, context: context) != .empty)
+        }
+        #expect(layoutCoordinator.layout(for: .empty).preferredContentSize == InspectorWindowLayout.compactDiskUsage.preferredContentSize)
+    }
+
+    @Test func tabBarWidthFitsAllFiveTabLabelsWithoutTruncating() {
+        // Regression coverage for a real truncation bug: this constant must be
+        // widened whenever a tab is added, not left at whatever fit the previous
+        // tab count.
+        #expect(InspectorWindowTab.allCases.count == 5)
+        #expect(InspectorWindowLayout.minimumTabBarWidth == 700)
     }
 
     @Test func inactiveDiskUsagePaneRequestsVolumeSelection() {
@@ -4319,6 +4404,92 @@ struct TreemapViewStateTests {
         try await Self.waitUntil { secondRenderStartCount.value >= 1 }
     }
 
+    @Test func returningToAPreviousRootAfterVisitingAnotherRootAlwaysReRenders() async throws {
+        let rootA: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/a"),
+            isDirectory: true,
+            children: [
+                DiskItem(url: URL(fileURLWithPath: "/scan/a/file.bin"), allocatedSizeValue: 100, logicalSizeValue: 100)
+            ]
+        )
+        let rootB: DiskItem = DiskItem(
+            url: URL(fileURLWithPath: "/scan/b"),
+            isDirectory: true,
+            children: [
+                DiskItem(url: URL(fileURLWithPath: "/scan/b/file.bin"), allocatedSizeValue: 100, logicalSizeValue: 100)
+            ]
+        )
+        let renderCountForA: LockedCounter = LockedCounter()
+        let render: @Sendable (TreemapRenderRequest, @escaping @Sendable (Double) -> Void) -> TreemapRenderResult? = { request, _ in
+            if request.rootItem === rootA {
+                renderCountForA.increment()
+            }
+            // Switching roots legitimately cancels an in-flight render, so this must
+            // tolerate cancellation (unlike TreemapRenderJob.render, which force-unwraps
+            // and would crash the test process on exactly that case).
+            return TreemapRenderJob.renderIfNotCancelled(request)
+        }
+        let state: TreemapViewState = TreemapViewState(render: render)
+        let bounds: NSRect = NSRect(x: 0, y: 0, width: 100, height: 100)
+
+        _ = state.configure(
+            source: ScanSource(path: "/scan", displayName: "scan"),
+            rootItem: rootA,
+            presentationMetrics: nil,
+            showsFreeSpace: false,
+            showsOtherSpace: false,
+            freeSpaceItem: nil,
+            otherSpaceItem: nil,
+            selectedItem: nil
+        )
+        for _ in 0..<100 {
+            if state.renderedImage(in: bounds, scale: 1) != nil { break }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        try await Self.waitUntil { renderCountForA.value == 1 }
+
+        _ = state.configure(
+            source: ScanSource(path: "/scan", displayName: "scan"),
+            rootItem: rootB,
+            presentationMetrics: nil,
+            showsFreeSpace: false,
+            showsOtherSpace: false,
+            freeSpaceItem: nil,
+            otherSpaceItem: nil,
+            selectedItem: nil
+        )
+        // `renderedImage` deliberately keeps returning rootA's bitmap as a "stale
+        // root" fallback while rootB's render is still pending (same behavior
+        // `previousTreemapBitmapRemainsVisibleWhileNewRootRenders` covers above), so
+        // a plain non-nil check here would pass before rootB's own render - and
+        // therefore its cache entry - actually exists. `isShowingStaleRoot` becoming
+        // false is the real signal that rootB's render completed.
+        try await Self.waitUntil {
+            _ = state.renderedImage(in: bounds, scale: 1)
+            return state.isShowingStaleRoot == false
+        }
+
+        // Root/snapshot replacement must drop the whole render cache, not just the
+        // visible bitmap - otherwise revisiting rootA here would be served straight
+        // from a still-cached entry with no new call into `render` at all, leaking
+        // its bitmap in memory indefinitely instead of being freed when rootA was
+        // superseded by rootB.
+        _ = state.configure(
+            source: ScanSource(path: "/scan", displayName: "scan"),
+            rootItem: rootA,
+            presentationMetrics: nil,
+            showsFreeSpace: false,
+            showsOtherSpace: false,
+            freeSpaceItem: nil,
+            otherSpaceItem: nil,
+            selectedItem: nil
+        )
+        try await Self.waitUntil {
+            _ = state.renderedImage(in: bounds, scale: 1)
+            return renderCountForA.value == 2
+        }
+    }
+
     private static func waitUntil(
         timeoutNanoseconds: UInt64 = 1_000_000_000,
         condition: @escaping @MainActor () -> Bool
@@ -4506,6 +4677,40 @@ struct TreemapCushionRendererTests {
     }
 }
 
+struct ScanResourceBudgetTests {
+    @Test func acquireTraversalPermitThrowsImmediatelyWhenAlreadyCancelled() async throws {
+        let budget: ScanResourceBudget = ScanResourceBudget(maximumConcurrentFilesystemTraversals: 1)
+
+        withUnsafeCurrentTask { $0?.cancel() }
+
+        await #expect(throws: CancellationError.self) {
+            try await budget.acquireTraversalPermit()
+        }
+    }
+
+    @Test func acquireTraversalPermitThrowsWhenCancelledWhileWaitingForAFreeSlot() async throws {
+        let budget: ScanResourceBudget = ScanResourceBudget(maximumConcurrentFilesystemTraversals: 1)
+        let firstPermit: ScanResourcePermit = try await budget.acquireTraversalPermit()
+
+        let waitingTask: Task<ScanResourcePermit, Error> = Task {
+            try await budget.acquireTraversalPermit()
+        }
+        // Give the waiting task a moment to actually reach the point of waiting for a
+        // free slot (there's only one, already held by firstPermit) before cancelling it.
+        try await Task.sleep(nanoseconds: 50_000_000)
+        waitingTask.cancel()
+
+        await #expect(throws: CancellationError.self) {
+            try await waitingTask.value
+        }
+
+        // Cancelling a waiter must not corrupt the slot bookkeeping - releasing the
+        // held permit should still let a fresh acquire succeed normally afterward.
+        await firstPermit.release()
+        _ = try await budget.acquireTraversalPermit()
+    }
+}
+
 struct DiskInventoryZScannerTests {
 
     @Test(
@@ -4551,15 +4756,15 @@ struct DiskInventoryZScannerTests {
             try? FileManager.default.removeItem(at: secondRootURL)
         }
 
-        async let firstScan: DiskItem = DiskInventoryZScanner().scan(
+        async let firstScan: DiskScanOutcome = DiskInventoryZScanner().scan(
             source: ScanSource(path: firstRootURL.path, displayName: firstRootURL.lastPathComponent)
         )
-        async let secondScan: DiskItem = DiskInventoryZScanner().scan(
+        async let secondScan: DiskScanOutcome = DiskInventoryZScanner().scan(
             source: ScanSource(path: secondRootURL.path, displayName: secondRootURL.lastPathComponent)
         )
 
-        let firstRoot: DiskItem = try await firstScan
-        let secondRoot: DiskItem = try await secondScan
+        let firstRoot: DiskItem = try await firstScan.item
+        let secondRoot: DiskItem = try await secondScan.item
 
         #expect(Self.hardlinkDuplicateCount(in: firstRoot) == 1)
         #expect(Self.hardlinkDuplicateCount(in: secondRoot) == 1)
@@ -4573,7 +4778,7 @@ struct DiskInventoryZScannerTests {
 
         let root: DiskItem = try await DiskInventoryZScanner().scan(
             source: ScanSource(path: rootURL.path, displayName: rootURL.lastPathComponent)
-        )
+        ).item
 
         #expect(Self.hardlinkDuplicateCount(in: root) == 1)
     }
@@ -4606,10 +4811,10 @@ struct DiskInventoryZScannerTests {
             resourceBudget: resourceBudget
         )
 
-        async let firstScan: DiskItem = firstScanner.scan(
+        async let firstScan: DiskScanOutcome = firstScanner.scan(
             source: ScanSource(path: firstRootURL.path, displayName: firstRootURL.lastPathComponent)
         )
-        async let secondScan: DiskItem = secondScanner.scan(
+        async let secondScan: DiskScanOutcome = secondScanner.scan(
             source: ScanSource(path: secondRootURL.path, displayName: secondRootURL.lastPathComponent)
         )
 
@@ -4617,6 +4822,26 @@ struct DiskInventoryZScannerTests {
 
         #expect(resourceReadTracker.maximumActiveCount <= 2)
         #expect(resourceReadTracker.totalEntryCount == 24)
+    }
+
+    @Test func topLevelScanProcessesEveryItemEvenFarBeyondTheTraversalBudget() async throws {
+        // Top-level tasks are submitted in a budget-sized window and refilled as each
+        // one completes (rather than all at once) - this exercises that refill loop
+        // with far more items than the budget, to confirm it walks every item instead
+        // of silently stopping after the initial batch.
+        let rootURL: URL = try Self.makeManyTopLevelDirectoryFixture(named: "refill", directoryCount: 20)
+        defer {
+            try? FileManager.default.removeItem(at: rootURL)
+        }
+        let resourceBudget: ScanResourceBudget = ScanResourceBudget(maximumConcurrentFilesystemTraversals: 2)
+        let scanner: DiskInventoryZScanner = DiskInventoryZScanner(resourceBudget: resourceBudget)
+
+        let root: DiskItem = try await scanner.scan(
+            source: ScanSource(path: rootURL.path, displayName: rootURL.lastPathComponent)
+        ).item
+
+        #expect(root.children.count == 20)
+        #expect(Set(root.children.map(\.name)).count == 20)
     }
 
     @Test func scanProgressBytesDoNotMoveBackwards() async throws {
@@ -4671,7 +4896,7 @@ struct DiskInventoryZScannerTests {
             return try url.resourceValues(forKeys: keys)
         }
 
-        let scanTask: Task<DiskItem, Error> = Task {
+        let scanTask: Task<DiskScanOutcome, Error> = Task {
             try await scanner.scan(
                 source: ScanSource(path: rootURL.path, displayName: rootURL.lastPathComponent)
             )
@@ -4704,13 +4929,18 @@ struct DiskInventoryZScannerTests {
 
             return try url.resourceValues(forKeys: keys)
         }
-        let root: DiskItem = try await scanner.scan(
+        let outcome: DiskScanOutcome = try await scanner.scan(
             source: ScanSource(path: rootURL.path, displayName: rootURL.lastPathComponent)
         )
+        let root: DiskItem = outcome.item
         let folder: DiskItem? = root.children.first { $0.name == "folder" }
 
         #expect(folder != nil)
         #expect(folder?.children.map(\.name) == ["readable.txt"])
+        #expect(outcome.skippedItems.map(\.path) == [
+            canonicalPath(rootURL.appendingPathComponent("folder/vanished.dat"))
+        ])
+        #expect(outcome.skippedItems.first?.reason.isEmpty == false)
     }
 
     @Test func topLevelScanSkipsItemsWhoseResourceValuesCannotBeRead() async throws {
@@ -4726,11 +4956,16 @@ struct DiskInventoryZScannerTests {
 
             return try url.resourceValues(forKeys: keys)
         }
-        let root: DiskItem = try await scanner.scan(
+        let outcome: DiskScanOutcome = try await scanner.scan(
             source: ScanSource(path: rootURL.path, displayName: rootURL.lastPathComponent)
         )
+        let root: DiskItem = outcome.item
 
         #expect(root.children.map(\.name) == ["readable.txt"])
+        #expect(outcome.skippedItems.map(\.path) == [
+            canonicalPath(rootURL.appendingPathComponent("vanished.dat"))
+        ])
+        #expect(outcome.skippedItems.first?.reason.isEmpty == false)
     }
 
     @Test func topLevelScanSortsChildrenByLogicalSizeWhenConfigured() async throws {
@@ -4745,7 +4980,7 @@ struct DiskInventoryZScannerTests {
                 usePhysicalSize: false,
                 lookInsidePackages: false
             )
-        )
+        ).item
 
         #expect(root.children.map(\.name) == ["sparse-logical-large.bin", "dense-allocated.bin"])
     }
@@ -4762,7 +4997,7 @@ struct DiskInventoryZScannerTests {
                 usePhysicalSize: false,
                 lookInsidePackages: false
             )
-        )
+        ).item
         let package: DiskItem? = root.children.first { $0.name == "Example.app" }
 
         #expect(package != nil)
@@ -4790,7 +5025,7 @@ struct DiskInventoryZScannerTests {
                 usePhysicalSize: true,
                 lookInsidePackages: false
             )
-        )
+        ).item
 
         #expect(package.allocatedSizeValue == 123_456)
         #expect(package.logicalSizeValue == 654_321)
@@ -4811,7 +5046,7 @@ struct DiskInventoryZScannerTests {
         let item: DiskItem = try await scanner.scanItem(
             at: itemURL,
             from: ScanSource(path: rootURL.path, displayName: rootURL.lastPathComponent)
-        )
+        ).item
 
         #expect(item.kindName == "Injected Kind")
     }
@@ -4831,7 +5066,7 @@ struct DiskInventoryZScannerTests {
         let item: DiskItem = try await scanner.scanItem(
             at: itemURL,
             from: ScanSource(path: rootURL.path, displayName: rootURL.lastPathComponent)
-        )
+        ).item
 
         #expect(item.isHardlinkDuplicate)
         #expect(item.allocatedSizeValue == 0)
@@ -4970,6 +5205,88 @@ struct DiskInventoryZScannerTests {
         }
     }
 
+}
+
+struct DiskInventoryZScanSessionTreeWorkerTests {
+    @Test func deletePermanentlyReconcilesTreeEvenWhenCancelledImmediatelyAfterFileRemoval() async throws {
+        let rootURL: URL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("disk-hog-delete-cancel-race-\(UUID().uuidString)", isDirectory: true)
+        let fileURL: URL = rootURL.appendingPathComponent("doomed.txt")
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+        try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
+        try Data("doomed".utf8).write(to: fileURL)
+
+        // The scanner's directory enumeration canonicalizes descendant paths (e.g.
+        // resolving /var to /private/var), so the root must be constructed from an
+        // already-canonical path too - otherwise DiskItem.item(atPath:)'s prefix
+        // check between root and descendant paths would never match.
+        let source: ScanSource = ScanSource(path: canonicalPath(rootURL), displayName: rootURL.lastPathComponent)
+        let settings: DiskScanSettings = .diskInventoryZDefault
+        let currentRoot: DiskItem = try await DiskInventoryZScanner().scan(source: source, settings: settings).item
+        let fileItem: DiskItem = try #require(currentRoot.item(atPath: canonicalPath(fileURL)))
+
+        // The mutation is irreversible, so a cancellation landing right after it -
+        // simulated here by cancelling from inside the deletion closure itself -
+        // must not stop the tree from being reconciled to match the now-deleted file.
+        let worker: DiskInventoryZScanSessionTreeWorker = DiskInventoryZScanSessionTreeWorker(
+            performDeletion: { url, deletionMethod in
+                try FileManager.default.removeItem(at: url)
+                withUnsafeCurrentTask { $0?.cancel() }
+            }
+        )
+
+        let result: ScanSessionTreeUpdateResult = try await worker.delete(
+            item: fileItem,
+            deletionMethod: .deletePermanently,
+            currentRoot: currentRoot,
+            source: source,
+            settings: settings
+        )
+
+        #expect(FileManager.default.fileExists(atPath: fileURL.path) == false)
+        #expect(result.rootItem.item(atPath: canonicalPath(fileURL)) == nil)
+    }
+
+    @Test func deleteThrowsWithoutTouchingTheFileWhenAlreadyCancelled() async throws {
+        let rootURL: URL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("disk-hog-delete-precancelled-\(UUID().uuidString)", isDirectory: true)
+        let fileURL: URL = rootURL.appendingPathComponent("safe.txt")
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+        try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
+        try Data("safe".utf8).write(to: fileURL)
+
+        let source: ScanSource = ScanSource(path: canonicalPath(rootURL), displayName: rootURL.lastPathComponent)
+        let settings: DiskScanSettings = .diskInventoryZDefault
+        let currentRoot: DiskItem = try await DiskInventoryZScanner().scan(source: source, settings: settings).item
+        let fileItem: DiskItem = try #require(currentRoot.item(atPath: canonicalPath(fileURL)))
+        let worker: DiskInventoryZScanSessionTreeWorker = DiskInventoryZScanSessionTreeWorker()
+
+        withUnsafeCurrentTask { $0?.cancel() }
+
+        await #expect(throws: CancellationError.self) {
+            try await worker.delete(
+                item: fileItem,
+                deletionMethod: .deletePermanently,
+                currentRoot: currentRoot,
+                source: source,
+                settings: settings
+            )
+        }
+        #expect(FileManager.default.fileExists(atPath: fileURL.path))
+    }
+}
+
+/// `URL.resolvingSymlinksInPath()`/`.standardizedFileURL` deliberately leave the
+/// well-known /tmp, /var, /etc symlinks unresolved, but the scanner's directory
+/// enumeration reports fully realpath()-resolved paths (e.g. /private/var/...
+/// rather than /var/...) - so tests comparing against a scanned path must
+/// canonicalize the same way the real filesystem does.
+private func canonicalPath(_ url: URL) -> String {
+    var buffer: [Int8] = [Int8](repeating: 0, count: Int(PATH_MAX))
+    guard realpath(url.path, &buffer) != nil else {
+        return url.path
+    }
+    return String(cString: buffer)
 }
 
 private final class FixedOpaquePackageSizer: @unchecked Sendable, OpaquePackageSizing {
