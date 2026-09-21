@@ -53,7 +53,11 @@ nonisolated final class DiskInventoryZScanner {
         await progressHandler?(progressState.snapshot())
 
         let rootEnumerationPermit: ScanResourcePermit = try await resourceBudget.acquireTraversalPermit()
-        var topLevelWorkItems: [TopLevelScanWorkItem] = []
+        // A work item owns a mutable builder while that subtree is traversed. Clear
+        // its queue slot as soon as it is submitted so a completed builder can be
+        // released after it becomes an immutable packed chunk, rather than keeping
+        // both representations alive until every sibling has finished scanning.
+        var topLevelWorkItems: [TopLevelScanWorkItem?] = []
         do {
             let topLevelChildren: [URL] = try FileManager.default.contentsOfDirectory(
                 at: rootURL,
@@ -103,7 +107,10 @@ nonisolated final class DiskInventoryZScanner {
                 guard nextWorkItemIndex < topLevelWorkItems.count else {
                     return
                 }
-                let workItem: TopLevelScanWorkItem = topLevelWorkItems[nextWorkItemIndex]
+                guard let workItem: TopLevelScanWorkItem = topLevelWorkItems[nextWorkItemIndex] else {
+                    preconditionFailure("A top-level scan work item was submitted more than once.")
+                }
+                topLevelWorkItems[nextWorkItemIndex] = nil
                 nextWorkItemIndex += 1
 
                 let settings: DiskScanSettings = settings
@@ -129,7 +136,8 @@ nonisolated final class DiskInventoryZScanner {
                             workItem,
                             settings: settings,
                             progressAggregator: progressAggregator,
-                            progressHandler: progressHandler
+                            progressHandler: progressHandler,
+                            stageHandler: stageHandler
                         )
                         await permit.release()
                         return result
@@ -240,9 +248,14 @@ nonisolated final class DiskInventoryZScanner {
         _ workItem: TopLevelScanWorkItem,
         settings: DiskScanSettings,
         progressAggregator: ScanProgressAggregator,
-        progressHandler: ProgressHandler?
+        progressHandler: ProgressHandler?,
+        stageHandler: (@Sendable (DiskScanStage) async -> Void)?
     ) async throws -> TopLevelScanResult {
         try Task.checkCancellation()
+        // A concurrent sibling may have just finished packaging. Reassert the
+        // active traversal phase when this worker begins so the status describes
+        // current work rather than leaving a stale packaging message onscreen.
+        await stageHandler?(.scanningFiles)
 
         var progressState: ScanProgressState = ScanProgressState(currentPath: workItem.item.path)
         progressState.recordItem(workItem.item)
@@ -282,6 +295,8 @@ nonisolated final class DiskInventoryZScanner {
             progress: progressState.snapshot()
         )
         await progressHandler?(aggregateProgress)
+        await stageHandler?(.packagingScanResults)
+        try Task.checkCancellation()
 
         return TopLevelScanResult(
             chunk: workItem.item.packedChunk(isRoot: false),

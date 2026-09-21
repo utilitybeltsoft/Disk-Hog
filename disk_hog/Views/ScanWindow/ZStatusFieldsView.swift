@@ -143,9 +143,11 @@ struct ZStatusFieldsView: View {
         case .enumeratingRootItems:
             return String(localized: "Enumerating root items…")
         case .scanningFiles:
-            return String(localized: "Scanning")
+            return String(localized: "Scanning files…")
+        case .packagingScanResults:
+            return String(localized: "Packaging scan results…")
         case .finalizingScan:
-            return String(localized: "Finalizing scan")
+            return String(localized: "Finalizing scan…")
         }
     }
 
@@ -155,10 +157,7 @@ struct ZStatusFieldsView: View {
             return String(localized: "Preparing treemap: \(percentage)%")
         }
 
-        let showsEllipsis: Bool = Int(referenceDate.timeIntervalSinceReferenceDate).isMultiple(of: 2)
-        return showsEllipsis
-            ? String(localized: "Preparing treemap...")
-            : String(localized: "Preparing treemap")
+        return String(localized: "Rendering treemap…")
     }
 
     private func scanTotalsView(referenceDate: Date) -> some View {

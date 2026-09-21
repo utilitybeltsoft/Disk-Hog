@@ -3,6 +3,7 @@ import Foundation
 nonisolated enum DiskScanStage: Equatable, Sendable {
     case enumeratingRootItems
     case scanningFiles
+    case packagingScanResults
     case finalizingScan
 }
 

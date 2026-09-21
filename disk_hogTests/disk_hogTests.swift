@@ -5175,7 +5175,7 @@ struct DiskInventoryZScannerTests {
         })
     }
 
-    @Test func scanReportsRootEnumerationScanningAndFinalizationStages() async throws {
+    @Test func scanReportsItsMajorWorkStages() async throws {
         let rootURL: URL = try Self.makeCrossTopLevelHardlinkFixture()
         defer {
             try? FileManager.default.removeItem(at: rootURL)
@@ -5189,11 +5189,11 @@ struct DiskInventoryZScannerTests {
             }
         )
 
-        #expect(await stageRecorder.stages == [
-            .enumeratingRootItems,
-            .scanningFiles,
-            .finalizingScan
-        ])
+        let stages: [DiskScanStage] = await stageRecorder.stages
+        #expect(stages.first == .enumeratingRootItems)
+        #expect(stages.dropFirst().first == .scanningFiles)
+        #expect(stages.contains(.packagingScanResults))
+        #expect(stages.last == .finalizingScan)
     }
 
     @Test func scanCancellationStopsConcurrentSubtreeWork() async throws {
