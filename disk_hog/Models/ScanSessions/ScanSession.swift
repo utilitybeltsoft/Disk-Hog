@@ -171,7 +171,8 @@ final class ScanSession: ObservableObject {
         let settings: DiskScanSettings = settings
         let scanWorker: any ScanSessionScanning = scanWorker
         let sessionReference: ScanSessionWeakReference = ScanSessionWeakReference(self)
-        _ = taskCoordinator.start(.scan, operationID: operation.id) { _ in Task.detached(priority: .userInitiated) { [sessionReference] in
+        // Long-running scans yield scheduling priority to interactive treemap work.
+        _ = taskCoordinator.start(.scan, operationID: operation.id) { _ in Task.detached(priority: .utility) { [sessionReference] in
             do {
                 let result: ScanSessionScanResult = try await scanWorker.scan(
                     source: source,
