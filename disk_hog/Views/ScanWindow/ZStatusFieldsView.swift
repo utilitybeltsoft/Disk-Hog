@@ -130,7 +130,9 @@ struct ZStatusFieldsView: View {
         case .failed:
             return session.failure?.statusMessage ?? String(localized: "Scan failed")
         case .ready, .scanning, .cancelled:
-            return scanStatus
+            return session.state == .scanning
+                ? animatedActivityStatus(scanStatus, referenceDate: referenceDate)
+                : scanStatus
         }
     }
 
@@ -157,7 +159,15 @@ struct ZStatusFieldsView: View {
             return String(localized: "Preparing treemap: \(percentage)%")
         }
 
-        return String(localized: "Rendering treemap…")
+        return animatedActivityStatus(String(localized: "Rendering treemap…"), referenceDate: referenceDate)
+    }
+
+    /// Reuse the status timeline's one-second tick for indeterminate activity.
+    /// This indicates that the UI is responsive; it does not measure worker progress.
+    private func animatedActivityStatus(_ status: String, referenceDate: Date) -> String {
+        let dotCount: Int = Int(floor(referenceDate.timeIntervalSince1970).truncatingRemainder(dividingBy: 3)) + 1
+        let label: String = status.hasSuffix("…") ? String(status.dropLast()) : status
+        return label + String(repeating: ".", count: dotCount)
     }
 
     private func scanTotalsView(referenceDate: Date) -> some View {
