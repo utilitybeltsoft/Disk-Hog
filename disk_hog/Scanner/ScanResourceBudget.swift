@@ -66,6 +66,7 @@ actor ScanResourceBudget {
 
         if activeFilesystemTraversals < maximumConcurrentFilesystemTraversals {
             activeFilesystemTraversals += 1
+            ScanActivity.shared.traversalStarted()
             return ScanResourcePermit(budget: self)
         }
 
@@ -91,6 +92,7 @@ actor ScanResourceBudget {
             return
         }
         activeFilesystemTraversals = max(activeFilesystemTraversals - 1, 0)
+        ScanActivity.shared.traversalEnded()
     }
 
     private func cancelWaiting(_ id: UUID) {

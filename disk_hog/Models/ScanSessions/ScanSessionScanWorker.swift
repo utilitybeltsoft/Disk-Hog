@@ -28,6 +28,11 @@ nonisolated struct DiskInventoryZScanSessionWorker: ScanSessionScanning {
         willBuildTreemap: @escaping @Sendable () async -> Void,
         treemapProgress: @escaping @Sendable (Double) async -> Void
     ) async throws -> ScanSessionScanResult {
+        let activityID = ScanActivity.shared.begin()
+        var outcomeLabel = "failed"
+        defer {
+            ScanActivity.shared.end(activityID, outcome: Task.isCancelled ? "cancelled" : outcomeLabel)
+        }
         let resolution: ScanSourceBookmarkResolution = try source.resolvingBookmark()
         let resolvedSource: ScanSource = resolution.refreshedBookmarkData.map(source.replacingBookmarkData) ?? source
         let scanner: DiskInventoryZScanner = DiskInventoryZScanner()
@@ -37,11 +42,20 @@ nonisolated struct DiskInventoryZScanSessionWorker: ScanSessionScanning {
         ) { scanProgress in
             await progress(scanProgress)
         } stageHandler: { scanStage in
+            let label: String
+            switch scanStage {
+            case .enumeratingRootItems: label = "enumerating"
+            case .scanningFiles: label = "scanning"
+            case .packagingScanResults: label = "packaging"
+            case .finalizingScan: label = "finalizing"
+            }
+            ScanActivity.shared.stage(label, scan: activityID)
             await stage(scanStage)
         }
         let rootItem: DiskItem = outcome.item
         try Task.checkCancellation()
         await willBuildTreemap()
+        ScanActivity.shared.stage("preparing-presentation", scan: activityID)
         let presentationMetrics: TreemapPresentationMetrics = TreemapPresentationMetrics(
             rootItem: rootItem,
             usePhysicalSize: settings.usePhysicalSize,
@@ -53,6 +67,7 @@ nonisolated struct DiskInventoryZScanSessionWorker: ScanSessionScanning {
             }
         }
         try Task.checkCancellation()
+        outcomeLabel = "completed"
         return ScanSessionScanResult(
             source: resolvedSource,
             rootItem: rootItem,
