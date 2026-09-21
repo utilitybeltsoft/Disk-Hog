@@ -48,32 +48,57 @@ actor ScanResourceBudget {
         min(8, ProcessInfo.processInfo.activeProcessorCount)
     )
 
-    private let maximumConcurrentFilesystemTraversals: Int
+    /// Immutable after init, so safe to read without hopping onto the actor - callers use
+    /// this to size how many tasks are worth having in flight at once (see
+    /// `DiskInventoryZScanner`'s bounded task submission), since a task beyond this limit
+    /// would just immediately suspend waiting for a permit anyway.
+    nonisolated let maximumConcurrentFilesystemTraversals: Int
     private var activeFilesystemTraversals: Int = 0
-    private var waitingContinuations: [CheckedContinuation<ScanResourcePermit, Never>] = []
+    private var waitingOrder: [UUID] = []
+    private var waitingContinuations: [UUID: CheckedContinuation<ScanResourcePermit, Error>] = [:]
 
     init(maximumConcurrentFilesystemTraversals: Int) {
         self.maximumConcurrentFilesystemTraversals = max(1, maximumConcurrentFilesystemTraversals)
     }
 
-    func acquireTraversalPermit() async -> ScanResourcePermit {
+    func acquireTraversalPermit() async throws -> ScanResourcePermit {
+        try Task.checkCancellation()
+
         if activeFilesystemTraversals < maximumConcurrentFilesystemTraversals {
             activeFilesystemTraversals += 1
             return ScanResourcePermit(budget: self)
         }
 
-        return await withCheckedContinuation { continuation in
-            waitingContinuations.append(continuation)
+        let id: UUID = UUID()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                waitingContinuations[id] = continuation
+                waitingOrder.append(id)
+            }
+        } onCancel: {
+            Task { await self.cancelWaiting(id) }
         }
     }
 
     fileprivate func releaseTraversalPermit() {
-        if waitingContinuations.isEmpty {
-            activeFilesystemTraversals = max(activeFilesystemTraversals - 1, 0)
+        while !waitingOrder.isEmpty {
+            let nextID: UUID = waitingOrder.removeFirst()
+            guard let continuation: CheckedContinuation<ScanResourcePermit, Error> = waitingContinuations.removeValue(forKey: nextID) else {
+                // Already cancelled and resumed via cancelWaiting - try the next waiter.
+                continue
+            }
+            continuation.resume(returning: ScanResourcePermit(budget: self))
             return
         }
+        activeFilesystemTraversals = max(activeFilesystemTraversals - 1, 0)
+    }
 
-        let continuation: CheckedContinuation<ScanResourcePermit, Never> = waitingContinuations.removeFirst()
-        continuation.resume(returning: ScanResourcePermit(budget: self))
+    private func cancelWaiting(_ id: UUID) {
+        guard let continuation: CheckedContinuation<ScanResourcePermit, Error> = waitingContinuations.removeValue(forKey: id) else {
+            // Already granted a permit via releaseTraversalPermit - nothing to cancel.
+            return
+        }
+        waitingOrder.removeAll { $0 == id }
+        continuation.resume(throwing: CancellationError())
     }
 }

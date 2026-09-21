@@ -52,7 +52,7 @@ nonisolated final class DiskInventoryZScanner {
         await stageHandler?(.enumeratingRootItems)
         await progressHandler?(progressState.snapshot())
 
-        let rootEnumerationPermit: ScanResourcePermit = await resourceBudget.acquireTraversalPermit()
+        let rootEnumerationPermit: ScanResourcePermit = try await resourceBudget.acquireTraversalPermit()
         var topLevelWorkItems: [TopLevelScanWorkItem] = []
         do {
             let topLevelChildren: [URL] = try FileManager.default.contentsOfDirectory(
@@ -97,7 +97,15 @@ nonisolated final class DiskInventoryZScanner {
         var topLevelResults: [TopLevelScanResult] = []
         await stageHandler?(.scanningFiles)
         try await withThrowingTaskGroup(of: TopLevelScanResult.self) { taskGroup in
-            for workItem: TopLevelScanWorkItem in topLevelWorkItems {
+            var nextWorkItemIndex: Int = 0
+
+            func submitNextTaskIfAvailable() {
+                guard nextWorkItemIndex < topLevelWorkItems.count else {
+                    return
+                }
+                let workItem: TopLevelScanWorkItem = topLevelWorkItems[nextWorkItemIndex]
+                nextWorkItemIndex += 1
+
                 let settings: DiskScanSettings = settings
                 let recursiveResourceValuesProvider: ResourceValuesProvider = recursiveResourceValuesProvider
                 let hardlinkDeduplicator: any HardlinkDeduplicating = hardlinkDeduplicator
@@ -108,7 +116,7 @@ nonisolated final class DiskInventoryZScanner {
                 let resourceBudget: ScanResourceBudget = resourceBudget
 
                 taskGroup.addTask {
-                    let permit: ScanResourcePermit = await resourceBudget.acquireTraversalPermit()
+                    let permit: ScanResourcePermit = try await resourceBudget.acquireTraversalPermit()
                     let scanner: DiskInventoryZScanner = DiskInventoryZScanner(
                         recursiveResourceValuesProvider: recursiveResourceValuesProvider,
                         hardlinkDeduplicator: hardlinkDeduplicator,
@@ -132,8 +140,22 @@ nonisolated final class DiskInventoryZScanner {
                 }
             }
 
+            // Bound how many top-level items become live tasks at once - a directory
+            // with a very large number of immediate children would otherwise spawn a
+            // task for every single one up front, even though the traversal budget
+            // only lets a handful actually run concurrently. Every task beyond that
+            // limit would just immediately suspend waiting for a permit anyway, so
+            // creating them eagerly only adds suspended-task/continuation overhead
+            // with no benefit. Instead, submit only as many as the budget allows, and
+            // add the next one each time a task completes and frees its slot.
+            let initialTaskCount: Int = min(topLevelWorkItems.count, resourceBudget.maximumConcurrentFilesystemTraversals)
+            for _ in 0..<initialTaskCount {
+                submitNextTaskIfAvailable()
+            }
+
             for try await result: TopLevelScanResult in taskGroup {
                 topLevelResults.append(result)
+                submitNextTaskIfAvailable()
             }
         }
 
