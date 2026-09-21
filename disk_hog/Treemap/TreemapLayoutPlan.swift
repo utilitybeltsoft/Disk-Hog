@@ -71,6 +71,7 @@ nonisolated struct TreemapLayoutPlan: Sendable {
         self.bounds = bounds
         self.entries = entries
         self.cushionSnapshots = cushionSnapshots
+        let identityStart = TreemapPerformance.now
         var entryIndexByPath: [String: Int] = [:]
         var entryIndexByItem: [DiskItem: Int] = [:]
         var childEntryIndicesByParent: [DiskItem: [Int]] = [:]
@@ -90,16 +91,21 @@ nonisolated struct TreemapLayoutPlan: Sendable {
         self.entryIndexByPath = entryIndexByPath
         self.entryIndexByItem = entryIndexByItem
         self.childEntryIndicesByParent = childEntryIndicesByParent
+        TreemapPerformance.phase("identity-index", since: identityStart, count: entries.count)
+        let hitStart = TreemapPerformance.now
         self.hitIndex = TreemapLayoutHitIndex(
             entries: entries,
             candidateIndices: navigableIndices,
             bounds: bounds
         )
+        TreemapPerformance.phase("hit-index", since: hitStart, count: navigableIndices.count)
+        let navigationStart = TreemapPerformance.now
         self.navigationIndex = TreemapLayoutNavigationIndex(
             entries: entries,
             candidateIndices: navigableIndices,
             bounds: bounds
         )
+        TreemapPerformance.phase("navigation-index", since: navigationStart, count: navigableIndices.count)
     }
 
     func entry(forPath path: String) -> TreemapLayoutEntry? {

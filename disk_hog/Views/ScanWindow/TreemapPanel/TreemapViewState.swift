@@ -503,22 +503,38 @@ final class TreemapViewState {
               pendingRenderRequest?.rootItem.path ?? "nil")
         renderTask?.cancel()
         pendingRenderRequest = request
+        let renderID = UUID().uuidString
+        let requestedAt = TreemapPerformance.now
+        let reason: String = completedRenderRequest == nil ? "initial"
+            : completedRenderRequest?.rootItem != request.rootItem ? "root-change"
+            : completedRenderRequest?.width != request.width || completedRenderRequest?.height != request.height ? "resize"
+            : "appearance-change"
         let stateReference: TreemapViewStateWeakReference = TreemapViewStateWeakReference(self)
         renderTask = Task.detached(priority: .userInitiated) { [render] in
-            let reportProgress: @Sendable (Double) -> Void = { fraction in
-                Task { @MainActor in
-                    stateReference.value?.updateRenderProgress(fraction, for: request)
+            await TreemapPerformance.$renderID.withValue(renderID) {
+                TreemapPerformance.started(request, reason: reason)
+                TreemapPerformance.phase("worker-queue", since: requestedAt)
+                let reportProgress: @Sendable (Double) -> Void = { fraction in
+                    Task { @MainActor in
+                        stateReference.value?.updateRenderProgress(fraction, for: request)
+                    }
                 }
-            }
-            guard let result: TreemapRenderResult = render(request, reportProgress),
-                  !Task.isCancelled else {
+                guard let result: TreemapRenderResult = render(request, reportProgress),
+                      !Task.isCancelled else {
+                    TreemapPerformance.event("cancelled-or-no-result")
+                    await MainActor.run {
+                        stateReference.value?.finishRenderWithoutResult(for: request)
+                    }
+                    return
+                }
+                let renderedAt = TreemapPerformance.now
                 await MainActor.run {
-                    stateReference.value?.finishRenderWithoutResult(for: request)
+                    TreemapPerformance.phase("main-queue", since: renderedAt)
+                    let installStart = TreemapPerformance.now
+                    stateReference.value?.installRenderResult(result)
+                    TreemapPerformance.phase("install", since: installStart)
+                    TreemapPerformance.phase("request-total", since: requestedAt)
                 }
-                return
-            }
-            await MainActor.run {
-                stateReference.value?.installRenderResult(result)
             }
         }
     }
@@ -550,6 +566,7 @@ final class TreemapViewState {
         guard let cached = resultCache.entry(for: request) else {
             return nil
         }
+        TreemapPerformance.event("cache-hit")
         renderedPlan = cached.plan
         renderedBitmap = cached.bitmap
         completedRenderRequest = request
@@ -562,6 +579,7 @@ final class TreemapViewState {
               result.request.rootItem.path, pendingRenderRequest == result.request ? "yes" : "no",
               DiagHogPixelCheck.nonWhiteFraction(of: result.pixels), result.plan.entries.count)
         guard pendingRenderRequest == result.request else {
+            TreemapPerformance.event("stale-result-discarded")
             return
         }
         guard let bitmap: NSBitmapImageRep = bitmap(from: result) else {

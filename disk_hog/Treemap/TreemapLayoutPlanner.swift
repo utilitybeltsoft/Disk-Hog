@@ -3,7 +3,7 @@ import Foundation
 /// Diagnostic counters plus throttled progress reporting for TreemapLayoutPlanner.makePlan's
 /// recursive descent. A reference type purely so appendEntry doesn't need to thread several more
 /// inout parameters through every recursive call.
-private final class TreemapLayoutDiagnosticStats {
+private nonisolated final class TreemapLayoutDiagnosticStats {
     var recursedFolderCount: Int = 0
     var entriesProcessed: Int = 0
 
@@ -56,6 +56,7 @@ nonisolated enum TreemapLayoutPlanner {
         otherSpaceItem: DiskItem? = nil,
         progress: (@Sendable (Double) -> Void)? = nil
     ) -> TreemapLayoutPlan {
+        let geometryStart = TreemapPerformance.now
         var entries: [TreemapLayoutEntry] = []
         var snapshots: [TreemapCushionSnapshot] = []
         let totalFolders: Int = rootItem.scanCounts(includeSelf: false).folders
@@ -82,6 +83,7 @@ nonisolated enum TreemapLayoutPlanner {
             entries: &entries,
             snapshots: &snapshots
         )
+        TreemapPerformance.phase("geometry", since: geometryStart, count: entries.count)
         return TreemapLayoutPlan(bounds: bounds, entries: entries, cushionSnapshots: snapshots)
     }
 
