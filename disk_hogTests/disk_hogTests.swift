@@ -964,6 +964,7 @@ struct ScanWindowControllerTests {
         }
 
         #expect(ScanWindowRegistry.shared.window(for: source) === window)
+        #expect(window.title == "Scan — /scan")
 
         controller.windowWillClose(
             Notification(name: NSWindow.willCloseNotification, object: window)

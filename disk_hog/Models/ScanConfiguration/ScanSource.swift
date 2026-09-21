@@ -58,6 +58,12 @@ struct ScanSource: Codable, Hashable, Identifiable {
         path
     }
 
+    /// A source's friendly name may identify its enclosing volume. Always retain
+    /// the scan root's full path so different folder scans have distinct titles.
+    nonisolated var scanWindowTitle: String {
+        displayName == path || displayName.isEmpty ? path : "\(displayName) — \(path)"
+    }
+
     var scanWindowRegistryKey: String {
         url.standardizedFileURL.resolvingSymlinksInPath().path
     }
