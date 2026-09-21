@@ -328,7 +328,8 @@ final class ZStyleTreemapNSView: NSView {
     ) -> Bool {
         guard let imageRep: NSBitmapImageRep = state.renderedImage(
             in: bounds,
-            scale: window?.backingScaleFactor ?? 1
+            scale: window?.backingScaleFactor ?? 1,
+            allowRendering: !inLiveResize
         ) else {
             return false
         }

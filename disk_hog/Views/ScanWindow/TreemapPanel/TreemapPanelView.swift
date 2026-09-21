@@ -116,9 +116,9 @@ struct TreemapPanelView: View {
 
     private var recalculatingBadgeMessage: LocalizedStringKey {
         guard let renderProgress else {
-            return "Recalculating…"
+            return "Updating treemap…"
         }
-        return "Recalculating: \(Int((renderProgress * 100).rounded(.down)))%"
+        return "Updating treemap: \(Int((renderProgress * 100).rounded(.down)))%"
     }
 
     private var navigationBar: some View {

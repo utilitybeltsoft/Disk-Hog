@@ -360,7 +360,10 @@ final class TreemapViewState {
         return TreemapHitResult(item: entry.item, entry: entry)
     }
 
-    func renderedImage(in bounds: NSRect, scale: CGFloat) -> NSBitmapImageRep? {
+    func renderedImage(in bounds: NSRect, scale: CGFloat, allowRendering: Bool = true) -> NSBitmapImageRep? {
+        // Live resize stretches the last completed image. Do not create/cancel
+        // layout jobs for every intermediate size; render once dragging ends.
+        guard allowRendering else { return renderedBitmap }
         guard let request: TreemapRenderRequest = renderRequest(for: bounds, scale: scale) else {
             return nil
         }
