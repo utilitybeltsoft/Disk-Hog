@@ -36,6 +36,9 @@ struct ScanWindowView: View {
             if session.isPackageContentsSettingOutOfSync {
                 packageContentsWarning
             }
+            if session.hasIncompleteResults {
+                incompleteResultsWarning
+            }
 
             AppKitSplitView(
                 isVertical: false,
@@ -166,6 +169,25 @@ struct ScanWindowView: View {
                 scanPreferences.rescanForPackageContentsPreference(session)
             } label: {
                 Label("Rescan This Window", systemImage: "arrow.clockwise")
+            }
+            .controlSize(.small)
+        }
+        .font(.system(size: ScanWindowMetrics.statusFieldFontSize))
+        .padding(.horizontal, ScanWindowMetrics.mainSplitHorizontalPadding)
+        .padding(.vertical, 5)
+        .background(Color(nsColor: .controlBackgroundColor))
+    }
+
+    private var incompleteResultsWarning: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.yellow)
+            Text("Results may be incomplete: \(session.skippedItems.count) item(s) could not be scanned.")
+            Spacer()
+            Button {
+                InspectorWindowController.shared.showScanIssues(from: session)
+            } label: {
+                Label("Show Affected Items", systemImage: "list.bullet.rectangle")
             }
             .controlSize(.small)
         }

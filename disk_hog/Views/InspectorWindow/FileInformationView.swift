@@ -24,6 +24,7 @@ struct FileInformationView: View {
             .task(id: selectedItem.id) {
                 isLoading = snapshot == nil
                 let usePhysicalSize: Bool = session.scanSettings.usePhysicalSize
+                let isSizeUnknown: Bool = session.isAffectedBySkippedContent(selectedItem)
                 let defaultApplication: String? = NSWorkspace.shared
                     .urlForApplication(toOpen: selectedItem.url)?
                     .lastPathComponent
@@ -31,7 +32,8 @@ struct FileInformationView: View {
                     FileInformationSnapshot.load(
                         item: selectedItem,
                         usePhysicalSize: usePhysicalSize,
-                        defaultApplication: defaultApplication
+                        defaultApplication: defaultApplication,
+                        isSizeUnknown: isSizeUnknown
                     )
                 }.value
                 guard !Task.isCancelled,
@@ -287,7 +289,8 @@ nonisolated struct FileInformationSnapshot: Sendable {
     static func load(
         item: DiskItem,
         usePhysicalSize: Bool,
-        defaultApplication: String? = nil
+        defaultApplication: String? = nil,
+        isSizeUnknown: Bool = false
     ) -> FileInformationSnapshot {
         let url: URL = item.url
         let path: String = item.path
@@ -331,7 +334,7 @@ nonisolated struct FileInformationSnapshot: Sendable {
 
         var sections: [FileInformationSection] = []
         sections.append(identitySection(item: item, values: values, defaultApplication: defaultApplication))
-        sections.append(sizeSection(item: item, values: values, attributes: attributes, usePhysicalSize: usePhysicalSize))
+        sections.append(sizeSection(item: item, values: values, attributes: attributes, usePhysicalSize: usePhysicalSize, isSizeUnknown: isSizeUnknown))
         sections.append(dateSection(values: values))
         sections.append(finderSection(item: item, values: values, attributes: attributes, extendedAttributes: extendedAttributes))
         sections.append(permissionSection(path: path, values: values, attributes: attributes))
@@ -442,12 +445,16 @@ nonisolated struct FileInformationSnapshot: Sendable {
         item: DiskItem,
         values: URLResourceValues?,
         attributes: [FileAttributeKey: Any],
-        usePhysicalSize: Bool
+        usePhysicalSize: Bool,
+        isSizeUnknown: Bool
     ) -> FileInformationSection {
+        // Scan-derived sizes default to 0 when the item (or something inside it)
+        // couldn't be scanned - showing "0 KB" would misleadingly claim a verified,
+        // empty size instead of an unknown one.
         var rows: [FileInformationRow] = [
-            FileInformationRow("Scan size", byteString(item.sizeValue(usePhysicalSize: usePhysicalSize))),
-            FileInformationRow("Physical size", byteString(item.allocatedSizeValue)),
-            FileInformationRow("Logical size", byteString(item.logicalSizeValue))
+            FileInformationRow("Scan size", isSizeUnknown ? "?" : byteString(item.sizeValue(usePhysicalSize: usePhysicalSize))),
+            FileInformationRow("Physical size", isSizeUnknown ? "?" : byteString(item.allocatedSizeValue)),
+            FileInformationRow("Logical size", isSizeUnknown ? "?" : byteString(item.logicalSizeValue))
         ]
         appendBytes("Data size", values?.fileSize, to: &rows)
         appendBytes("Allocated data", values?.fileAllocatedSize, to: &rows)

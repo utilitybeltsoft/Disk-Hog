@@ -1705,6 +1705,34 @@
         }
       }
     },
+    "Complete a scan to see items that could not be scanned." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schließen Sie einen Scan ab, um Elemente zu sehen, die nicht gescannt werden konnten."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Complete un escaneo para ver los elementos que no se pudieron escanear."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Terminez une analyse pour voir les éléments qui n’ont pas pu être analysés."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Completa una scansione per vedere gli elementi che non è stato possibile scansionare."
+          }
+        }
+      }
+    },
     "Contents" : {
       "localizations" : {
         "de" : {
@@ -2577,6 +2605,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Attributi estesi"
+          }
+        }
+      }
+    },
+    "Every item Disk Hog could reach was scanned successfully." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jedes Element, das Disk Hog erreichen konnte, wurde erfolgreich gescannt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se escanearon correctamente todos los elementos a los que Disk Hog pudo acceder."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tous les éléments accessibles par Disk Hog ont été analysés avec succès."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tutti gli elementi raggiungibili da Disk Hog sono stati scansionati correttamente."
           }
         }
       }
@@ -4599,6 +4655,34 @@
         }
       }
     },
+    "No Scan Issues" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Scan-Probleme"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sin problemas de escaneo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucun problème d’analyse"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nessun problema di scansione"
+          }
+        }
+      }
+    },
     "No Scan Window Active" : {
       "localizations" : {
         "de" : {
@@ -4711,30 +4795,86 @@
         }
       }
     },
-    "Not shown in treemap: this item uses 0 bytes in the current size mode." : {
+    "Not shown in treemap: this item's logical file size is 0 bytes." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nicht in der Treemap angezeigt: Dieses Objekt belegt im aktuellen Größenmodus 0 Byte."
+            "value" : "Nicht in der Treemap angezeigt: Die logische Dateigröße dieses Objekts beträgt 0 Byte."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "No se muestra en el treemap: este elemento usa 0 bytes en el modo de tamaño actual."
+            "value" : "No se muestra en el treemap: el tamaño de archivo lógico de este elemento es de 0 bytes."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Non affiché dans le treemap : cet élément utilise 0 octet dans le mode de taille actuel."
+            "value" : "Non affiché dans le treemap : la taille du fichier logique de cet élément est de 0 octet."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Non mostrato nel treemap: questo elemento usa 0 byte nella modalità di dimensione corrente."
+            "value" : "Non mostrato nel treemap: la dimensione del file logico di questo elemento è 0 byte."
+          }
+        }
+      }
+    },
+    "Not shown in treemap: this item's physical file size is 0 bytes." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht in der Treemap angezeigt: Die physische Dateigröße dieses Objekts beträgt 0 Byte."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se muestra en el treemap: el tamaño de archivo físico de este elemento es de 0 bytes."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non affiché dans le treemap : la taille physique du fichier de cet élément est de 0 octet."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non mostrato nel treemap: la dimensione del file fisico di questo elemento è 0 byte."
+          }
+        }
+      }
+    },
+    "Not shown in treemap: this item's size could not be determined because of insufficient permissions." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht in der Treemap angezeigt: Die Größe dieses Objekts konnte aufgrund unzureichender Berechtigungen nicht ermittelt werden."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se muestra en el treemap: no se pudo determinar el tamaño de este elemento debido a permisos insuficientes."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non affiché dans le treemap : la taille de cet élément n’a pas pu être déterminée en raison d’autorisations insuffisantes."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non mostrato nel treemap: non è stato possibile determinare le dimensioni di questo elemento a causa di permessi insufficienti."
           }
         }
       }
@@ -6534,6 +6674,34 @@
         }
       }
     },
+    "Scan Issues" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scan-Probleme"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Problemas de escaneo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Problèmes d’analyse"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Problemi di scansione"
+          }
+        }
+      }
+    },
     "Scan Selected Volume" : {
       "localizations" : {
         "de" : {
@@ -6926,6 +7094,34 @@
         }
       }
     },
+    "Select a scan window to view items that could not be scanned." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wählen Sie ein Scan-Fenster aus, um Elemente anzuzeigen, die nicht gescannt werden konnten."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seleccione una ventana de escaneo para ver los elementos que no se pudieron escanear."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sélectionnez une fenêtre d'analyse pour afficher les éléments qui n'ont pas pu être analysés."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seleziona una finestra di scansione per visualizzare gli elementi che non è stato possibile scansionare."
+          }
+        }
+      }
+    },
     "Select a scan window to view its file selection list." : {
       "localizations" : {
         "de" : {
@@ -7146,6 +7342,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Spettacolo"
+          }
+        }
+      }
+    },
+    "Show Affected Items" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Betroffene Elemente anzeigen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar elementos afectados"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Afficher les éléments concernés"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostra elementi interessati"
           }
         }
       }
@@ -7651,6 +7875,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "testo"
+          }
+        }
+      }
+    },
+    "The folder's contents could not be enumerated." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Inhalt des Ordners konnte nicht aufgelistet werden."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo enumerar el contenido de la carpeta."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le contenu du dossier n’a pas pu être énuméré."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non è stato possibile enumerare il contenuto della cartella."
           }
         }
       }

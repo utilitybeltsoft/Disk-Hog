@@ -377,7 +377,11 @@ struct DiskItemOutlineView: NSViewRepresentable {
         private func sizeCell(for item: DiskItem, outlineView: NSOutlineView) -> NSTableCellView {
             let identifier: NSUserInterfaceItemIdentifier = DiskItemOutlineCellID.size
             let cell: DiskItemSizeCellView = outlineView.reusableView(withIdentifier: identifier, owner: self) { DiskItemSizeCellView() }
-            cell.configure(item: item, usePhysicalSize: usePhysicalSize)
+            cell.configure(
+                item: item,
+                usePhysicalSize: usePhysicalSize,
+                isSizeUnknown: session.isAffectedBySkippedContent(item)
+            )
             return cell
         }
     }

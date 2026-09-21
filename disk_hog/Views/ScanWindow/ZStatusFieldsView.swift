@@ -83,19 +83,36 @@ struct ZStatusFieldsView: View {
             return nil
         }
 
-        return String(localized: "Not shown in treemap: this item uses 0 bytes in the current size mode.")
+        if session.isAffectedBySkippedContent(selectedItem) {
+            return String(localized: "Not shown in treemap: this item's size could not be determined because of insufficient permissions.")
+        }
+
+        if session.scanSettings.usePhysicalSize {
+            return String(localized: "Not shown in treemap: this item's physical file size is 0 bytes.")
+        }
+        return String(localized: "Not shown in treemap: this item's logical file size is 0 bytes.")
     }
 
     private func statusLine(prefix: String, item: DiskItem) -> String {
-        let size: String = ByteCountFormatter.string(
-            fromByteCount: Int64(item.sizeValue(usePhysicalSize: session.scanSettings.usePhysicalSize)),
-            countStyle: .file
-        )
+        let size: String = formattedSize(for: item)
         if let kindName: String = item.kindName, !kindName.isEmpty {
             return String(localized: "\(prefix): \(item.path), \(kindName), \(size)")
         }
 
         return String(localized: "\(prefix): \(item.path), \(size)")
+    }
+
+    /// Shows "?" rather than a formatted byte count when the item's true size is
+    /// unknown (scanning it or something inside it failed) - "0 bytes" would
+    /// misleadingly claim a verified, empty size instead.
+    private func formattedSize(for item: DiskItem) -> String {
+        if session.isAffectedBySkippedContent(item) {
+            return "?"
+        }
+        return ByteCountFormatter.string(
+            fromByteCount: Int64(item.sizeValue(usePhysicalSize: session.scanSettings.usePhysicalSize)),
+            countStyle: .file
+        )
     }
 
     private func progressSummary(referenceDate: Date) -> String {

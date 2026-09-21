@@ -29,6 +29,7 @@ final class ScanSession: ObservableObject {
     @Published private(set) var isBuildingTreemap: Bool
     @Published private(set) var treemapPreparationProgress: Double?
     @Published private(set) var isPackageContentsSettingOutOfSync: Bool
+    @Published private(set) var skippedItems: [ScanSkippedItem]
     @Published private(set) var failure: ScanSessionFailure?
     #if FILE_MATCHING_DIAGNOSTICS
     @Published private(set) var diagnosticsExportState: DiagnosticsExportState
@@ -73,6 +74,7 @@ final class ScanSession: ObservableObject {
         self.isBuildingTreemap = false
         self.treemapPreparationProgress = nil
         self.isPackageContentsSettingOutOfSync = false
+        self.skippedItems = []
         self.failure = nil
         #if FILE_MATCHING_DIAGNOSTICS
         self.diagnosticsExportState = .idle
@@ -81,6 +83,18 @@ final class ScanSession: ObservableObject {
 
     var scannedItemCount: Int {
         scannedFileCount + scannedFolderCount
+    }
+
+    var hasIncompleteResults: Bool {
+        !skippedItems.isEmpty
+    }
+
+    /// A zero-size folder/file might genuinely be empty, or its true size might be
+    /// unknown because scanning it (or something inside it) failed - conflating the
+    /// two would misleadingly imply an item is empty when its size is simply unknown.
+    func isAffectedBySkippedContent(_ item: DiskItem) -> Bool {
+        let prefix: String = item.path.hasSuffix("/") ? item.path : item.path + "/"
+        return skippedItems.contains { $0.path == item.path || $0.path.hasPrefix(prefix) }
     }
 
     var scanSettings: DiskScanSettings {
@@ -148,6 +162,7 @@ final class ScanSession: ObservableObject {
         isUpdatingTree = false
         isBuildingTreemap = false
         treemapPreparationProgress = nil
+        skippedItems = []
         if !preservingFailure {
             failure = nil
         }
@@ -189,6 +204,7 @@ final class ScanSession: ObservableObject {
                         rootItem: result.rootItem,
                         presentationMetrics: result.presentationMetrics,
                         builtUsingPhysicalSize: result.builtUsingPhysicalSize,
+                        skippedItems: result.skippedItems,
                         operation: operation
                     )
                 }
@@ -322,6 +338,8 @@ final class ScanSession: ObservableObject {
                         presentationMetrics: result.presentationMetrics,
                         selectionPath: result.selectionPath,
                         builtUsingPhysicalSize: result.builtUsingPhysicalSize,
+                        skippedItems: result.skippedItems,
+                        refreshedSubtreePath: result.refreshedSubtreePath,
                         operation: operation
                     )
                 }
@@ -449,6 +467,7 @@ final class ScanSession: ObservableObject {
         rootItem: DiskItem,
         presentationMetrics: TreemapPresentationMetrics,
         builtUsingPhysicalSize: Bool,
+        skippedItems: [ScanSkippedItem],
         operation: ScanSessionWorkOperation
     ) {
         guard finishWorkOperation(.scan, operation: operation) else {
@@ -457,6 +476,7 @@ final class ScanSession: ObservableObject {
         isBuildingTreemap = true
         treemapPreparationProgress = nil
         self.presentationMetrics = presentationMetrics
+        self.skippedItems = skippedItems
         updateSpaceItems(for: rootItem)
         preferredSelection = rootItem
         self.rootItem = rootItem
@@ -491,6 +511,8 @@ final class ScanSession: ObservableObject {
         presentationMetrics: TreemapPresentationMetrics,
         selectionPath: String,
         builtUsingPhysicalSize: Bool,
+        skippedItems: [ScanSkippedItem],
+        refreshedSubtreePath: String,
         operation: ScanSessionWorkOperation
     ) {
         guard finishWorkOperation(.treeUpdate, operation: operation) else {
@@ -499,6 +521,11 @@ final class ScanSession: ObservableObject {
         let counts: (files: Int, folders: Int) = rootItem.scanCounts(includeSelf: false)
         preferredSelection = rootItem.item(atPath: selectionPath, allowAncestors: true) ?? rootItem
         self.presentationMetrics = presentationMetrics
+        self.skippedItems = Self.mergingSkippedItems(
+            self.skippedItems,
+            replacingSubtreeAt: refreshedSubtreePath,
+            with: skippedItems
+        )
         updateSpaceItems(for: rootItem)
         self.rootItem = rootItem
         scannedFileCount = counts.files
@@ -675,5 +702,19 @@ final class ScanSession: ObservableObject {
             return
         }
         startScan(preservingFailure: true)
+    }
+
+    /// A refresh/delete only rescans one subtree, so its skipped-item list only
+    /// covers that subtree - stale entries for the same subtree (e.g. from before
+    /// permissions were fixed) must be dropped, while entries elsewhere in the
+    /// tree are untouched.
+    private static func mergingSkippedItems(
+        _ existing: [ScanSkippedItem],
+        replacingSubtreeAt path: String,
+        with newItems: [ScanSkippedItem]
+    ) -> [ScanSkippedItem] {
+        let prefix: String = path.hasSuffix("/") ? path : path + "/"
+        let remaining: [ScanSkippedItem] = existing.filter { $0.path != path && !$0.path.hasPrefix(prefix) }
+        return remaining + newItems
     }
 }

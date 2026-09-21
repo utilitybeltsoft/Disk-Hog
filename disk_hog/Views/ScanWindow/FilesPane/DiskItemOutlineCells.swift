@@ -54,8 +54,13 @@ final class DiskItemSizeCellView: NSTableCellView {
         setup()
     }
 
-    func configure(item: DiskItem, usePhysicalSize: Bool) {
-        sizeTextField.stringValue = ByteCountFormatter.string(fromByteCount: Int64(item.sizeValue(usePhysicalSize: usePhysicalSize)), countStyle: .file)
+    /// `isSizeUnknown` shows "?" instead of a formatted byte count for an item whose
+    /// true size couldn't be determined (e.g. a permission-denied folder) - "0 KB"
+    /// would misleadingly claim a verified, empty size instead.
+    func configure(item: DiskItem, usePhysicalSize: Bool, isSizeUnknown: Bool) {
+        sizeTextField.stringValue = isSizeUnknown
+            ? "?"
+            : ByteCountFormatter.string(fromByteCount: Int64(item.sizeValue(usePhysicalSize: usePhysicalSize)), countStyle: .file)
     }
 
     private func setup() {

@@ -9,18 +9,22 @@ final class InspectorWindowLayoutCoordinator {
     func slot(for tab: InspectorWindowTab, context: InspectorWindowContext?) -> InspectorContentSizeSlot {
         switch tab {
         case .information:
-            .information
+            context == nil ? .empty : .information
         case .diskUsage:
             context?.isVolumeScan == true ? .fullDiskUsage : .compactDiskUsage
         case .selectionList:
-            .selectionList
+            context == nil ? .empty : .selectionList
         case .cleanupQueue:
             .cleanupQueue
+        case .scanIssues:
+            context == nil ? .empty : .scanIssues
         }
     }
 
     func layout(for slot: InspectorContentSizeSlot) -> InspectorWindowLayout {
         switch slot {
+        case .empty:
+            .empty
         case .information:
             InspectorWindowTab.information.layout
         case .compactDiskUsage:
@@ -31,6 +35,8 @@ final class InspectorWindowLayoutCoordinator {
             InspectorWindowTab.selectionList.layout
         case .cleanupQueue:
             InspectorWindowTab.cleanupQueue.layout
+        case .scanIssues:
+            InspectorWindowTab.scanIssues.layout
         }
     }
 

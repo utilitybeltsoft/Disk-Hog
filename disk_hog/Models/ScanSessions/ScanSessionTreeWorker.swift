@@ -6,6 +6,8 @@ nonisolated struct ScanSessionTreeUpdateResult: @unchecked Sendable {
     let presentationMetrics: TreemapPresentationMetrics
     let selectionPath: String
     let builtUsingPhysicalSize: Bool
+    let skippedItems: [ScanSkippedItem]
+    let refreshedSubtreePath: String
 }
 
 nonisolated protocol ScanSessionTreeUpdating: Sendable {
@@ -39,10 +41,13 @@ nonisolated struct DiskInventoryZScanSessionTreeWorker: ScanSessionTreeUpdating 
         )
         let scanner: DiskInventoryZScanner = DiskInventoryZScanner()
         let updatedRoot: DiskItem
+        let skippedItems: [ScanSkippedItem]
         if refreshPath == currentRoot.path {
-            updatedRoot = try await scanner.scan(source: resolvedSource, settings: settings)
+            let outcome: DiskScanOutcome = try await scanner.scan(source: resolvedSource, settings: settings)
+            updatedRoot = outcome.item
+            skippedItems = outcome.skippedItems
         } else {
-            let refreshedItem: DiskItem = try await scanner.scanItem(
+            let outcome: DiskScanOutcome = try await scanner.scanItem(
                 at: URL(fileURLWithPath: refreshPath),
                 from: resolvedSource,
                 settings: settings
@@ -50,12 +55,13 @@ nonisolated struct DiskInventoryZScanSessionTreeWorker: ScanSessionTreeUpdating 
             guard let replacementRoot: DiskItem = DiskItemTreeEditor.replacingSubtree(
                 in: currentRoot,
                 atPath: refreshPath,
-                with: refreshedItem,
+                with: outcome.item,
                 usePhysicalSize: settings.usePhysicalSize
             ) else {
                 throw DiskScannerError.traversalInconsistency("The refreshed item was no longer present in the scan tree.")
             }
             updatedRoot = replacementRoot
+            skippedItems = outcome.skippedItems
         }
 
         return ScanSessionTreeUpdateResult(
@@ -68,7 +74,9 @@ nonisolated struct DiskInventoryZScanSessionTreeWorker: ScanSessionTreeUpdating 
                 colorScheme: ScanPreferenceDefaults.treemapColorScheme
             ),
             selectionPath: item.path,
-            builtUsingPhysicalSize: settings.usePhysicalSize
+            builtUsingPhysicalSize: settings.usePhysicalSize,
+            skippedItems: skippedItems,
+            refreshedSubtreePath: refreshPath
         )
     }
 
@@ -110,7 +118,9 @@ nonisolated struct DiskInventoryZScanSessionTreeWorker: ScanSessionTreeUpdating 
                 colorScheme: ScanPreferenceDefaults.treemapColorScheme
             ),
             selectionPath: item.url.deletingLastPathComponent().path,
-            builtUsingPhysicalSize: settings.usePhysicalSize
+            builtUsingPhysicalSize: settings.usePhysicalSize,
+            skippedItems: [],
+            refreshedSubtreePath: item.path
         )
     }
 

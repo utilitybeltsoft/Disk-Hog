@@ -83,10 +83,7 @@ struct CleanupQueueView: View {
     }
 
     private var selectedReadySizeDescription: String {
-        ByteCountFormatter.string(
-            fromByteCount: Int64(selectedReadyItems.reduce(0) { $0 + $1.allocatedSize }),
-            countStyle: .file
-        )
+        CleanupQueueSizeFormatting.total(of: selectedReadyItems)
     }
 
     private var groupedItems: [CleanupQueueVolumeGroup] {
@@ -149,7 +146,7 @@ private struct CleanupQueueRow: View {
 
             Spacer(minLength: 12)
 
-            Text(ByteCountFormatter.string(fromByteCount: Int64(item.allocatedSize), countStyle: .file))
+            Text(CleanupQueueSizeFormatting.size(of: item))
                 .monospacedDigit()
                 .foregroundStyle(.secondary)
 
@@ -236,7 +233,7 @@ private struct CleanupQueueVolumeTotals: View {
                 .fontWeight(.semibold)
             Spacer()
             Text("\(selectedItems.count) items")
-            Text(ByteCountFormatter.string(fromByteCount: Int64(selectedBytes), countStyle: .file))
+            Text(CleanupQueueSizeFormatting.total(of: selectedItems))
                 .monospacedDigit()
         }
         .font(.caption)
@@ -246,8 +243,25 @@ private struct CleanupQueueVolumeTotals: View {
     private var selectedItems: [CleanupQueueItem] {
         items.filter(\.isSelected)
     }
+}
 
-    private var selectedBytes: UInt64 {
-        selectedItems.reduce(0) { $0 + $1.allocatedSize }
+/// Shows "?" instead of a formatted byte count for a queued item (or a total that
+/// includes one) whose real size is unknown - the scanner's placeholder 0 would
+/// otherwise misleadingly read as a verified, empty size.
+private enum CleanupQueueSizeFormatting {
+    static func size(of item: CleanupQueueItem) -> String {
+        item.isSizeUnknown
+            ? "?"
+            : ByteCountFormatter.string(fromByteCount: Int64(item.allocatedSize), countStyle: .file)
+    }
+
+    static func total(of items: [CleanupQueueItem]) -> String {
+        guard items.allSatisfy({ !$0.isSizeUnknown }) else {
+            return "?"
+        }
+        return ByteCountFormatter.string(
+            fromByteCount: Int64(items.reduce(0) { $0 + $1.allocatedSize }),
+            countStyle: .file
+        )
     }
 }

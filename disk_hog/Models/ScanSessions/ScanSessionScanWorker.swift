@@ -5,6 +5,7 @@ nonisolated struct ScanSessionScanResult: @unchecked Sendable {
     let rootItem: DiskItem
     let presentationMetrics: TreemapPresentationMetrics
     let builtUsingPhysicalSize: Bool
+    let skippedItems: [ScanSkippedItem]
 }
 
 nonisolated protocol ScanSessionScanning: Sendable {
@@ -30,7 +31,7 @@ nonisolated struct DiskInventoryZScanSessionWorker: ScanSessionScanning {
         let resolution: ScanSourceBookmarkResolution = try source.resolvingBookmark()
         let resolvedSource: ScanSource = resolution.refreshedBookmarkData.map(source.replacingBookmarkData) ?? source
         let scanner: DiskInventoryZScanner = DiskInventoryZScanner()
-        let rootItem: DiskItem = try await scanner.scan(
+        let outcome: DiskScanOutcome = try await scanner.scan(
             source: resolvedSource,
             settings: settings
         ) { scanProgress in
@@ -38,6 +39,7 @@ nonisolated struct DiskInventoryZScanSessionWorker: ScanSessionScanning {
         } stageHandler: { scanStage in
             await stage(scanStage)
         }
+        let rootItem: DiskItem = outcome.item
         try Task.checkCancellation()
         await willBuildTreemap()
         let presentationMetrics: TreemapPresentationMetrics = TreemapPresentationMetrics(
@@ -55,7 +57,8 @@ nonisolated struct DiskInventoryZScanSessionWorker: ScanSessionScanning {
             source: resolvedSource,
             rootItem: rootItem,
             presentationMetrics: presentationMetrics,
-            builtUsingPhysicalSize: settings.usePhysicalSize
+            builtUsingPhysicalSize: settings.usePhysicalSize,
+            skippedItems: outcome.skippedItems
         )
     }
 }

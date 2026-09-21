@@ -21,6 +21,10 @@ struct CleanupQueueItem: Identifiable {
     /// independent of repeated path walks.
     var allocatedSize: UInt64
     var logicalSize: UInt64
+    /// True when the scan couldn't determine this item's real size (e.g. a
+    /// permission-denied folder) - `allocatedSize`/`logicalSize` are then just the
+    /// scanner's placeholder 0, not a verified empty size.
+    var isSizeUnknown: Bool
     let source: ScanSource
     let sessionReference: ScanSessionWeakReference
     var isSelected: Bool
@@ -84,6 +88,7 @@ final class CleanupQueueStore: ObservableObject {
                 isFolder: item.isFolder,
                 allocatedSize: item.allocatedSizeValue,
                 logicalSize: item.logicalSizeValue,
+                isSizeUnknown: session.isAffectedBySkippedContent(item),
                 source: session.source,
                 sessionReference: ScanSessionWeakReference(session),
                 isSelected: true,
@@ -229,12 +234,15 @@ final class CleanupQueueStore: ObservableObject {
             }
             let allocatedSize: UInt64 = currentItem.allocatedSizeValue
             let logicalSize: UInt64 = currentItem.logicalSizeValue
+            let isSizeUnknown: Bool = session.isAffectedBySkippedContent(currentItem)
             guard updatedItems[index].allocatedSize != allocatedSize
-                    || updatedItems[index].logicalSize != logicalSize else {
+                    || updatedItems[index].logicalSize != logicalSize
+                    || updatedItems[index].isSizeUnknown != isSizeUnknown else {
                 continue
             }
             updatedItems[index].allocatedSize = allocatedSize
             updatedItems[index].logicalSize = logicalSize
+            updatedItems[index].isSizeUnknown = isSizeUnknown
             didChange = true
         }
 

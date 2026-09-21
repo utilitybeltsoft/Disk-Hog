@@ -109,6 +109,12 @@ private struct SourceInspectorWindowContentView: View {
                 )
             case .cleanupQueue:
                 CleanupQueueView()
+            case .scanIssues:
+                ContentUnavailableView(
+                    "Scan Window Required",
+                    systemImage: "exclamationmark.triangle",
+                    description: Text("Complete a scan to see items that could not be scanned.")
+                )
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -134,6 +140,8 @@ private struct InspectorWindowContentView: View {
                     Color.clear
                 case .cleanupQueue:
                     CleanupQueueView()
+                case .scanIssues:
+                    ScanIssuesView(session: context.session)
                 }
             }
 

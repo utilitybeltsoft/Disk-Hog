@@ -7,6 +7,7 @@ enum InspectorWindowTab: String, CaseIterable, Identifiable {
     case diskUsage
     case selectionList
     case cleanupQueue
+    case scanIssues
 
     var id: Self { self }
 
@@ -16,6 +17,7 @@ enum InspectorWindowTab: String, CaseIterable, Identifiable {
         case .diskUsage: String(localized: "Disk Usage")
         case .selectionList: String(localized: "Selection List")
         case .cleanupQueue: String(localized: "Cleanup Queue")
+        case .scanIssues: String(localized: "Scan Issues")
         }
     }
 
@@ -25,13 +27,14 @@ enum InspectorWindowTab: String, CaseIterable, Identifiable {
         case .diskUsage: "chart.pie"
         case .selectionList: "list.bullet.rectangle"
         case .cleanupQueue: "trash"
+        case .scanIssues: "exclamationmark.triangle"
         }
     }
 
     var inactiveTitle: String {
         switch self {
         case .diskUsage: String(localized: "No Volume Selected")
-        case .information, .selectionList: String(localized: "No Scan Window Active")
+        case .information, .selectionList, .scanIssues: String(localized: "No Scan Window Active")
         case .cleanupQueue: String(localized: "Cleanup Queue")
         }
     }
@@ -39,7 +42,7 @@ enum InspectorWindowTab: String, CaseIterable, Identifiable {
     var inactiveSystemImage: String {
         switch self {
         case .diskUsage: "externaldrive"
-        case .information, .selectionList: "macwindow"
+        case .information, .selectionList, .scanIssues: "macwindow"
         case .cleanupQueue: "trash"
         }
     }
@@ -54,6 +57,8 @@ enum InspectorWindowTab: String, CaseIterable, Identifiable {
             String(localized: "Select a scan window to view its file selection list.")
         case .cleanupQueue:
             String(localized: "Add files or folders from a scan window to review them here before moving them to Finder Trash.")
+        case .scanIssues:
+            String(localized: "Select a scan window to view items that could not be scanned.")
         }
     }
 
@@ -80,6 +85,11 @@ enum InspectorWindowTab: String, CaseIterable, Identifiable {
                 preferredContentSize: NSSize(width: 780, height: 520),
                 minimumContentSize: NSSize(width: max(600, tabBarWidth), height: 380)
             )
+        case .scanIssues:
+            InspectorWindowLayout(
+                preferredContentSize: NSSize(width: 720, height: 440),
+                minimumContentSize: NSSize(width: tabBarWidth, height: 320)
+            )
         }
     }
 }
@@ -89,15 +99,21 @@ struct InspectorWindowLayout {
     let minimumContentSize: NSSize
 
     /// Every tab shares the same tab-switcher row at the top of the Inspector
-    /// window (Information / Disk Usage / Selection List / Cleanup Queue), so
-    /// no tab's width may go narrower than what that row needs to show all
-    /// four labels without truncating them.
-    static let minimumTabBarWidth: CGFloat = 560
+    /// window (Information / Disk Usage / Selection List / Cleanup Queue / Scan
+    /// Issues), so no tab's width may go narrower than what that row needs to
+    /// show all five labels without truncating the last one.
+    static let minimumTabBarWidth: CGFloat = 700
 
     static let compactDiskUsage: InspectorWindowLayout = InspectorWindowLayout(
         preferredContentSize: NSSize(width: minimumTabBarWidth, height: 350),
         minimumContentSize: NSSize(width: minimumTabBarWidth, height: 340)
     )
+
+    /// Shared by every tab's "nothing to show" placeholder (a scan window isn't
+    /// active, or none is selected) - these all render the same simple centered
+    /// ContentUnavailableView, so there's no reason for the window to jump
+    /// between several different sizes as the user clicks through empty tabs.
+    static let empty: InspectorWindowLayout = compactDiskUsage
 }
 
 enum InspectorInformationSizing {
@@ -120,11 +136,13 @@ enum InspectorInformationSizing {
 }
 
 enum InspectorContentSizeSlot: Hashable {
+    case empty
     case information
     case compactDiskUsage
     case fullDiskUsage
     case selectionList
     case cleanupQueue
+    case scanIssues
 }
 
 @MainActor
@@ -285,6 +303,15 @@ final class InspectorWindowController: NSObject, ObservableObject {
 
         context.selectionCoordinator.setSelectedItem(item)
         show()
+    }
+
+    func showScanIssues(from session: ScanSession) {
+        guard let context: InspectorWindowContext = activeContext,
+              context.session === session else {
+            return
+        }
+
+        show(tab: .scanIssues)
     }
 
     func showSelectionList(filter: SelectionListFilter, from session: ScanSession) {

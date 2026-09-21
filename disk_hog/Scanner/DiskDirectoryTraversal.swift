@@ -40,8 +40,14 @@ nonisolated final class DiskDirectoryTraversal {
             at: item.url,
             includingPropertiesForKeys: DiskScanResourceKeys.item,
             options: [],
-            errorHandler: { url, _ in url != item.url }
+            errorHandler: { url, error in
+                progressState.recordSkippedItem(ScanSkippedItem(path: url.path, reason: error.localizedDescription))
+                return url != item.url
+            }
         ) else {
+            progressState.recordSkippedItem(
+                ScanSkippedItem(path: item.path, reason: String(localized: "The folder's contents could not be enumerated."))
+            )
             item.recalculateSize(usePhysicalSize: settings.usePhysicalSize)
             progressState.setScannedBytes(item.sizeValue(usePhysicalSize: settings.usePhysicalSize))
             return progressState
@@ -70,6 +76,7 @@ nonisolated final class DiskDirectoryTraversal {
             do {
                 currentValues = try resourceValuesProvider(currentURL, Set(DiskScanResourceKeys.item))
             } catch {
+                progressState.recordSkippedItem(ScanSkippedItem(path: currentURL.path, reason: error.localizedDescription))
                 directoryEnumerator.skipDescendants()
                 continue
             }

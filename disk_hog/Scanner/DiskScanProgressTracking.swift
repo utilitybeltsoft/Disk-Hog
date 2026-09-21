@@ -58,6 +58,7 @@ nonisolated struct ScanProgressState {
     private(set) var scannedFolderCount: Int = 0
     private(set) var scannedByteCount: UInt64 = 0
     private(set) var currentPath: String
+    private(set) var skippedItems: [ScanSkippedItem] = []
     private var publicationRateLimiter: ScanProgressRateLimiter = ScanProgressRateLimiter()
 
     init(currentPath: String) {
@@ -70,6 +71,10 @@ nonisolated struct ScanProgressState {
         } else {
             scannedFileCount += 1
         }
+    }
+
+    mutating func recordSkippedItem(_ item: ScanSkippedItem) {
+        skippedItems.append(item)
     }
 
     mutating func setScannedFileCount(_ count: Int) { scannedFileCount = count }

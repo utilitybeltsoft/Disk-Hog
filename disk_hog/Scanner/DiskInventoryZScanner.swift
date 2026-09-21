@@ -39,7 +39,7 @@ nonisolated final class DiskInventoryZScanner {
         settings: DiskScanSettings = .diskInventoryZDefault,
         progressHandler: ProgressHandler? = nil,
         stageHandler: (@Sendable (DiskScanStage) async -> Void)? = nil
-    ) async throws -> DiskItem {
+    ) async throws -> DiskScanOutcome {
         try Task.checkCancellation()
 
         let rootURL: URL = try source.resolvedURL()
@@ -70,6 +70,7 @@ nonisolated final class DiskInventoryZScanner {
                 do {
                     values = try recursiveResourceValuesProvider(childURL, Set(DiskScanResourceKeys.item))
                 } catch {
+                    progressState.recordSkippedItem(ScanSkippedItem(path: childURL.path, reason: error.localizedDescription))
                     continue
                 }
                 topLevelWorkItems.append(
@@ -156,9 +157,13 @@ nonisolated final class DiskInventoryZScanner {
         progressState.setScannedFileCount(await progressAggregator.scannedFileCount)
         progressState.setScannedFolderCount(await progressAggregator.scannedFolderCount)
         await progressHandler?(progressState.snapshot())
-        return DiskItem.chunkedRoot(
-            rootChunk: rootBuilder.packedChunk(isRoot: true),
-            childChunks: topLevelResults.map(\.chunk)
+        let allSkippedItems: [ScanSkippedItem] = progressState.skippedItems + topLevelResults.flatMap(\.skippedItems)
+        return DiskScanOutcome(
+            item: DiskItem.chunkedRoot(
+                rootChunk: rootBuilder.packedChunk(isRoot: true),
+                childChunks: topLevelResults.map(\.chunk)
+            ),
+            skippedItems: allSkippedItems
         )
     }
 
@@ -166,7 +171,7 @@ nonisolated final class DiskInventoryZScanner {
         at itemURL: URL,
         from source: ScanSource,
         settings: DiskScanSettings = .diskInventoryZDefault
-    ) async throws -> DiskItem {
+    ) async throws -> DiskScanOutcome {
         try Task.checkCancellation()
 
         let rootURL: URL = try source.resolvedURL()
@@ -187,15 +192,17 @@ nonisolated final class DiskInventoryZScanner {
         hardlinkDeduplicator.reset()
         let item: DiskItemBuilder = itemFactory.makeItem(url: standardizedItemURL, values: values)
 
+        var skippedItems: [ScanSkippedItem] = []
         if item.isFolder && !(item.isPackage && !settings.lookInsidePackages) && values.isVolume != true {
             var progressState: ScanProgressState = ScanProgressState(currentPath: item.path)
             progressState.recordItem(item)
-            _ = try await directoryTraversal.loadChildren(
+            progressState = try await directoryTraversal.loadChildren(
                 of: item,
                 settings: settings,
                 progressState: progressState,
                 progressHandler: nil
             )
+            skippedItems = progressState.skippedItems
         } else if item.isDirectory && item.isPackage && !settings.lookInsidePackages {
             let packageSize: OpaquePackageSize = try packageSizer.size(of: item.url)
             item.setOpaquePackageSize(allocated: packageSize.allocated, logical: packageSize.logical)
@@ -204,7 +211,7 @@ nonisolated final class DiskInventoryZScanner {
         }
 
         item.recalculateSize(usePhysicalSize: settings.usePhysicalSize)
-        return item.freeze(isRoot: false)
+        return DiskScanOutcome(item: item.freeze(isRoot: false), skippedItems: skippedItems)
     }
 
     private func scanTopLevelWorkItem(
@@ -259,7 +266,8 @@ nonisolated final class DiskInventoryZScanner {
             name: workItem.item.name,
             allocatedSizeValue: workItem.item.allocatedSizeValue,
             logicalSizeValue: workItem.item.logicalSizeValue,
-            isSpecialItem: workItem.item.isSpecialItem
+            isSpecialItem: workItem.item.isSpecialItem,
+            skippedItems: progressState.skippedItems
         )
     }
 }
@@ -279,4 +287,5 @@ private nonisolated struct TopLevelScanResult: Sendable {
     let allocatedSizeValue: UInt64
     let logicalSizeValue: UInt64
     let isSpecialItem: Bool
+    let skippedItems: [ScanSkippedItem]
 }
