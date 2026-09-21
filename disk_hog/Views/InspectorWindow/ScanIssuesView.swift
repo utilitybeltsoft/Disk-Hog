@@ -6,11 +6,7 @@ struct ScanIssuesView: View {
 
     var body: some View {
         if session.skippedItems.isEmpty {
-            ContentUnavailableView(
-                "No Scan Issues",
-                systemImage: "checkmark.circle",
-                description: Text("Every item Disk Hog could reach was scanned successfully.")
-            )
+            emptyState
         } else {
             VStack(spacing: 0) {
                 ScrollView {
@@ -30,6 +26,42 @@ struct ScanIssuesView: View {
                 }
                 .padding(14)
             }
+        }
+    }
+
+    @ViewBuilder
+    private var emptyState: some View {
+        switch session.state {
+        case .ready:
+            ContentUnavailableView(
+                "Scan Not Started",
+                systemImage: "clock",
+                description: Text("Scan issues will be available after this scan finishes.")
+            )
+        case .scanning:
+            ContentUnavailableView(
+                "Scan in Progress",
+                systemImage: "magnifyingglass",
+                description: Text("Scan issues will be available after this scan finishes. An empty list does not yet mean every item was scanned successfully.")
+            )
+        case .cancelled:
+            ContentUnavailableView(
+                "Scan Cancelled",
+                systemImage: "xmark.circle",
+                description: Text("This scan did not finish, so a complete scan issues report is unavailable.")
+            )
+        case .failed:
+            ContentUnavailableView(
+                "Scan Failed",
+                systemImage: "exclamationmark.triangle",
+                description: Text("This scan failed before a complete scan issues report was available.")
+            )
+        case .complete:
+            ContentUnavailableView(
+                "No Scan Issues",
+                systemImage: "checkmark.circle",
+                description: Text("Every item Disk Hog could reach was scanned successfully.")
+            )
         }
     }
 }
