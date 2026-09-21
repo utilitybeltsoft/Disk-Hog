@@ -89,7 +89,7 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = String(localized: "Disk Hog")
+        window.title = source.displayName
         window.tabbingMode = .disallowed
         window.isRestorable = false
         super.init(window: window)
