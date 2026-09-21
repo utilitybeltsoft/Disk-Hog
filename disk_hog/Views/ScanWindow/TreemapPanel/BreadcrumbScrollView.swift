@@ -1,16 +1,9 @@
 import AppKit
 import SwiftUI
 
-/// An AppKit-backed replacement for a SwiftUI `ScrollView` breadcrumb trail. Three
-/// SwiftUI-only attempts at this (a hand-rolled offset/drag row, then toggling the
-/// native `ScrollView` indicator) each broke something different - a `GeometryReader`
-/// ballooning the row's height, an offset/frame interaction overlapping the toolbar
-/// buttons to its left, and finally `ScrollView`'s indicator only reserving space when
-/// it's actually needed, making the row's height jump depending on path length. A real
-/// `NSScrollView` sidesteps all of that: `scrollerStyle = .legacy` always reserves the
-/// scroller's track (just inactive/undraggable when nothing overflows), and scrolling
-/// is done directly against the clip view instead of `ScrollViewReader`'s anchor-based
-/// `scrollTo`, which was landing short of the true end.
+/// Full-width path segments in a horizontally scrollable document. The document
+/// is sized independently of the viewport, and the current folder is revealed
+/// after the viewport has received its final layout size.
 struct BreadcrumbScrollView: NSViewRepresentable {
     let zoomPath: [DiskItem]
     let onSelect: (Int) -> Void
@@ -19,8 +12,8 @@ struct BreadcrumbScrollView: NSViewRepresentable {
         Coordinator(onSelect: onSelect)
     }
 
-    func makeNSView(context: Context) -> NSScrollView {
-        let scrollView: NSScrollView = NSScrollView()
+    func makeNSView(context: Context) -> BreadcrumbNSScrollView {
+        let scrollView = BreadcrumbNSScrollView()
         scrollView.hasHorizontalScroller = true
         scrollView.hasVerticalScroller = false
         scrollView.autohidesScrollers = false
@@ -30,27 +23,15 @@ struct BreadcrumbScrollView: NSViewRepresentable {
         scrollView.drawsBackground = false
         scrollView.borderType = .noBorder
 
-        let stackView: NSStackView = NSStackView()
-        stackView.orientation = .horizontal
-        stackView.alignment = .centerY
-        stackView.spacing = 4
-        stackView.translatesAutoresizingMaskIntoConstraints = true
-        // The document view must be allowed to grow beyond the clip view. Otherwise
-        // NSStackView compresses the first and last breadcrumb buttons to the
-        // viewport width, which replaces both names with ellipses.
-        stackView.setContentHuggingPriority(.required, for: .horizontal)
-        stackView.setContentCompressionResistancePriority(.required, for: .horizontal)
-
-        scrollView.documentView = stackView
-        context.coordinator.stackView = stackView
+        scrollView.documentView = NSView()
         context.coordinator.scrollView = scrollView
-        context.coordinator.rebuildIfNeeded(zoomPath: zoomPath, animated: false)
+        context.coordinator.rebuildIfNeeded(zoomPath: zoomPath)
         return scrollView
     }
 
-    func updateNSView(_ nsView: NSScrollView, context: Context) {
+    func updateNSView(_ nsView: BreadcrumbNSScrollView, context: Context) {
         context.coordinator.onSelect = onSelect
-        context.coordinator.rebuildIfNeeded(zoomPath: zoomPath, animated: true)
+        context.coordinator.rebuildIfNeeded(zoomPath: zoomPath)
     }
 
     // Reports an exact intrinsic height back to SwiftUI instead of letting it guess -
@@ -58,8 +39,8 @@ struct BreadcrumbScrollView: NSViewRepresentable {
     // height because nothing constrained it. Width stays flexible (fills whatever's
     // proposed); height is fixed to the button row plus the always-reserved scroller
     // track, so the row never resizes depending on path length or scroller state.
-    func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSScrollView, context: Context) -> CGSize? {
-        let contentHeight: CGFloat = context.coordinator.stackView?.fittingSize.height ?? ScanWindowMetrics.tableRowHeight
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: BreadcrumbNSScrollView, context: Context) -> CGSize? {
+        let contentHeight: CGFloat = max(nsView.documentView?.frame.height ?? 0, ScanWindowMetrics.tableRowHeight)
         let scrollerHeight: CGFloat = NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy)
         return CGSize(width: proposal.width ?? contentHeight, height: contentHeight + scrollerHeight)
     }
@@ -67,21 +48,22 @@ struct BreadcrumbScrollView: NSViewRepresentable {
     @MainActor
     final class Coordinator: NSObject {
         var onSelect: (Int) -> Void
-        weak var stackView: NSStackView?
-        weak var scrollView: NSScrollView?
+        weak var scrollView: BreadcrumbNSScrollView?
         private var lastPathIDs: [DiskItemID] = []
 
         init(onSelect: @escaping (Int) -> Void) {
             self.onSelect = onSelect
         }
 
-        func rebuildIfNeeded(zoomPath: [DiskItem], animated: Bool) {
+        func rebuildIfNeeded(zoomPath: [DiskItem]) {
             let newIDs: [DiskItemID] = zoomPath.map(\.id)
             guard newIDs != lastPathIDs else { return }
             lastPathIDs = newIDs
 
-            guard let stackView else { return }
-            stackView.arrangedSubviews.forEach { $0.removeFromSuperview() }
+            guard let scrollView, let documentView = scrollView.documentView else { return }
+            documentView.subviews.forEach { $0.removeFromSuperview() }
+            var nextX: CGFloat = 0
+            let rowHeight: CGFloat = ScanWindowMetrics.tableRowHeight
 
             for (index, item) in zoomPath.enumerated() {
                 if index > 0 {
@@ -90,18 +72,17 @@ struct BreadcrumbScrollView: NSViewRepresentable {
                     )
                     chevron.symbolConfiguration = .init(pointSize: ScanWindowMetrics.statusFieldFontSize - 1, weight: .regular)
                     chevron.contentTintColor = .secondaryLabelColor
-                    stackView.addArrangedSubview(chevron)
+                    chevron.frame = NSRect(x: nextX, y: 0, width: 8, height: rowHeight)
+                    documentView.addSubview(chevron)
+                    nextX += 12
                 }
                 let button: NSButton = NSButton(title: item.displayName, target: self, action: #selector(segmentClicked(_:)))
                 button.tag = index
                 button.isBordered = false
                 button.focusRingType = .none
-                // A path segment is navigation, not a label that may abbreviate
-                // itself. Keep its intrinsic width and let the horizontal scroller
-                // expose any overflow instead of rendering an ellipsis.
                 button.lineBreakMode = .byClipping
-                button.setContentHuggingPriority(.required, for: .horizontal)
-                button.setContentCompressionResistancePriority(.required, for: .horizontal)
+                button.font = NSFont.systemFont(ofSize: ScanWindowMetrics.statusFieldFontSize)
+                button.toolTip = item.path
                 button.attributedTitle = NSAttributedString(
                     string: item.displayName,
                     attributes: [
@@ -109,34 +90,41 @@ struct BreadcrumbScrollView: NSViewRepresentable {
                         .foregroundColor: index == zoomPath.indices.last ? NSColor.labelColor : NSColor.secondaryLabelColor
                     ]
                 )
-                stackView.addArrangedSubview(button)
+                // Measure the full title explicitly. Stack fitting/compression must
+                // never decide how much of a folder name belongs in the document.
+                let width = ceil(max(button.cell?.cellSize.width ?? 0, button.attributedTitle.size().width + 8))
+                button.frame = NSRect(x: nextX, y: 0, width: width, height: rowHeight)
+                documentView.addSubview(button)
+                nextX += width + 4
             }
 
-            stackView.frame.size = stackView.fittingSize
-            scrollToEnd(animated: animated)
-        }
-
-        private func scrollToEnd(animated: Bool) {
-            guard let stackView, let scrollView else { return }
-            let maxX: CGFloat = max(0, stackView.frame.width - scrollView.contentView.bounds.width)
-            let destination: NSPoint = NSPoint(x: maxX, y: 0)
-            if animated {
-                NSAnimationContext.runAnimationGroup { context in
-                    context.duration = 0.15
-                    context.allowsImplicitAnimation = true
-                    scrollView.contentView.animator().setBoundsOrigin(destination)
-                } completionHandler: { [weak scrollView] in
-                    guard let scrollView else { return }
-                    scrollView.reflectScrolledClipView(scrollView.contentView)
-                }
-            } else {
-                scrollView.contentView.setBoundsOrigin(destination)
-                scrollView.reflectScrolledClipView(scrollView.contentView)
-            }
+            documentView.setFrameSize(NSSize(width: max(0, nextX - 4), height: rowHeight))
+            scrollView.revealCurrentFolder()
         }
 
         @objc private func segmentClicked(_ sender: NSButton) {
             onSelect(sender.tag)
         }
+    }
+}
+
+final class BreadcrumbNSScrollView: NSScrollView {
+    private var needsReveal = false
+    private var lastViewportSize: NSSize = .zero
+
+    func revealCurrentFolder() {
+        needsReveal = true
+        needsLayout = true
+    }
+
+    override func layout() {
+        super.layout()
+        let viewportSize = contentView.bounds.size
+        guard needsReveal || viewportSize != lastViewportSize else { return }
+        needsReveal = false
+        lastViewportSize = viewportSize
+        let maxX = max(0, (documentView?.frame.width ?? 0) - viewportSize.width)
+        contentView.scroll(to: NSPoint(x: maxX, y: 0))
+        reflectScrolledClipView(contentView)
     }
 }
