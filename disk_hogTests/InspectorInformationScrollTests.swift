@@ -27,10 +27,16 @@ struct InspectorInformationScrollTests {
                 return
             }
             #expect(scroll.hasVerticalScroller && scroll.hasHorizontalScroller)
+            #expect(scroll.scrollerStyle == .legacy)
             #expect(document.frame.height > scroll.contentView.bounds.height)
+            #expect(scroll.verticalScroller?.isHidden == false)
             #expect(abs(probe.bounds.width - 680) < 1)
             #expect(abs(probe.convert(.zero, to: document).x - 10) < 1)
             #expect(abs(scroll.contentView.bounds.minX) < 1)
+            scroll.contentView.scroll(to: NSPoint(x: 0, y: 150))
+            scroll.reflectScrolledClipView(scroll.contentView)
+            #expect(scroll.contentView.bounds.minY > 0)
+            scroll.contentView.scroll(to: .zero)
         }
     }
 
