@@ -212,6 +212,18 @@ nonisolated final class DiskItem: Identifiable, Hashable, Sendable, DiskItemTree
         usePhysicalSize ? record.allocatedSizeValue : record.logicalSizeValue
     }
     var kindName: String? { snapshot.string(record.kindName, at: address) }
+    var displayName: String {
+        switch itemType {
+        case .fileOrFolder:
+            snapshot.string(record.displayName, at: address)
+                ?? snapshot.string(record.fileSystemName, at: address) ?? ""
+        case .otherSpace: String(localized: "space occupied by other files and folders")
+        case .freeSpace: String(localized: "free space on drive")
+        }
+    }
+    var name: String {
+        isSpecialItem ? displayName : (snapshot.string(record.fileSystemName, at: address) ?? "")
+    }
     var path: String {
         isSpecialItem ? "" : (snapshot.string(record.path, at: address) ?? "")
     }

@@ -40,7 +40,7 @@ nonisolated struct SelectionListRow: Identifiable, Sendable {
     var id: DiskItemID { item.id }
     var name: String { item.displayName }
     var kindName: String { item.kindName ?? "" }
-    var parentPath: String { item.url.deletingLastPathComponent().path }
+    var parentPath: String { (item.path as NSString).deletingLastPathComponent }
     var fullPath: String { item.path }
 
     func matches(_ searchText: String, in scope: SelectionListSearchScope) -> Bool {
