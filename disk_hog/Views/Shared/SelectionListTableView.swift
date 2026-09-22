@@ -79,6 +79,7 @@ struct SelectionListTableView: NSViewRepresentable {
     @Binding var selectedItemIDs: Set<DiskItemID>
     @Binding var sortDescriptors: [SelectionListSortDescriptor]
     var allowsColumnSorting: Bool = true
+    var showsKindColumn: Bool = false
     let onSelect: (DiskItem) -> Void
 
     func makeCoordinator() -> Coordinator {
@@ -99,6 +100,8 @@ struct SelectionListTableView: NSViewRepresentable {
         tableView.allowsMultipleSelection = true
         tableView.usesAlternatingRowBackgroundColors = false
         tableView.backgroundColor = .controlBackgroundColor
+        tableView.setAccessibilityLabel(allowsColumnSorting
+            ? String(localized: "File selection list") : String(localized: "Largest items, size descending"))
         tableView.columnAutoresizingStyle = .noColumnAutoresizing
         tableView.delegate = context.coordinator
         tableView.dataSource = context.coordinator
@@ -132,6 +135,13 @@ struct SelectionListTableView: NSViewRepresentable {
             selector: #selector(NSString.localizedStandardCompare(_:))
         )
         tableView.addTableColumn(nameColumn)
+        if showsKindColumn {
+            let kindColumn = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("rankedKind"))
+            kindColumn.title = String(localized: "Kind")
+            kindColumn.width = 120
+            kindColumn.minWidth = 70
+            tableView.addTableColumn(kindColumn)
+        }
 
         let pathColumn: NSTableColumn = NSTableColumn(identifier: SelectionListColumnID.path)
         pathColumn.title = String(localized: "Path")
@@ -146,7 +156,8 @@ struct SelectionListTableView: NSViewRepresentable {
         tableView.addTableColumn(pathColumn)
 
         let sizeColumn: NSTableColumn = NSTableColumn(identifier: SelectionListColumnID.size)
-        sizeColumn.title = String(localized: "Size")
+        sizeColumn.title = allowsColumnSorting ? String(localized: "Size")
+            : (session.scanSettings.usePhysicalSize ? String(localized: "Size on disk") : String(localized: "Logical size"))
         sizeColumn.headerCell.alignment = .right
         sizeColumn.width = 92
         sizeColumn.minWidth = 72
@@ -179,6 +190,10 @@ struct SelectionListTableView: NSViewRepresentable {
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        if !allowsColumnSorting {
+            context.coordinator.tableView?.tableColumn(withIdentifier: SelectionListColumnID.size)?.title =
+                session.scanSettings.usePhysicalSize ? String(localized: "Size on disk") : String(localized: "Logical size")
+        }
         context.coordinator.selectedItemID = $selectedItemID
         context.coordinator.selectedItemIDs = $selectedItemIDs
         context.coordinator.sortDescriptors = $sortDescriptors
@@ -309,6 +324,11 @@ struct SelectionListTableView: NSViewRepresentable {
 
             let item: SelectionListRow = rows[row]
             switch tableColumn.identifier {
+            case NSUserInterfaceItemIdentifier("rankedKind"):
+                return textCell(
+                    item.item.resolvedKindName,
+                    identifier: NSUserInterfaceItemIdentifier("rankedKindCell"),
+                    alignment: .left, lineBreakMode: .byTruncatingTail, tableView: tableView)
             case SelectionListColumnID.name:
                 return nameCell(for: item, tableView: tableView)
             case SelectionListColumnID.path:

@@ -87,7 +87,7 @@ struct LargestItemsView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             if session.hasIncompleteResults {
-                Text("Incomplete scan: sizes may be understated. See Scan Issues.")
+                Text("Incomplete scan: ≥ marks a lower bound; Unknown means unmeasured. See Scan Issues.")
                     .foregroundStyle(.orange)
             }
             ZStack {
@@ -95,7 +95,7 @@ struct LargestItemsView: View {
                     dataStore: dataStore, session: session,
                     selectedItemID: $selectedID, selectedItemIDs: $selectedIDs,
                     sortDescriptors: .constant([SelectionListSortDescriptor(field: .size, isAscending: false)]),
-                    allowsColumnSorting: false
+                    allowsColumnSorting: false, showsKindColumn: true
                 ) { item in
                     selectionCoordinator.setSelectedItem(item)
                 }

@@ -1,7 +1,8 @@
 import Foundation
 
 @main struct LargestItemsCheck {
-    static func main() throws {
+    static func main() async throws {
+        try checkPackagesAndLinks()
         let count = Int(CommandLine.arguments.dropFirst().first ?? "10000")!
         let builder = DiskItemBuilder(url: URL(fileURLWithPath: "/fixture", isDirectory: true), isDirectory: true)
         for index in 0..<count {
@@ -48,5 +49,45 @@ import Foundation
             } catch is CancellationError {}
             print("PASS: \(count) files, physical=\(physical), bounded ranking/search/folders/scope/cancellation, seconds=\(elapsed)")
         }
+        let queue = LargestItemsWorkQueue(concurrencyLimit: 1)
+        let tasks = (0..<12).map { _ in
+            Task { try await queue.run(root: root, query: LargestItemsQuery()) }
+        }
+        for (index, task) in tasks.enumerated() where index.isMultiple(of: 2) { task.cancel() }
+        for (index, task) in tasks.enumerated() {
+            do {
+                let result = try await task.value
+                precondition(result.rows.count <= LargestItemsQuery.initialLimit)
+            } catch is CancellationError {
+                precondition(index.isMultiple(of: 2))
+            }
+        }
+        let final = try await queue.run(root: root, query: LargestItemsQuery())
+        precondition(final.matchingCount == count + 1)
+        print("PASS: concurrent queued queries, cancellation, and permit recovery")
+    }
+
+    static func checkPackagesAndLinks() throws {
+        let root = DiskItemBuilder(url: URL(fileURLWithPath: "/packages", isDirectory: true), isDirectory: true)
+        let package = root.makeChild(url: URL(fileURLWithPath: "/packages/App.app", isDirectory: true),
+                                    isDirectory: true, isPackage: true)
+        package.appendChild(package.makeChild(url: URL(fileURLWithPath: "/packages/App.app/data", isDirectory: false),
+                                              allocatedSizeValue: 50, logicalSizeValue: 50))
+        root.appendChild(package)
+        let link = root.makeChild(url: URL(fileURLWithPath: "/packages/link", isDirectory: false),
+                                 isDirectory: true, isAliasOrSymbolicLink: true)
+        link.appendChild(link.makeChild(url: URL(fileURLWithPath: "/packages/link/hidden", isDirectory: false)))
+        root.appendChild(link)
+        let snapshot = root.freeze()
+        var query = LargestItemsQuery()
+        let opaque = try LargestItemsPipeline.run(root: snapshot, query: query)
+        precondition(opaque.rows.map(\.name).sorted() == ["App.app", "link"])
+        query.lookInsidePackages = true
+        let expanded = try LargestItemsPipeline.run(root: snapshot, query: query)
+        precondition(expanded.rows.map(\.name).sorted() == ["data", "link"])
+        query.category = .folders
+        let folders = try LargestItemsPipeline.run(root: snapshot, query: query)
+        precondition(folders.rows.map(\.name) == ["App.app"])
+        print("PASS: opaque/expanded packages and non-traversed links")
     }
 }
