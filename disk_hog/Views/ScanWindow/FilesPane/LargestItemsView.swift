@@ -106,6 +106,28 @@ struct LargestItemsView: View {
                 }
             }
             HStack {
+                Menu("Selected Item") {
+                    Button("Show in Folder Tree") { onShowTree() }
+                    Button("Show in Treemap") {
+                        navigation.zoom(into: selectedItem, allowingFileFallback: true)
+                    }
+                    Button("Reveal in Finder") {
+                        if let selectedItem { DiskItemWorkspaceActions.revealInFinder(selectedItem) }
+                    }
+                    Button("Information") {
+                        if let selectedItem {
+                            InspectorWindowController.shared.showInformation(for: selectedItem, from: session)
+                        }
+                    }
+                    Divider()
+                    Button("Explore this folder") {
+                        scopedItem = selectedItem
+                        depth = .immediateChildren
+                        limit = LargestItemsQuery.initialLimit
+                    }
+                    .disabled(selectedItem?.isFolder != true || (selectedItem?.isPackage == true && !query.lookInsidePackages))
+                }
+                .disabled(selectedItem == nil || isLoading)
                 if dataStore.resultCount < matchingCount && limit < LargestItemsQuery.maximumLimit {
                     Button("Show More") { limit = min(limit + 1_000, LargestItemsQuery.maximumLimit) }
                         .disabled(isLoading)
@@ -134,6 +156,10 @@ struct LargestItemsView: View {
         }
     }
 
+    private var selectedItem: DiskItem? {
+        selectedID.flatMap { dataStore.rowsByID[$0]?.item }
+    }
+
     private func synchronizeSelection() {
         let id = selectionCoordinator.selectedItem?.id
         selectedID = id.flatMap { dataStore.rowsByID[$0]?.id }
@@ -154,11 +180,7 @@ struct LargestItemsView: View {
         do {
             if !query.searchText.isEmpty { try await Task.sleep(for: .milliseconds(150)) }
             try Task.checkCancellation()
-            let worker = Task.detached(priority: .utility) {
-                try LargestItemsPipeline.run(root: root, query: query)
-            }
-            let result = try await withTaskCancellationHandler(
-                operation: { try await worker.value }, onCancel: { worker.cancel() })
+            let result = try await LargestItemsWorkQueue.shared.run(root: root, query: query)
             guard !Task.isCancelled, generation == expectedGeneration,
                   scopeRoot?.id == expectedRootID, self.query == query else { return }
             let rows = result.rows

@@ -320,8 +320,10 @@ struct SelectionListTableView: NSViewRepresentable {
                     tableView: tableView
                 )
             default:
+                let incomplete = session.isAffectedBySkippedContent(item.item)
+                let size = ByteCountFormatter.string(fromByteCount: Int64(clamping: item.size), countStyle: .file)
                 return textCell(
-                    ByteCountFormatter.string(fromByteCount: Int64(item.size), countStyle: .file),
+                    incomplete ? (item.size == 0 ? String(localized: "Unknown") : "≥ " + size) : size,
                     identifier: SelectionListCellID.size,
                     alignment: .right,
                     lineBreakMode: .byTruncatingTail,
@@ -555,6 +557,7 @@ private final class SelectionListNameCellView: NSTableCellView {
             self.iconView.image = icon
         }
         label.stringValue = row.name
+        toolTip = row.fullPath
     }
 
     private func setup() {
