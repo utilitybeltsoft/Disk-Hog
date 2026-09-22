@@ -2213,13 +2213,15 @@ struct InspectorWindowLayoutTests {
         #expect(coordinator.preferredContentSize(for: slot, on: nil) == NSSize(width: 720, height: 720))
     }
 
-    @Test func resizingWithinInformationSlotPreservesUserSize() {
-        let coordinator = InspectorWindowLayoutCoordinator()
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 740, height: 400),
-                              styleMask: [.titled, .resizable], backing: .buffered, defer: false)
-        let original = window.frame
-        coordinator.resize(window: window, from: .information, to: .information)
-        #expect(window.frame == original)
+    @Test func allTabsShareTheSameWindowMinimum() {
+        let controller = InspectorWindowController.shared
+        let originalTab = controller.selectedTab
+        defer { controller.selectedTab = originalTab }
+        let minimum = controller.currentLayout.minimumContentSize
+        for tab in InspectorWindowTab.allCases {
+            controller.selectedTab = tab
+            #expect(controller.currentLayout.minimumContentSize == minimum)
+        }
     }
 
     @Test func diskUsageTabUsesPreferredHeight() {

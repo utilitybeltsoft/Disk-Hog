@@ -103,6 +103,8 @@ struct InspectorWindowLayout {
     /// Issues), so no tab's width may go narrower than what that row needs to
     /// show all five labels without truncating the last one.
     static let minimumTabBarWidth: CGFloat = 700
+    /// One constraint for the shared window; changing tabs must not resize it.
+    static let sharedMinimumContentSize = NSSize(width: minimumTabBarWidth, height: 320)
 
     static let compactDiskUsage: InspectorWindowLayout = InspectorWindowLayout(
         preferredContentSize: NSSize(width: minimumTabBarWidth, height: 350),
@@ -136,14 +138,7 @@ final class InspectorWindowController: NSObject, ObservableObject {
     @Published private(set) var activeSource: ScanSource?
     @Published private(set) var isVisible: Bool = false
     @Published private(set) var measuredTabBarWidth: CGFloat = InspectorWindowLayout.minimumTabBarWidth
-    @Published var selectedTab: InspectorWindowTab = .information {
-        didSet {
-            guard selectedTab != oldValue else {
-                return
-            }
-            resizeWindow(from: contentSizeSlot(for: oldValue), to: currentContentSizeSlot)
-        }
-    }
+    @Published var selectedTab: InspectorWindowTab = .information
 
     private var windowHost: InspectorWindowHost?
     private let layoutCoordinator: InspectorWindowLayoutCoordinator = InspectorWindowLayoutCoordinator()
@@ -154,8 +149,8 @@ final class InspectorWindowController: NSObject, ObservableObject {
         return InspectorWindowLayout(
             preferredContentSize: NSSize(width: max(layout.preferredContentSize.width, measuredTabBarWidth),
                                          height: layout.preferredContentSize.height),
-            minimumContentSize: NSSize(width: max(layout.minimumContentSize.width, measuredTabBarWidth),
-                                       height: layout.minimumContentSize.height)
+            minimumContentSize: NSSize(width: max(InspectorWindowLayout.sharedMinimumContentSize.width, measuredTabBarWidth),
+                                       height: InspectorWindowLayout.sharedMinimumContentSize.height)
         )
     }
 
@@ -180,7 +175,6 @@ final class InspectorWindowController: NSObject, ObservableObject {
     }
 
     func activate(_ context: InspectorWindowContext) {
-        let previousContentSizeSlot: InspectorContentSizeSlot = currentContentSizeSlot
         var didChangeContext: Bool = false
         if activeSource != nil {
             activeSource = nil
@@ -193,12 +187,10 @@ final class InspectorWindowController: NSObject, ObservableObject {
         guard didChangeContext else {
             return
         }
-        resizeWindowIfNeeded(from: previousContentSizeSlot)
         updateWindowTitle()
     }
 
     func activate(source: ScanSource?) {
-        let previousContentSizeSlot: InspectorContentSizeSlot = currentContentSizeSlot
         var didChangeContext: Bool = false
         if activeContext != nil {
             activeContext = nil
@@ -211,7 +203,6 @@ final class InspectorWindowController: NSObject, ObservableObject {
         guard didChangeContext else {
             return
         }
-        resizeWindowIfNeeded(from: previousContentSizeSlot)
         updateWindowTitle()
     }
 
@@ -222,14 +213,12 @@ final class InspectorWindowController: NSObject, ObservableObject {
         guard activeContext != nil || activeSource != nil else {
             return
         }
-        let previousContentSizeSlot: InspectorContentSizeSlot = currentContentSizeSlot
         if activeContext != nil {
             activeContext = nil
         }
         if activeSource != nil {
             activeSource = nil
         }
-        resizeWindowIfNeeded(from: previousContentSizeSlot)
         updateWindowTitle()
     }
 
@@ -364,23 +353,6 @@ final class InspectorWindowController: NSObject, ObservableObject {
 
     private func contentSizeSlot(for tab: InspectorWindowTab) -> InspectorContentSizeSlot {
         layoutCoordinator.slot(for: tab, context: activeContext, hasSource: activeSource != nil)
-    }
-
-    private func resizeWindowIfNeeded(from previousSlot: InspectorContentSizeSlot) {
-        let newSlot: InspectorContentSizeSlot = currentContentSizeSlot
-        guard previousSlot != newSlot else {
-            return
-        }
-        resizeWindow(from: previousSlot, to: newSlot)
-    }
-
-    private func resizeWindow(
-        from oldSlot: InspectorContentSizeSlot,
-        to newSlot: InspectorContentSizeSlot
-    ) {
-        guard let window: NSWindow = windowHost?.window else { return }
-        layoutCoordinator.resize(window: window, from: oldSlot, to: newSlot)
-        InspectorWindowSizing.applyMinimum(currentLayout.minimumContentSize, to: window)
     }
 
     private func scheduleInitialArrangementBesideActiveScanWindow() {
