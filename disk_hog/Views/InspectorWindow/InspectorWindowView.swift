@@ -18,9 +18,15 @@ struct InspectorWindowView: View {
                         InspectorTabButtonStyle(isSelected: controller.selectedTab == tab)
                     )
                 }
-                Spacer()
             }
             .padding(15)
+            .fixedSize(horizontal: true, vertical: true)
+            .background {
+                GeometryReader { proxy in
+                    Color.clear.preference(key: InspectorTabBarWidthKey.self, value: proxy.size.width)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             Divider()
 
@@ -47,13 +53,21 @@ struct InspectorWindowView: View {
             }
         }
         .frame(
-            minWidth: controller.currentLayout.minimumContentSize.width,
             maxWidth: .infinity,
-            minHeight: controller.currentLayout.minimumContentSize.height,
             maxHeight: .infinity,
             alignment: .topLeading
         )
         .background(Color(nsColor: .windowBackgroundColor))
+        .onPreferenceChange(InspectorTabBarWidthKey.self) { width in
+            controller.updateTabBarWidth(width)
+        }
+    }
+}
+
+private struct InspectorTabBarWidthKey: PreferenceKey {
+    static var defaultValue: CGFloat { 0 }
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
     }
 }
 

@@ -5,6 +5,7 @@ import SwiftUI
 final class InspectorWindowHost: NSObject, NSWindowDelegate {
     let windowController: NSWindowController
     private let onClose: () -> Void
+    private let minimumSize: () -> NSSize
 
     var window: NSWindow? {
         windowController.window
@@ -15,9 +16,11 @@ final class InspectorWindowHost: NSObject, NSWindowDelegate {
         minimumContentSize: NSSize,
         frameAutosaveName: String,
         contentView: InspectorWindowView,
+        minimumSize: @escaping () -> NSSize,
         onClose: @escaping () -> Void
     ) {
         self.onClose = onClose
+        self.minimumSize = minimumSize
         let window: NSWindow = NSWindow(
             contentRect: NSRect(origin: .zero, size: contentSize),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
@@ -49,6 +52,7 @@ final class InspectorWindowHost: NSObject, NSWindowDelegate {
     }
 
     func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
-        InspectorWindowSizing.clamped(frameSize, minimum: sender.minSize)
+        let minimumFrame = sender.frameRect(forContentRect: NSRect(origin: .zero, size: minimumSize())).size
+        return InspectorWindowSizing.clamped(frameSize, minimum: minimumFrame)
     }
 }

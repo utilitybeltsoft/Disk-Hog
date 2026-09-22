@@ -2206,6 +2206,13 @@ struct InspectorWindowLayoutTests {
         #expect(InspectorWindowTab.information.layout.preferredContentSize.height == 720)
     }
 
+    @Test func sourceInformationUsesFullInformationSizeWithoutScanContext() {
+        let coordinator = InspectorWindowLayoutCoordinator()
+        let slot = coordinator.slot(for: .information, context: nil, hasSource: true)
+        #expect(slot == .information)
+        #expect(coordinator.preferredContentSize(for: slot, on: nil) == NSSize(width: 720, height: 720))
+    }
+
     @Test func resizingWithinInformationSlotPreservesUserSize() {
         let coordinator = InspectorWindowLayoutCoordinator()
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 740, height: 400),
@@ -2273,7 +2280,7 @@ struct InspectorWindowLayoutTests {
     }
 
     @Test func inspectorAutosaveNameBumpsLegacyFrameDefaults() {
-        #expect(InspectorWindowController.frameAutosaveName == "DiskHogInspectorWindowV4")
+        #expect(InspectorWindowController.frameAutosaveName == "DiskHogInspectorWindowV5")
     }
 
     @Test func formatsInspectorTitlesFromTheActiveSource() {

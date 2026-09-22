@@ -129,12 +129,13 @@ enum InspectorContentSizeSlot: Hashable {
 @MainActor
 final class InspectorWindowController: NSObject, ObservableObject {
     static let shared: InspectorWindowController = InspectorWindowController()
-    static let frameAutosaveName: String = "DiskHogInspectorWindowV4"
+    static let frameAutosaveName: String = "DiskHogInspectorWindowV5"
     static let visibleScreenInset: CGFloat = 80
 
     @Published private(set) var activeContext: InspectorWindowContext?
     @Published private(set) var activeSource: ScanSource?
     @Published private(set) var isVisible: Bool = false
+    @Published private(set) var measuredTabBarWidth: CGFloat = InspectorWindowLayout.minimumTabBarWidth
     @Published var selectedTab: InspectorWindowTab = .information {
         didSet {
             guard selectedTab != oldValue else {
@@ -149,7 +150,22 @@ final class InspectorWindowController: NSObject, ObservableObject {
     private let placementCoordinator: InspectorWindowPlacementCoordinator = InspectorWindowPlacementCoordinator()
 
     var currentLayout: InspectorWindowLayout {
-        layoutCoordinator.layout(for: currentContentSizeSlot)
+        let layout = layoutCoordinator.layout(for: currentContentSizeSlot)
+        return InspectorWindowLayout(
+            preferredContentSize: NSSize(width: max(layout.preferredContentSize.width, measuredTabBarWidth),
+                                         height: layout.preferredContentSize.height),
+            minimumContentSize: NSSize(width: max(layout.minimumContentSize.width, measuredTabBarWidth),
+                                       height: layout.minimumContentSize.height)
+        )
+    }
+
+    func updateTabBarWidth(_ width: CGFloat) {
+        let width = max(ceil(width), InspectorWindowLayout.minimumTabBarWidth)
+        guard width > measuredTabBarWidth else { return }
+        measuredTabBarWidth = width
+        if let window = windowHost?.window {
+            InspectorWindowSizing.applyMinimum(currentLayout.minimumContentSize, to: window)
+        }
     }
 
     private override init() {
@@ -334,9 +350,10 @@ final class InspectorWindowController: NSObject, ObservableObject {
         let contentSize: NSSize = layoutCoordinator.preferredContentSize(for: slot, on: NSScreen.main)
         return InspectorWindowHost(
             contentSize: contentSize,
-            minimumContentSize: layout.minimumContentSize,
+            minimumContentSize: currentLayout.minimumContentSize,
             frameAutosaveName: Self.frameAutosaveName,
             contentView: InspectorWindowView(controller: self),
+            minimumSize: { [weak self] in self?.currentLayout.minimumContentSize ?? layout.minimumContentSize },
             onClose: { [weak self] in self?.isVisible = false }
         )
     }
@@ -346,7 +363,7 @@ final class InspectorWindowController: NSObject, ObservableObject {
     }
 
     private func contentSizeSlot(for tab: InspectorWindowTab) -> InspectorContentSizeSlot {
-        layoutCoordinator.slot(for: tab, context: activeContext)
+        layoutCoordinator.slot(for: tab, context: activeContext, hasSource: activeSource != nil)
     }
 
     private func resizeWindowIfNeeded(from previousSlot: InspectorContentSizeSlot) {
@@ -363,6 +380,7 @@ final class InspectorWindowController: NSObject, ObservableObject {
     ) {
         guard let window: NSWindow = windowHost?.window else { return }
         layoutCoordinator.resize(window: window, from: oldSlot, to: newSlot)
+        InspectorWindowSizing.applyMinimum(currentLayout.minimumContentSize, to: window)
     }
 
     private func scheduleInitialArrangementBesideActiveScanWindow() {

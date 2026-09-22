@@ -4,10 +4,10 @@ import AppKit
 final class InspectorWindowLayoutCoordinator {
     private var contentSizesBySlot: [InspectorContentSizeSlot: NSSize] = [:]
 
-    func slot(for tab: InspectorWindowTab, context: InspectorWindowContext?) -> InspectorContentSizeSlot {
+    func slot(for tab: InspectorWindowTab, context: InspectorWindowContext?, hasSource: Bool = false) -> InspectorContentSizeSlot {
         switch tab {
         case .information:
-            context == nil ? .empty : .information
+            context == nil && !hasSource ? .empty : .information
         case .diskUsage:
             context?.isVolumeScan == true ? .fullDiskUsage : .compactDiskUsage
         case .selectionList:
