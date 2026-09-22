@@ -3,8 +3,6 @@ import AppKit
 @MainActor
 final class InspectorWindowLayoutCoordinator {
     private var contentSizesBySlot: [InspectorContentSizeSlot: NSSize] = [:]
-    private var pendingInformationContentHeight: CGFloat?
-    private var isInformationHeightUpdateScheduled: Bool = false
 
     func slot(for tab: InspectorWindowTab, context: InspectorWindowContext?) -> InspectorContentSizeSlot {
         switch tab {
@@ -57,68 +55,6 @@ final class InspectorWindowLayoutCoordinator {
         let targetContentSize: NSSize = preferredContentSize(for: newSlot, on: window.screen)
         window.contentMinSize = layout.minimumContentSize
         setContentSize(targetContentSize, on: window)
-    }
-
-    func scheduleInformationContentHeight(
-        _ measuredHeight: CGFloat,
-        selectedTab: @escaping () -> InspectorWindowTab,
-        window: NSWindow?
-    ) {
-        guard measuredHeight > 0 else {
-            return
-        }
-
-        pendingInformationContentHeight = measuredHeight
-        guard !isInformationHeightUpdateScheduled else {
-            return
-        }
-
-        isInformationHeightUpdateScheduled = true
-        DispatchQueue.main.async { [weak self, weak window] in
-            guard let self else {
-                return
-            }
-            self.isInformationHeightUpdateScheduled = false
-            guard let measuredHeight: CGFloat = self.pendingInformationContentHeight else {
-                return
-            }
-            self.pendingInformationContentHeight = nil
-            self.updateInformationContentHeight(
-                measuredHeight,
-                selectedTab: selectedTab(),
-                window: window
-            )
-        }
-    }
-
-    private func updateInformationContentHeight(
-        _ measuredHeight: CGFloat,
-        selectedTab: InspectorWindowTab,
-        window: NSWindow?
-    ) {
-        guard selectedTab == .information,
-              let window else {
-            return
-        }
-
-        let currentContentSize: NSSize = window.contentLayoutRect.size
-        let targetContentHeight: CGFloat = InspectorInformationSizing.contentHeight(
-            measuredInformationHeight: measuredHeight,
-            minimumHeight: InspectorWindowTab.information.layout.minimumContentSize.height,
-            visibleScreenHeight: window.screen?.visibleFrame.height
-        )
-        guard abs(currentContentSize.height - targetContentHeight) >= 1 else {
-            return
-        }
-
-        let targetContentSize: NSSize = NSSize(
-            width: currentContentSize.width,
-            height: targetContentHeight
-        )
-        contentSizesBySlot[.information] = targetContentSize
-        setContentSize(targetContentSize, on: window)
-        window.layoutIfNeeded()
-        window.displayIfNeeded()
     }
 
     private func setContentSize(_ targetContentSize: NSSize, on window: NSWindow) {

@@ -140,16 +140,6 @@ private struct FileInformationContent: View {
             .transition(.opacity)
             .padding(10)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background {
-                if snapshot != nil {
-                    GeometryReader { proxy in
-                        Color.clear.preference(
-                            key: InformationContentHeightPreferenceKey.self,
-                            value: proxy.size.height
-                        )
-                    }
-                }
-            }
         }
         .background {
             InformationContextMenuAugmenter(
@@ -226,14 +216,6 @@ private struct FileInformationContent: View {
                 second: rows.indices.contains(index + 1) ? rows[index + 1] : nil
             )
         }
-    }
-}
-
-struct InformationContentHeightPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
     }
 }
 

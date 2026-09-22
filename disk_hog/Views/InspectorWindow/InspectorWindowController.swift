@@ -116,25 +116,6 @@ struct InspectorWindowLayout {
     static let empty: InspectorWindowLayout = compactDiskUsage
 }
 
-enum InspectorInformationSizing {
-    static let inspectorControlsHeight: CGFloat = 57
-    static let bottomAllowance: CGFloat = 0
-
-    static func contentHeight(
-        measuredInformationHeight: CGFloat,
-        minimumHeight: CGFloat,
-        visibleScreenHeight: CGFloat?
-    ) -> CGFloat {
-        let measuredHeight: CGFloat = ceil(measuredInformationHeight)
-            + inspectorControlsHeight
-            + bottomAllowance
-        let maximumHeight: CGFloat = visibleScreenHeight.map {
-            max(minimumHeight, $0 - InspectorWindowController.visibleScreenInset)
-        } ?? measuredHeight
-        return min(max(measuredHeight, minimumHeight), maximumHeight)
-    }
-}
-
 enum InspectorContentSizeSlot: Hashable {
     case empty
     case information
@@ -269,14 +250,6 @@ final class InspectorWindowController: NSObject, ObservableObject {
         placementCoordinator.restoreOrdering(
             isVisible: isVisible,
             inspectorWindow: windowHost?.window
-        )
-    }
-
-    func scheduleInformationContentHeight(_ measuredHeight: CGFloat) {
-        layoutCoordinator.scheduleInformationContentHeight(
-            measuredHeight,
-            selectedTab: { [weak self] in self?.selectedTab ?? .information },
-            window: windowHost?.window
         )
     }
 

@@ -2206,26 +2206,13 @@ struct InspectorWindowLayoutTests {
         #expect(InspectorWindowTab.information.layout.preferredContentSize.height == 720)
     }
 
-    @Test func informationHeightFollowsMeasuredContentAndScreenBounds() {
-        let fittedHeight: CGFloat = InspectorInformationSizing.contentHeight(
-            measuredInformationHeight: 600,
-            minimumHeight: 360,
-            visibleScreenHeight: 900
-        )
-        let minimumHeight: CGFloat = InspectorInformationSizing.contentHeight(
-            measuredInformationHeight: 100,
-            minimumHeight: 360,
-            visibleScreenHeight: 900
-        )
-        let maximumHeight: CGFloat = InspectorInformationSizing.contentHeight(
-            measuredInformationHeight: 1_000,
-            minimumHeight: 360,
-            visibleScreenHeight: 900
-        )
-
-        #expect(fittedHeight == 657)
-        #expect(minimumHeight == 360)
-        #expect(maximumHeight == 820)
+    @Test func resizingWithinInformationSlotPreservesUserSize() {
+        let coordinator = InspectorWindowLayoutCoordinator()
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 740, height: 400),
+                              styleMask: [.titled, .resizable], backing: .buffered, defer: false)
+        let original = window.frame
+        coordinator.resize(window: window, from: .information, to: .information)
+        #expect(window.frame == original)
     }
 
     @Test func diskUsageTabUsesPreferredHeight() {

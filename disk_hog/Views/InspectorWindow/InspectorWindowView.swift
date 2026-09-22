@@ -54,9 +54,6 @@ struct InspectorWindowView: View {
             alignment: .topLeading
         )
         .background(Color(nsColor: .windowBackgroundColor))
-        .onPreferenceChange(InformationContentHeightPreferenceKey.self) { height in
-            controller.scheduleInformationContentHeight(height)
-        }
     }
 }
 
