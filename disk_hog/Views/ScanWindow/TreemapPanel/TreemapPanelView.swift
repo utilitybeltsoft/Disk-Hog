@@ -49,18 +49,15 @@ struct TreemapPanelView: View {
                     recalculatingBadge
                 }
             }
-            .onChange(of: isRecalculating) { _, isRecalculating in
-                if isRecalculating {
-                    // Debounced so a fast re-render (most zooms) never flashes
-                    // the badge at all; only a genuinely slow one shows it.
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-                        if self.isRecalculating {
-                            showsRecalculatingBadge = true
-                        }
-                    }
-                } else {
-                    showsRecalculatingBadge = false
-                }
+            .task(id: isRecalculating) {
+                showsRecalculatingBadge = false
+                guard isRecalculating else { return }
+                // Cancellation prevents an earlier resize's delayed badge from
+                // leaking into a later, unrelated update.
+                do { try await Task.sleep(for: .milliseconds(500)) }
+                catch { return }
+                guard !Task.isCancelled else { return }
+                showsRecalculatingBadge = true
             }
             if session.rootItem == nil || session.isBuildingTreemap {
                 ScanPanePlaceholderView(

@@ -15,6 +15,8 @@ final class ZStyleTreemapNSView: NSView {
     private let trackingAreaController: TreemapTrackingAreaController = TreemapTrackingAreaController()
     private let discoveryAnimation: TreemapDiscoveryAnimation = TreemapDiscoveryAnimation()
     private let zoomAnimation: TreemapZoomAnimation = TreemapZoomAnimation()
+    private let resizeAnimation = TreemapResizeAnimation()
+    private var resizeBitmap: NSBitmapImageRep?
     private var pendingDiscoveryAnimation: Bool = false
     private var hoveredItem: DiskItem?
     private var hoveredEntry: TreemapLayoutEntry?
@@ -48,6 +50,8 @@ final class ZStyleTreemapNSView: NSView {
             selectedItem: selectedItem
         ) {
             zoomAnimation.cancel() // drop any transition superseded by this new configure
+            resizeAnimation.cancel()
+            resizeBitmap = nil
             if let zoomTransition: TreemapZoomTransition = state.consumeZoomTransition(),
                NSWorkspace.shared.accessibilityDisplayShouldReduceMotion == false {
                 zoomAnimation.start(zoomTransition) { [weak self] in
@@ -115,6 +119,10 @@ final class ZStyleTreemapNSView: NSView {
     }
 
     private func refreshHoverForCurrentMouseLocation() {
+        guard resizeBitmap == nil, !resizeAnimation.isActive else {
+            updateHover(item: nil, entry: nil)
+            return
+        }
         guard let window else {
             updateHover(item: nil, entry: nil)
             return
@@ -188,13 +196,13 @@ final class ZStyleTreemapNSView: NSView {
         // except a transition IS in flight, which is exactly what that signal
         // exists to detect, so this isn't a bug needing that indicator; suppress
         // it whenever the animation is active at all, not just while playing.
-        reportRenderPending(zoomAnimation.isActive ? false : state.isShowingStaleRoot)
+        reportRenderPending(zoomAnimation.isActive ? false : (state.isShowingStaleRoot || resizeBitmap != nil))
         // Selection/hover overlays and the discovery pulse target a specific plan's
         // coordinate space, which doesn't correspond to anything coherent on a
         // blended intermediate zoom-animation frame - suppress them only once actual
         // animated frames are being painted (not just pending, in which case the
         // ordinary bitmap - and therefore these overlays - are still perfectly valid).
-        if zoomAnimation.isPlaying == false {
+        if zoomAnimation.isPlaying == false && resizeBitmap == nil && !resizeAnimation.isActive {
             let scale: CGFloat = window?.backingScaleFactor ?? 1
             let selectedEntry: TreemapLayoutEntry? = state.selectedEntry()
             TreemapViewPainter.drawSelection(
@@ -219,6 +227,9 @@ final class ZStyleTreemapNSView: NSView {
     override func viewWillStartLiveResize() {
         super.viewWillStartLiveResize()
         zoomAnimation.cancel()
+        resizeAnimation.cancel()
+        resizeBitmap = state.renderedImage(in: bounds, scale: window?.backingScaleFactor ?? 1, allowRendering: false)
+        reportRenderPending(false)
         trackingAreaController.discard(from: self)
     }
 
@@ -226,6 +237,14 @@ final class ZStyleTreemapNSView: NSView {
         super.viewDidEndLiveResize()
         updateTrackingAreas()
         needsDisplay = true
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window == nil {
+            resizeAnimation.cancel()
+            resizeBitmap = nil
+        }
     }
 
     override func mouseMoved(with event: NSEvent) {
@@ -304,7 +323,8 @@ final class ZStyleTreemapNSView: NSView {
     }
 
     private func hitResult(for event: NSEvent) -> TreemapHitResult? {
-        state.hitResult(at: convert(event.locationInWindow, from: nil))
+        guard resizeBitmap == nil, !resizeAnimation.isActive else { return nil }
+        return state.hitResult(at: convert(event.locationInWindow, from: nil))
     }
 
     private func select(_ hitResult: TreemapHitResult) {
@@ -331,7 +351,29 @@ final class ZStyleTreemapNSView: NSView {
             scale: window?.backingScaleFactor ?? 1,
             allowRendering: !inLiveResize
         ) else {
+            if let resizeBitmap {
+                TreemapViewPainter.drawRenderedImage(
+                    resizeBitmap, destinationRect: bounds, sourceRect: nil, fraction: 1
+                )
+                return true
+            }
             return false
+        }
+        if !inLiveResize, let previous = resizeBitmap {
+            resizeBitmap = nil
+            if previous !== imageRep {
+                resizeAnimation.start(from: previous,
+                    reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion) { [weak self] in
+                    guard let self else { return }
+                    self.needsDisplay = true
+                    if !self.resizeAnimation.isActive {
+                        self.refreshHoverForCurrentMouseLocation()
+                    }
+                }
+            }
+            if !resizeAnimation.isActive {
+                refreshHoverForCurrentMouseLocation()
+            }
         }
         TreemapViewPainter.drawRenderedImage(
             imageRep,
@@ -339,6 +381,7 @@ final class ZStyleTreemapNSView: NSView {
             sourceRect: sourceRect,
             fraction: fraction
         )
+        if !inLiveResize { resizeAnimation.draw(in: bounds) }
         return true
     }
 
