@@ -12,11 +12,6 @@ struct LargestItemsView: View {
     let category: LargestItemsCategory
     let onShowTree: () -> Void
     @StateObject private var dataStore = SelectionListDataStore()
-    @State private var searchText = ""
-    @State private var searchScope: SelectionListSearchScope = .all
-    @State private var scopedItem: DiskItem?
-    @State private var depth: LargestItemsDepth = .descendants
-    @State private var limit = LargestItemsQuery.initialLimit
     @State private var selectedID: DiskItemID?
     @State private var selectedIDs: Set<DiskItemID> = []
     @State private var isLoading = false
@@ -25,60 +20,24 @@ struct LargestItemsView: View {
     @State private var generation = 0
 
     private var scopeRoot: DiskItem? {
-        guard let root = session.rootItem else { return nil }
-        if let scopedItem, scopedItem.snapshot === root.snapshot { return scopedItem }
-        return root
+        session.rootItem
     }
 
     private var query: LargestItemsQuery {
-        LargestItemsQuery(category: category, depth: depth,
+        LargestItemsQuery(category: category,
                           usesPhysicalSize: session.scanSettings.usePhysicalSize,
                           // The preference can change before a replacement scan.
                           lookInsidePackages: session.isPackageContentsSettingOutOfSync
-                            ? !session.scanSettings.lookInsidePackages : session.scanSettings.lookInsidePackages,
-                          searchText: searchText, searchScope: searchScope, limit: limit)
+                            ? !session.scanSettings.lookInsidePackages : session.scanSettings.lookInsidePackages)
     }
 
     var body: some View {
         VStack(spacing: 5) {
             HStack {
-                Text(scopedItem == nil ? "Entire scan" : "Folder scope")
-                    .fontWeight(.semibold)
-                Spacer()
-                Menu("Scope") {
-                    Button("Entire scan") { scopedItem = nil; depth = .descendants; limit = 1_000 }
-                    Button("Current treemap folder") {
-                        scopedItem = navigation.zoomRoot
-                        depth = .descendants
-                        limit = 1_000
-                    }
-                    .disabled(navigation.zoomRoot == nil)
-                }
-                Picker("Depth", selection: $depth) {
-                    Text("All descendants").tag(LargestItemsDepth.descendants)
-                    Text("Immediate children").tag(LargestItemsDepth.immediateChildren)
-                }
-                .labelsHidden()
-                .fixedSize()
-            }
-            Text(scopeRoot?.path ?? session.source.path)
-                .lineLimit(1).truncationMode(.middle)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .help(scopeRoot?.path ?? session.source.path)
-            HStack {
-                TextField("Search ranked items", text: $searchText)
-                    .textFieldStyle(.roundedBorder)
-                Picker("Search in", selection: $searchScope) {
-                    ForEach(SelectionListSearchScope.allCases) { Text($0.title).tag($0) }
-                }
-                .labelsHidden().fixedSize()
-                .accessibilityLabel("Search field")
-            }
-            HStack {
                 Text(session.scanSettings.usePhysicalSize ? "Size on disk · largest first" : "Logical size · largest first")
                 Spacer()
                 if isLoading { ProgressView().controlSize(.small) }
-                Text(isLoading ? "Ranking…" : "\(dataStore.resultCount) of \(matchingCount) matches")
+                Text(isLoading ? "Ranking…" : resultSummary)
                     .monospacedDigit()
             }
             if category == .folders {
@@ -101,7 +60,7 @@ struct LargestItemsView: View {
                 }
                 .disabled(isLoading)
                 if !isLoading && dataStore.resultCount == 0 {
-                    Text(session.rootItem == nil ? "Pending scan completion" : (errorMessage ?? "No matching items"))
+                    Text(session.rootItem == nil ? "Pending scan completion" : (errorMessage ?? "No items"))
                         .foregroundStyle(.secondary).allowsHitTesting(false)
                 }
             }
@@ -119,23 +78,8 @@ struct LargestItemsView: View {
                             InspectorWindowController.shared.showInformation(for: selectedItem, from: session)
                         }
                     }
-                    Divider()
-                    Button("Explore this folder") {
-                        scopedItem = selectedItem
-                        depth = .immediateChildren
-                        limit = LargestItemsQuery.initialLimit
-                    }
-                    .disabled(selectedItem?.isFolder != true || (selectedItem?.isPackage == true && !query.lookInsidePackages))
                 }
                 .disabled(selectedItem == nil || isLoading)
-                if dataStore.resultCount < matchingCount && limit < LargestItemsQuery.maximumLimit {
-                    Button("Show More") { limit = min(limit + 1_000, LargestItemsQuery.maximumLimit) }
-                        .disabled(isLoading)
-                }
-                if matchingCount > LargestItemsQuery.maximumLimit && limit == LargestItemsQuery.maximumLimit {
-                    Text("Showing the largest 10,000. Narrow the scope or search for more.")
-                        .foregroundStyle(.secondary)
-                }
                 Spacer()
             }
         }
@@ -145,15 +89,21 @@ struct LargestItemsView: View {
             await rebuild()
         }
         .onChange(of: session.rootItem?.id) {
-            scopedItem = nil
             selectedIDs = []
-            limit = LargestItemsQuery.initialLimit
         }
         .onChange(of: selectionCoordinator.selectedItem?.id) { synchronizeSelection() }
         .onDisappear {
             generation += 1
             dataStore.reset()
         }
+    }
+
+    private var resultSummary: String {
+        let noun = category == .files ? "files" : "folders"
+        if dataStore.resultCount < matchingCount {
+            return "Largest \(dataStore.resultCount.formatted()) of \(matchingCount.formatted()) \(noun)"
+        }
+        return "\(matchingCount.formatted()) \(noun)"
     }
 
     private var selectedItem: DiskItem? {
@@ -178,7 +128,6 @@ struct LargestItemsView: View {
         isLoading = true
         defer { if generation == expectedGeneration { isLoading = false } }
         do {
-            if !query.searchText.isEmpty { try await Task.sleep(for: .milliseconds(150)) }
             try Task.checkCancellation()
             let result = try await LargestItemsWorkQueue.shared.run(root: root, query: query)
             guard !Task.isCancelled, generation == expectedGeneration,
