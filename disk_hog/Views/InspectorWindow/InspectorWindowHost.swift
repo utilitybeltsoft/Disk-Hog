@@ -27,7 +27,6 @@ final class InspectorWindowHost: NSObject, NSWindowDelegate {
         window.isReleasedWhenClosed = false
         window.tabbingMode = .disallowed
         let restoredSavedFrame: Bool = window.setFrameUsingName(frameAutosaveName)
-        window.contentMinSize = minimumContentSize
         let hostingController: NSHostingController<InspectorWindowView> = NSHostingController(
             rootView: contentView
         )
@@ -37,6 +36,8 @@ final class InspectorWindowHost: NSObject, NSWindowDelegate {
             window.setContentSize(contentSize)
             window.center()
         }
+        // Hosting setup and restored frames must not undo the usable minimum.
+        InspectorWindowSizing.applyMinimum(minimumContentSize, to: window)
         window.setFrameAutosaveName(frameAutosaveName)
         windowController = NSWindowController(window: window)
         super.init()
@@ -45,5 +46,9 @@ final class InspectorWindowHost: NSObject, NSWindowDelegate {
 
     func windowWillClose(_ notification: Notification) {
         onClose()
+    }
+
+    func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
+        InspectorWindowSizing.clamped(frameSize, minimum: sender.minSize)
     }
 }

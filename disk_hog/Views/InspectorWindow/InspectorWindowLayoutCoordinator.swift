@@ -53,8 +53,8 @@ final class InspectorWindowLayoutCoordinator {
         contentSizesBySlot[oldSlot] = window.contentLayoutRect.size
         let layout: InspectorWindowLayout = layout(for: newSlot)
         let targetContentSize: NSSize = preferredContentSize(for: newSlot, on: window.screen)
-        window.contentMinSize = layout.minimumContentSize
-        setContentSize(targetContentSize, on: window)
+        InspectorWindowSizing.applyMinimum(layout.minimumContentSize, to: window)
+        setContentSize(InspectorWindowSizing.clamped(targetContentSize, minimum: layout.minimumContentSize), on: window)
     }
 
     private func setContentSize(_ targetContentSize: NSSize, on window: NSWindow) {
