@@ -2294,9 +2294,22 @@ struct InspectorWindowLayoutTests {
 
         #expect(
             InspectorWindowTitleFormatter.title(context: nil, source: source)
-                == "Inspector - Test Volume"
+                == "Inspector - Test Volume — /Volumes/Test"
         )
         #expect(InspectorWindowTitleFormatter.title(context: nil, source: nil) == "Inspector")
+    }
+
+    @Test func inspectorTitleUsesActiveContextsFullFolderPath() {
+        let source = ScanSource(path: "/Volumes/Test/Photos", displayName: "Test Volume")
+        let context = InspectorWindowContext(
+            session: ScanSession(source: source),
+            selectionCoordinator: ScanWindowSelectionCoordinator()
+        )
+        let fallback = ScanSource(path: "/Volumes/Test/Archive", displayName: "Test Volume")
+        #expect(InspectorWindowTitleFormatter.title(context: context, source: fallback)
+            == "Inspector - Test Volume — /Volumes/Test/Photos")
+        #expect(InspectorWindowTitleFormatter.title(context: nil, source: fallback)
+            == "Inspector - Test Volume — /Volumes/Test/Archive")
     }
 
     @Test func scanItemContextMenuIncludesInspectorCommand() {
