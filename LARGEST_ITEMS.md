@@ -5,27 +5,29 @@ Largest Folders. Rankings use the immutable scanned snapshot, never live file
 metadata. Sizes follow the scan's physical/logical setting; they are not a
 promise of reclaimable space.
 
-The scope root itself and synthetic free/other-space nodes are excluded.
+The scan root itself and synthetic free/other-space nodes are excluded.
 Folder sizes include descendants and overlap with ancestor totals. Symlinks
 and aliases are not traversed. Opaque packages count as single file-like items;
 when package contents were scanned, packages appear as folders and their
 contents participate normally. Hard-link sizes use the scanner's accounting.
 
-Queries default to all descendants of the scan root. An explicit folder scope
-can be captured from the treemap or a selected folder; ordinary selection must
-not silently change it. Immediate-children queries allow drilling down.
-Search and optional kind filters apply before choosing top results.
-Ordering is size descending, then path ascending.
+The ranked views always cover the entire scan. There are no scope, depth,
+search, or Show More controls. Ordering is size descending, then path ascending.
+The query engine retains its independently tested filtering capabilities,
+but these are not exposed in the ranked-list interface.
 
-Initially show 1,000 matching results, with Show More in increments of 1,000.
-To bound each live result set, stop at 10,000 and explicitly ask the user to
-narrow scope/search. No additional ranking cache is retained. This is an
+Show at most 1,000 results per ranked view. This is an
 intentional release limit, not a claim that the remaining matches do not exist.
-Headers show both displayed and total matching counts. Column sorting is
+When capped, a quiet label shows “Largest 1,000 of N files/folders.” Column sorting is
 disabled in ranked views so a partial result set cannot masquerade as a full
 alphabetical listing; existing inspector lists keep their sorting.
 
-Changes to snapshot identity, scope, query, package settings, or size mode
+The persistent segmented selector exposes all three modes. Visited ranked
+views retain their native tables, selections, and scroll positions while hidden
+(at most two 1,000-row result sets per scan window). Hidden tables cannot receive
+input. Returning to a ranking restores its selection as the active selection.
+
+Changes to snapshot identity, package settings, or size mode
 cancel old work. Cancelled/stale results cannot publish. Resizing does not
 change the query. Incomplete-scan warnings remain visible.
 
@@ -64,12 +66,13 @@ The complete application test suite has not been run for this feature.
 - Switch among all three modes, resize narrow/wide, and verify native scrolling.
 - Select ranked rows; verify tree, treemap, Information, Finder, and cleanup queue
   actions target the same item. Check keyboard navigation and multi-selection.
-- Capture a folder scope and select other items: scope must remain unchanged.
-- Type rapidly, change size mode, switch modes, rescan, and close windows during
+- Scroll and select in each ranking, switch to Folder Tree and back, and verify
+  selection and scroll position are retained independently for each ranking.
+- Change size mode, switch modes, rescan, and close windows during
   ranking: stale results must not return or clear a newer result set.
 - Run several scans/windows concurrently; resizing must not restart ranking.
 - Inspect incomplete scans: affected sizes show a lower bound or Unknown, and
   the Scan Issues warning remains visible.
 - Trash through the existing cleanup flow and confirm refreshed rankings no
   longer contain removed items.
-- Confirm Show More counts and the explicit 10,000-row limit.
+- Confirm the 1,000-row cap and total counts, with no extra filtering controls.

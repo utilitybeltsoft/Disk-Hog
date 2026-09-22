@@ -10,6 +10,7 @@ struct LargestItemsView: View {
     @ObservedObject var selectionCoordinator: ScanWindowSelectionCoordinator
     @ObservedObject var navigation: TreemapNavigationState
     let category: LargestItemsCategory
+    let isActive: Bool
     let onShowTree: () -> Void
     @StateObject private var dataStore = SelectionListDataStore()
     @State private var selectedID: DiskItemID?
@@ -54,9 +55,9 @@ struct LargestItemsView: View {
                     dataStore: dataStore, session: session,
                     selectedItemID: $selectedID, selectedItemIDs: $selectedIDs,
                     sortDescriptors: .constant([SelectionListSortDescriptor(field: .size, isAscending: false)]),
-                    allowsColumnSorting: false, showsKindColumn: true
+                    allowsColumnSorting: false, showsKindColumn: true, isVisible: isActive
                 ) { item in
-                    selectionCoordinator.setSelectedItem(item)
+                    if isActive { selectionCoordinator.setSelectedItem(item) }
                 }
                 .disabled(isLoading)
                 if !isLoading && dataStore.resultCount == 0 {
@@ -91,7 +92,14 @@ struct LargestItemsView: View {
         .onChange(of: session.rootItem?.id) {
             selectedIDs = []
         }
-        .onChange(of: selectionCoordinator.selectedItem?.id) { synchronizeSelection() }
+        .onChange(of: selectionCoordinator.selectedItem?.id) {
+            if isActive { synchronizeSelection() }
+        }
+        .onChange(of: isActive) {
+            if isActive, let selectedItem {
+                selectionCoordinator.setSelectedItem(selectedItem)
+            }
+        }
         .onDisappear {
             generation += 1
             dataStore.reset()
@@ -113,6 +121,13 @@ struct LargestItemsView: View {
     private func synchronizeSelection() {
         let id = selectionCoordinator.selectedItem?.id
         selectedID = id.flatMap { dataStore.rowsByID[$0]?.id }
+        // Preserve a table-originated multi-selection, but do not let it mask
+        // a new selection coming from the treemap or another visible pane.
+        if let selectedID {
+            if !selectedIDs.contains(selectedID) { selectedIDs = [selectedID] }
+        } else {
+            selectedIDs = []
+        }
     }
 
     @MainActor private func rebuild() async {
@@ -138,7 +153,7 @@ struct LargestItemsView: View {
             dataStore.publish(SelectionListQueryResult(
                 rows: rows, rowIndexByID: Dictionary(uniqueKeysWithValues: rows.enumerated().map { ($0.element.id, $0.offset) })))
             matchingCount = result.matchingCount
-            synchronizeSelection()
+            if isActive { synchronizeSelection() }
         } catch is CancellationError {
             // Superseded queries never publish or clear a newer query's state.
         } catch {

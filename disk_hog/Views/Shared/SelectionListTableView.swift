@@ -80,6 +80,7 @@ struct SelectionListTableView: NSViewRepresentable {
     @Binding var sortDescriptors: [SelectionListSortDescriptor]
     var allowsColumnSorting: Bool = true
     var showsKindColumn: Bool = false
+    var isVisible: Bool = true
     let onSelect: (DiskItem) -> Void
 
     func makeCoordinator() -> Coordinator {
@@ -190,6 +191,9 @@ struct SelectionListTableView: NSViewRepresentable {
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        // Hidden ranked tabs retain their native scroll position but must not
+        // receive keyboard input or expose an invisible accessibility table.
+        scrollView.isHidden = !isVisible
         if !allowsColumnSorting {
             context.coordinator.tableView?.tableColumn(withIdentifier: SelectionListColumnID.size)?.title =
                 session.scanSettings.usePhysicalSize ? String(localized: "Size on disk") : String(localized: "Logical size")
