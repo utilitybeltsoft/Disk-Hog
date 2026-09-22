@@ -108,8 +108,8 @@ private struct FileInformationContent: View {
     }
 
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 9) {
+        InspectorInformationScrollView {
+            VStack(alignment: .leading, spacing: 9) {
                 HStack(spacing: 8) {
                     Image(nsImage: icon)
                         .resizable()
@@ -138,8 +138,6 @@ private struct FileInformationContent: View {
             }
             .id(item.id)
             .transition(.opacity)
-            .padding(10)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .background {
             InformationContextMenuAugmenter(
@@ -206,7 +204,7 @@ private struct FileInformationContent: View {
                 .help(row.value)
         }
         .font(.system(size: NSFont.smallSystemFontSize))
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(width: 333, alignment: .leading)
     }
 
     private func informationLines(for rows: [FileInformationRow]) -> [FileInformationLine] {

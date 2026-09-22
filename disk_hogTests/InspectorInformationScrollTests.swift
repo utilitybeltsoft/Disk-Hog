@@ -1,0 +1,47 @@
+import AppKit
+import SwiftUI
+import Testing
+@testable import disk_hog
+
+@MainActor
+struct InspectorInformationScrollTests {
+    @Test func resizingKeepsDocumentWidthAndLeftInsetWithScrollableOverflow() {
+        let probe = NSView()
+        let host = NSHostingView(rootView: InspectorInformationScrollView {
+            VStack(alignment: .leading) {
+                ForEach(0..<100) { Text("Information row \($0)") }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(InformationLayoutProbe(view: probe))
+        })
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 720, height: 360),
+                              styleMask: [.titled, .resizable], backing: .buffered, defer: false)
+        window.contentView = host
+        for width in [720.0, 1000.0, 700.0] {
+            window.setContentSize(NSSize(width: width, height: 360))
+            host.layoutSubtreeIfNeeded()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+            host.layoutSubtreeIfNeeded()
+            guard let scroll = scrollView(in: host), let document = scroll.documentView else {
+                Issue.record("Missing native information scroll document")
+                return
+            }
+            #expect(scroll.hasVerticalScroller && scroll.hasHorizontalScroller)
+            #expect(document.frame.height > scroll.contentView.bounds.height)
+            #expect(abs(probe.bounds.width - 680) < 1)
+            #expect(abs(probe.convert(.zero, to: document).x - 10) < 1)
+            #expect(abs(scroll.contentView.bounds.minX) < 1)
+        }
+    }
+
+    private func scrollView(in view: NSView) -> NSScrollView? {
+        if let scroll = view as? NSScrollView { return scroll }
+        return view.subviews.compactMap { scrollView(in: $0) }.first
+    }
+}
+
+private struct InformationLayoutProbe: NSViewRepresentable {
+    let view: NSView
+    func makeNSView(context: Context) -> NSView { view }
+    func updateNSView(_ nsView: NSView, context: Context) {}
+}
