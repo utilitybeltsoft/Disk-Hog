@@ -94,4 +94,16 @@ xcrun swiftc -O -parse-as-library disk_hog/Diagnostics/ScanActivity.swift \
   disk_hog/Scanner/ScanResourceBudget.swift scripts/scan-activity-check.swift \
   -o /private/tmp/diskhog-scan-activity-check
 /private/tmp/diskhog-scan-activity-check
+
+xcrun swiftc -O -whole-module-optimization -parse-as-library \
+  disk_hog/Models/DiskItems/*.swift disk_hog/Treemap/*.swift \
+  disk_hog/Diagnostics/{TreemapPerformance,ScanActivity}.swift \
+  scripts/treemap-metadata-check.swift -o /private/tmp/diskhog-metadata-check
+/private/tmp/diskhog-metadata-check
 ```
+
+Treemap folder and kind checks must use packed snapshot fields, not reconstruct
+`itemMetadata`. Reconstructing a file URL without its known directory flag can
+cause Foundation to query the live filesystem. The metadata check covers
+directory/package/link combinations, nil and empty kind names, and special
+items; it also verifies reconstructed URLs use the stored directory flag.

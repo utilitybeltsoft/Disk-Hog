@@ -153,7 +153,9 @@ nonisolated final class DiskItem: Identifiable, Hashable, Sendable, DiskItemTree
         let record: PackedDiskItemRecord = snapshot.record(at: address)
         let path: String = snapshot.string(record.path, at: address) ?? ""
         return DiskItemMetadata(
-            url: URL(fileURLWithPath: path),
+            // The scan already determined this flag. Omitting it lets Foundation
+            // probe the live filesystem just to reconstruct an in-memory item.
+            url: URL(fileURLWithPath: path, isDirectory: record.isDirectory),
             itemType: record.itemType,
             displayName: snapshot.string(record.displayName, at: address),
             name: snapshot.string(record.fileSystemName, at: address),
@@ -188,6 +190,17 @@ nonisolated final class DiskItem: Identifiable, Hashable, Sendable, DiskItemTree
     var isAliasOrSymbolicLink: Bool { record.isAliasOrSymbolicLink }
     var isHardlinkDuplicate: Bool { record.isHardlinkDuplicate }
     var isSpecialItem: Bool { record.itemType != .fileOrFolder }
+    var isFolder: Bool {
+        let record = record
+        return record.isDirectory && !record.isAliasOrSymbolicLink
+    }
+    var resolvedKindName: String {
+        resolvedKindName(folderName: String(localized: "Folder"))
+    }
+    func resolvedKindName(folderName: String) -> String {
+        if let kindName { return kindName }
+        return isFolder && !isPackage ? folderName : ""
+    }
     // Shadows the DiskItemTreeNode default the same way as the properties above - that
     // default reads itemMetadata, which decodes four strings and builds a URL just to
     // reach one integer field. sizeValue is called at least twice per node during
