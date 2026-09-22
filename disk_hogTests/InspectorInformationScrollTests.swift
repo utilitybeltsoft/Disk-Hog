@@ -36,6 +36,12 @@ struct InspectorInformationScrollTests {
             scroll.contentView.scroll(to: NSPoint(x: 0, y: 150))
             scroll.reflectScrolledClipView(scroll.contentView)
             #expect(scroll.contentView.bounds.minY > 0)
+            if document.frame.width > scroll.contentView.bounds.width {
+                #expect(scroll.horizontalScroller?.isHidden == false)
+                scroll.contentView.scroll(to: NSPoint(x: 10, y: 150))
+                scroll.reflectScrolledClipView(scroll.contentView)
+                #expect(scroll.contentView.bounds.minX > 0)
+            }
             scroll.contentView.scroll(to: .zero)
         }
     }
