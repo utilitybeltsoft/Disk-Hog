@@ -72,6 +72,19 @@ final class SelectionListDataStore: ObservableObject {
     }
 }
 
+enum RankedItemAction: Int, CaseIterable {
+    case folderTree, treemap, reveal, information
+
+    var title: String {
+        switch self {
+        case .folderTree: String(localized: "Show in Folder Tree")
+        case .treemap: String(localized: "Show in Treemap")
+        case .reveal: String(localized: "Reveal in Finder")
+        case .information: String(localized: "Information")
+        }
+    }
+}
+
 struct SelectionListTableView: NSViewRepresentable {
     @ObservedObject var dataStore: SelectionListDataStore
     let session: ScanSession
@@ -81,6 +94,7 @@ struct SelectionListTableView: NSViewRepresentable {
     var allowsColumnSorting: Bool = true
     var showsKindColumn: Bool = false
     var isVisible: Bool = true
+    var onRankedAction: ((RankedItemAction, DiskItem) -> Void)? = nil
     let onSelect: (DiskItem) -> Void
 
     func makeCoordinator() -> Coordinator {
@@ -94,6 +108,7 @@ struct SelectionListTableView: NSViewRepresentable {
     }
 
     func makeNSView(context: Context) -> NSScrollView {
+        context.coordinator.onRankedAction = onRankedAction
         let tableView: SelectionListBatchActionTableView = SelectionListBatchActionTableView()
         tableView.headerView = NSTableHeaderView()
         tableView.rowHeight = 20
@@ -202,6 +217,7 @@ struct SelectionListTableView: NSViewRepresentable {
         context.coordinator.selectedItemIDs = $selectedItemIDs
         context.coordinator.sortDescriptors = $sortDescriptors
         context.coordinator.onSelect = onSelect
+        context.coordinator.onRankedAction = onRankedAction
         context.coordinator.updateRows(
             dataStore.queryResult.rows,
             rowIndexByID: dataStore.queryResult.rowIndexByID,
@@ -217,6 +233,7 @@ struct SelectionListTableView: NSViewRepresentable {
         var selectedItemIDs: Binding<Set<DiskItemID>>
         var sortDescriptors: Binding<[SelectionListSortDescriptor]>
         var onSelect: (DiskItem) -> Void
+        var onRankedAction: ((RankedItemAction, DiskItem) -> Void)?
         weak var tableView: NSTableView?
 
         private var rows: [SelectionListRow] = []
@@ -508,6 +525,16 @@ extension SelectionListTableView.Coordinator: NSMenuDelegate {
     func menuNeedsUpdate(_ menu: NSMenu) {
         activateBatchQueueCommand()
         menu.removeAllItems()
+        menu.autoenablesItems = false
+        if onRankedAction != nil, tableView?.selectedRowIndexes.count == 1 {
+            for action in RankedItemAction.allCases {
+                let item = NSMenuItem(title: action.title, action: #selector(performRankedAction(_:)), keyEquivalent: "")
+                item.tag = action.rawValue
+                item.target = self
+                menu.addItem(item)
+            }
+            menu.addItem(.separator())
+        }
         let item: NSMenuItem = NSMenuItem(
             title: AppCommandRouter.shared.selectionListBatchQueueTitle,
             action: #selector(SelectionListBatchQueueActionTarget.toggle(_:)),
@@ -516,6 +543,13 @@ extension SelectionListTableView.Coordinator: NSMenuDelegate {
         item.target = batchQueueActionTarget
         item.isEnabled = AppCommandRouter.shared.canToggleSelectionListBatchQueue
         menu.addItem(item)
+    }
+
+    @objc func performRankedAction(_ sender: NSMenuItem) {
+        guard tableView?.selectedRowIndexes.count == 1,
+              let item = selectedItemForPasteboard(),
+              let action = RankedItemAction(rawValue: sender.tag) else { return }
+        onRankedAction?(action, item)
     }
 }
 
@@ -529,6 +563,35 @@ private final class SelectionListBatchQueueActionTarget: NSObject {
 private final class SelectionListBatchActionTableView: DiskItemPasteboardTableView {
     var onBecomeFirstResponder: (() -> Void)?
     var onResignFirstResponder: (() -> Void)?
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        let clicked = row(at: convert(event.locationInWindow, from: nil))
+        guard clicked >= 0 else { return nil }
+        window?.makeFirstResponder(self)
+        // Keep an existing multi-selection when right-clicking within it.
+        if !selectedRowIndexes.contains(clicked) {
+            selectRowIndexes(IndexSet(integer: clicked), byExtendingSelection: false)
+        }
+        return super.menu(for: event)
+    }
+
+    override func keyDown(with event: NSEvent) {
+        if event.keyCode == 109, event.modifierFlags.intersection([.shift, .control, .option, .command]) == .shift {
+            _ = accessibilityPerformShowMenu()
+            return
+        }
+        super.keyDown(with: event)
+    }
+
+    override func accessibilityPerformShowMenu() -> Bool {
+        guard !isHiddenOrHasHiddenAncestor, selectedRow >= 0, selectedRow < numberOfRows,
+              let menu else { return false }
+        scrollRowToVisible(selectedRow)
+        menu.update()
+        let rowRect = rect(ofRow: selectedRow)
+        menu.popUp(positioning: nil, at: NSPoint(x: visibleRect.minX + 16, y: rowRect.midY), in: self)
+        return true
+    }
 
     override func becomeFirstResponder() -> Bool {
         let didBecomeFirstResponder: Bool = super.becomeFirstResponder()

@@ -55,7 +55,17 @@ struct LargestItemsView: View {
                     dataStore: dataStore, session: session,
                     selectedItemID: $selectedID, selectedItemIDs: $selectedIDs,
                     sortDescriptors: .constant([SelectionListSortDescriptor(field: .size, isAscending: false)]),
-                    allowsColumnSorting: false, showsKindColumn: true, isVisible: isActive
+                    allowsColumnSorting: false, showsKindColumn: true, isVisible: isActive,
+                    onRankedAction: { action, item in
+                        guard isActive, !isLoading else { return }
+                        selectionCoordinator.setSelectedItem(item)
+                        switch action {
+                        case .folderTree: onShowTree()
+                        case .treemap: navigation.zoom(into: item, allowingFileFallback: true)
+                        case .reveal: DiskItemWorkspaceActions.revealInFinder(item)
+                        case .information: InspectorWindowController.shared.showInformation(for: item, from: session)
+                        }
+                    }
                 ) { item in
                     if isActive { selectionCoordinator.setSelectedItem(item) }
                 }
@@ -64,24 +74,6 @@ struct LargestItemsView: View {
                     Text(session.rootItem == nil ? "Pending scan completion" : (errorMessage ?? "No items"))
                         .foregroundStyle(.secondary).allowsHitTesting(false)
                 }
-            }
-            HStack {
-                Menu("Selected Item") {
-                    Button("Show in Folder Tree") { onShowTree() }
-                    Button("Show in Treemap") {
-                        navigation.zoom(into: selectedItem, allowingFileFallback: true)
-                    }
-                    Button("Reveal in Finder") {
-                        if let selectedItem { DiskItemWorkspaceActions.revealInFinder(selectedItem) }
-                    }
-                    Button("Information") {
-                        if let selectedItem {
-                            InspectorWindowController.shared.showInformation(for: selectedItem, from: session)
-                        }
-                    }
-                }
-                .disabled(selectedItem == nil || isLoading)
-                Spacer()
             }
         }
         .font(.system(size: NSFont.smallSystemFontSize))

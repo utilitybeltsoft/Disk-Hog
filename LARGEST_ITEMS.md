@@ -27,6 +27,12 @@ views retain their native tables, selections, and scroll positions while hidden
 (at most two 1,000-row result sets per scan window). Hidden tables cannot receive
 input. Returning to a ranking restores its selection as the active selection.
 
+Ranked-item actions live in one context menu, opened by right-click, Shift-F10,
+or the accessibility Show Menu action. Single selections offer Folder Tree,
+Treemap, Finder, Information, and the existing cleanup queue action. Multiple
+selections offer the batch cleanup action only. Right-clicking an unselected
+row selects that row; right-clicking within a selection preserves the batch.
+
 Changes to snapshot identity, package settings, or size mode
 cancel old work. Cancelled/stale results cannot publish. Resizing does not
 change the query. Incomplete-scan warnings remain visible.
@@ -66,6 +72,9 @@ The complete application test suite has not been run for this feature.
 - Switch among all three modes, resize narrow/wide, and verify native scrolling.
 - Select ranked rows; verify tree, treemap, Information, Finder, and cleanup queue
   actions target the same item. Check keyboard navigation and multi-selection.
+- Open the context menu with right-click and Shift-F10. Verify clicks outside
+  the selection target the clicked row, clicks inside retain the selection,
+  and blank space has no item menu. There is no separate bottom action menu.
 - Scroll and select in each ranking, switch to Folder Tree and back, and verify
   selection and scroll position are retained independently for each ranking.
 - Change size mode, switch modes, rescan, and close windows during
