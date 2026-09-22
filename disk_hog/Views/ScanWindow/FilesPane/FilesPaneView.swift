@@ -5,8 +5,35 @@ struct FilesPaneView: View {
     let selectionCoordinator: ScanWindowSelectionCoordinator
     let navigation: TreemapNavigationState
     @Environment(\.activeScanWindowPane) private var activePane
+    @State private var mode: FilesInspectionMode = .largestFiles
 
     var body: some View {
+        VStack(spacing: 0) {
+            Picker("Inspect", selection: $mode) {
+                Text("Folder Tree").tag(FilesInspectionMode.tree)
+                Text("Largest Files").tag(FilesInspectionMode.largestFiles)
+                Text("Largest Folders").tag(FilesInspectionMode.largestFolders)
+            }
+            .pickerStyle(.menu)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(6)
+            Divider()
+            if mode == .tree {
+                tree
+            } else {
+                LargestItemsView(session: session, selectionCoordinator: selectionCoordinator,
+                                 navigation: navigation,
+                                 category: mode == .largestFiles ? .files : .folders,
+                                 onShowTree: { mode = .tree })
+            }
+        }
+        .onTapGesture { activePane.wrappedValue = .files }
+        .overlay {
+            PaneBorderView(isActive: activePane.wrappedValue == .files)
+        }
+    }
+
+    private var tree: some View {
         DiskItemOutlineView(
             session: session,
             rootItem: session.rootItem,
@@ -34,4 +61,8 @@ struct FilesPaneView: View {
             }
         }
     }
+}
+
+private enum FilesInspectionMode {
+    case tree, largestFiles, largestFolders
 }
