@@ -78,6 +78,7 @@ struct SelectionListTableView: NSViewRepresentable {
     @Binding var selectedItemID: DiskItemID?
     @Binding var selectedItemIDs: Set<DiskItemID>
     @Binding var sortDescriptors: [SelectionListSortDescriptor]
+    var allowsColumnSorting: Bool = true
     let onSelect: (DiskItem) -> Void
 
     func makeCoordinator() -> Coordinator {
@@ -155,6 +156,9 @@ struct SelectionListTableView: NSViewRepresentable {
             ascending: true
         )
         tableView.addTableColumn(sizeColumn)
+        if !allowsColumnSorting {
+            for column in tableView.tableColumns { column.sortDescriptorPrototype = nil }
+        }
 
         let scrollView: NSScrollView = NSScrollView()
         scrollView.hasVerticalScroller = true
@@ -169,7 +173,7 @@ struct SelectionListTableView: NSViewRepresentable {
             rowIndexByID: dataStore.queryResult.rowIndexByID,
             generation: dataStore.resultGeneration
         )
-        context.coordinator.syncSortDescriptors()
+        if allowsColumnSorting { context.coordinator.syncSortDescriptors() }
         context.coordinator.syncSelectionIfNeeded()
         return scrollView
     }
@@ -184,7 +188,7 @@ struct SelectionListTableView: NSViewRepresentable {
             rowIndexByID: dataStore.queryResult.rowIndexByID,
             generation: dataStore.resultGeneration
         )
-        context.coordinator.syncSortDescriptors()
+        if allowsColumnSorting { context.coordinator.syncSortDescriptors() }
         context.coordinator.syncSelectionIfNeeded()
     }
 
