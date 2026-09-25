@@ -109,7 +109,7 @@ enum DiskItemContextMenuBuilder {
         ))
 
         let refreshItem = menuItem(
-            title: String(localized: "Refresh"),
+            title: item.isFolder ? String(localized: "Refresh Selected Folder") : String(localized: "Refresh Selected Item"),
             action: #selector(DiskItemContextMenuActionTarget.refreshMenuItem(_:)),
             target: actionTarget,
             payload: DiskItemContextMenuPayload(item: item)

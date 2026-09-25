@@ -33,6 +33,7 @@ struct ScanWindowView: View {
 
     var body: some View {
         VStack(spacing: ScanWindowMetrics.windowContentSpacing) {
+            SnapshotFreshnessView(session: session)
             if session.isPackageContentsSettingOutOfSync {
                 packageContentsWarning
             }
