@@ -610,7 +610,7 @@ final class ScanSession: ObservableObject {
     }
 
     private func updateSpaceItems(for rootItem: DiskItem) {
-        guard source.bookmarkData == nil,
+        guard source.volumeKind != .folder,
               let totalCapacity: UInt64 = source.totalCapacity,
               let availableCapacity: UInt64 = source.availableCapacity,
               totalCapacity >= availableCapacity else {

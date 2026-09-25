@@ -1038,6 +1038,21 @@ struct ScanSessionTaskCoordinatorTests {
 
 @MainActor
 struct ScanSessionWorkerIntegrationTests {
+    @Test func bookmarkedVolumeRetainsSpaceAccounting() async throws {
+        let root = Self.rootItem(fileSize: 12)
+        let source = ScanSource(path: "/scan", displayName: "Volume", bookmarkData: Data([1]),
+                                isVolumeRoot: true, totalCapacity: 100, availableCapacity: 50,
+                                isInternalVolume: true)
+        let session = ScanSession(source: source,
+            scanWorker: ImmediateScanWorker(result: .success(ScanSessionScanResult(
+                source: source, rootItem: root, presentationMetrics: Self.metrics(rootItem: root),
+                builtUsingPhysicalSize: true, skippedItems: []))))
+        session.startScan()
+        try await Self.waitUntil(observing: session) { session.state == .complete }
+        #expect(session.freeSpaceItem?.allocatedSizeValue == 50)
+        #expect(session.otherSpaceItem?.allocatedSizeValue == 38)
+    }
+
     @Test func cancelledWholeRefreshPreservesHistoricalFreshness() async throws {
         let root = Self.rootItem(fileSize: 12)
         let worker = FreshnessCancellationWorker(result: Self.scanResult(rootItem: root))

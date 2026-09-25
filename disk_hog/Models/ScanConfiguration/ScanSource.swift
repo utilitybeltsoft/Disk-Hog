@@ -13,6 +13,8 @@ struct ScanSource: Codable, Hashable, Identifiable {
     let path: String
     let displayName: String
     let bookmarkData: Data?
+    /// Explicit source identity; optional only for compatibility with older saved sources.
+    let isVolumeRoot: Bool?
     let volumeFormat: String?
     let totalCapacity: UInt64?
     let availableCapacity: UInt64?
@@ -28,6 +30,7 @@ struct ScanSource: Codable, Hashable, Identifiable {
         path: String,
         displayName: String,
         bookmarkData: Data? = nil,
+        isVolumeRoot: Bool? = nil,
         volumeFormat: String? = nil,
         totalCapacity: UInt64? = nil,
         availableCapacity: UInt64? = nil,
@@ -42,6 +45,7 @@ struct ScanSource: Codable, Hashable, Identifiable {
         self.path = path
         self.displayName = displayName
         self.bookmarkData = bookmarkData
+        self.isVolumeRoot = isVolumeRoot
         self.volumeFormat = volumeFormat
         self.totalCapacity = totalCapacity
         self.availableCapacity = availableCapacity
@@ -77,7 +81,8 @@ struct ScanSource: Codable, Hashable, Identifiable {
     }
 
     var volumeKind: ScanSourceVolumeKind {
-        if bookmarkData != nil {
+        // Only legacy sources without explicit identity use the old bookmark heuristic.
+        if !(isVolumeRoot ?? (bookmarkData == nil)) {
             return .folder
         }
 
@@ -136,6 +141,7 @@ struct ScanSource: Codable, Hashable, Identifiable {
             path: path,
             displayName: displayName,
             bookmarkData: bookmarkData,
+            isVolumeRoot: isVolumeRoot,
             volumeFormat: volumeFormat,
             totalCapacity: totalCapacity,
             availableCapacity: availableCapacity,
@@ -166,6 +172,7 @@ struct ScanSource: Codable, Hashable, Identifiable {
             path: path,
             displayName: displayName,
             bookmarkData: bookmarkData,
+            isVolumeRoot: isVolumeRoot,
             volumeFormat: volumeFormat,
             totalCapacity: totalCapacity,
             availableCapacity: availableCapacity,
@@ -186,50 +193,63 @@ nonisolated struct ScanSourceBookmarkResolution: Sendable {
 }
 
 nonisolated enum ScanSourceProvider {
+    private static let volumeKeys: [URLResourceKey] = [
+        .volumeNameKey,
+        .volumeLocalizedFormatDescriptionKey,
+        .volumeIsLocalKey,
+        .volumeIsRemovableKey,
+        .volumeIsEjectableKey,
+        .volumeIsInternalKey,
+        .volumeTotalCapacityKey,
+        .volumeAvailableCapacityKey
+    ]
+
     static func mountedVolumes() -> [ScanSource] {
-        let keys: [URLResourceKey] = [
-            .volumeNameKey,
-            .volumeLocalizedFormatDescriptionKey,
-            .volumeIsLocalKey,
-            .volumeIsRemovableKey,
-            .volumeIsEjectableKey,
-            .volumeIsInternalKey,
-            .volumeTotalCapacityKey,
-            .volumeAvailableCapacityKey
-        ]
         let volumeURLs: [URL] = FileManager.default.mountedVolumeURLs(
-            includingResourceValuesForKeys: keys,
+            includingResourceValuesForKeys: volumeKeys,
             options: [.skipHiddenVolumes]
         ) ?? []
 
-        return volumeURLs.map { url in
-            let resourceValues: URLResourceValues? = try? url.resourceValues(forKeys: Set(keys))
-            return ScanSource(
-                path: url.path,
-                displayName: displayName(for: url),
-                volumeFormat: resourceValues?.volumeLocalizedFormatDescription,
-                totalCapacity: resourceValues?.volumeTotalCapacity.map(UInt64.init),
-                availableCapacity: resourceValues?.volumeAvailableCapacity.map(UInt64.init),
-                isLocalVolume: resourceValues?.volumeIsLocal,
-                isRemovableVolume: resourceValues?.volumeIsRemovable,
-                isEjectableVolume: resourceValues?.volumeIsEjectable,
-                isInternalVolume: resourceValues?.volumeIsInternal,
-                isDiskImageVolume: isDiskImage(url),
-                scanDisabledReason: scanDisabledReason(
-                    for: url,
-                    isLocalVolume: resourceValues?.volumeIsLocal
-                )
+        return volumeURLs.map { volumeSource(for: $0) }
+    }
+
+    private static func volumeSource(for url: URL, bookmarkData: Data? = nil) -> ScanSource {
+        let resourceValues = try? url.resourceValues(forKeys: Set(volumeKeys))
+        return ScanSource(
+            path: url.path,
+            displayName: displayName(for: url),
+            bookmarkData: bookmarkData,
+            isVolumeRoot: true,
+            volumeFormat: resourceValues?.volumeLocalizedFormatDescription,
+            totalCapacity: resourceValues?.volumeTotalCapacity.map(UInt64.init),
+            availableCapacity: resourceValues?.volumeAvailableCapacity.map(UInt64.init),
+            isLocalVolume: resourceValues?.volumeIsLocal,
+            isRemovableVolume: resourceValues?.volumeIsRemovable,
+            isEjectableVolume: resourceValues?.volumeIsEjectable,
+            isInternalVolume: resourceValues?.volumeIsInternal,
+            isDiskImageVolume: isDiskImage(url),
+            scanDisabledReason: scanDisabledReason(
+                for: url,
+                isLocalVolume: resourceValues?.volumeIsLocal
             )
-        }
+        )
     }
 
     static func scanSource(for url: URL, bookmarkData: Data? = nil) -> ScanSource {
         let standardizedURL: URL = url.standardizedFileURL
+        let didAccess = standardizedURL.startAccessingSecurityScopedResource()
+        defer { if didAccess { standardizedURL.stopAccessingSecurityScopedResource() } }
+        let resolvedURL = standardizedURL.resolvingSymlinksInPath()
+        let isVolume = (try? resolvedURL.resourceValues(forKeys: [.isVolumeKey]))?.isVolume == true
+        if isVolume {
+            return volumeSource(for: standardizedURL, bookmarkData: bookmarkData)
+        }
 
         return ScanSource(
             path: standardizedURL.path,
             displayName: displayName(for: standardizedURL),
             bookmarkData: bookmarkData,
+            isVolumeRoot: false,
             volumeFormat: nil,
             totalCapacity: nil,
             availableCapacity: nil,
