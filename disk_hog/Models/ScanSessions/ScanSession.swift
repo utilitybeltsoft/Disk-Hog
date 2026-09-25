@@ -9,6 +9,7 @@ final class ScanSession: ObservableObject {
     @Published private(set) var state: ScanSessionState
     @Published private(set) var startedAt: Date?
     @Published private(set) var completedAt: Date?
+    @Published private(set) var snapshotFreshness = SnapshotFreshness()
     @Published private(set) var scannedFileCount: Int
     @Published private(set) var scannedFolderCount: Int
     @Published private(set) var scannedByteCount: UInt64
@@ -125,6 +126,17 @@ final class ScanSession: ObservableObject {
 
     func startScan() {
         startScan(preservingFailure: false)
+    }
+
+    var canRefreshSnapshot: Bool {
+        state != .scanning && !isUpdatingTree && !isBuildingTreemap
+            && rescanCoordinator.activeOperation == nil
+    }
+
+    /// Always rescan this window's source, regardless of selection or zoom.
+    func refreshSnapshot() {
+        guard canRefreshSnapshot else { return }
+        startScan()
     }
 
     func dismissFailure() {
@@ -324,6 +336,9 @@ final class ScanSession: ObservableObject {
         ) async throws -> ScanSessionTreeUpdateResult
     ) {
         let operation: ScanSessionWorkOperation = beginTreeUpdate()
+        let refreshStartedAt = Date()
+        let isRefresh: Bool
+        if case .refresh = failureDescription { isRefresh = true } else { isRefresh = false }
         let source: ScanSource = source
         let settings: DiskScanSettings = settings
         let treeWorker: any ScanSessionTreeUpdating = treeWorker
@@ -341,6 +356,7 @@ final class ScanSession: ObservableObject {
                         builtUsingPhysicalSize: result.builtUsingPhysicalSize,
                         skippedItems: result.skippedItems,
                         refreshedSubtreePath: result.refreshedSubtreePath,
+                        refreshStartedAt: isRefresh ? refreshStartedAt : nil,
                         operation: operation
                     )
                 }
@@ -482,6 +498,9 @@ final class ScanSession: ObservableObject {
         preferredSelection = rootItem
         self.rootItem = rootItem
         state = .complete
+        snapshotFreshness.record(startedAt: startedAt ?? Date(), finishedAt: Date(),
+                                 hasSkippedItems: !skippedItems.isEmpty,
+                                 refreshedPath: rootItem.path, rootPath: rootItem.path)
         currentPath = rootItem.path
         scannedByteCount = rootItem.sizeValue(usePhysicalSize: settings.usePhysicalSize)
         if builtUsingPhysicalSize != settings.usePhysicalSize {
@@ -514,6 +533,7 @@ final class ScanSession: ObservableObject {
         builtUsingPhysicalSize: Bool,
         skippedItems: [ScanSkippedItem],
         refreshedSubtreePath: String,
+        refreshStartedAt: Date?,
         operation: ScanSessionWorkOperation
     ) {
         guard finishWorkOperation(.treeUpdate, operation: operation) else {
@@ -534,6 +554,11 @@ final class ScanSession: ObservableObject {
         scannedByteCount = rootItem.sizeValue(usePhysicalSize: settings.usePhysicalSize)
         currentPath = preferredSelection?.path ?? rootItem.path
         isUpdatingTree = false
+        if let refreshStartedAt {
+            snapshotFreshness.record(startedAt: refreshStartedAt, finishedAt: Date(),
+                                     hasSkippedItems: !skippedItems.isEmpty,
+                                     refreshedPath: refreshedSubtreePath, rootPath: rootItem.path)
+        }
         if builtUsingPhysicalSize != settings.usePhysicalSize {
             rebuildForSizeMode(rootItem: rootItem, usePhysicalSize: settings.usePhysicalSize)
         }
