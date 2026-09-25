@@ -17,11 +17,11 @@ struct SnapshotFreshnessView: View {
             Button {
                 session.refreshSnapshot()
             } label: {
-                Label("Refresh", systemImage: "arrow.clockwise")
+                Label("Re-scan", systemImage: "arrow.clockwise")
             }
             .fixedSize()
             .disabled(!session.canRefreshSnapshot)
-            .help("Rescan this window’s entire folder or volume, regardless of selection or zoom. Current results are cleared while scanning.")
+            .help("Re-scan this window’s entire folder or volume, regardless of selection or zoom. Current results are cleared while scanning.")
         }
         .controlSize(.small)
         .font(.system(size: ScanWindowMetrics.statusFieldFontSize))

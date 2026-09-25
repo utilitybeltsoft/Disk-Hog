@@ -1,7 +1,7 @@
 # Snapshot freshness
 
 Each scan window displays a permanent freshness strip with an absolute local
-date/time, “Not updated automatically,” and a Refresh button. Refresh targets
+date/time, “Not updated automatically,” and a Re-scan button. Re-scan targets
 the session's entire source, not the selected item or treemap zoom. It uses the
 existing full-scan path, including clearing the old results while scanning.
 
@@ -48,7 +48,7 @@ and cancellation of a whole refresh. Run that suite with the Xcode test target.
 
 Interactive acceptance checks:
 
-- At minimum window width, the Refresh button stays visible and the status wraps.
+- At minimum window width, the Re-scan button stays visible and the status wraps.
 - The timestamp details and button are accessible by keyboard/VoiceOver.
 - Refresh while zoomed into a child scans the entire original source.
 - Two scan windows keep independent timestamps, failures, and refresh actions.
