@@ -27,6 +27,11 @@ views retain their native tables, selections, and scroll positions while hidden
 (at most two 1,000-row result sets per scan window). Hidden tables cannot receive
 input. Returning to a ranking restores its selection as the active selection.
 
+Ranked columns are Name, Size, Kind, Path. Name uses the available viewport
+width beside Size and wraps long names (including names without spaces) onto
+additional lines. Row heights follow the wrapped text. Kind and Path remain
+horizontally scrollable; inspector lists retain their existing single-line cells.
+
 Ranked-item actions live in one context menu, opened by right-click, Shift-F10,
 or the accessibility Show Menu action. Single selections offer Folder Tree,
 Treemap, Finder, Information, and the existing cleanup queue action. Multiple
@@ -70,6 +75,8 @@ The complete application test suite has not been run for this feature.
 ### In-app acceptance checklist (still requires interactive validation)
 
 - Switch among all three modes, resize narrow/wide, and verify native scrolling.
+- Verify long filenames, unbroken names, and Unicode names remain fully readable
+  at narrow widths, with Size still visible beside Name and no clipped row text.
 - Select ranked rows; verify tree, treemap, Information, Finder, and cleanup queue
   actions target the same item. Check keyboard navigation and multi-selection.
 - Open the context menu with right-click and Shift-F10. Verify clicks outside

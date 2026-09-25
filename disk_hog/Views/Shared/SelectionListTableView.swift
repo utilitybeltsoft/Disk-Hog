@@ -109,6 +109,7 @@ struct SelectionListTableView: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSScrollView {
         context.coordinator.onRankedAction = onRankedAction
+        context.coordinator.wrapsNames = !allowsColumnSorting
         let tableView: SelectionListBatchActionTableView = SelectionListBatchActionTableView()
         tableView.headerView = NSTableHeaderView()
         tableView.rowHeight = 20
@@ -190,7 +191,8 @@ struct SelectionListTableView: NSViewRepresentable {
             for column in tableView.tableColumns { column.sortDescriptorPrototype = nil }
         }
 
-        let scrollView: NSScrollView = NSScrollView()
+        let scrollView = SelectionListScrollView()
+        scrollView.fitsRankedNameColumn = !allowsColumnSorting
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = true
         scrollView.autohidesScrollers = true
@@ -237,6 +239,7 @@ struct SelectionListTableView: NSViewRepresentable {
         var sortDescriptors: Binding<[SelectionListSortDescriptor]>
         var onSelect: (DiskItem) -> Void
         var onRankedAction: ((RankedItemAction, DiskItem) -> Void)?
+        var wrapsNames = false
         weak var tableView: NSTableView?
 
         private var rows: [SelectionListRow] = []
@@ -304,6 +307,26 @@ struct SelectionListTableView: NSViewRepresentable {
 
         func numberOfRows(in tableView: NSTableView) -> Int {
             rows.count
+        }
+
+        func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
+            guard wrapsNames, rows.indices.contains(row),
+                  let column = tableView.tableColumn(withIdentifier: SelectionListColumnID.name) else { return 20 }
+            // Account for the icon, its spacing, and both cell margins.
+            let width = max(1, column.width - 31)
+            let paragraph = NSMutableParagraphStyle()
+            paragraph.lineBreakMode = .byCharWrapping
+            let bounds = (rows[row].name as NSString).boundingRect(
+                with: NSSize(width: width, height: .greatestFiniteMagnitude),
+                options: [.usesLineFragmentOrigin, .usesFontLeading],
+                attributes: [.font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize),
+                             .paragraphStyle: paragraph])
+            return max(20, ceil(bounds.height) + 6)
+        }
+
+        func tableViewColumnDidResize(_ notification: Notification) {
+            guard wrapsNames, let tableView else { return }
+            tableView.noteHeightOfRows(withIndexesChanged: IndexSet(integersIn: 0..<rows.count))
         }
 
         func selectedItemForPasteboard() -> DiskItem? {
@@ -499,7 +522,7 @@ struct SelectionListTableView: NSViewRepresentable {
             let cell: SelectionListNameCellView = tableView.reusableView(withIdentifier: identifier, owner: self) {
                 SelectionListNameCellView()
             }
-            cell.configure(row: row)
+            cell.configure(row: row, wrapsName: wrapsNames)
             return cell
         }
 
@@ -563,6 +586,24 @@ private final class SelectionListBatchQueueActionTarget: NSObject {
     }
 }
 
+private final class SelectionListScrollView: NSScrollView {
+    var fitsRankedNameColumn = false
+    private var previousViewportWidth: CGFloat = -1
+
+    override func layout() {
+        super.layout()
+        guard fitsRankedNameColumn,
+              let table = documentView as? NSTableView,
+              let name = table.tableColumn(withIdentifier: SelectionListColumnID.name),
+              let size = table.tableColumn(withIdentifier: SelectionListColumnID.size) else { return }
+        let viewportWidth = floor(contentView.bounds.width)
+        guard viewportWidth > 0, viewportWidth != previousViewportWidth else { return }
+        previousViewportWidth = viewportWidth
+        // Reserve room for Size; secondary columns remain horizontally scrollable.
+        name.width = max(name.minWidth, viewportWidth - size.width - 2 * table.intercellSpacing.width - 4)
+    }
+}
+
 private final class SelectionListBatchActionTableView: DiskItemPasteboardTableView {
     var onBecomeFirstResponder: (() -> Void)?
     var onResignFirstResponder: (() -> Void)?
@@ -619,6 +660,13 @@ private final class SelectionListNameCellView: NSTableCellView {
     private var iconLoadTask: Task<Void, Never>?
     private var currentIconPath: String?
 
+    override func layout() {
+        super.layout()
+        if label.maximumNumberOfLines == 0 {
+            label.preferredMaxLayoutWidth = max(1, bounds.width - 27)
+        }
+    }
+
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         setup()
@@ -629,7 +677,7 @@ private final class SelectionListNameCellView: NSTableCellView {
         setup()
     }
 
-    func configure(row: SelectionListRow) {
+    func configure(row: SelectionListRow, wrapsName: Bool) {
         let path: String = row.item.path
         currentIconPath = path
         iconLoadTask?.cancel()
@@ -646,6 +694,11 @@ private final class SelectionListNameCellView: NSTableCellView {
             }
             self.iconView.image = icon
         }
+        label.maximumNumberOfLines = wrapsName ? 0 : 1
+        label.cell?.usesSingleLineMode = !wrapsName
+        label.cell?.wraps = wrapsName
+        label.cell?.isScrollable = !wrapsName
+        label.lineBreakMode = wrapsName ? .byCharWrapping : .byTruncatingTail
         label.stringValue = row.name
         toolTip = row.fullPath
     }
