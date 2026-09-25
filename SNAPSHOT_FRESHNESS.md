@@ -5,6 +5,12 @@ date/time, “Not updated automatically,” and a Re-scan button. Re-scan target
 the session's entire source, not the selected item or treemap zoom. It uses the
 existing full-scan path, including clearing the old results while scanning.
 
+The timestamp is labeled “Scan finished.” Hovering over the freshness text for
+400 milliseconds displays the scan details without a button or the system
+tooltip delay. Leaving the text cancels pending help and immediately dismisses
+visible help. The noninteractive overlay does not take focus or intercept input;
+the same details remain available as the text's accessibility hint.
+
 `SnapshotFreshness` records successful data acquisitions independently of
 `completedAt` (which remains the existing operation/render timing field).
 Whole-scan data is dated when accepted, before the treemap finishes rendering.

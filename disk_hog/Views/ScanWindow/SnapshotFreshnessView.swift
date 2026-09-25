@@ -2,6 +2,9 @@ import SwiftUI
 
 struct SnapshotFreshnessView: View {
     @ObservedObject var session: ScanSession
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var isHovering = false
+    @State private var showsDetails = false
 
     var body: some View {
         HStack(alignment: .center, spacing: 8) {
@@ -11,7 +14,37 @@ struct SnapshotFreshnessView: View {
                     .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .help(details)
+            .contentShape(Rectangle())
+            .onHover { hovering in
+                isHovering = hovering
+                if !hovering { showsDetails = false }
+            }
+            .task(id: isHovering) {
+                showsDetails = false
+                guard isHovering else { return }
+                do { try await Task.sleep(for: .milliseconds(400)) }
+                catch { return }
+                guard !Task.isCancelled, isHovering else { return }
+                showsDetails = true
+            }
+            .overlay(alignment: .topLeading) {
+                GeometryReader { geometry in
+                    if showsDetails {
+                        Text(details)
+                            .font(.system(size: NSFont.smallSystemFontSize))
+                            .foregroundStyle(.primary)
+                            .padding(10)
+                            .frame(width: min(440, geometry.size.width), alignment: .leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6))
+                            .overlay(RoundedRectangle(cornerRadius: 6).stroke(.secondary.opacity(0.3)))
+                            .shadow(radius: 4, y: 2)
+                            .offset(y: geometry.size.height + 6)
+                    }
+                }
+                .allowsHitTesting(false)
+                .accessibilityHidden(true) // The same details are the label's accessibility hint.
+            }
             .accessibilityElement(children: .combine)
             .accessibilityHint(details)
             Button {
@@ -28,6 +61,10 @@ struct SnapshotFreshnessView: View {
         .padding(.horizontal, ScanWindowMetrics.mainSplitHorizontalPadding)
         .padding(.vertical, 5)
         .background(Color(nsColor: .controlBackgroundColor))
+        .onChange(of: scenePhase) {
+            if scenePhase != .active { isHovering = false; showsDetails = false }
+        }
+        .onDisappear { isHovering = false; showsDetails = false }
     }
 
     private var status: String {
@@ -35,7 +72,7 @@ struct SnapshotFreshnessView: View {
         if session.state == .scanning {
             return whole == nil ? String(localized: "Scanning…") : String(localized: "Refreshing…")
         }
-        let prior: String = whole.map { String(localized: "Last scanned: \(date($0.finishedAt))") }
+        let prior: String = whole.map { String(localized: "Scan finished: \(date($0.finishedAt))") }
             ?? String(localized: "No completed scan")
         if session.state == .cancelled { return String(localized: "Scan cancelled · \(prior)") }
         if session.state == .failed { return String(localized: "Scan failed · \(prior)") }

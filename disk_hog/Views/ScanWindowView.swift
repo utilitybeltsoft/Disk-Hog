@@ -34,6 +34,7 @@ struct ScanWindowView: View {
     var body: some View {
         VStack(spacing: ScanWindowMetrics.windowContentSpacing) {
             SnapshotFreshnessView(session: session)
+                .zIndex(1) // Keep its hover details above the scan panes without taking focus.
             if session.isPackageContentsSettingOutOfSync {
                 packageContentsWarning
             }
