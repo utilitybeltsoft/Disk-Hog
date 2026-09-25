@@ -31,6 +31,11 @@ final class DiskHogApplicationDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         SourceWindowController.shared.show()
+        // Let the source window appear before paying the open panel's cold-start
+        // construction cost. AppKit work stays on the main thread; no dialog opens.
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(500)) {
+            SourceFolderChooser.prepareAfterLaunch()
+        }
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {

@@ -83,6 +83,34 @@ Hog to measure an optimized application build. It still uses local signing.
 
 ## Focused regression checks
 
+### Folder chooser cold-start timing
+
+The app constructs and configures its reusable `NSOpenPanel` 500 ms after showing
+the source window. It does not present a dialog or change focus during preparation.
+If the user requests the chooser first, that request constructs the same panel;
+the scheduled preparation then does nothing. This moves construction cost, not
+necessarily the system file picker's directory/sidebar loading cost.
+
+In Console, filter subsystem `software.utilitybelt.diskhog` and category
+`FolderChooserPerformance`. Notice-level messages are available from the normally
+launched app; no debugger is required. No chosen paths are logged.
+
+- `prepare started/finished`: construction/configuration cost, with `after-launch`
+  or `user-request` identifying which path triggered it.
+- `open requested`: request ID and whether a prepared panel already existed.
+- `begin returned`: synchronous cost of calling `NSOpenPanel.begin`.
+- `panel became key`: elapsed time from request to AppKit's key-window notification.
+  This is not a first-pixel measurement or proof that directory contents are ready.
+  If macOS does not deliver this notification for the panel, do not infer zero delay.
+- `panel completed`: selection or cancellation, not opening latency.
+
+Compare the first opening after a fresh launch with a second opening. Also check
+an immediate click during launch and repeated clicks while the picker is open.
+Verify preparation never shows a window or steals focus. A cold-launch comparison
+in the installed app is still required before claiming a measured speedup.
+
+### Treemap checks
+
 ```sh
 xcrun swiftc -O -whole-module-optimization -parse-as-library \
   disk_hog/Models/DiskItems/*.swift disk_hog/Treemap/*.swift \
