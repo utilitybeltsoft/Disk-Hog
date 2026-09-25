@@ -1038,6 +1038,71 @@ struct ScanSessionTaskCoordinatorTests {
 
 @MainActor
 struct ScanSessionWorkerIntegrationTests {
+    @Test func cancelledWholeRefreshPreservesHistoricalFreshness() async throws {
+        let root = Self.rootItem(fileSize: 12)
+        let worker = FreshnessCancellationWorker(result: Self.scanResult(rootItem: root))
+        let session = ScanSession(source: ScanSource(path: "/scan", displayName: "scan"), scanWorker: worker)
+        session.startScan()
+        try await Self.waitUntil(observing: session) { session.state == .complete }
+        session.markTreemapRendered(for: session.rootItem)
+        let original = session.snapshotFreshness
+        session.refreshSnapshot()
+        session.refreshSnapshot() // A second click cannot queue another operation.
+        session.cancel()
+        try await Self.waitUntil(observing: session) { session.state == .cancelled }
+        #expect(session.snapshotFreshness == original)
+        #expect(session.rootItem == nil)
+        #expect(session.canRefreshSnapshot)
+    }
+
+    @Test func freshnessPrecedesRenderingAndRefreshIsWindowLocal() async throws {
+        let root = Self.rootItem(fileSize: 12)
+        let session = ScanSession(source: ScanSource(path: "/scan", displayName: "scan"),
+                                  scanWorker: ImmediateScanWorker(result: .success(Self.scanResult(rootItem: root))))
+        let other = ScanSession(source: ScanSource(path: "/other", displayName: "other"))
+        session.refreshSnapshot()
+        #expect(!session.canRefreshSnapshot)
+        try await Self.waitUntil(observing: session) { session.state == .complete }
+        let freshness = session.snapshotFreshness
+        #expect(freshness.wholeScan != nil)
+        #expect(session.completedAt == nil)
+        #expect(!session.canRefreshSnapshot)
+        session.markTreemapRendered(for: session.rootItem)
+        #expect(session.snapshotFreshness == freshness)
+        #expect(session.canRefreshSnapshot)
+        #expect(other.snapshotFreshness.wholeScan == nil)
+    }
+
+    @Test func partialRefreshDoesNotAdvanceWholeScanFreshness() async throws {
+        let root = Self.rootItem(fileSize: 12)
+        let updated = Self.rootItem(fileSize: 24)
+        let session = ScanSession(source: ScanSource(path: "/scan", displayName: "scan"),
+            scanWorker: ImmediateScanWorker(result: .success(Self.scanResult(rootItem: root))),
+            treeWorker: ImmediateTreeWorker(refreshResult: .success(Self.treeResult(
+                rootItem: updated, selectionPath: "/scan/file.txt"))))
+        session.startScan()
+        try await Self.waitUntil(observing: session) { session.state == .complete }
+        let original = session.snapshotFreshness.wholeScan
+        session.refresh(try #require(session.rootItem?.item(atPath: "/scan/file.txt")))
+        try await Self.waitUntil(observing: session) { !session.isUpdatingTree }
+        #expect(session.snapshotFreshness.wholeScan == original)
+        #expect(session.snapshotFreshness.latestPartialRefresh?.path == "/scan/file.txt")
+    }
+
+    @Test func failedRefreshDoesNotAdvanceFreshness() async throws {
+        let root = Self.rootItem(fileSize: 12)
+        let session = ScanSession(source: ScanSource(path: "/scan", displayName: "scan"),
+            scanWorker: ImmediateScanWorker(result: .success(Self.scanResult(rootItem: root))),
+            treeWorker: ImmediateTreeWorker(refreshResult: .failure(.failed("refresh failed"))))
+        session.startScan()
+        try await Self.waitUntil(observing: session) { session.state == .complete }
+        let original = session.snapshotFreshness
+        session.refresh(try #require(session.rootItem))
+        try await Self.waitUntil(observing: session) { !session.isUpdatingTree }
+        #expect(session.failure != nil)
+        #expect(session.snapshotFreshness == original)
+    }
+
     @Test func completesScanFromInjectedWorker() async throws {
         let rootItem: DiskItem = Self.rootItem(fileSize: 12)
         let session: ScanSession = ScanSession(
@@ -1629,6 +1694,23 @@ private struct ImmediateScanWorker: ScanSessionScanning {
         await willBuildTreemap()
         await treemapProgress(1)
         return try result.get()
+    }
+}
+
+private actor FreshnessCancellationWorker: ScanSessionScanning {
+    let result: ScanSessionScanResult
+    private var calls = 0
+    init(result: ScanSessionScanResult) { self.result = result }
+
+    func scan(source: ScanSource, settings: DiskScanSettings,
+              progress: @escaping DiskInventoryZScanner.ProgressHandler,
+              stage: @escaping @Sendable (DiskScanStage) async -> Void,
+              willBuildTreemap: @escaping @Sendable () async -> Void,
+              treemapProgress: @escaping @Sendable (Double) async -> Void) async throws -> ScanSessionScanResult {
+        calls += 1
+        if calls > 1 { try await Task.sleep(for: .seconds(60)) }
+        try Task.checkCancellation()
+        return result
     }
 }
 
