@@ -184,6 +184,9 @@ struct SelectionListTableView: NSViewRepresentable {
         )
         tableView.addTableColumn(sizeColumn)
         if !allowsColumnSorting {
+            // Ranked lists should expose their primary comparison without scrolling:
+            // Name, Size, Kind, Path. Keep the inspector's existing order unchanged.
+            tableView.moveColumn(tableView.column(withIdentifier: SelectionListColumnID.size), toColumn: 1)
             for column in tableView.tableColumns { column.sortDescriptorPrototype = nil }
         }
 
