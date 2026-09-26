@@ -142,15 +142,18 @@ nonisolated struct DiskInventoryZScanSessionTreeWorker: ScanSessionTreeUpdating 
     }
 
     private static func nearestExistingPath(from path: String, stoppingAt rootPath: String) -> String {
-        var candidateURL: URL = URL(fileURLWithPath: path).standardizedFileURL
-        let standardizedRootPath: String = URL(fileURLWithPath: rootPath).standardizedFileURL.path
+        // These paths are identities from the existing scan tree. Foundation
+        // standardization can rewrite /private/tmp to /tmp for an existing item,
+        // making the refreshed path impossible to find in that tree.
+        var candidateURL: URL = URL(fileURLWithPath: path)
+        let treeRootPath: String = rootPath
         while !FileManager.default.fileExists(atPath: candidateURL.path) {
-            guard candidateURL.path != standardizedRootPath else {
-                return standardizedRootPath
+            guard candidateURL.path != treeRootPath else {
+                return treeRootPath
             }
             let parentURL: URL = candidateURL.deletingLastPathComponent()
             guard parentURL.path != candidateURL.path else {
-                return standardizedRootPath
+                return treeRootPath
             }
             candidateURL = parentURL
         }

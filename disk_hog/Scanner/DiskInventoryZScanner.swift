@@ -235,7 +235,9 @@ nonisolated final class DiskInventoryZScanner {
             Set(DiskScanResourceKeys.item)
         )
         hardlinkDeduplicator.reset()
-        let item: DiskItemBuilder = itemFactory.makeItem(url: standardizedItemURL, values: values)
+        // Normalize for containment/resource lookup above, but preserve the
+        // caller's tree identity when constructing the replacement item.
+        let item: DiskItemBuilder = itemFactory.makeItem(url: itemURL, values: values)
 
         var skippedItems: [ScanSkippedItem] = []
         if item.isFolder && !(item.isPackage && !settings.lookInsidePackages) && values.isVolume != true {
