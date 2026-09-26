@@ -13,10 +13,16 @@ bash test/run-tests.sh --ui-only
 bash test/run-coverage.sh --unit-only
 ```
 
+Only `run-tests.sh` and `run-coverage.sh` are user-facing commands. Shared
+implementation and report formatting live under `test/internal/`.
+
 The shared runner builds in `build/signed-tests`, checks the actual app identity
 and bundle signatures, and launches the generated test manifest explicitly.
 It prints the result-bundle location even when tests fail. Coverage runs also
-attempt to print the available coverage report after a test failure.
+attempt to print a short coverage summary after a test failure. The full
+file/function report is saved as `coverage-details.txt` alongside the result
+bundle; the script prints its path. The summary separates app coverage from
+test-code coverage and highlights safety-related files and the largest gaps.
 A valid signature is necessary but does not guarantee Gatekeeper approval.
 If macOS rejects the runner, do not keep retrying or move it to Trash:
 inspect the security logs and resolve the requested Developer Tools permission.
@@ -45,6 +51,13 @@ authentication to "Enable UI Automation"; approve that prompt to let the
 tests control their test app. Leaving it unanswered can produce "Timed out
 while enabling automation mode." This is separate from Full Disk Access.
 The scripts do not change system security settings.
+
+Safety regression tests use unique temporary directories under /private/tmp.
+Injected trash operations move only fixture files to a simulated destination,
+never to the user's Trash. Permission tests restrict and restore permissions
+only on their own fixtures. These cover POSIX permission failures, not macOS
+Full Disk Access. Protected-location scans of the installed app still need a
+separate integration test with an explicitly chosen safe location.
 
 | Build | App bundle identifier |
 | --- | --- |

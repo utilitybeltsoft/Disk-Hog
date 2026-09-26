@@ -4,7 +4,7 @@
 # Gatekeeper state, strip quarantine attributes, or sign the installed app.
 set -euo pipefail
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-project_dir="$(cd "$script_dir/.." && pwd)"
+project_dir="$(cd "$script_dir/../.." && pwd)"
 coverage=NO
 selection=all
 for arg in "$@"; do
@@ -21,7 +21,7 @@ for arg in "$@"; do
   esac
 done
 
-bash "$script_dir/check-test-identity.sh"
+bash "$project_dir/test/check-test-identity.sh"
 derived_data="$project_dir/build/signed-tests"
 result_dir="$(mktemp -d "${TMPDIR:-/tmp}/disk-hog-test-results.XXXXXX")"
 result_bundle="$result_dir/results.xcresult"
@@ -62,14 +62,25 @@ if [[ "${#manifests[@]}" -ne 1 ]]; then
   exit 1
 fi
 status=0
-xcodebuild test-without-building \
+xcodebuild test-without-building -quiet \
   -xctestrun "${manifests[0]}" -destination 'platform=macOS' \
   -resultBundlePath "$result_bundle" "${filter[@]}" || status=$?
 
 # A failing test must not hide the result path or the available coverage report.
+if [[ "$status" -eq 0 ]]; then
+  echo "Test result: PASS"
+else
+  echo "Test result: FAIL (exit $status)"
+fi
 echo "Test results: $result_bundle"
 if [[ "$coverage" == YES && -d "$result_bundle" ]]; then
-  xcrun xccov view --report "$result_bundle" || echo "No coverage report is available for this run." >&2
+  if xcrun xccov view --report "$result_bundle" > "$result_dir/coverage-details.txt"; then
+    xcrun xccov view --report --json "$result_bundle" | xcrun swift "$script_dir/CoverageSummary.swift" \
+      || echo "Coverage summary unavailable; see the detailed report." >&2
+    echo "Detailed coverage: $result_dir/coverage-details.txt"
+  else
+    echo "No coverage report is available for this run." >&2
+  fi
 fi
 if [[ "$status" -ne 0 ]]; then
   echo "Tests failed (exit $status). Inspect the result above; no security settings were changed." >&2
