@@ -47,7 +47,7 @@ struct LargestItemsView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             if session.hasIncompleteResults {
-                Text("Incomplete scan: ≥ marks a lower bound; Unknown means unmeasured. See Scan Issues.")
+                Text("Some items couldn’t be scanned. Sizes marked with a ≥ may be larger; Unknown does not mean empty. View Scan Issues.")
                     .foregroundStyle(.orange)
             }
             ZStack {
