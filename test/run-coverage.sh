@@ -15,7 +15,7 @@ xcodebuild test -quiet \
   -destination 'platform=macOS' \
   -enableCodeCoverage YES \
   -resultBundlePath "$result_bundle" \
-  CODE_SIGNING_ALLOWED=NO
+  CODE_SIGNING_ALLOWED=YES
 
 xcrun xccov view --report "$result_bundle"
 printf '\nCoverage result bundle: %s\n' "$result_bundle"

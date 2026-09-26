@@ -12,4 +12,4 @@ exec xcodebuild test \
   -scheme disk_hog \
   -configuration Testing \
   -destination 'platform=macOS' \
-  CODE_SIGNING_ALLOWED=NO
+  CODE_SIGNING_ALLOWED=YES

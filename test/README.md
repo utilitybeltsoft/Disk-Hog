@@ -4,6 +4,18 @@ Use `bash test/run-tests.sh` or `bash test/run-coverage.sh`. Both check the
 test-host identity before launching tests and explicitly select Testing.
 The checked-in shared scheme also selects Testing for Xcode's Test action.
 
+Both runners enable normal Xcode development signing. A local Apple Development
+certificate and its private key for the project's configured team must be
+available in Keychain. Developer ID distribution signing and notarization are
+not required. Do not disable signing: the UI-test runner must be signed after
+Xcode assembles it, or Gatekeeper can kill it before tests connect.
+
+Run UI tests from an interactive, unlocked desktop. macOS may request
+authentication to "Enable UI Automation"; approve that prompt to let the
+tests control their test app. Leaving it unanswered can produce "Timed out
+while enabling automation mode." This is separate from Full Disk Access.
+The scripts do not change system security settings.
+
 | Build | App bundle identifier |
 | --- | --- |
 | Testing | software.utilitybelt.diskhog.testhost |
@@ -14,7 +26,7 @@ The local installer explicitly selects the production identity, verifies
 Apple signing from our development team, and checks that the replacement
 satisfies the installed app's designated requirement before replacing it.
 This preserves the local Debug installation workflow without sharing its
-privacy identity with unsigned test builds.
+privacy identity with development or test builds.
 
 Unsigned test hosts previously used the installed app's bundle identifier.
 TCC logs confirmed that running one replaced the stored Full Disk Access
@@ -27,7 +39,7 @@ For manual testing:
 
 ```sh
 xcodebuild test -project disk_hog.xcodeproj -scheme disk_hog \
-  -configuration Testing -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO
+  -configuration Testing -destination 'platform=macOS' CODE_SIGNING_ALLOWED=YES
 ```
 
 Development and test builds intentionally do not inherit installed Disk Hog's
