@@ -63,6 +63,11 @@ confirm Finder Trash or permanent deletion and never scan a user's volume.
 They exercise the installed version, which may differ from the working tree.
 Keep the desktop unlocked and avoid interacting with it during UI automation.
 Tests terminate only the app instance they launched, including on failure.
+The folder chooser targets its path field directly, verifies the entered path
+and destination folder, and waits for the path sheet to close and Scan to become
+actionable. A timeout stops that workflow and attaches the UI hierarchy with the
+failed stage to the result bundle. Do not assist a stuck chooser: intervention
+invalidates the automation result.
 
 These checks do not establish Full Disk Access correctness or cover every
 multi-window, resize, drag-and-drop, or destructive-confirmation workflow.
