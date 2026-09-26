@@ -4,6 +4,24 @@ Use `bash test/run-tests.sh` or `bash test/run-coverage.sh`. Both check the
 test-host identity before launching tests and explicitly select Testing.
 The checked-in shared scheme also selects Testing for Xcode's Test action.
 
+Both scripts accept `--unit-only` or `--ui-only`; without either flag they
+run both. For example:
+
+```sh
+bash test/run-tests.sh --unit-only
+bash test/run-tests.sh --ui-only
+bash test/run-coverage.sh --unit-only
+```
+
+The shared runner builds in `build/signed-tests`, checks the actual app identity
+and bundle signatures, and launches the generated test manifest explicitly.
+It prints the result-bundle location even when tests fail. Coverage runs also
+attempt to print the available coverage report after a test failure.
+A valid signature is necessary but does not guarantee Gatekeeper approval.
+If macOS rejects the runner, do not keep retrying or move it to Trash:
+inspect the security logs and resolve the requested Developer Tools permission.
+Changing the app under test does not remove that helper's permission requirement.
+
 UI tests explicitly launch `/Applications/Disk Hog.app`, not the app in the
 Testing build directory. Install the version you want to test first and quit
 it before running tests. The UI test refuses to interrupt an already running
