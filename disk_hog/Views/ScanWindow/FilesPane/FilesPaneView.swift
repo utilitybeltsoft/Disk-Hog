@@ -2,7 +2,7 @@ import SwiftUI
 
 struct FilesPaneView: View {
     @ObservedObject var session: ScanSession
-    let selectionCoordinator: ScanWindowSelectionCoordinator
+    @ObservedObject var selectionCoordinator: ScanWindowSelectionCoordinator
     let navigation: TreemapNavigationState
     @Environment(\.activeScanWindowPane) private var activePane
     @State private var mode: FilesInspectionMode = .largestFiles
@@ -41,6 +41,7 @@ struct FilesPaneView: View {
             }
         }
         .onChange(of: mode) { visitedModes.insert(mode) }
+        .onChange(of: selectionCoordinator.treemapRevealRequest) { mode = .tree }
         .onTapGesture { activePane.wrappedValue = .files }
         .overlay {
             PaneBorderView(isActive: activePane.wrappedValue == .files)

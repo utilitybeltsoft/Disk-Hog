@@ -33,7 +33,7 @@ struct AppKitTreemapView: NSViewRepresentable {
         let view: ZStyleTreemapNSView = ZStyleTreemapNSView()
         view.onSelectItem = { item, ancestorChain in
             context.coordinator.activePane.wrappedValue = .treemap
-            context.coordinator.selectionCoordinator.setSelectedItem(item, ancestorChain: ancestorChain)
+            context.coordinator.selectionCoordinator.setSelectedItem(item, ancestorChain: ancestorChain, origin: .treemap)
         }
         view.onHoverItem = { item in
             context.coordinator.hoveredItem.wrappedValue = item

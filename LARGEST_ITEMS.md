@@ -27,6 +27,12 @@ views retain their native tables, selections, and scroll positions while hidden
 (at most two 1,000-row result sets per scan window). Hidden tables cannot receive
 input. Returning to a ranking restores its selection as the active selection.
 
+Direct treemap selections (clicks, context clicks, and arrow-key navigation)
+switch to Folder Tree, whose existing selection synchronization expands ancestors
+and reveals the selected row. Ranked tabs retain their own selection and scroll
+position. Hovering, programmatic selection, and Show in Treemap do not trigger
+the switch. Synthetic free/other space has no tree row and does not switch tabs.
+
 Ranked columns are Name, Size, Kind, Path. Name uses the available viewport
 width beside Size and wraps long names (including names without spaces) onto
 additional lines. Row heights follow the wrapped text. Kind and Path remain

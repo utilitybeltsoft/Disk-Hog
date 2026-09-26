@@ -94,7 +94,9 @@ struct LargestItemsView: View {
             selectedIDs = []
         }
         .onChange(of: selectionCoordinator.selectedItem?.id) {
-            if isActive { synchronizeSelection() }
+            // The parent is switching to Folder Tree for a direct treemap
+            // selection. Do not overwrite this tab's remembered selection first.
+            if isActive && selectionCoordinator.selectionOrigin != .treemap { synchronizeSelection() }
         }
         .onChange(of: isActive) {
             if isActive, let selectedItem {
@@ -154,7 +156,7 @@ struct LargestItemsView: View {
             dataStore.publish(SelectionListQueryResult(
                 rows: rows, rowIndexByID: Dictionary(uniqueKeysWithValues: rows.enumerated().map { ($0.element.id, $0.offset) })))
             matchingCount = result.matchingCount
-            if isActive { synchronizeSelection() }
+            if isActive && selectionCoordinator.selectionOrigin != .treemap { synchronizeSelection() }
         } catch is CancellationError {
             // Superseded queries never publish or clear a newer query's state.
         } catch {
