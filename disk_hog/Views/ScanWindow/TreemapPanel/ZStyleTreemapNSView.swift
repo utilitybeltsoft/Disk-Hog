@@ -328,15 +328,15 @@ final class ZStyleTreemapNSView: NSView {
     }
 
     private func select(_ hitResult: TreemapHitResult) {
-        let selectionChanged: Bool = state.selectedItem != hitResult.item
         state.select(hitResult)
-        pendingDiscoveryAnimation = selectionChanged
+        pendingDiscoveryAnimation = true
         onSelectItem?(hitResult.item, state.ancestorChain(for: hitResult.item))
         needsDisplay = true
     }
 
     private func selectNeighbor(in direction: TreemapNavigationDirection) {
         guard let item: DiskItem = state.selectNeighbor(in: direction) else { return }
+        pendingDiscoveryAnimation = true
         onSelectItem?(item, state.ancestorChain(for: item))
         needsDisplay = true
     }
@@ -412,11 +412,9 @@ final class ZStyleTreemapNSView: NSView {
                 height: parentEntry.rect.height
             )
             let visibleParentRect: NSRect = TreemapSelectionRect.visibleRect(for: parentRect, in: bounds)
-            if visibleParentRect.isEmpty == false {
-                return visibleParentRect
-            }
+            return TreemapDiscoveryAnimation.startRect(target: targetRect, parent: visibleParentRect, bounds: bounds)
         }
-        return TreemapRasterGeometry.discoveryRect(around: targetRect, in: bounds)
+        return TreemapDiscoveryAnimation.startRect(target: targetRect, parent: nil, bounds: bounds)
     }
 
     private func discoveryAnimationTargetRect(for entry: TreemapLayoutEntry) -> NSRect? {
@@ -444,9 +442,9 @@ final class ZStyleTreemapNSView: NSView {
                 in: bounds
             )
         }
-        guard sourceRect.isEmpty == false,
-              min(sourceRect.width, sourceRect.height) <= ScanWindowMetrics.treemapMinimumSelectionSide else {
-            return nil
+        guard sourceRect.isEmpty == false else { return nil }
+        if min(sourceRect.width, sourceRect.height) > ScanWindowMetrics.treemapMinimumSelectionSide {
+            return sourceRect
         }
         // Always enlarge to a guaranteed-visible marker, not just for the
         // fully-collapsed case: a merely-tiny rect degenerates the animation's
