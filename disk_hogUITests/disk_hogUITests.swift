@@ -1,3 +1,4 @@
+import AppKit
 import XCTest
 
 final class DiskHogUITests: XCTestCase {
@@ -8,8 +9,26 @@ final class DiskHogUITests: XCTestCase {
 
     @MainActor
     func testInspectorOpensFromMenuCommand() throws {
-        let app = XCUIApplication()
-        app.launchEnvironment["DISK_HOG_RESET_INSPECTOR_FRAME"] = "1"
+        let appURL = URL(fileURLWithPath: "/Applications/Disk Hog.app")
+        let installedBundle = try XCTUnwrap(
+            Bundle(url: appURL),
+            "Install Disk Hog in /Applications before running UI tests."
+        )
+        XCTAssertEqual(installedBundle.bundleIdentifier, "software.utilitybelt.diskhog")
+        guard installedBundle.bundleIdentifier == "software.utilitybelt.diskhog" else {
+            return
+        }
+        // Do not terminate a user's running scan to establish the test fixture.
+        guard NSRunningApplication.runningApplications(
+            withBundleIdentifier: "software.utilitybelt.diskhog"
+        ).isEmpty else {
+            XCTFail("Quit installed Disk Hog before running UI tests; it may have active scans.")
+            return
+        }
+        // Target the actual installed app, preserving its signature and permissions.
+        // Unit tests still use the isolated host to exercise compiled internals.
+        let app = XCUIApplication(url: appURL)
+        defer { app.terminate() }
         app.launch()
 
         app.typeKey("i", modifierFlags: .command)

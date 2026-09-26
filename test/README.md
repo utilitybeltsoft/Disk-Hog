@@ -4,6 +4,18 @@ Use `bash test/run-tests.sh` or `bash test/run-coverage.sh`. Both check the
 test-host identity before launching tests and explicitly select Testing.
 The checked-in shared scheme also selects Testing for Xcode's Test action.
 
+UI tests explicitly launch `/Applications/Disk Hog.app`, not the app in the
+Testing build directory. Install the version you want to test first and quit
+it before running tests. The UI test refuses to interrupt an already running
+installed app. It does not re-sign or replace that app or reset its saved
+Inspector frame. Its existing Full Disk Access grant remains applicable.
+
+Unit tests still use an isolated test host: they load test code and exercise
+internal implementation directly. Coverage measures that instrumented host;
+it does not measure the uninstrumented installed app used by UI tests.
+The separate UI-test runner is an automation helper, not another Disk Hog
+installation, and still requires macOS's development/automation permissions.
+
 Both runners enable normal Xcode development signing. A local Apple Development
 certificate and its private key for the project's configured team must be
 available in Keychain. Developer ID distribution signing and notarization are
@@ -42,8 +54,9 @@ xcodebuild test -project disk_hog.xcodeproj -scheme disk_hog \
   -configuration Testing -destination 'platform=macOS' CODE_SIGNING_ALLOWED=YES
 ```
 
-Development and test builds intentionally do not inherit installed Disk Hog's
-Full Disk Access. Tests requiring protected files must not assume it is granted.
+Development builds and the unit-test host intentionally do not inherit installed
+Disk Hog's Full Disk Access. Unit tests must not assume it is granted.
+The installed app exercised by UI tests uses its own existing permission.
 The fix does not repair a permission already invalidated: if needed, remove
 the installed Disk Hog entry and add /Applications/Disk Hog.app again in
 System Settings > Privacy & Security > Full Disk Access, then relaunch it.
