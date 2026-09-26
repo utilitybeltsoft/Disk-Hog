@@ -102,16 +102,12 @@ struct ZStatusFieldsView: View {
         return String(localized: "\(prefix): \(item.path), \(size)")
     }
 
-    /// Shows "?" rather than a formatted byte count when the item's true size is
-    /// unknown (scanning it or something inside it failed) - "0 bytes" would
-    /// misleadingly claim a verified, empty size instead.
+    /// Preserve measured bytes as a lower bound when contents were skipped.
+    /// An incomplete zero is unknown, not a verified empty item.
     private func formattedSize(for item: DiskItem) -> String {
-        if session.isAffectedBySkippedContent(item) {
-            return "?"
-        }
-        return ByteCountFormatter.string(
-            fromByteCount: Int64(item.sizeValue(usePhysicalSize: session.scanSettings.usePhysicalSize)),
-            countStyle: .file
+        ScanItemSizePresentation.text(
+            bytes: item.sizeValue(usePhysicalSize: session.scanSettings.usePhysicalSize),
+            isIncomplete: session.isAffectedBySkippedContent(item)
         )
     }
 

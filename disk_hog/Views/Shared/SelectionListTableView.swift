@@ -388,9 +388,8 @@ struct SelectionListTableView: NSViewRepresentable {
                 )
             default:
                 let incomplete = session.isAffectedBySkippedContent(item.item)
-                let size = ByteCountFormatter.string(fromByteCount: Int64(clamping: item.size), countStyle: .file)
                 return textCell(
-                    incomplete ? (item.size == 0 ? String(localized: "Unknown") : "≥ " + size) : size,
+                    ScanItemSizePresentation.text(bytes: item.size, isIncomplete: incomplete),
                     identifier: SelectionListCellID.size,
                     alignment: .right,
                     lineBreakMode: .byTruncatingTail,
