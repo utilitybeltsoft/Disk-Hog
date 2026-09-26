@@ -40,6 +40,33 @@ it does not measure the uninstrumented installed app used by UI tests.
 The separate UI-test runner is an automation helper, not another Disk Hog
 installation, and still requires macOS's development/automation permissions.
 
+## Workflow regression coverage
+
+The normal commands above include these workflow checks; no additional script
+or manually prepared scan is needed:
+
+- Hosted ranked views: load Largest Files and Largest Folders through their real
+  asynchronous ranking tasks, keep size second, select rows in descending order,
+  synchronize an external selection back to the table, invoke Show in Folder Tree,
+  and zoom into the selected folder (or file's parent) and back out.
+- Installed app: choose a generated folder, complete its scan, navigate from a
+  ranked file to Folder Tree, queue and unqueue it without deleting it, add a file,
+  and verify Re-scan finds it.
+- Installed app: scan a generated folder with an unreadable child, verify Scan
+  Issues reports it, restore its permissions, and verify Re-scan clears the issue.
+- Existing safety integration tests: partial scans, lower-bound sizes, cancellation,
+  simulated trash failures, and subtree reconciliation after mutation.
+
+UI fixtures live in the automation helper's temporary directory and are removed
+afterward. Their permissions are restored before cleanup. The UI workflows never
+confirm Finder Trash or permanent deletion and never scan a user's volume.
+They exercise the installed version, which may differ from the working tree.
+Keep the desktop unlocked and avoid interacting with it during UI automation.
+Tests terminate only the app instance they launched, including on failure.
+
+These checks do not establish Full Disk Access correctness or cover every
+multi-window, resize, drag-and-drop, or destructive-confirmation workflow.
+
 Both runners enable normal Xcode development signing. A local Apple Development
 certificate and its private key for the project's configured team must be
 available in Keychain. Developer ID distribution signing and notarization are
