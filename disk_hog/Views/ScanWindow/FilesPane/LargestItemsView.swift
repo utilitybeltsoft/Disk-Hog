@@ -70,14 +70,23 @@ struct LargestItemsView: View {
                     if isActive { selectionCoordinator.setSelectedItem(item) }
                 }
                 .disabled(isLoading)
-                if !isLoading && dataStore.resultCount == 0 {
-                    Text(session.rootItem == nil ? "Pending scan completion" : (errorMessage ?? "No items"))
+                if session.rootItem != nil && !isLoading && dataStore.resultCount == 0 {
+                    Text(errorMessage ?? "No items")
                         .foregroundStyle(.secondary).allowsHitTesting(false)
                 }
             }
         }
         .font(.system(size: NSFont.smallSystemFontSize))
         .padding(8)
+        .overlay {
+            if session.rootItem == nil {
+                ScanPanePlaceholderView(
+                    title: category == .files ? "Largest Files" : "Largest Folders",
+                    message: "Pending scan completion"
+                )
+                .padding(ScanWindowMetrics.inactivePaneBorderWidth)
+            }
+        }
         .task(id: LargestItemsTaskID(rootID: scopeRoot?.id, query: query)) {
             await rebuild()
         }

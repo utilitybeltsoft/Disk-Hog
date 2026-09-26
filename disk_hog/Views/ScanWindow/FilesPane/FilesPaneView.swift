@@ -66,10 +66,8 @@ struct FilesPaneView: View {
         .overlay {
             if session.rootItem == nil {
                 ScanPanePlaceholderView(
-                    title: "Navigable List View",
-                    message: session.isBuildingTreemap
-                        ? "Pending treemap completion"
-                        : "Pending scan completion"
+                    title: "Folder Tree",
+                    message: "Pending scan completion"
                 )
                 .padding(ScanWindowMetrics.inactivePaneBorderWidth)
             }
