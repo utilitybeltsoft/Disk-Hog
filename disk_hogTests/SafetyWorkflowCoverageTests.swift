@@ -244,6 +244,48 @@ private actor ScanEvents {
 @MainActor
 struct RealScanWorkerCoverageTests {
 
+    @Test func rescanReplacesPartialSnapshotAndRankingAfterPermissionsRecover() async throws {
+        let fixture = try SafetyFixture()
+        defer { fixture.cleanup() }
+        let locked = fixture.root.appendingPathComponent("locked")
+        try FileManager.default.createDirectory(at: locked, withIntermediateDirectories: true)
+        let recovered = locked.appendingPathComponent("recovered.bin")
+        try Data(repeating: 7, count: 65536).write(to: recovered)
+        try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: locked.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: locked.path) }
+        let session = ScanSession(source: fixture.source)
+        defer { session.cancel() }
+        func finishScan() async throws {
+            session.startScan()
+            let deadline = ContinuousClock.now.advanced(by: .seconds(10))
+            while session.state == .scanning && ContinuousClock.now < deadline {
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            try #require(session.state == .complete)
+        }
+        try await finishScan()
+        let oldRoot = try #require(session.rootItem)
+        let oldAcquisition = try #require(session.snapshotFreshness.wholeScan)
+        #expect(session.hasIncompleteResults)
+        #expect(oldRoot.item(atPath: recovered.path) == nil)
+
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: locked.path)
+        try await finishScan()
+        let root = try #require(session.rootItem)
+        #expect(root.id != oldRoot.id)
+        #expect(session.skippedItems.isEmpty)
+        #expect(!session.hasIncompleteResults)
+        #expect(!session.isAffectedBySkippedContent(root))
+        #expect(root.item(atPath: recovered.path)?.logicalSizeValue == 65536)
+        #expect(oldRoot.item(atPath: recovered.path) == nil, "Re-scan must not mutate the previous snapshot.")
+        let acquisition = try #require(session.snapshotFreshness.wholeScan)
+        #expect(!acquisition.hasSkippedItems)
+        #expect(acquisition.startedAt >= oldAcquisition.finishedAt)
+        let ranked = try LargestItemsPipeline.run(root: root, query: LargestItemsQuery())
+        #expect(ranked.rows.first?.item.path == recovered.path)
+        #expect(try Data(contentsOf: recovered).count == 65536)
+    }
+
     @Test func partialScanPublishesLowerBoundsAndUnknownQueueSize() async throws {
         let fixture = try SafetyFixture()
         defer { fixture.cleanup() }
