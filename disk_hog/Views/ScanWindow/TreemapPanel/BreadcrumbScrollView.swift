@@ -71,6 +71,7 @@ struct BreadcrumbScrollView: NSViewRepresentable {
                         image: NSImage(systemSymbolName: "chevron.right", accessibilityDescription: nil) ?? NSImage()
                     )
                     chevron.symbolConfiguration = .init(pointSize: ScanWindowMetrics.statusFieldFontSize - 1, weight: .regular)
+                    chevron.setAccessibilityElement(false)
                     chevron.contentTintColor = .secondaryLabelColor
                     chevron.frame = NSRect(x: nextX, y: 0, width: 8, height: rowHeight)
                     documentView.addSubview(chevron)
@@ -79,7 +80,9 @@ struct BreadcrumbScrollView: NSViewRepresentable {
                 let button: NSButton = NSButton(title: item.displayName, target: self, action: #selector(segmentClicked(_:)))
                 button.tag = index
                 button.isBordered = false
-                button.focusRingType = .none
+                button.focusRingType = .default
+                button.setAccessibilityHelp(item.path)
+                button.setAccessibilityValue(index == zoomPath.indices.last ? String(localized: "Current folder") : nil)
                 button.lineBreakMode = .byClipping
                 button.font = NSFont.systemFont(ofSize: ScanWindowMetrics.statusFieldFontSize)
                 button.toolTip = item.path

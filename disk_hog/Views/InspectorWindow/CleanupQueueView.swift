@@ -127,13 +127,15 @@ private struct CleanupQueueRow: View {
                     set: { store.setSelected($0, for: item.id) }
                 )
             ) {
-                EmptyView()
+                Text(item.displayName)
             }
             .labelsHidden()
+            .accessibilityHint(Text("\(item.parentPath), \(CleanupQueueSizeFormatting.size(of: item)), \(statusTitle)"))
 
             Image(nsImage: icon)
                 .resizable()
                 .frame(width: 20, height: 20)
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.displayName)

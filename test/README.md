@@ -131,3 +131,26 @@ the installed Disk Hog entry and add /Applications/Disk Hog.app again in
 System Settings > Privacy & Security > Full Disk Access, then relaunch it.
 Do not reset the TCC database. A deliberate signing-certificate migration is
 separate work; the installer stops rather than silently changing that identity.
+
+## Accessibility and localization checks
+
+Unit tests check treemap accessibility selection/actions, shipped plural forms,
+translation completeness and format-argument preservation. The single
+`Localizable.xcstrings` catalog remains the translation source; provide translator
+comments for ambiguous metadata and accessibility strings. Static-literal checks
+are a guardrail, not a Swift parser or proof that every runtime string is localized.
+
+Before release, use VoiceOver and keyboard navigation on a small fixture scan:
+
+- Reach the treemap, hear the selected name/size/path, invoke directional actions,
+  zoom and return, and open the selected item's context menu. Compare with the
+  Files table; the treemap exposes its selection rather than every rectangle.
+- Tab through breadcrumbs with keyboard navigation enabled and verify visible
+  focus and the current-folder announcement. Check selected inspector tabs.
+- Queue two identically named files from different folders. Verify checkbox names,
+  path/size/status hints, checked state and all queue actions without a mouse.
+- Check scan completion, cancellation, failure and cleanup results for discoverable
+  status and sensible focus. Check increased contrast, reduced motion and long
+  translated labels. Verify one-item and multiple-item counts in each language.
+
+These manual checks are not performed by the unit-test runner.

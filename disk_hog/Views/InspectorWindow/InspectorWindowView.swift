@@ -14,6 +14,7 @@ struct InspectorWindowView: View {
                         Label(tab.title, systemImage: tab.systemImage)
                             .fixedSize()
                     }
+                    .accessibilityAddTraits(controller.selectedTab == tab ? .isSelected : [])
                     .buttonStyle(
                         InspectorTabButtonStyle(isSelected: controller.selectedTab == tab)
                     )

@@ -16,6 +16,11 @@ final class ZStyleTreemapNSView: NSView {
         let cleanupQueue = cleanupQueue ?? .shared
         contextMenuActionTarget = DiskItemContextMenuActionTarget(cleanupQueue: cleanupQueue)
         super.init(frame: .zero)
+        setAccessibilityElement(true)
+        setAccessibilityRole(.group)
+        setAccessibilityLabel(String(localized: "Treemap"))
+        setAccessibilityHelp(String(localized: "Use arrow keys to select items, Return to zoom in, and Escape to go back. The Files table provides an alternative to spatial navigation."))
+        updateAccessibilitySelection()
     }
 
     @available(*, unavailable)
@@ -82,6 +87,7 @@ final class ZStyleTreemapNSView: NSView {
             }
             needsDisplay = true
         }
+        updateAccessibilitySelection()
         if rootChanged {
             // configure() runs synchronously inside SwiftUI's updateNSView, which is itself
             // called during a view-update pass. onHoverItem/onRenderProgressChange mutate
@@ -154,6 +160,7 @@ final class ZStyleTreemapNSView: NSView {
 
     func applySelectedItem(_ selectedItem: DiskItem?) {
         if state.applySelectedItem(selectedItem) {
+            updateAccessibilitySelection()
             pendingDiscoveryAnimation = true
             needsDisplay = true
         }
@@ -332,6 +339,61 @@ final class ZStyleTreemapNSView: NSView {
         )
     }
 
+    private func updateAccessibilitySelection() {
+        let value: String
+        if let item = state.selectedItem {
+            let size = ByteCountFormatter.string(
+                fromByteCount: Int64(clamping: item.sizeValue(usePhysicalSize: session?.scanSettings.usePhysicalSize ?? true)),
+                countStyle: .file
+            )
+            value = String(localized: "\(item.displayName), \(size), \(item.path)")
+        } else {
+            value = String(localized: "No selection")
+        }
+        guard accessibilityValue() as? String != value else { return }
+        setAccessibilityValue(value)
+        NSAccessibility.post(element: self, notification: .valueChanged)
+    }
+
+    override func accessibilityCustomActions() -> [NSAccessibilityCustomAction]? {
+        let directions: [(String, TreemapNavigationDirection)] = [
+            (String(localized: "Select left item"), .left),
+            (String(localized: "Select right item"), .right),
+            (String(localized: "Select item above"), .up),
+            (String(localized: "Select item below"), .down)
+        ]
+        return directions.map { name, direction in
+            NSAccessibilityCustomAction(name: name) { [weak self] in
+                self?.selectNeighbor(in: direction) ?? false
+            }
+        } + [
+            NSAccessibilityCustomAction(name: String(localized: "Zoom In")) { [weak self] in
+                self?.accessibilityPerformPress() ?? false
+            },
+            NSAccessibilityCustomAction(name: String(localized: "Back")) { [weak self] in
+                guard let action = self?.onZoomOut else { return false }
+                action()
+                return true
+            }
+        ]
+    }
+
+    override func accessibilityPerformPress() -> Bool {
+        guard let item = state.selectedItem, let onZoomIn else { return false }
+        onZoomIn(item, true)
+        return true
+    }
+
+    override func accessibilityPerformShowMenu() -> Bool {
+        guard !isHiddenOrHasHiddenAncestor, state.selectedItem != nil else { return false }
+        let menu = DiskItemContextMenuBuilder.menu(
+            for: state.selectedItem, actionTarget: contextMenuActionTarget,
+            treeActionsEnabled: session?.isUpdatingTree == false
+        )
+        menu.popUp(positioning: nil, at: NSPoint(x: bounds.midX, y: bounds.midY), in: self)
+        return true
+    }
+
     private func hitResult(for event: NSEvent) -> TreemapHitResult? {
         guard resizeBitmap == nil, !resizeAnimation.isActive else { return nil }
         return state.hitResult(at: convert(event.locationInWindow, from: nil))
@@ -339,16 +401,20 @@ final class ZStyleTreemapNSView: NSView {
 
     private func select(_ hitResult: TreemapHitResult) {
         state.select(hitResult)
+        updateAccessibilitySelection()
         pendingDiscoveryAnimation = true
         onSelectItem?(hitResult.item, state.ancestorChain(for: hitResult.item))
         needsDisplay = true
     }
 
-    private func selectNeighbor(in direction: TreemapNavigationDirection) {
-        guard let item: DiskItem = state.selectNeighbor(in: direction) else { return }
+    @discardableResult
+    private func selectNeighbor(in direction: TreemapNavigationDirection) -> Bool {
+        guard let item: DiskItem = state.selectNeighbor(in: direction) else { return false }
+        updateAccessibilitySelection()
         pendingDiscoveryAnimation = true
         onSelectItem?(item, state.ancestorChain(for: item))
         needsDisplay = true
+        return true
     }
 
     private func drawRenderedImage(

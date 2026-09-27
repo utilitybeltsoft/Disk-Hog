@@ -45,6 +45,54 @@ struct LocalizationTests {
         #expect(incompleteEntries.isEmpty)
     }
 
+    @Test func translationsAreCompleteAndPreserveFormatArguments() throws {
+        let catalog = try Self.catalogStrings()
+        let format = try NSRegularExpression(pattern: #"%(?:[0-9]+\$)?(?:lld|llu|ld|lu|@|d|u|f)"#)
+        func arguments(_ value: String) -> [String] {
+            let value = value.replacingOccurrences(of: "%%", with: "")
+            return format.matches(in: value, range: NSRange(value.startIndex..., in: value)).map {
+                let token = String(value[Range($0.range, in: value)!])
+                return token.replacingOccurrences(of: #"[0-9]+\$"#, with: "", options: .regularExpression)
+            }.sorted()
+        }
+        func units(_ value: Any) -> [[String: String]] {
+            guard let object = value as? [String: Any] else { return [] }
+            if let unit = object["stringUnit"] as? [String: String] { return [unit] }
+            return object.values.flatMap { units($0) }
+        }
+        for (key, entry) in catalog {
+            let entry = try #require(entry as? [String: Any])
+            let localizations = try #require(entry["localizations"] as? [String: Any])
+            for language in ["de", "es", "fr", "it"] {
+                let translatedUnits = units(localizations[language] ?? [:])
+                #expect(!translatedUnits.isEmpty, "Missing translation: \(language), \(key)")
+                for unit in translatedUnits {
+                    let value = try #require(unit["value"])
+                    #expect(!value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    #expect(unit["state"] == "translated", "Unfinished: \(language), \(key)")
+                    #expect(arguments(value) == arguments(key), "Format arguments: \(language), \(key)")
+                }
+            }
+        }
+    }
+
+    @Test func countLabelsShipSingularAndPluralForms() throws {
+        for language in ["en", "de", "es", "fr", "it"] {
+            let url = try #require(Bundle.main.url(forResource: language, withExtension: "lproj"))
+            let bundle = try #require(Bundle(url: url))
+            for key in ["%lld items", "%lld files"] {
+                let format = bundle.localizedString(forKey: key, value: nil, table: nil)
+                let singular = String.localizedStringWithFormat(format, Int64(1))
+                let plural = String.localizedStringWithFormat(format, Int64(2))
+                #expect(singular.contains("1"))
+                #expect(plural.contains("2"))
+                if !(language == "it" && key == "%lld files") {
+                    #expect(singular.replacingOccurrences(of: "1", with: "") != plural.replacingOccurrences(of: "2", with: ""))
+                }
+            }
+        }
+    }
+
     @Test func staticUserFacingLiteralsAppearInStringCatalog() throws {
         let catalogKeys: Set<String> = try Self.catalogKeys()
         let patterns: [SourceLiteralPattern] = [

@@ -728,15 +728,15 @@ nonisolated struct FileInformationSnapshot: Sendable {
         }
         let flags: UInt16 = UInt16(data[8]) << 8 | UInt16(data[9])
         let knownFlags: [(UInt16, String)] = [
-            (0x0001, "On desktop"),
-            (0x0040, "Shared"),
-            (0x0100, "Initialized"),
-            (0x0400, "Custom icon"),
-            (0x0800, "Stationery"),
-            (0x1000, "Name locked"),
-            (0x2000, "Bundle"),
-            (0x4000, "Invisible"),
-            (0x8000, "Alias")
+            (0x0001, String(localized: "On desktop")),
+            (0x0040, String(localized: "Shared")),
+            (0x0100, String(localized: "Initialized")),
+            (0x0400, String(localized: "Custom icon")),
+            (0x0800, String(localized: "Stationery")),
+            (0x1000, String(localized: "Name locked")),
+            (0x2000, String(localized: "Bundle")),
+            (0x4000, String(localized: "Invisible")),
+            (0x8000, String(localized: "Alias"))
         ]
         let names: [String] = knownFlags.compactMap { flags & $0.0 == 0 ? nil : $0.1 }
         let description: String = names.isEmpty
@@ -763,7 +763,7 @@ nonisolated struct FileInformationSnapshot: Sendable {
            }) {
             return string
         }
-        return hexString(data.prefix(128)) + (data.count > 128 ? "\n(first 128 bytes)" : "")
+        return hexString(data.prefix(128)) + (data.count > 128 ? "\n" + String(localized: "(first 128 bytes)") : "")
     }
 
     private static func hexString<T: DataProtocol>(_ data: T) -> String {
