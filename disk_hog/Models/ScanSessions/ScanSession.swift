@@ -17,6 +17,7 @@ final class ScanSession: ObservableObject {
     @Published private(set) var scanStage: DiskScanStage
     @Published private(set) var rootItem: DiskItem? {
         didSet {
+            treeRevision &+= 1
             NotificationCenter.default.post(name: .scanSessionTreeDidChange, object: self)
         }
     }
@@ -38,6 +39,11 @@ final class ScanSession: ObservableObject {
 
     private(set) var source: ScanSource
 
+    // Derived work may only publish against the exact tree revision it read.
+    private var treeRevision: UInt64 = 0
+    private var appliedSizeMode: Bool?
+    private var requestedKindColors = ScanPreferenceDefaults.sharesKindColors
+    private var requestedColorScheme = ScanPreferenceDefaults.treemapColorScheme
     private var settings: DiskScanSettings
     private let scanWorker: any ScanSessionScanning
     private let treeWorker: any ScanSessionTreeUpdating
@@ -378,11 +384,15 @@ final class ScanSession: ObservableObject {
         sharesKindColors: Bool,
         colorScheme: TreemapColorScheme
     ) {
+        requestedKindColors = sharesKindColors
+        requestedColorScheme = colorScheme
         guard state == .complete,
+              !isUpdatingTree,
               let rootItem: DiskItem else {
             return
         }
 
+        let revision = treeRevision
         let usePhysicalSize: Bool = settings.usePhysicalSize
         let presentationWorker: any ScanSessionPresenting = presentationWorker
         _ = taskCoordinator.start(.presentationUpdate) { [weak self] updateID in Task.detached(priority: .userInitiated) {
@@ -394,12 +404,12 @@ final class ScanSession: ObservableObject {
             )
             guard !Task.isCancelled else {
                 await MainActor.run { [weak self] in
-                    self?.finishPresentationUpdate(id: updateID, metrics: nil)
+                    self?.finishPresentationUpdate(id: updateID, revision: revision, metrics: nil)
                 }
                 return
             }
             await MainActor.run { [weak self] in
-                self?.finishPresentationUpdate(id: updateID, metrics: metrics)
+                self?.finishPresentationUpdate(id: updateID, revision: revision, metrics: metrics)
             }
         } }
     }
@@ -493,6 +503,7 @@ final class ScanSession: ObservableObject {
         isBuildingTreemap = true
         treemapPreparationProgress = nil
         self.presentationMetrics = presentationMetrics
+        appliedSizeMode = builtUsingPhysicalSize
         self.skippedItems = skippedItems
         updateSpaceItems(for: rootItem)
         preferredSelection = rootItem
@@ -503,21 +514,24 @@ final class ScanSession: ObservableObject {
                                  refreshedPath: rootItem.path, rootPath: rootItem.path)
         currentPath = rootItem.path
         scannedByteCount = rootItem.sizeValue(usePhysicalSize: settings.usePhysicalSize)
-        if builtUsingPhysicalSize != settings.usePhysicalSize {
-            rebuildForSizeMode(rootItem: rootItem, usePhysicalSize: settings.usePhysicalSize)
-        }
+        reconcilePresentation()
         startPendingRescanIfNeeded()
     }
 
     private func beginTreeUpdate() -> ScanSessionWorkOperation {
         let operation: ScanSessionWorkOperation = rescanCoordinator.beginTreeUpdate()
+        treeRevision &+= 1
+        taskCoordinator.cancel(.presentationUpdate)
+        taskCoordinator.cancel(.sizeModeUpdate)
         isUpdatingTree = true
         failure = nil
         return operation
     }
 
-    private func finishPresentationUpdate(id: UUID, metrics: TreemapPresentationMetrics?) {
+    private func finishPresentationUpdate(id: UUID, revision: UInt64, metrics: TreemapPresentationMetrics?) {
         guard taskCoordinator.finish(.presentationUpdate, operationID: id),
+              revision == treeRevision,
+              !isUpdatingTree,
               state == .complete else {
             return
         }
@@ -542,6 +556,7 @@ final class ScanSession: ObservableObject {
         let counts: (files: Int, folders: Int) = rootItem.scanCounts(includeSelf: false)
         preferredSelection = rootItem.item(atPath: selectionPath, allowAncestors: true) ?? rootItem
         self.presentationMetrics = presentationMetrics
+        appliedSizeMode = builtUsingPhysicalSize
         self.skippedItems = Self.mergingSkippedItems(
             self.skippedItems,
             replacingSubtreeAt: refreshedSubtreePath,
@@ -559,13 +574,14 @@ final class ScanSession: ObservableObject {
                                      hasSkippedItems: !skippedItems.isEmpty,
                                      refreshedPath: refreshedSubtreePath, rootPath: rootItem.path)
         }
-        if builtUsingPhysicalSize != settings.usePhysicalSize {
-            rebuildForSizeMode(rootItem: rootItem, usePhysicalSize: settings.usePhysicalSize)
-        }
+        reconcilePresentation()
         startPendingRescanIfNeeded()
     }
 
     private func rebuildForSizeMode(rootItem: DiskItem, usePhysicalSize: Bool) {
+        let revision = treeRevision
+        let sharesKindColors = requestedKindColors
+        let colorScheme = requestedColorScheme
         let selectionPath: String = preferredSelection?.path ?? rootItem.path
         let presentationWorker: any ScanSessionPresenting = presentationWorker
         _ = taskCoordinator.start(.sizeModeUpdate) { [weak self] updateID in Task.detached(priority: .userInitiated) {
@@ -573,26 +589,29 @@ final class ScanSession: ObservableObject {
                 rootItem: rootItem,
                 selectionPath: selectionPath,
                 usePhysicalSize: usePhysicalSize,
-                sharesKindColors: ScanPreferenceDefaults.sharesKindColors,
-                colorScheme: ScanPreferenceDefaults.treemapColorScheme
+                sharesKindColors: sharesKindColors,
+                colorScheme: colorScheme
             )
             guard !Task.isCancelled else {
                 await MainActor.run { [weak self] in
-                    self?.finishSizeModeUpdate(id: updateID, result: nil)
+                    self?.finishSizeModeUpdate(id: updateID, revision: revision, result: nil)
                 }
                 return
             }
             await MainActor.run { [weak self] in
-                self?.finishSizeModeUpdate(id: updateID, result: result)
+                self?.finishSizeModeUpdate(id: updateID, revision: revision, result: result)
             }
         } }
     }
 
     private func finishSizeModeUpdate(
         id: UUID,
+        revision: UInt64,
         result: ScanSessionSizeModeUpdateResult?
     ) {
         guard taskCoordinator.finish(.sizeModeUpdate, operationID: id),
+              revision == treeRevision,
+              !isUpdatingTree,
               state == .complete,
               let result,
               settings.usePhysicalSize == result.usePhysicalSize else {
@@ -602,11 +621,25 @@ final class ScanSession: ObservableObject {
             atPath: result.selectionPath,
             allowAncestors: true
         ) ?? result.rootItem
+        appliedSizeMode = result.usePhysicalSize
         presentationMetrics = result.presentationMetrics
         updateSpaceItems(for: result.rootItem)
         rootItem = result.rootItem
         scannedByteCount = result.rootItem.sizeValue(usePhysicalSize: result.usePhysicalSize)
         currentPath = preferredSelection?.path ?? result.rootItem.path
+        reconcilePresentation()
+    }
+
+    /// Reapply preferences deferred during a tree operation, including failure
+    /// and cancellation. Rebuild only what differs from the published snapshot.
+    private func reconcilePresentation() {
+        guard state == .complete, !isUpdatingTree, let rootItem else { return }
+        if appliedSizeMode != settings.usePhysicalSize {
+            rebuildForSizeMode(rootItem: rootItem, usePhysicalSize: settings.usePhysicalSize)
+        } else if presentationMetrics?.sharesKindColors != requestedKindColors
+                    || presentationMetrics?.colorScheme != requestedColorScheme {
+            rebuildPresentationMetrics(sharesKindColors: requestedKindColors, colorScheme: requestedColorScheme)
+        }
     }
 
     private func updateSpaceItems(for rootItem: DiskItem) {
@@ -644,6 +677,7 @@ final class ScanSession: ObservableObject {
             return
         }
         isUpdatingTree = false
+        reconcilePresentation()
         startPendingRescanIfNeeded()
     }
 
@@ -657,6 +691,7 @@ final class ScanSession: ObservableObject {
         }
         isUpdatingTree = false
         failure = ScanSessionFailure(error: error, operation: operation)
+        reconcilePresentation()
         startPendingRescanIfNeeded()
     }
 
