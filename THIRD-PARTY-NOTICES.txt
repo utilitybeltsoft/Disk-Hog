@@ -1,0 +1,44 @@
+Disk Hog — copyright and third-party notices
+
+Disk Hog modifications and additions:
+Copyright (C) 2026 Utility Belt Software LLC.
+
+Disk Hog includes Swift adaptations of Disk Inventory Z, Disk Inventory X,
+and the TreeMapView framework. These are adaptations of upstream code,
+not merely acknowledgements of inspiration.
+
+Disk Inventory X and TreeMapView:
+Copyright (C) 2003, 2004, 2019 Tjark Derlien.
+TreeMapView source headers also state: All rights reserved.
+
+Disk Inventory Z modifications:
+Copyright (C) 2026 Dani Sarfati.
+
+Upstream projects:
+https://github.com/danifunker/disk-inventory-z
+https://gitlab.com/tderlien/disk-inventory-x
+https://gitlab.com/tderlien/treemapview-framework
+https://www.derlien.com/
+
+Adapted components include filesystem scanning and item construction,
+treemap layout, cushion rendering and lighting, color normalization,
+bitmap helpers, and treemap view behavior. Disk Hog's 2026 changes include
+translation to Swift, replacement of the application interface, immutable
+tree storage, background rendering, and revised scan and cleanup handling.
+See docs/licensing/AUDIT.md in the source distribution for the evidence
+and the distinction between upstream code and Disk Hog modifications.
+
+Disk Hog is distributed under the GNU General Public License, version 3.
+You may copy, redistribute, and modify it under the terms of that license.
+The complete license is in COPYING, included with the application and source.
+Upstream permissions to use later GPL versions are not withdrawn by this
+choice of version for the combined application.
+
+Disk Hog is distributed WITHOUT ANY WARRANTY; without even the implied
+warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for details.
+
+The original TreeMapView distribution includes an additional warranty
+notice. It is preserved verbatim in TreeMapView-1.0-readme.rtf, together
+with its accompanying TreeMapView-1.0-GPL.txt. These files accompany this
+notice in the application and in docs/licensing/upstream in the source.

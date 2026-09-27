@@ -6,6 +6,13 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		A0B0C0D0E0F1000000000001 /* COPYING in Resources */ = {isa = PBXBuildFile; fileRef = A0B0C0D0E0F0000000000001 /* COPYING */; };
+		A0B0C0D0E0F1000000000002 /* THIRD-PARTY-NOTICES.txt in Resources */ = {isa = PBXBuildFile; fileRef = A0B0C0D0E0F0000000000002 /* THIRD-PARTY-NOTICES.txt */; };
+		A0B0C0D0E0F1000000000003 /* TreeMapView-1.0-readme.rtf in Resources */ = {isa = PBXBuildFile; fileRef = A0B0C0D0E0F0000000000003 /* TreeMapView-1.0-readme.rtf */; };
+		A0B0C0D0E0F1000000000004 /* TreeMapView-1.0-GPL.txt in Resources */ = {isa = PBXBuildFile; fileRef = A0B0C0D0E0F0000000000004 /* TreeMapView-1.0-GPL.txt */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		51CD97102FF09A6800A37403 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -24,6 +31,10 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		A0B0C0D0E0F0000000000001 /* COPYING */ = {isa = PBXFileReference; lastKnownFileType = text; name = "COPYING"; path = "COPYING"; sourceTree = "<group>"; };
+		A0B0C0D0E0F0000000000002 /* THIRD-PARTY-NOTICES.txt */ = {isa = PBXFileReference; lastKnownFileType = text; name = "THIRD-PARTY-NOTICES.txt"; path = "THIRD-PARTY-NOTICES.txt"; sourceTree = "<group>"; };
+		A0B0C0D0E0F0000000000003 /* TreeMapView-1.0-readme.rtf */ = {isa = PBXFileReference; lastKnownFileType = text.rtf; name = "TreeMapView-1.0-readme.rtf"; path = "docs/licensing/upstream/TreeMapView-1.0-readme.rtf"; sourceTree = "<group>"; };
+		A0B0C0D0E0F0000000000004 /* TreeMapView-1.0-GPL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; name = "TreeMapView-1.0-GPL.txt"; path = "docs/licensing/upstream/TreeMapView-1.0-GPL.txt"; sourceTree = "<group>"; };
 		51CD97022FF09A6500A37403 /* disk_hog.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = disk_hog.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		51CD970F2FF09A6800A37403 /* disk_hogTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = disk_hogTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		51CD97192FF09A6800A37403 /* disk_hogUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = disk_hogUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -75,6 +86,10 @@
 		51CD96F92FF09A6500A37403 = {
 			isa = PBXGroup;
 			children = (
+				A0B0C0D0E0F0000000000001 /* COPYING */,
+				A0B0C0D0E0F0000000000002 /* THIRD-PARTY-NOTICES.txt */,
+				A0B0C0D0E0F0000000000003 /* TreeMapView-1.0-readme.rtf */,
+				A0B0C0D0E0F0000000000004 /* TreeMapView-1.0-GPL.txt */,
 				51CD97042FF09A6500A37403 /* disk_hog */,
 				51CD97122FF09A6800A37403 /* disk_hogTests */,
 				51CD971C2FF09A6800A37403 /* disk_hogUITests */,
@@ -216,6 +231,10 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A0B0C0D0E0F1000000000001 /* COPYING in Resources */,
+				A0B0C0D0E0F1000000000002 /* THIRD-PARTY-NOTICES.txt in Resources */,
+				A0B0C0D0E0F1000000000003 /* TreeMapView-1.0-readme.rtf in Resources */,
+				A0B0C0D0E0F1000000000004 /* TreeMapView-1.0-GPL.txt in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
