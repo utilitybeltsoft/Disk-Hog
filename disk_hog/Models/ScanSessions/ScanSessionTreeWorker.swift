@@ -80,11 +80,8 @@ nonisolated struct DiskInventoryZScanSessionTreeWorker: ScanSessionTreeUpdating 
         return ScanSessionTreeUpdateResult(
             source: resolvedSource,
             rootItem: updatedRoot,
-            presentationMetrics: TreemapPresentationMetrics(
-                rootItem: updatedRoot,
-                usePhysicalSize: settings.usePhysicalSize,
-                sharesKindColors: presentation.sharesKindColors,
-                colorScheme: presentation.colorScheme
+            presentationMetrics: presentationMetrics(
+                for: updatedRoot, settings: settings, presentation: presentation
             ),
             selectionPath: item.path,
             builtUsingPhysicalSize: settings.usePhysicalSize,
@@ -128,16 +125,26 @@ nonisolated struct DiskInventoryZScanSessionTreeWorker: ScanSessionTreeUpdating 
         return ScanSessionTreeUpdateResult(
             source: resolvedSource,
             rootItem: updatedRoot,
-            presentationMetrics: TreemapPresentationMetrics(
-                rootItem: updatedRoot,
-                usePhysicalSize: settings.usePhysicalSize,
-                sharesKindColors: presentation.sharesKindColors,
-                colorScheme: presentation.colorScheme
+            presentationMetrics: presentationMetrics(
+                for: updatedRoot, settings: settings, presentation: presentation
             ),
             selectionPath: item.url.deletingLastPathComponent().path,
             builtUsingPhysicalSize: settings.usePhysicalSize,
             skippedItems: [],
             refreshedSubtreePath: item.path
+        )
+    }
+
+    private func presentationMetrics(
+        for rootItem: DiskItem,
+        settings: DiskScanSettings,
+        presentation: ScanPresentationSettings
+    ) -> TreemapPresentationMetrics {
+        TreemapPresentationMetrics(
+            rootItem: rootItem,
+            usePhysicalSize: settings.usePhysicalSize,
+            sharesKindColors: presentation.sharesKindColors,
+            colorScheme: presentation.colorScheme
         )
     }
 
