@@ -95,7 +95,7 @@ struct DeletionProtectionTests {
 
     @Test func onlySelectedReadyEntriesReachTheTrashAndNeverTheirUnqueuedNeighbours() async throws {
         let recorder = Recorder()
-        let store = CleanupQueueStore(trashItem: { url, _ in recorder.record(url) }, refreshSession: { _ in })
+        let store = CleanupQueueStore(trashItem: { url, _ in recorder.record(url) }, reconcileSession: { _, _ in })
         let session = Self.session()
         let a = Self.item("/tmp/protection-fixture/a.txt")
         let b = Self.item("/tmp/protection-fixture/b.txt")
@@ -117,7 +117,7 @@ struct DeletionProtectionTests {
 
     @Test func itemRemovedFromQueueWhileProcessingIsNotTrashed() async throws {
         let recorder = Recorder()
-        let store = CleanupQueueStore(trashItem: { url, _ in recorder.record(url) }, refreshSession: { _ in })
+        let store = CleanupQueueStore(trashItem: { url, _ in recorder.record(url) }, reconcileSession: { _, _ in })
         let session = Self.session()
         let first = Self.item("/tmp/protection-fixture/first.txt")
         let second = Self.item("/tmp/protection-fixture/second.txt")
@@ -131,7 +131,7 @@ struct DeletionProtectionTests {
 
     @Test func secondTrashRequestWhileFirstIsInFlightCannotTrashAnythingTwice() async throws {
         let recorder = Recorder()
-        let store = CleanupQueueStore(trashItem: { url, _ in recorder.record(url) }, refreshSession: { _ in })
+        let store = CleanupQueueStore(trashItem: { url, _ in recorder.record(url) }, reconcileSession: { _, _ in })
         #expect(store.enqueue(Self.item("/tmp/protection-fixture/once.txt"), from: Self.session()))
         store.moveSelectedItemsToFinderTrash()
         store.moveSelectedItemsToFinderTrash()
@@ -157,7 +157,7 @@ struct DeletionProtectionTests {
         #expect(!linkItem.isFolder)
 
         let recorder = Recorder()
-        let store = CleanupQueueStore(trashItem: { url, _ in recorder.record(url) }, refreshSession: { _ in })
+        let store = CleanupQueueStore(trashItem: { url, _ in recorder.record(url) }, reconcileSession: { _, _ in })
         #expect(store.enqueue(linkItem, from: Self.session(scanRoot.path)))
         store.moveSelectedItemsToFinderTrash()
         try await Self.drain(store)

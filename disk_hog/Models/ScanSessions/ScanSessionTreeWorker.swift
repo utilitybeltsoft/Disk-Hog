@@ -8,9 +8,25 @@ nonisolated struct ScanSessionTreeUpdateResult: @unchecked Sendable {
     let builtUsingPhysicalSize: Bool
     let skippedItems: [ScanSkippedItem]
     let refreshedSubtreePath: String
+    /// Non-nil for cleanup batches; prune only these skipped-item scopes.
+    var removedSubtreePaths: [String]? = nil
+}
+
+nonisolated struct ScanSessionCleanupBaseline: Sendable, Equatable {
+    let rootID: DiskItemID
+    let operationRevision: UInt64
+}
+
+nonisolated struct ScanSessionCleanupBatch: Sendable {
+    let baseline: ScanSessionCleanupBaseline?
+    let paths: [String]
 }
 
 nonisolated protocol ScanSessionTreeUpdating: Sendable {
+    func reconcileCleanup(paths: [String], currentRoot: DiskItem, source: ScanSource,
+                          selectionPath: String, settings: DiskScanSettings,
+                          presentation: ScanPresentationSettings) async throws -> ScanSessionTreeUpdateResult
+
     func refresh(
         item: DiskItem,
         currentRoot: DiskItem,
@@ -27,6 +43,36 @@ nonisolated protocol ScanSessionTreeUpdating: Sendable {
         settings: DiskScanSettings,
         presentation: ScanPresentationSettings
     ) async throws -> ScanSessionTreeUpdateResult
+}
+
+extension ScanSessionTreeUpdating {
+    /// Files have already been trashed. Do not honor cancellation here: publishing
+    /// the reconciled tree is required even if cancellation arrives after mutation.
+    nonisolated func reconcileCleanup(paths: [String], currentRoot: DiskItem, source: ScanSource,
+                                     selectionPath: String, settings: DiskScanSettings,
+                                     presentation: ScanPresentationSettings) async throws -> ScanSessionTreeUpdateResult {
+        guard let root = DiskItemTreeEditor.removingSubtrees(from: currentRoot, atPaths: paths,
+                                                            usePhysicalSize: settings.usePhysicalSize) else {
+            throw DiskScannerError.traversalInconsistency("Cleanup paths could not be reconciled with the scan tree.")
+        }
+        return ScanSessionTreeUpdateResult(source: source, rootItem: root,
+            presentationMetrics: presentationMetrics(for: root, settings: settings, presentation: presentation),
+            selectionPath: selectionPath, builtUsingPhysicalSize: settings.usePhysicalSize,
+            skippedItems: [], refreshedSubtreePath: root.path, removedSubtreePaths: paths)
+    }
+
+    fileprivate nonisolated func presentationMetrics(
+        for rootItem: DiskItem,
+        settings: DiskScanSettings,
+        presentation: ScanPresentationSettings
+    ) -> TreemapPresentationMetrics {
+        TreemapPresentationMetrics(
+            rootItem: rootItem,
+            usePhysicalSize: settings.usePhysicalSize,
+            sharesKindColors: presentation.sharesKindColors,
+            colorScheme: presentation.colorScheme
+        )
+    }
 }
 
 nonisolated struct DiskInventoryZScanSessionTreeWorker: ScanSessionTreeUpdating {
@@ -132,19 +178,6 @@ nonisolated struct DiskInventoryZScanSessionTreeWorker: ScanSessionTreeUpdating 
             builtUsingPhysicalSize: settings.usePhysicalSize,
             skippedItems: [],
             refreshedSubtreePath: item.path
-        )
-    }
-
-    private func presentationMetrics(
-        for rootItem: DiskItem,
-        settings: DiskScanSettings,
-        presentation: ScanPresentationSettings
-    ) -> TreemapPresentationMetrics {
-        TreemapPresentationMetrics(
-            rootItem: rootItem,
-            usePhysicalSize: settings.usePhysicalSize,
-            sharesKindColors: presentation.sharesKindColors,
-            colorScheme: presentation.colorScheme
         )
     }
 

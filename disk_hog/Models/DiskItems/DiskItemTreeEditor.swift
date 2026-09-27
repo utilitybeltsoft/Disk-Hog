@@ -34,6 +34,26 @@ nonisolated enum DiskItemTreeEditor {
         )
     }
 
+    /// Removes known-deleted entries without filesystem enumeration. Missing nodes
+    /// are already reconciled; a root/out-of-tree path requires a real rescan.
+    static func removingSubtrees(from root: DiskItem, atPaths paths: [String],
+                                 usePhysicalSize: Bool) -> DiskItem? {
+        let ordered = Set(paths).sorted { $0.count < $1.count }
+        var removed: [String] = []
+        var updated = root
+        for path in ordered {
+            guard path != root.path, FilePathContainment.contains(path, in: root.path) else { return nil }
+            if removed.contains(where: { FilePathContainment.contains(path, in: $0) }) { continue }
+            removed.append(path)
+            guard updated.item(atPath: path) != nil else { continue }
+            guard let next = removingSubtree(from: updated, atPath: path, usePhysicalSize: usePhysicalSize) else {
+                return nil
+            }
+            updated = next
+        }
+        return updated
+    }
+
     static func reordered(_ root: DiskItem, usePhysicalSize: Bool) -> DiskItem {
         let builder: DiskItemBuilder = builderCopy(of: root)
         builder.recalculateSize(usePhysicalSize: usePhysicalSize)

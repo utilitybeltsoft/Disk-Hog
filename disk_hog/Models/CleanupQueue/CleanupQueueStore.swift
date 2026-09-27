@@ -15,6 +15,7 @@ enum CleanupQueueItemStatus: Equatable {
 struct CleanupQueueItem: Identifiable {
     let id: UUID
     let itemURL: URL
+    let treePath: String
     let displayName: String
     let isFolder: Bool
     /// Values cached from the most recently published scan tree.  Keeping
@@ -41,17 +42,17 @@ final class CleanupQueueStore: ObservableObject {
 
     @Published private(set) var items: [CleanupQueueItem] = []
     private let trashItem: @Sendable (URL, ScanSource) throws -> Void
-    private let refreshSession: @MainActor (ScanSession) -> Void
+    private let reconcileSession: @MainActor (ScanSession, ScanSessionCleanupBatch) -> Void
     private var notificationCancellable: AnyCancellable?
 
     init(
         trashItem: @escaping @Sendable (URL, ScanSource) throws -> Void = DiskItemFileDeletion.moveToFinderTrash,
-        refreshSession: @escaping @MainActor (ScanSession) -> Void = { session in
-            session.refreshAfterExternalDeletion()
+        reconcileSession: @escaping @MainActor (ScanSession, ScanSessionCleanupBatch) -> Void = { session, batch in
+            session.reconcileAfterCleanup(batch)
         }
     ) {
         self.trashItem = trashItem
-        self.refreshSession = refreshSession
+        self.reconcileSession = reconcileSession
         notificationCancellable = NotificationCenter.default.publisher(for: .scanSessionTreeDidChange)
             .receive(on: RunLoop.main)
             .sink { [weak self] notification in
@@ -84,6 +85,7 @@ final class CleanupQueueStore: ObservableObject {
             CleanupQueueItem(
                 id: UUID(),
                 itemURL: itemURL,
+                treePath: item.path,
                 displayName: item.displayName,
                 isFolder: item.isFolder,
                 allocatedSize: item.allocatedSizeValue,
@@ -169,14 +171,18 @@ final class CleanupQueueStore: ObservableObject {
             return
         }
 
-        for item: CleanupQueueItem in selectedItems {
+        var initialRoots: [ObjectIdentifier: ScanSessionCleanupBaseline] = [:]
+        for item in selectedItems {
+            if let session = item.sessionReference.value, let baseline = session.cleanupBaseline {
+                initialRoots[ObjectIdentifier(session)] = baseline
+            }
             updateStatus(.processing, for: item.id)
         }
 
         let trashItem: @Sendable (URL, ScanSource) throws -> Void = trashItem
-        let refreshSession: @MainActor (ScanSession) -> Void = refreshSession
-        Task { [trashItem, refreshSession] in
-            var sessionsToRefresh: [ObjectIdentifier: ScanSession] = [:]
+        let reconcileSession: @MainActor (ScanSession, ScanSessionCleanupBatch) -> Void = reconcileSession
+        Task { [trashItem, reconcileSession, initialRoots] in
+            var successfulBatches: [ObjectIdentifier: (session: ScanSession, paths: [String])] = [:]
             for item: CleanupQueueItem in selectedItems {
                 guard isProcessing(item.id) else {
                     continue
@@ -211,14 +217,16 @@ final class CleanupQueueStore: ObservableObject {
                 case .success:
                     remove(ids: [item.id])
                     if let session: ScanSession = item.sessionReference.value {
-                        sessionsToRefresh[ObjectIdentifier(session)] = session
+                        successfulBatches[ObjectIdentifier(session), default: (session, [])].paths.append(item.treePath)
                     }
                 case .failure(let error):
                     updateStatus(Self.status(for: error), for: item.id)
                 }
             }
-            for session: ScanSession in sessionsToRefresh.values {
-                refreshSession(session)
+            for (id, success) in successfulBatches {
+                reconcileSession(success.session, ScanSessionCleanupBatch(
+                    baseline: initialRoots[id], paths: success.paths
+                ))
             }
         }
     }
@@ -238,7 +246,7 @@ final class CleanupQueueStore: ObservableObject {
         var updatedItems: [CleanupQueueItem] = items
         var didChange: Bool = false
         for index: Int in updatedItems.indices where updatedItems[index].sessionReference.value === session {
-            guard let currentItem: DiskItem = rootItem.item(atPath: updatedItems[index].itemURL.path) else {
+            guard let currentItem: DiskItem = rootItem.item(atPath: updatedItems[index].treePath) else {
                 continue
             }
             let allocatedSize: UInt64 = currentItem.allocatedSizeValue

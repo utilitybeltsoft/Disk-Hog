@@ -21,7 +21,7 @@ struct CleanupQueueSafetyCoverageTests {
         let session = ScanSession(source: fixture.source)
         var refreshes = 0
         let store = CleanupQueueStore(trashItem: { _, _ in throw CocoaError(code) },
-                                      refreshSession: { _ in refreshes += 1 })
+                                      reconcileSession: { _, _ in refreshes += 1 })
         #expect(store.enqueue(item, from: session))
         store.moveSelectedItemsToFinderTrash()
         try await waitForCompletion(store)
@@ -49,7 +49,7 @@ struct CleanupQueueSafetyCoverageTests {
         var refreshed: [ScanSession] = []
         let store = CleanupQueueStore(trashItem: { url, _ in
             try FileManager.default.moveItem(at: url, to: destination)
-        }, refreshSession: { refreshed.append($0) })
+        }, reconcileSession: { session, _ in refreshed.append(session) })
         #expect(store.enqueue(victim, from: session))
         #expect(store.enqueue(keep, from: session))
         let keepID = try #require(store.items.first { $0.itemURL == keep.url.standardizedFileURL }?.id)

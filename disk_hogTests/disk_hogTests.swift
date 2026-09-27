@@ -433,7 +433,7 @@ struct ScanSessionFailureTests {
 @MainActor
 struct CleanupQueueStoreTests {
     @Test func rejectsRootItemsAndDuplicateEntries() {
-        let store: CleanupQueueStore = CleanupQueueStore { _, _ in }
+        let store: CleanupQueueStore = CleanupQueueStore(trashItem: { _, _ in })
         let session: ScanSession = Self.session()
         let root: DiskItem = DiskItem(
             url: URL(fileURLWithPath: "/tmp/cleanup-fixture"),
@@ -453,7 +453,7 @@ struct CleanupQueueStoreTests {
     }
 
     @Test func enqueuingAFolderRemovesItsPreviouslyQueuedDescendants() {
-        let store: CleanupQueueStore = CleanupQueueStore { _, _ in }
+        let store: CleanupQueueStore = CleanupQueueStore(trashItem: { _, _ in })
         let session: ScanSession = Self.session()
         let child: DiskItem = DiskItem(
             url: URL(fileURLWithPath: "/tmp/cleanup-fixture/folder/child.txt"),
@@ -476,7 +476,7 @@ struct CleanupQueueStoreTests {
     }
 
     @Test func batchQueueingKeepsOnlyTheHighestSelectedAncestor() {
-        let store: CleanupQueueStore = CleanupQueueStore { _, _ in }
+        let store: CleanupQueueStore = CleanupQueueStore(trashItem: { _, _ in })
         let session: ScanSession = Self.session()
         let child: DiskItem = DiskItem(
             url: URL(fileURLWithPath: "/tmp/cleanup-fixture/folder/child.txt"),
@@ -499,9 +499,9 @@ struct CleanupQueueStoreTests {
 
     @Test func successfulTrashExecutionUsesTheInjectedExecutorAndRemovesTheQueueItem() async throws {
         let invocationCount: LockedCounter = LockedCounter()
-        let store: CleanupQueueStore = CleanupQueueStore { _, _ in
+        let store: CleanupQueueStore = CleanupQueueStore(trashItem: { _, _ in
             invocationCount.increment()
-        }
+        })
         let session: ScanSession = Self.session()
         let file: DiskItem = Self.file(named: "successful.txt")
         #expect(store.enqueue(file, from: session))
@@ -517,7 +517,7 @@ struct CleanupQueueStoreTests {
         var refreshCount: Int = 0
         let store: CleanupQueueStore = CleanupQueueStore(
             trashItem: { _, _ in invocationCount.increment() },
-            refreshSession: { _ in refreshCount += 1 }
+            reconcileSession: { _, _ in refreshCount += 1 }
         )
         let session: ScanSession = Self.session()
         #expect(store.enqueue(Self.file(named: "first.txt"), from: session))
@@ -531,7 +531,7 @@ struct CleanupQueueStoreTests {
     }
 
     @Test func queueEntriesDoNotKeepClosedScanSessionsAlive() {
-        let store: CleanupQueueStore = CleanupQueueStore { _, _ in }
+        let store: CleanupQueueStore = CleanupQueueStore(trashItem: { _, _ in })
         weak var queuedSession: ScanSession?
 
         do {
@@ -545,9 +545,9 @@ struct CleanupQueueStoreTests {
     }
 
     @Test func missingTrashTargetRemainsQueuedWithAMissingStatus() async throws {
-        let store: CleanupQueueStore = CleanupQueueStore { _, _ in
+        let store: CleanupQueueStore = CleanupQueueStore(trashItem: { _, _ in
             throw CocoaError(.fileNoSuchFile)
-        }
+        })
         let session: ScanSession = Self.session()
         let file: DiskItem = Self.file(named: "missing.txt")
         #expect(store.enqueue(file, from: session))
@@ -560,9 +560,9 @@ struct CleanupQueueStoreTests {
     }
 
     @Test func permissionFailureRemainsQueuedWithAnInaccessibleStatus() async throws {
-        let store: CleanupQueueStore = CleanupQueueStore { _, _ in
+        let store: CleanupQueueStore = CleanupQueueStore(trashItem: { _, _ in
             throw CocoaError(.fileWriteNoPermission)
-        }
+        })
         let session: ScanSession = Self.session()
         let file: DiskItem = Self.file(named: "protected.txt")
         #expect(store.enqueue(file, from: session))
@@ -575,9 +575,9 @@ struct CleanupQueueStoreTests {
     }
 
     @Test func readOnlyVolumeFailureRemainsQueuedWithACannotMoveToTrashStatus() async throws {
-        let store: CleanupQueueStore = CleanupQueueStore { _, _ in
+        let store: CleanupQueueStore = CleanupQueueStore(trashItem: { _, _ in
             throw CocoaError(.fileWriteVolumeReadOnly)
-        }
+        })
         let session: ScanSession = Self.session()
         #expect(store.enqueue(Self.file(named: "read-only.txt"), from: session))
 
@@ -590,9 +590,9 @@ struct CleanupQueueStoreTests {
 
     @Test func removingAnItemBeforeTheTrashTaskRunsPreventsItsExecution() async throws {
         let invocationCount: LockedCounter = LockedCounter()
-        let store: CleanupQueueStore = CleanupQueueStore { _, _ in
+        let store: CleanupQueueStore = CleanupQueueStore(trashItem: { _, _ in
             invocationCount.increment()
-        }
+        })
         let session: ScanSession = Self.session()
         #expect(store.enqueue(Self.file(named: "removed-before-processing.txt"), from: session))
         let id: CleanupQueueItem.ID = try #require(store.items.first?.id)
@@ -607,12 +607,12 @@ struct CleanupQueueStoreTests {
 
     @Test func removingALaterItemWhileBatchTrashIsRunningPreventsItsExecution() async throws {
         let invocationCount: LockedCounter = LockedCounter()
-        let store: CleanupQueueStore = CleanupQueueStore { itemURL, _ in
+        let store: CleanupQueueStore = CleanupQueueStore(trashItem: { itemURL, _ in
             invocationCount.increment()
             if itemURL.lastPathComponent == "first.txt" {
                 Thread.sleep(forTimeInterval: 0.1)
             }
-        }
+        })
         let session: ScanSession = Self.session()
         #expect(store.enqueue(Self.file(named: "first.txt"), from: session))
         #expect(store.enqueue(Self.file(named: "second.txt"), from: session))
@@ -629,9 +629,9 @@ struct CleanupQueueStoreTests {
 
     @Test func deselectedItemsAreNeverSentToTheTrashExecutor() async throws {
         let invocationCount: LockedCounter = LockedCounter()
-        let store: CleanupQueueStore = CleanupQueueStore { _, _ in
+        let store: CleanupQueueStore = CleanupQueueStore(trashItem: { _, _ in
             invocationCount.increment()
-        }
+        })
         let session: ScanSession = Self.session()
         let file: DiskItem = Self.file(named: "deselected.txt")
         #expect(store.enqueue(file, from: session))

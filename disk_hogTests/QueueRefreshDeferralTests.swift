@@ -43,7 +43,7 @@ struct QueueRefreshDeferralTests {
         #expect(await worker.scanCalls == (operation == .scan ? 3 : 2))
     }
 
-    @Test func idleQueueDeletionStillRefreshesImmediately() async throws {
+    @Test func idleQueueDeletionEditsTreeWithoutScanOrRefresh() async throws {
         let worker = QueueRefreshFixtureWorker(busyOperation: .refresh, outcome: .success)
         await worker.release()
         let session = ScanSession(source: ScanSource(path: "/queue-refresh-fixture", displayName: "fixture"),
@@ -52,11 +52,16 @@ struct QueueRefreshDeferralTests {
         defer { session.cancel() }
         session.startScan()
         try await Self.wait { session.state == .complete }
-        #expect(store.enqueue(try #require(session.rootItem?.children.first), from: session))
+        let queued = try #require(session.rootItem?.children.first)
+        let freshness = session.snapshotFreshness
+        #expect(store.enqueue(queued, from: session))
         store.moveSelectedItemsToFinderTrash()
-        try await Self.wait { store.items.isEmpty && !session.isUpdatingTree && session.rootItem?.children.isEmpty == true }
+        try await Self.wait { store.items.isEmpty && !session.isUpdatingTree && session.rootItem?.children.count == 1 }
+        #expect(session.rootItem?.item(atPath: queued.path) == nil)
+        #expect(session.scannedByteCount == 10)
+        #expect(session.snapshotFreshness == freshness)
         #expect(await worker.scanCalls == 1)
-        #expect(await worker.treeCalls == 1)
+        #expect(await worker.treeCalls == 0)
     }
 
     private static func wait(_ predicate: () -> Bool) async throws {

@@ -49,6 +49,21 @@ Production shared instances remain constructor defaults, not action-time lookups
 `DependencyIsolationTests` covers queue routing, registry/persistence isolation,
 real worker settings, and preference changes during an in-flight scan.
 
+Successful queue cleanup supplies one batch of original tree paths per session.
+The queue captures a baseline (packed-root identity plus tree-operation revision)
+before mutation. If that baseline still matches a completed, idle session, the
+operation controller performs a local batch edit and builds metrics once off the
+main actor. Publication updates counts and skipped-item scopes, preserves the
+latest surviving selection, and leaves acquisition freshness and reported free
+capacity unchanged. Queue filesystem URLs may be standardized; stored tree paths
+must not be, including `/private/tmp` identities.
+
+Overlapping work, changed baselines, or a failed local edit fall back to one
+coalesced rescan. Local reconciliation does not honor cancellation after the
+filesystem has already changed. `CleanupLocalReconciliationTests` and
+`QueueRefreshDeferralTests` cover this contract, including successful-path batches,
+partial failures, per-session batching, preference changes, and busy work.
+
 Do not assign source/bookmark metadata outside the accepted-result boundary.
 Do not discard pending queue refreshes on cancellation/failure or cancel an
 in-flight deletion merely to service an external refresh request. Filesystem

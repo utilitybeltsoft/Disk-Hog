@@ -13,6 +13,7 @@ final class ScanSession: ObservableObject {
     @Published private(set) var diagnosticsExportState: DiagnosticsExportState = .idle
     #endif
 
+    private var treeOperationRevision: UInt64 = 0
     private var settings: DiskScanSettings
     private let operations: ScanSessionOperationController
     private let presentation: ScanSessionPresentationController
@@ -75,6 +76,7 @@ final class ScanSession: ObservableObject {
     private func startScan(preservingFailure: Bool) {
         guard state != .scanning, !operations.isBusy else { return }
         operations.startScan(source: source, settings: settings, presentation: presentation.preferences, willStart: {
+            treeOperationRevision &+= 1
             presentation.invalidate()
             activity.beginScan(path: source.path, now: Date())
             spaceVisibility = ScanSessionSpaceVisibility()
@@ -109,11 +111,27 @@ final class ScanSession: ObservableObject {
         if !operations.requestRescan(cancelActive: true) { startScan() }
     }
 
-    /// External deletion must survive any terminal outcome of current work.
-    func refreshAfterExternalDeletion() {
+    /// Captured before queue mutation; an overlapping scan/update forces fallback.
+    var cleanupBaseline: ScanSessionCleanupBaseline? {
+        guard state == .complete, !operations.isBusy, !isUpdatingTree, let rootItem else { return nil }
+        return ScanSessionCleanupBaseline(rootID: rootItem.id, operationRevision: treeOperationRevision)
+    }
+
+    func reconcileAfterCleanup(_ batch: ScanSessionCleanupBatch) {
+        guard !batch.paths.isEmpty else { return }
         guard !operations.requestRescan(cancelActive: false) else { return }
-        if state == .complete, let rootItem { refresh(rootItem) }
-        else { startScan() }
+        guard let baseline = batch.baseline, cleanupBaseline == baseline,
+              let rootItem else {
+            startScan(preservingFailure: true)
+            return
+        }
+        operations.reconcileCleanup(paths: batch.paths, root: rootItem, source: source,
+            selectionPath: preferredSelection?.path ?? rootItem.path,
+            settings: settings, presentation: presentation.preferences, willStart: {
+                treeOperationRevision &+= 1
+                presentation.invalidate()
+                activity.isUpdatingTree = true
+            }, receive: { [weak self] in self?.receive($0) })
     }
 
     func refresh(_ item: DiskItem) {
@@ -131,6 +149,7 @@ final class ScanSession: ObservableObject {
               let rootItem, rootItem.item(atPath: item.path) != nil else { return }
         operations.update(item: item, root: rootItem, deletionMethod: deletionMethod,
                           source: source, settings: settings, presentation: presentation.preferences, willStart: {
+            treeOperationRevision &+= 1
             presentation.invalidate()
             activity.isUpdatingTree = true
             failure = nil
@@ -168,6 +187,19 @@ final class ScanSession: ObservableObject {
         case .scanFinished(let result):
             finishScan(result)
             startPendingRescanIfNeeded()
+        case .cleanupFinished(let result, let inputRoot):
+            activity.isUpdatingTree = false
+            // The operation gate prevents concurrent tree writers. Keep the input
+            // identity check as a final guard against publishing an older tree.
+            if case .success(let update) = result, rootItem == inputRoot {
+                finishTree(.success(update), operation: .refresh(itemName: source.displayName), refreshStartedAt: nil, preserveSelection: true)
+                startPendingRescanIfNeeded()
+            } else {
+                // Filesystem mutation already succeeded. A failed/cancelled local
+                // edit must be followed by reconciliation, never silently dropped.
+                _ = operations.consumePendingRescan()
+                startScan(preservingFailure: true)
+            }
         case .treeFinished(let result, let operation, let refreshStartedAt):
             finishTree(result, operation: operation, refreshStartedAt: refreshStartedAt)
             startPendingRescanIfNeeded()
@@ -199,13 +231,13 @@ final class ScanSession: ObservableObject {
     }
 
     private func finishTree(_ result: Result<ScanSessionTreeUpdateResult, Error>,
-                            operation: ScanSessionOperation, refreshStartedAt: Date?) {
+                            operation: ScanSessionOperation, refreshStartedAt: Date?, preserveSelection: Bool = false) {
         activity.isUpdatingTree = false
         switch result {
         case .success(let result):
             var next = snapshot
             next.acceptTree(result, usePhysicalSize: settings.usePhysicalSize,
-                            refreshStartedAt: refreshStartedAt, finishedAt: Date())
+                            refreshStartedAt: refreshStartedAt, finishedAt: Date(), preserveSelection: preserveSelection)
             activity.currentPath = next.selection?.path ?? result.rootItem.path
             publish(next, treeChanged: true)
         case .failure(let error):

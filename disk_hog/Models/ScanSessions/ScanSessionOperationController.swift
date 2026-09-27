@@ -1,6 +1,7 @@
 import Foundation
 
 nonisolated enum ScanSessionOperationEvent: @unchecked Sendable {
+    case cleanupFinished(Result<ScanSessionTreeUpdateResult, Error>, inputRoot: DiskItem)
     case progress(DiskScanProgress)
     case stage(DiskScanStage)
     case preparingTreemap
@@ -10,7 +11,7 @@ nonisolated enum ScanSessionOperationEvent: @unchecked Sendable {
 
     var isTerminal: Bool {
         switch self {
-        case .scanFinished, .treeFinished: true
+        case .scanFinished, .treeFinished, .cleanupFinished: true
         default: false
         }
     }
@@ -76,6 +77,24 @@ final class ScanSessionOperationController {
                     }
                 } catch { result = .failure(error) }
                 await self?.deliver(.treeFinished(result, description, refreshStartedAt), for: operation, to: receive)
+            }
+        }
+    }
+
+    func reconcileCleanup(paths: [String], root: DiskItem, source: ScanSource, selectionPath: String,
+                          settings: DiskScanSettings, presentation: ScanPresentationSettings,
+                          willStart: () -> Void, receive: @escaping Receiver) {
+        let operation = rescans.beginTreeUpdate()
+        willStart()
+        let worker = treeWorker
+        _ = tasks.start(.treeUpdate, operationID: operation.id) { _ in
+            Task.detached(priority: .userInitiated) { [weak self] in
+                let result: Result<ScanSessionTreeUpdateResult, Error>
+                do {
+                    result = .success(try await worker.reconcileCleanup(paths: paths, currentRoot: root,
+                        source: source, selectionPath: selectionPath, settings: settings, presentation: presentation))
+                } catch { result = .failure(error) }
+                await self?.deliver(.cleanupFinished(result, inputRoot: root), for: operation, to: receive)
             }
         }
     }

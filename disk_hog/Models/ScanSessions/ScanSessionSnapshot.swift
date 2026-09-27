@@ -36,13 +36,20 @@ struct ScanSessionSnapshot {
     }
 
     mutating func acceptTree(_ result: ScanSessionTreeUpdateResult, usePhysicalSize: Bool,
-                             refreshStartedAt: Date?, finishedAt: Date) {
+                             refreshStartedAt: Date?, finishedAt: Date, preserveSelection: Bool = false) {
+        let selectionPath = preserveSelection ? (selection?.path ?? result.selectionPath) : result.selectionPath
         source = result.source
         root = result.rootItem
         metrics = result.presentationMetrics
-        selection = result.rootItem.item(atPath: result.selectionPath, allowAncestors: true) ?? result.rootItem
-        skippedItems = Self.mergingSkippedItems(skippedItems, replacingSubtreeAt: result.refreshedSubtreePath,
-                                               with: result.skippedItems)
+        selection = result.rootItem.item(atPath: selectionPath, allowAncestors: true) ?? result.rootItem
+        if let removedPaths = result.removedSubtreePaths {
+            skippedItems.removeAll { skipped in
+                removedPaths.contains { FilePathContainment.contains(skipped.path, in: $0) }
+            }
+        } else {
+            skippedItems = Self.mergingSkippedItems(skippedItems, replacingSubtreeAt: result.refreshedSubtreePath,
+                                                   with: result.skippedItems)
+        }
         let counts = result.rootItem.scanCounts(includeSelf: false)
         fileCount = counts.files
         folderCount = counts.folders
