@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 
 @MainActor
 final class DiskItemIconCache {
@@ -6,83 +7,115 @@ final class DiskItemIconCache {
 
     static let shared: DiskItemIconCache = DiskItemIconCache()
 
-    private let cache: NSCache<NSString, NSImage>
+    private final class Entry {
+        let icon: NSImage
+        let expiresAt: TimeInterval
+        init(icon: NSImage, expiresAt: TimeInterval) { self.icon = icon; self.expiresAt = expiresAt }
+    }
+    private struct Pending {
+        let id = UUID()
+        let generation: UInt64
+        let task: Task<NSImage, Never>
+    }
+    private let cache: NSCache<NSString, Entry>
     private let loadIcon: IconLoader
+    private let lifetime: TimeInterval
+    private let now: () -> TimeInterval
+    private var generation: UInt64 = 0
+    private var pending: [String: Pending] = [:]
+    private var observers: Set<AnyCancellable> = []
 
     init(
         countLimit: Int = 4_096,
+        lifetime: TimeInterval = 30,
+        now: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
+        applicationNotifications: NotificationCenter = .default,
+        workspaceNotifications: NotificationCenter = NSWorkspace.shared.notificationCenter,
         loadIcon: @escaping IconLoader = { NSWorkspace.shared.icon(forFile: $0) }
     ) {
-        let cache: NSCache<NSString, NSImage> = NSCache()
+        let cache: NSCache<NSString, Entry> = NSCache()
         cache.countLimit = countLimit
         self.cache = cache
         self.loadIcon = loadIcon
+        self.lifetime = lifetime
+        self.now = now
+        // ScanSession posts this synchronously on MainActor. Clear before views
+        // consume the new tree, rather than scheduling invalidation after redraw.
+        applicationNotifications.publisher(for: .scanSessionTreeDidChange).sink { [weak self] _ in
+            MainActor.assumeIsolated { self?.removeAll() }
+        }.store(in: &observers)
+        observe(NSApplication.didBecomeActiveNotification, on: applicationNotifications)
+        for name in [NSWorkspace.didMountNotification, NSWorkspace.didUnmountNotification,
+                     NSWorkspace.didRenameVolumeNotification] {
+            observe(name, on: workspaceNotifications)
+        }
     }
 
-    func icon(for item: DiskItem) -> NSImage {
-        icon(forFile: item.path)
+    private func observe(_ name: Notification.Name, on center: NotificationCenter) {
+        center.publisher(for: name).receive(on: RunLoop.main).sink { [weak self] _ in
+            self?.removeAll()
+        }.store(in: &observers)
     }
+
+    func icon(for item: DiskItem) -> NSImage { icon(forFile: item.path) }
 
     func icon(forFile path: String) -> NSImage {
-        let key: NSString = path as NSString
-        if let cachedIcon: NSImage = cache.object(forKey: key) {
-            return cachedIcon
-        }
-
-        let icon: NSImage = loadIcon(path)
-        cache.setObject(icon, forKey: key)
+        if let icon = cachedIcon(forFile: path) { return icon }
+        let icon = loadIcon(path)
+        store(icon, for: path)
         return icon
     }
 
-    /// Non-blocking cache peek: nil on a miss rather than falling back to a
-    /// synchronous fetch. Callers that can't afford to block the main thread
-    /// on a cold path (a spun-down external drive, a network share) should
-    /// use this for an immediate result and `loadIconAsync` to fill it in.
+    /// Never performs filesystem work on a cache miss or expired entry.
     func cachedIcon(forFile path: String) -> NSImage? {
-        cache.object(forKey: path as NSString)
+        let key = path as NSString
+        guard let entry = cache.object(forKey: key) else { return nil }
+        guard entry.expiresAt > now() else {
+            cache.removeObject(forKey: key)
+            return nil
+        }
+        return entry.icon
     }
 
-    /// Like `icon(forFile:)`, but the underlying fetch runs off the main
-    /// thread on a cache miss instead of blocking the caller.
+    /// Prefetch and visible rows share one background load per path/generation.
+    /// An invalidation while awaiting a load makes every waiter retry, so stale
+    /// work can neither refill the cache nor be delivered to a view.
     func loadIconAsync(forFile path: String) async -> NSImage {
-        if let cachedIcon: NSImage = cachedIcon(forFile: path) {
-            return cachedIcon
+        while true {
+            if let icon = cachedIcon(forFile: path) { return icon }
+            let request: Pending
+            if let existing = pending[path] {
+                request = existing
+            } else {
+                let loadIcon = loadIcon
+                request = Pending(generation: generation, task: Task.detached(priority: .userInitiated) {
+                    loadIcon(path)
+                })
+                pending[path] = request
+            }
+            let icon = await request.task.value
+            guard request.generation == generation else { continue }
+            if pending[path]?.id == request.id { pending[path] = nil }
+            // A synchronous lookup may have supplied a newer icon meanwhile.
+            if let cached = cachedIcon(forFile: path) { return cached }
+            store(icon, for: path)
+            return icon
         }
-
-        let loadIcon: IconLoader = loadIcon
-        let icon: NSImage = await Task.detached(priority: .userInitiated) {
-            loadIcon(path)
-        }.value
-        let key: NSString = path as NSString
-        if cache.object(forKey: key) == nil {
-            cache.setObject(icon, forKey: key)
-        }
-        return icon
     }
 
-    /// Warms the cache for paths not yet loaded, off the main thread. Volume root icons in
-    /// particular can be slow to resolve (spun-down external drives, network shares), and callers
-    /// that fetch icons synchronously on first use (matching the rest of this app's convention)
-    /// would otherwise block the main thread right when the user acts on that path - e.g. clicking
-    /// a volume in the source list immediately after it appears.
     func prefetch(paths: [String]) {
-        let loadIcon: IconLoader = loadIcon
-        for path: String in paths {
-            let key: NSString = path as NSString
-            guard cache.object(forKey: key) == nil else {
-                continue
-            }
-            Task.detached(priority: .utility) {
-                let icon: NSImage = loadIcon(path)
-                await MainActor.run {
-                    guard self.cache.object(forKey: key) == nil else { return }
-                    self.cache.setObject(icon, forKey: key)
-                }
-            }
+        for path in Set(paths) where cachedIcon(forFile: path) == nil {
+            Task { _ = await loadIconAsync(forFile: path) }
         }
+    }
+
+    private func store(_ icon: NSImage, for path: String) {
+        cache.setObject(Entry(icon: icon, expiresAt: now() + lifetime), forKey: path as NSString)
     }
 
     func removeAll() {
+        generation &+= 1
         cache.removeAllObjects()
+        pending.removeAll()
     }
 }

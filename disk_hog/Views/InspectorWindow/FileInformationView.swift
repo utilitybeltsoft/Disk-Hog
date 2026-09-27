@@ -146,10 +146,10 @@ private struct FileInformationContent: View {
                 kindDescription: kindDescription
             )
         }
-        .task(id: item.path) {
-            icon = FileInformationContent.resizedIcon(
-                await DiskItemIconCache.shared.loadIconAsync(forFile: item.path)
-            )
+        .task(id: item.id) {
+            let loadedIcon = await DiskItemIconCache.shared.loadIconAsync(forFile: item.path)
+            guard !Task.isCancelled else { return }
+            icon = FileInformationContent.resizedIcon(loadedIcon)
         }
     }
 
