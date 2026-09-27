@@ -78,11 +78,13 @@ invalidates the automation result.
 These checks do not establish Full Disk Access correctness or cover every
 multi-window, resize, drag-and-drop, or destructive-confirmation workflow.
 
-Both runners enable normal Xcode development signing. A local Apple Development
-certificate and its private key for the project's configured team must be
-available in Keychain. Developer ID distribution signing and notarization are
-not required. Do not disable signing: the UI-test runner must be signed after
-Xcode assembles it, or Gatekeeper can kill it before tests connect.
+All configurations explicitly select the organization certificate
+`Developer ID Application: Utility Belt Software LLC (YC7DSJ848Y)`. This
+certificate and its private key must be available in Keychain. Automatic
+identity selection is disabled to avoid falling back to a personal certificate.
+Local test runs do not require notarization. Do not disable signing: the UI-test
+runner must be signed after Xcode assembles it, or Gatekeeper can kill it before
+tests connect.
 
 Run UI tests from an interactive, unlocked desktop. macOS may request
 authentication to "Enable UI Automation"; approve that prompt to let the

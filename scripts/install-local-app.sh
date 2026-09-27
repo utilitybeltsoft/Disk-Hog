@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
-# Build and install Disk Hog for local use. This intentionally relies on Xcode's
-# normal local signing; it does not require Developer ID distribution signing or
-# notarization. Full Disk Access remains a user-controlled macOS setting.
+# Build and install Disk Hog for local use with the project's organization-named
+# Developer ID certificate. Local installation does not perform notarization.
+# Full Disk Access remains a user-controlled macOS setting.
 
 set -euo pipefail
 
