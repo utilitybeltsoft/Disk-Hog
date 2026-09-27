@@ -1,5 +1,23 @@
-# Treemap Z Provenance Archive
+# Treemap port provenance
 
-This folder preserves the annotated Treemap Swift files from the transition period after the Objective-C port. The live source files no longer carry per-line `Z` or `Swift-only` provenance comments because those comments made normal maintenance and review harder after parity work was complete.
+The annotated transition snapshots are preserved in Git at commit
+`d8939636ecc87f1d0924e467bf530cdeb0b41332`. They recorded the original
+Objective-C-to-Swift mapping with per-line `Z` and `Swift-only` comments.
+The duplicate Swift files were removed from the working tree because they
+were unused historical copies, not maintained implementations.
 
-Use these archived copies only when investigating the original port mapping. Do not reintroduce the per-line comments into production source.
+From the repository root, list the archived files:
+
+```sh
+git ls-tree -r --name-only d8939636ecc87f1d0924e467bf530cdeb0b41332 -- transition/treemap-z-provenance
+```
+
+Read an annotated snapshot without restoring obsolete source files:
+
+```sh
+git show d8939636ecc87f1d0924e467bf530cdeb0b41332:transition/treemap-z-provenance/TreemapViewRenderer.swift
+```
+
+Current rendering code lives in [disk_hog/Treemap](../../disk_hog/Treemap/).
+Use the archived snapshots only to investigate the original port mapping;
+do not reintroduce their per-line provenance comments into production code.
