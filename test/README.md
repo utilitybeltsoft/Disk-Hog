@@ -201,3 +201,22 @@ Manual release verification remains necessary on each supported macOS version:
 
 At implementation time, automated tests cover the state machine and service;
 fresh-entry registration and the live Quit & Reopen flow have not been verified.
+
+
+## Organization signing migration
+
+The project selects the organization's Developer ID Application certificate for
+Debug, Release, Testing, and test runners. The installer still refuses an
+unexpected change to the installed app's designated requirement by default.
+When intentionally moving an existing development-signed installation to the
+organization certificate, use:
+
+```sh
+ALLOW_SIGNING_IDENTITY_MIGRATION=1 bash scripts/install-local-app.sh
+```
+
+The explicit migration retains signature, Apple-team, and production bundle-ID
+checks. It does not reset privacy permissions or grant Full Disk Access. macOS
+may require the user to enable access again. Changing project signing alone does
+not replace an app already installed in /Applications. Local Developer ID signing
+also does not constitute notarization for public distribution.

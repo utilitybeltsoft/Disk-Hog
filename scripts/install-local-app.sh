@@ -60,7 +60,15 @@ if [[ -d "$install_path" ]]; then
         echo "Cannot establish the installed app's signing identity; leaving it untouched." >&2
         exit 1
     fi
-    codesign --verify -R "=$existing_requirement" "$build_app_path"
+    if ! codesign --verify -R "=$existing_requirement" "$build_app_path"; then
+        if [[ "${ALLOW_SIGNING_IDENTITY_MIGRATION:-0}" != "1" ]]; then
+            echo "The new build changes the installed signing identity; leaving it untouched." >&2
+            echo "For an intentional migration, rerun with ALLOW_SIGNING_IDENTITY_MIGRATION=1." >&2
+            exit 1
+        fi
+        echo "Migrating signing identity within the verified Apple developer team."
+        echo "macOS may require enabling Full Disk Access again after this migration."
+    fi
 fi
 
 # Replacing the complete bundle prevents stale resources or executable files from
