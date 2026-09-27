@@ -35,15 +35,7 @@ nonisolated struct DiskInventoryZScanSessionTreeWorker: ScanSessionTreeUpdating 
     private let performDeletion: PerformDeletion
 
     init(
-        performDeletion: @escaping PerformDeletion = { url, deletionMethod in
-            switch deletionMethod {
-            case .deletePermanently:
-                try FileManager.default.removeItem(at: url)
-            case .moveToTrash:
-                var resultingURL: NSURL?
-                try FileManager.default.trashItem(at: url, resultingItemURL: &resultingURL)
-            }
-        }
+        performDeletion: @escaping PerformDeletion = DiskItemFileDeletion.perform
     ) {
         self.performDeletion = performDeletion
     }

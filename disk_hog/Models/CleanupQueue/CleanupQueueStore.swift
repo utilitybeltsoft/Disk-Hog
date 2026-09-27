@@ -45,7 +45,7 @@ final class CleanupQueueStore: ObservableObject {
     private var notificationCancellable: AnyCancellable?
 
     init(
-        trashItem: @escaping @Sendable (URL, ScanSource) throws -> Void = CleanupQueueStore.moveToFinderTrash,
+        trashItem: @escaping @Sendable (URL, ScanSource) throws -> Void = DiskItemFileDeletion.moveToFinderTrash,
         refreshSession: @escaping @MainActor (ScanSession) -> Void = { session in
             session.refreshAfterExternalDeletion()
         }
@@ -262,26 +262,6 @@ final class CleanupQueueStore: ObservableObject {
 
     private func isProcessing(_ id: CleanupQueueItem.ID) -> Bool {
         items.contains { $0.id == id && $0.status == .processing }
-    }
-
-    private nonisolated static func moveToFinderTrash(
-        itemURL: URL,
-        source: ScanSource
-    ) throws {
-        let sourceURL: URL = try source.resolvingBookmark().url
-        let didStartAccessing: Bool = sourceURL.startAccessingSecurityScopedResource()
-        defer {
-            if didStartAccessing {
-                sourceURL.stopAccessingSecurityScopedResource()
-            }
-        }
-
-        guard FileManager.default.fileExists(atPath: itemURL.path) else {
-            throw CocoaError(.fileNoSuchFile)
-        }
-        try DiskItemDeletionPolicy.validateDeletion(at: itemURL)
-        var resultingURL: NSURL?
-        try FileManager.default.trashItem(at: itemURL, resultingItemURL: &resultingURL)
     }
 
     private nonisolated static func cannotMoveToFinderTrash(_ itemURL: URL) -> Bool {
