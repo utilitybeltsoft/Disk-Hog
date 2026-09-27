@@ -6,11 +6,20 @@ struct ScanWindowView: View {
     @StateObject private var inspectorContext: InspectorWindowContext
     @StateObject private var commandContext: ScanWindowCommandContext
     @StateObject private var treemapNavigation: TreemapNavigationState
-    @ObservedObject private var scanPreferences: ScanPreferences = .shared
+    @ObservedObject private var scanPreferences: ScanPreferences
+    private let commandState: ScanWindowCommandState
+    private let commandRouter: AppCommandRouter
     @State private var hoveredItem: DiskItem?
     @State private var activePane: ScanWindowPane?
 
-    init(session: ScanSession) {
+    init(session: ScanSession, preferences: ScanPreferences? = nil,
+         commandState: ScanWindowCommandState? = nil, commandRouter: AppCommandRouter? = nil) {
+        let preferences = preferences ?? .shared
+        let commandState = commandState ?? .shared
+        let commandRouter = commandRouter ?? .shared
+        self.commandRouter = commandRouter
+        self.scanPreferences = preferences
+        self.commandState = commandState
         let selectionCoordinator: ScanWindowSelectionCoordinator = ScanWindowSelectionCoordinator()
         let treemapNavigation: TreemapNavigationState = TreemapNavigationState()
         _session = StateObject(wrappedValue: session)
@@ -57,7 +66,7 @@ struct ScanWindowView: View {
                     FilesPaneView(
                         session: session,
                         selectionCoordinator: selectionCoordinator,
-                        navigation: treemapNavigation
+                        navigation: treemapNavigation, commandState: commandState, commandRouter: commandRouter
                     )
                         .environment(\.activeScanWindowPane, $activePane)
                 } second: {
@@ -73,7 +82,7 @@ struct ScanWindowView: View {
                 TreemapPanelView(
                     session: session,
                     selectionCoordinator: selectionCoordinator,
-                    navigation: treemapNavigation
+                    navigation: treemapNavigation, cleanupQueue: commandState.cleanupQueue
                 )
                     .environment(\.hoveredScanItem, $hoveredItem)
                     .environment(\.activeScanWindowPane, $activePane)
@@ -99,7 +108,7 @@ struct ScanWindowView: View {
         .onDisappear {
             session.cancel()
             commandContext.deactivate()
-            ScanWindowCommandState.shared.deactivate(if: commandContext)
+            commandState.deactivate(if: commandContext)
             InspectorWindowController.shared.deactivate(if: inspectorContext)
         }
         .onChange(of: session.rootItem?.id) {
@@ -149,7 +158,7 @@ struct ScanWindowView: View {
     private func activateScanWindowContext() {
         commandContext.updateSelectedItem(selectionCoordinator.selectedItem)
         commandContext.updateScanState()
-        ScanWindowCommandState.shared.activate(commandContext)
+        commandState.activate(commandContext)
         InspectorWindowController.shared.activate(inspectorContext)
     }
 

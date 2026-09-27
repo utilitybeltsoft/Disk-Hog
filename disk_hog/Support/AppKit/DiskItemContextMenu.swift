@@ -16,7 +16,11 @@ final class DiskItemContextMenuActionTarget: NSObject {
     weak var session: ScanSession?
     var openWithMenuController: OpenWithMenuController?
 
-    init(session: ScanSession? = nil) {
+    let cleanupQueue: CleanupQueueStore
+
+    init(session: ScanSession? = nil, cleanupQueue: CleanupQueueStore? = nil) {
+        let cleanupQueue = cleanupQueue ?? .shared
+        self.cleanupQueue = cleanupQueue
         self.session = session
     }
 
@@ -43,10 +47,10 @@ final class DiskItemContextMenuActionTarget: NSObject {
 
     @objc func trashMenuItem(_ sender: NSMenuItem) {
         guard let payload = sender.representedObject as? DiskItemContextMenuPayload else { return }
-        if CleanupQueueStore.shared.isDirectlyQueued(payload.item) {
-            DiskItemDeletionCoordinator.requestQueueUndo(of: payload.item)
+        if cleanupQueue.isDirectlyQueued(payload.item) {
+            DiskItemDeletionCoordinator.requestQueueUndo(of: payload.item, queue: cleanupQueue)
         } else {
-            DiskItemDeletionCoordinator.requestQueueing(of: payload.item, from: session)
+            DiskItemDeletionCoordinator.requestQueueing(of: payload.item, from: session, queue: cleanupQueue)
         }
     }
 
@@ -119,8 +123,8 @@ enum DiskItemContextMenuBuilder {
         menu.addItem(refreshItem)
         menu.addItem(.separator())
 
-        let isDirectlyQueued = CleanupQueueStore.shared.isDirectlyQueued(item)
-        let isAlreadyQueued = CleanupQueueStore.shared.contains(item)
+        let isDirectlyQueued = actionTarget.cleanupQueue.isDirectlyQueued(item)
+        let isAlreadyQueued = actionTarget.cleanupQueue.contains(item)
         let trashItem = menuItem(
             title: CleanupQueueMenuPresentation.title(isDirectlyQueued: isDirectlyQueued),
             action: #selector(DiskItemContextMenuActionTarget.trashMenuItem(_:)),

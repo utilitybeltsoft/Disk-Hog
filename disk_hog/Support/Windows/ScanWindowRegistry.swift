@@ -6,7 +6,7 @@ final class ScanWindowRegistry {
 
     private var windowsBySourceKey: [String: WeakScanWindow] = [:]
 
-    private init() {}
+    init() {}
 
     func register(_ window: NSWindow, session: ScanSession, for source: ScanSource) {
         windowsBySourceKey[source.scanWindowRegistryKey] = WeakScanWindow(window, session: session)

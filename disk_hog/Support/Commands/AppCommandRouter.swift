@@ -17,7 +17,11 @@ final class AppCommandRouter: ObservableObject {
     private var notificationCancellable: AnyCancellable?
     @Published private(set) var isSelectionListBatchQueueActive: Bool = false
 
-    init() {
+    let cleanupQueue: CleanupQueueStore
+
+    init(cleanupQueue: CleanupQueueStore? = nil) {
+        let cleanupQueue = cleanupQueue ?? .shared
+        self.cleanupQueue = cleanupQueue
         notificationCancellable = NotificationCenter.default.publisher(for: .scanSessionTreeDidChange)
             .receive(on: RunLoop.main)
             .sink { [weak self] notification in
@@ -43,7 +47,7 @@ final class AppCommandRouter: ObservableObject {
         guard targets.isEmpty == false else {
             return CleanupQueueMenuPresentation.addTitle
         }
-        if targets.allSatisfy({ CleanupQueueStore.shared.isDirectlyQueued(at: $0.itemURL) }) {
+        if targets.allSatisfy({ cleanupQueue.isDirectlyQueued(at: $0.itemURL) }) {
             return CleanupQueueMenuPresentation.undoTitle
         }
         return targets.count == 1
@@ -69,16 +73,16 @@ final class AppCommandRouter: ObservableObject {
     func toggleSelectionListBatchQueue() {
         guard let selectionListSession, canToggleSelectionListBatchQueue else { return }
         let targets: [SelectionListQueueTarget] = selectionListQueueTargets
-        if targets.allSatisfy({ CleanupQueueStore.shared.isDirectlyQueued(at: $0.itemURL) }) {
+        if targets.allSatisfy({ cleanupQueue.isDirectlyQueued(at: $0.itemURL) }) {
             for target: SelectionListQueueTarget in targets {
-                CleanupQueueStore.shared.remove(at: target.itemURL)
+                cleanupQueue.remove(at: target.itemURL)
             }
         } else {
             guard let rootItem: DiskItem = selectionListSession.rootItem else {
                 return
             }
             let items: [DiskItem] = targets.compactMap { rootItem.item(atPath: $0.path) }
-            CleanupQueueStore.shared.enqueue(items, from: selectionListSession)
+            cleanupQueue.enqueue(items, from: selectionListSession)
         }
         objectWillChange.send()
     }

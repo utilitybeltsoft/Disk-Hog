@@ -15,7 +15,8 @@ nonisolated protocol ScanSessionTreeUpdating: Sendable {
         item: DiskItem,
         currentRoot: DiskItem,
         source: ScanSource,
-        settings: DiskScanSettings
+        settings: DiskScanSettings,
+        presentation: ScanPresentationSettings
     ) async throws -> ScanSessionTreeUpdateResult
 
     func delete(
@@ -23,7 +24,8 @@ nonisolated protocol ScanSessionTreeUpdating: Sendable {
         deletionMethod: DiskItemDeletionMethod,
         currentRoot: DiskItem,
         source: ScanSource,
-        settings: DiskScanSettings
+        settings: DiskScanSettings,
+        presentation: ScanPresentationSettings
     ) async throws -> ScanSessionTreeUpdateResult
 }
 
@@ -50,7 +52,8 @@ nonisolated struct DiskInventoryZScanSessionTreeWorker: ScanSessionTreeUpdating 
         item: DiskItem,
         currentRoot: DiskItem,
         source: ScanSource,
-        settings: DiskScanSettings
+        settings: DiskScanSettings,
+        presentation: ScanPresentationSettings
     ) async throws -> ScanSessionTreeUpdateResult {
         let resolvedSource: ScanSource = try refreshingStaleBookmark(in: source)
         let refreshPath: String = Self.nearestExistingPath(
@@ -88,8 +91,8 @@ nonisolated struct DiskInventoryZScanSessionTreeWorker: ScanSessionTreeUpdating 
             presentationMetrics: TreemapPresentationMetrics(
                 rootItem: updatedRoot,
                 usePhysicalSize: settings.usePhysicalSize,
-                sharesKindColors: ScanPreferenceDefaults.sharesKindColors,
-                colorScheme: ScanPreferenceDefaults.treemapColorScheme
+                sharesKindColors: presentation.sharesKindColors,
+                colorScheme: presentation.colorScheme
             ),
             selectionPath: item.path,
             builtUsingPhysicalSize: settings.usePhysicalSize,
@@ -103,7 +106,8 @@ nonisolated struct DiskInventoryZScanSessionTreeWorker: ScanSessionTreeUpdating 
         deletionMethod: DiskItemDeletionMethod,
         currentRoot: DiskItem,
         source: ScanSource,
-        settings: DiskScanSettings
+        settings: DiskScanSettings,
+        presentation: ScanPresentationSettings
     ) async throws -> ScanSessionTreeUpdateResult {
         // Cancellation is only honored before the filesystem mutation below, which
         // is irreversible - once the item is actually deleted/trashed, the in-memory
@@ -135,8 +139,8 @@ nonisolated struct DiskInventoryZScanSessionTreeWorker: ScanSessionTreeUpdating 
             presentationMetrics: TreemapPresentationMetrics(
                 rootItem: updatedRoot,
                 usePhysicalSize: settings.usePhysicalSize,
-                sharesKindColors: ScanPreferenceDefaults.sharesKindColors,
-                colorScheme: ScanPreferenceDefaults.treemapColorScheme
+                sharesKindColors: presentation.sharesKindColors,
+                colorScheme: presentation.colorScheme
             ),
             selectionPath: item.url.deletingLastPathComponent().path,
             builtUsingPhysicalSize: settings.usePhysicalSize,

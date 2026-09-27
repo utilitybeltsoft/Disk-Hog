@@ -95,6 +95,8 @@ struct SelectionListTableView: NSViewRepresentable {
     var showsKindColumn: Bool = false
     var isVisible: Bool = true
     var onRankedAction: ((RankedItemAction, DiskItem) -> Void)? = nil
+    var commandState: ScanWindowCommandState = .shared
+    var commandRouter: AppCommandRouter = .shared
     let onSelect: (DiskItem) -> Void
 
     func makeCoordinator() -> Coordinator {
@@ -103,7 +105,7 @@ struct SelectionListTableView: NSViewRepresentable {
             selectedItemID: $selectedItemID,
             selectedItemIDs: $selectedItemIDs,
             sortDescriptors: $sortDescriptors,
-            onSelect: onSelect
+            onSelect: onSelect, commandState: commandState, commandRouter: commandRouter
         )
     }
 
@@ -135,8 +137,8 @@ struct SelectionListTableView: NSViewRepresentable {
         tableView.onBecomeFirstResponder = { [weak contextCoordinator = context.coordinator] in
             contextCoordinator?.activateBatchQueueCommand()
         }
-        tableView.onResignFirstResponder = {
-            AppCommandRouter.shared.deactivateSelectionListBatchQueue()
+        tableView.onResignFirstResponder = { [commandRouter] in
+            commandRouter.deactivateSelectionListBatchQueue()
         }
         tableView.setDraggingSourceOperationMask([], forLocal: true)
         tableView.setDraggingSourceOperationMask(.copy, forLocal: false)
@@ -248,7 +250,9 @@ struct SelectionListTableView: NSViewRepresentable {
         private let selectionMutationGate: AppKitSelectionMutationGate = AppKitSelectionMutationGate()
         private var isApplyingSortDescriptors: Bool = false
         let contextMenu: NSMenu = NSMenu()
-        private let batchQueueActionTarget: SelectionListBatchQueueActionTarget = SelectionListBatchQueueActionTarget()
+        let commandState: ScanWindowCommandState
+        let commandRouter: AppCommandRouter
+        private let batchQueueActionTarget: SelectionListBatchQueueActionTarget
         private static let sortBridge: AppKitSortDescriptorBridge<SelectionListSortField> = AppKitSortDescriptorBridge(
             keyForField: { field in
                 switch field {
@@ -279,8 +283,14 @@ struct SelectionListTableView: NSViewRepresentable {
             selectedItemID: Binding<DiskItemID?>,
             selectedItemIDs: Binding<Set<DiskItemID>>,
             sortDescriptors: Binding<[SelectionListSortDescriptor]>,
-            onSelect: @escaping (DiskItem) -> Void
+            onSelect: @escaping (DiskItem) -> Void,
+            commandState: ScanWindowCommandState? = nil, commandRouter: AppCommandRouter? = nil
         ) {
+            let commandState = commandState ?? .shared
+            let commandRouter = commandRouter ?? .shared
+            self.commandState = commandState
+            self.commandRouter = commandRouter
+            self.batchQueueActionTarget = SelectionListBatchQueueActionTarget(router: commandRouter)
             self.session = session
             self.selectedItemID = selectedItemID
             self.selectedItemIDs = selectedItemIDs
@@ -342,11 +352,11 @@ struct SelectionListTableView: NSViewRepresentable {
         // here only ever routed into ScanWindowCommandContext via onSelect, so Return
         // did nothing until keyboard focus moved to the outline or the treemap itself.
         func activateSelectedItem() {
-            ScanWindowCommandState.shared.zoomIn()
+            commandState.zoomIn()
         }
 
         func zoomOut() {
-            ScanWindowCommandState.shared.zoomOut()
+            commandState.zoomOut()
         }
 
         func tableView(
@@ -407,7 +417,7 @@ struct SelectionListTableView: NSViewRepresentable {
                 rows.indices.contains(row) ? rows[row] : nil
             }
             selectedItemIDs.wrappedValue = Set(selectedRows.map(\.id))
-            AppCommandRouter.shared.activateSelectionListBatchQueue(
+            commandRouter.activateSelectionListBatchQueue(
                 session: session,
                 items: selectedRows.map(\.item)
             )
@@ -482,7 +492,7 @@ struct SelectionListTableView: NSViewRepresentable {
             let selectedRows: [SelectionListRow] = tableView?.selectedRowIndexes.compactMap { row in
                 rows.indices.contains(row) ? rows[row] : nil
             } ?? []
-            AppCommandRouter.shared.activateSelectionListBatchQueue(
+            commandRouter.activateSelectionListBatchQueue(
                 session: session,
                 items: selectedRows.map(\.item)
             )
@@ -561,12 +571,12 @@ extension SelectionListTableView.Coordinator: NSMenuDelegate {
             menu.addItem(.separator())
         }
         let item: NSMenuItem = NSMenuItem(
-            title: AppCommandRouter.shared.selectionListBatchQueueTitle,
+            title: commandRouter.selectionListBatchQueueTitle,
             action: #selector(SelectionListBatchQueueActionTarget.toggle(_:)),
             keyEquivalent: ""
         )
         item.target = batchQueueActionTarget
-        item.isEnabled = AppCommandRouter.shared.canToggleSelectionListBatchQueue
+        item.isEnabled = commandRouter.canToggleSelectionListBatchQueue
         menu.addItem(item)
     }
 
@@ -580,8 +590,10 @@ extension SelectionListTableView.Coordinator: NSMenuDelegate {
 
 @MainActor
 private final class SelectionListBatchQueueActionTarget: NSObject {
+    let commandRouter: AppCommandRouter
+    init(router: AppCommandRouter) { commandRouter = router }
     @objc func toggle(_ sender: NSMenuItem) {
-        AppCommandRouter.shared.toggleSelectionListBatchQueue()
+        commandRouter.toggleSelectionListBatchQueue()
     }
 }
 

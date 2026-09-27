@@ -13,14 +13,17 @@ final class ScanSessionPresentationController {
     private let worker: any ScanSessionPresenting
     private let tasks = ScanSessionTaskCoordinator()
     private var revision: UInt64 = 0
-    private var sharesKindColors = ScanPreferenceDefaults.sharesKindColors
-    private var colorScheme = ScanPreferenceDefaults.treemapColorScheme
+    private(set) var preferences: ScanPresentationSettings
+    private var sharesKindColors: Bool { preferences.sharesKindColors }
+    private var colorScheme: TreemapColorScheme { preferences.colorScheme }
 
-    init(worker: any ScanSessionPresenting) { self.worker = worker }
+    init(worker: any ScanSessionPresenting, preferences: ScanPresentationSettings) {
+        self.worker = worker
+        self.preferences = preferences
+    }
 
     func setPreferences(sharesKindColors: Bool, colorScheme: TreemapColorScheme) {
-        self.sharesKindColors = sharesKindColors
-        self.colorScheme = colorScheme
+        preferences = ScanPresentationSettings(sharesKindColors: sharesKindColors, colorScheme: colorScheme)
     }
 
     func invalidate() {

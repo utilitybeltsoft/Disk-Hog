@@ -51,11 +51,24 @@ final class ScanPreferences: ObservableObject {
 
     private var pendingShowPackageContents: Bool?
 
-    init() {
-        usesPhysicalSize = ScanPreferenceDefaults.usesPhysicalSize
-        showPackageContents = ScanPreferenceDefaults.showPackageContents
-        sharesKindColors = ScanPreferenceDefaults.sharesKindColors
-        treemapColorScheme = ScanPreferenceDefaults.treemapColorScheme
+    private let registry: ScanWindowRegistry
+    private let defaults: UserDefaults
+
+    init(registry: ScanWindowRegistry? = nil, defaults: UserDefaults = .standard) {
+        let registry = registry ?? .shared
+        self.registry = registry
+        self.defaults = defaults
+        usesPhysicalSize = defaults.object(forKey: DiskScanSettingsDefaultsKeys.showPhysicalFileSize) as? Bool
+            ?? DiskScanSettings.diskInventoryZDefault.usePhysicalSize
+        showPackageContents = defaults.object(forKey: DiskScanSettingsDefaultsKeys.showPackageContents) as? Bool
+            ?? DiskScanSettings.diskInventoryZDefault.lookInsidePackages
+        sharesKindColors = defaults.object(forKey: ScanPreferenceDefaults.sharesKindColorsKey) as? Bool ?? true
+        treemapColorScheme = defaults.string(forKey: ScanPreferenceDefaults.treemapColorSchemeKey)
+            .flatMap(TreemapColorScheme.init(rawValue:)) ?? .diskHog
+    }
+
+    var presentationSettings: ScanPresentationSettings {
+        ScanPresentationSettings(sharesKindColors: sharesKindColors, colorScheme: treemapColorScheme)
     }
 
     func requestShowPackageContentsChange(to newValue: Bool) {
@@ -86,11 +99,11 @@ final class ScanPreferences: ObservableObject {
         }
 
         usesPhysicalSize = newValue
-        UserDefaults.standard.set(
+        defaults.set(
             newValue,
             forKey: DiskScanSettingsDefaultsKeys.showPhysicalFileSize
         )
-        ScanWindowRegistry.shared.updateSizeModeForOpenSessions(newValue)
+        registry.updateSizeModeForOpenSessions(newValue)
     }
 
     func setSharesKindColors(_ newValue: Bool) {
@@ -99,8 +112,8 @@ final class ScanPreferences: ObservableObject {
         }
 
         sharesKindColors = newValue
-        UserDefaults.standard.set(newValue, forKey: ScanPreferenceDefaults.sharesKindColorsKey)
-        ScanWindowRegistry.shared.rebuildPresentationMetricsForColorPreference(
+        defaults.set(newValue, forKey: ScanPreferenceDefaults.sharesKindColorsKey)
+        registry.rebuildPresentationMetricsForColorPreference(
             sharesKindColors: newValue,
             colorScheme: treemapColorScheme
         )
@@ -112,8 +125,8 @@ final class ScanPreferences: ObservableObject {
         }
 
         treemapColorScheme = newValue
-        UserDefaults.standard.set(newValue.rawValue, forKey: ScanPreferenceDefaults.treemapColorSchemeKey)
-        ScanWindowRegistry.shared.rebuildPresentationMetricsForColorPreference(
+        defaults.set(newValue.rawValue, forKey: ScanPreferenceDefaults.treemapColorSchemeKey)
+        registry.rebuildPresentationMetricsForColorPreference(
             sharesKindColors: sharesKindColors,
             colorScheme: newValue
         )
@@ -132,16 +145,16 @@ final class ScanPreferences: ObservableObject {
         }
 
         showPackageContents = newValue
-        UserDefaults.standard.set(
+        defaults.set(
             newValue,
             forKey: DiskScanSettingsDefaultsKeys.showPackageContents
         )
 
-        let affectedSessions: [ScanSession] = ScanWindowRegistry.shared.sessionsAffectedByPackageContentsPreference(
+        let affectedSessions: [ScanSession] = registry.sessionsAffectedByPackageContentsPreference(
             newValue
         )
         guard affectedSessions.isEmpty == false else {
-            ScanWindowRegistry.shared.markPackageContentsSynchronization(with: newValue)
+            registry.markPackageContentsSynchronization(with: newValue)
             return
         }
 
@@ -161,9 +174,9 @@ final class ScanPreferences: ObservableObject {
         alert.addButton(withTitle: String(localized: "Not Now"))
 
         if alert.runModal() == .alertFirstButtonReturn {
-            ScanWindowRegistry.shared.rescanAllForPackageContentsPreference(newValue)
+            registry.rescanAllForPackageContentsPreference(newValue)
         } else {
-            ScanWindowRegistry.shared.markPackageContentsSynchronization(with: newValue)
+            registry.markPackageContentsSynchronization(with: newValue)
         }
     }
 }

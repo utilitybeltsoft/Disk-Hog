@@ -2,6 +2,12 @@ import AppKit
 
 @MainActor
 final class InspectorWindowPlacementCoordinator {
+    private let registry: ScanWindowRegistry
+
+    init(registry: ScanWindowRegistry? = nil) {
+        self.registry = registry ?? .shared
+    }
+
     private var wasInspectorKeyBeforeApplicationDeactivation: Bool = false
 
     func placeInitially(_ inspectorWindow: NSWindow) {
@@ -62,9 +68,9 @@ final class InspectorWindowPlacementCoordinator {
             return
         }
 
-        DispatchQueue.main.async { [weak context] in
+        DispatchQueue.main.async { [weak context, registry] in
             guard let context,
-                  let scanWindow: NSWindow = ScanWindowRegistry.shared.window(
+                  let scanWindow: NSWindow = registry.window(
                     for: context.session.source
                   ) else {
                 return

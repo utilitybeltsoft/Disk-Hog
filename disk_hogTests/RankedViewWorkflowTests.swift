@@ -5,7 +5,7 @@ import Testing
 
 private struct RankedWorkflowScanner: ScanSessionScanning {
     let root: DiskItem
-    func scan(source: ScanSource, settings: DiskScanSettings,
+    func scan(source: ScanSource, settings: DiskScanSettings, presentation: ScanPresentationSettings,
               progress: @escaping DiskInventoryZScanner.ProgressHandler,
               stage: @escaping @Sendable (DiskScanStage) async -> Void,
               willBuildTreemap: @escaping @Sendable () async -> Void,

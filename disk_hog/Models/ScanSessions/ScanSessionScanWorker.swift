@@ -12,6 +12,7 @@ nonisolated protocol ScanSessionScanning: Sendable {
     func scan(
         source: ScanSource,
         settings: DiskScanSettings,
+        presentation: ScanPresentationSettings,
         progress: @escaping DiskInventoryZScanner.ProgressHandler,
         stage: @escaping @Sendable (DiskScanStage) async -> Void,
         willBuildTreemap: @escaping @Sendable () async -> Void,
@@ -23,6 +24,7 @@ nonisolated struct DiskInventoryZScanSessionWorker: ScanSessionScanning {
     func scan(
         source: ScanSource,
         settings: DiskScanSettings,
+        presentation: ScanPresentationSettings,
         progress: @escaping DiskInventoryZScanner.ProgressHandler,
         stage: @escaping @Sendable (DiskScanStage) async -> Void,
         willBuildTreemap: @escaping @Sendable () async -> Void,
@@ -59,8 +61,8 @@ nonisolated struct DiskInventoryZScanSessionWorker: ScanSessionScanning {
         let presentationMetrics: TreemapPresentationMetrics = TreemapPresentationMetrics(
             rootItem: rootItem,
             usePhysicalSize: settings.usePhysicalSize,
-            sharesKindColors: ScanPreferenceDefaults.sharesKindColors,
-            colorScheme: ScanPreferenceDefaults.treemapColorScheme
+            sharesKindColors: presentation.sharesKindColors,
+            colorScheme: presentation.colorScheme
         ) { progress in
             Task {
                 await treemapProgress(progress)

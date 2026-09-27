@@ -5,7 +5,12 @@ import SwiftUI
 final class SourceWindowController: NSWindowController, NSWindowDelegate {
     static let shared: SourceWindowController = SourceWindowController()
 
-    private init() {
+    private let registry: ScanWindowRegistry
+
+    init(registry: ScanWindowRegistry? = nil, commandState: ScanWindowCommandState? = nil) {
+        let commandState = commandState ?? .shared
+        let registry = registry ?? .shared
+        self.registry = registry
         let contentSize: NSSize = NSSize(
             width: SourceWindowMetrics.windowMinimumWidth,
             height: SourceWindowMetrics.windowMinimumHeight
@@ -20,7 +25,7 @@ final class SourceWindowController: NSWindowController, NSWindowDelegate {
         window.contentMinSize = contentSize
         window.isRestorable = false
         super.init(window: window)
-        window.contentViewController = NSHostingController(rootView: ContentView())
+        window.contentViewController = NSHostingController(rootView: ContentView(commandState: commandState))
         window.delegate = self
         ApplicationWindowPlacementService.shared.register(window, role: .source)
     }
@@ -36,7 +41,7 @@ final class SourceWindowController: NSWindowController, NSWindowDelegate {
     }
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {
-        let activeScanningSessions: [ScanSession] = ScanWindowRegistry.shared.activeScanningSessions
+        let activeScanningSessions: [ScanSession] = registry.activeScanningSessions
         guard activeScanningSessions.isEmpty == false else {
             NSApp.terminate(nil)
             return false
@@ -54,7 +59,7 @@ final class SourceWindowController: NSWindowController, NSWindowDelegate {
         alert.addButton(withTitle: String(localized: "Keep Scanning"))
 
         if alert.runModal() == .alertFirstButtonReturn {
-            ScanWindowRegistry.shared.cancelActiveScans()
+            registry.cancelActiveScans()
         }
         return false
     }
@@ -73,11 +78,28 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
 
     private let initialGeometryApplier: ScanWindowInitialGeometryApplier = ScanWindowInitialGeometryApplier()
 
-    convenience init(source: ScanSource) {
-        self.init(source: source, session: ScanSession(source: source))
+    private let registry: ScanWindowRegistry
+
+    convenience init(source: ScanSource, registry: ScanWindowRegistry? = nil,
+                     preferences: ScanPreferences? = nil, commandState: ScanWindowCommandState? = nil,
+         commandRouter: AppCommandRouter? = nil) {
+        let registry = registry ?? .shared
+        let preferences = preferences ?? .shared
+        let commandState = commandState ?? .shared
+        let commandRouter = commandRouter ?? .shared
+        self.init(source: source, session: ScanSession(source: source,
+            presentationSettings: preferences.presentationSettings), registry: registry,
+            preferences: preferences, commandState: commandState, commandRouter: commandRouter)
     }
 
-    init(source: ScanSource, session: ScanSession) {
+    init(source: ScanSource, session: ScanSession, registry: ScanWindowRegistry? = nil,
+         preferences: ScanPreferences? = nil, commandState: ScanWindowCommandState? = nil,
+         commandRouter: AppCommandRouter? = nil) {
+        let registry = registry ?? .shared
+        let preferences = preferences ?? .shared
+        let commandState = commandState ?? .shared
+        let commandRouter = commandRouter ?? .shared
+        self.registry = registry
         self.source = source
         self.session = session
         let window: NSWindow = NSWindow(
@@ -93,11 +115,13 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         window.tabbingMode = .disallowed
         window.isRestorable = false
         super.init(window: window)
-        window.contentViewController = NSHostingController(rootView: ScanWindowView(session: session))
+        window.contentViewController = NSHostingController(rootView: ScanWindowView(
+            session: session, preferences: preferences, commandState: commandState, commandRouter: commandRouter
+        ))
         window.delegate = self
         initialGeometryApplier.applyIfNeeded(to: window)
         ApplicationWindowPlacementService.shared.register(window, role: .scan)
-        ScanWindowRegistry.shared.register(window, session: session, for: source)
+        registry.register(window, session: session, for: source)
     }
 
     @available(*, unavailable)
@@ -152,7 +176,7 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         guard let window else {
             return
         }
-        ScanWindowRegistry.shared.unregister(window, for: source)
+        registry.unregister(window, for: source)
         ApplicationWindowPlacementService.shared.unregister(window)
         ScanWindowControllerRegistry.shared.remove(self)
     }

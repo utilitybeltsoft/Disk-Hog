@@ -174,18 +174,19 @@ nonisolated enum DiskItemDeletionPolicy {
 
 @MainActor
 enum DiskItemDeletionCoordinator {
-    static func requestQueueUndo(of item: DiskItem) {
-        CleanupQueueStore.shared.remove(item)
+    static func requestQueueUndo(of item: DiskItem, queue: CleanupQueueStore) {
+        queue.remove(item)
     }
 
     static func requestQueueing(
         of item: DiskItem,
-        from session: ScanSession?
+        from session: ScanSession?,
+        queue: CleanupQueueStore
     ) {
         guard let session else {
             return
         }
-        guard CleanupQueueStore.shared.enqueue(item, from: session) else {
+        guard queue.enqueue(item, from: session) else {
             return
         }
     }

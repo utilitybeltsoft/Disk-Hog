@@ -5,6 +5,7 @@ struct TreemapPanelView: View {
     @ObservedObject var session: ScanSession
     @ObservedObject var selectionCoordinator: ScanWindowSelectionCoordinator
     @ObservedObject var navigation: TreemapNavigationState
+    var cleanupQueue: CleanupQueueStore = .shared
     @Environment(\.hoveredScanItem) private var hoveredItem
     @Environment(\.activeScanWindowPane) private var activePane
     @State private var isRecalculating: Bool = false
@@ -39,7 +40,7 @@ struct TreemapPanelView: View {
                 isRecalculating: $isRecalculating,
                 renderProgress: $renderProgress,
                 onZoomIn: { item, allowingFileFallback in navigation.zoom(into: item, allowingFileFallback: allowingFileFallback) },
-                onZoomOut: { navigation.zoomOut() }
+                onZoomOut: { navigation.zoomOut() }, cleanupQueue: cleanupQueue
             )
             .overlay {
                 PaneBorderView(isActive: activePane.wrappedValue == .treemap)

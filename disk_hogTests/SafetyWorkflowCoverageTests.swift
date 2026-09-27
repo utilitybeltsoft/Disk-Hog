@@ -118,7 +118,7 @@ struct DeletionSafetyCoverageTests {
         let worker = DiskInventoryZScanSessionTreeWorker(performDeletion: { _, _ in throw CocoaError(code) })
         do {
             _ = try await worker.delete(item: victim, deletionMethod: method, currentRoot: root,
-                                        source: fixture.source, settings: fixture.settings)
+                                        source: fixture.source, settings: fixture.settings, presentation: ScanPresentationSettings())
             Issue.record("A failed filesystem mutation must not produce a successful tree update.")
         } catch let error as CocoaError {
             #expect(error.code == code)
@@ -143,7 +143,7 @@ struct DeletionSafetyCoverageTests {
         })
         let result = try await Task {
             try await worker.delete(item: victim, deletionMethod: .moveToTrash, currentRoot: root,
-                                    source: fixture.source, settings: fixture.settings)
+                                    source: fixture.source, settings: fixture.settings, presentation: ScanPresentationSettings())
         }.value
         #expect(!FileManager.default.fileExists(atPath: victim.path))
         #expect(try Data(contentsOf: trashDestination).count == 8)
@@ -167,7 +167,7 @@ struct DeletionSafetyCoverageTests {
         let task = Task {
             withUnsafeCurrentTask { $0?.cancel() }
             return try await worker.delete(item: victim, deletionMethod: .moveToTrash, currentRoot: root,
-                                           source: fixture.source, settings: fixture.settings)
+                                           source: fixture.source, settings: fixture.settings, presentation: ScanPresentationSettings())
         }
         await #expect(throws: CancellationError.self) { try await task.value }
         #expect(!FileManager.default.fileExists(atPath: marker.path))
@@ -185,7 +185,7 @@ struct DeletionSafetyCoverageTests {
         let oldItem = try #require(root.item(atPath: file.path))
         try FileManager.default.removeItem(at: folder)
         let result = try await DiskInventoryZScanSessionTreeWorker().refresh(
-            item: oldItem, currentRoot: root, source: fixture.source, settings: fixture.settings)
+            item: oldItem, currentRoot: root, source: fixture.source, settings: fixture.settings, presentation: ScanPresentationSettings())
         #expect(result.refreshedSubtreePath == fixture.root.path)
         #expect(result.rootItem.item(atPath: file.path) == nil)
         #expect(result.rootItem.item(atPath: folder.path) == nil)
@@ -201,7 +201,7 @@ struct DeletionSafetyCoverageTests {
         try Data(repeating: 4, count: 37).write(to: file)
         #expect(root.descendantsMatchingAncestorPath(of: oldItem).count == 2)
         let result = try await DiskInventoryZScanSessionTreeWorker().refresh(
-            item: oldItem, currentRoot: root, source: fixture.source, settings: fixture.settings)
+            item: oldItem, currentRoot: root, source: fixture.source, settings: fixture.settings, presentation: ScanPresentationSettings())
         #expect(result.refreshedSubtreePath == file.path)
         #expect(result.rootItem.item(atPath: file.path)?.logicalSizeValue == 37)
         #expect(result.rootItem.logicalSizeValue == root.logicalSizeValue + 29)
@@ -320,7 +320,7 @@ struct RealScanWorkerCoverageTests {
     }
     private func scan(_ fixture: SafetyFixture, events: ScanEvents) async throws -> ScanSessionScanResult {
         try await DiskInventoryZScanSessionWorker().scan(
-            source: fixture.source, settings: fixture.settings, progress: { _ in },
+            source: fixture.source, settings: fixture.settings, presentation: ScanPresentationSettings(), progress: { _ in },
             stage: { await events.stage($0) },
             willBuildTreemap: { await events.preparing() },
             treemapProgress: { _ in })

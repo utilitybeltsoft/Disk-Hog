@@ -18,6 +18,7 @@ struct AppKitTreemapView: NSViewRepresentable {
     let renderProgress: Binding<Double?>
     let onZoomIn: (DiskItem, Bool) -> Void
     let onZoomOut: () -> Void
+    var cleanupQueue: CleanupQueueStore = .shared
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
@@ -30,7 +31,7 @@ struct AppKitTreemapView: NSViewRepresentable {
     }
 
     func makeNSView(context: Context) -> ZStyleTreemapNSView {
-        let view: ZStyleTreemapNSView = ZStyleTreemapNSView()
+        let view: ZStyleTreemapNSView = ZStyleTreemapNSView(cleanupQueue: cleanupQueue)
         view.onSelectItem = { item, ancestorChain in
             context.coordinator.activePane.wrappedValue = .treemap
             context.coordinator.selectionCoordinator.setSelectedItem(item, ancestorChain: ancestorChain, origin: .treemap)

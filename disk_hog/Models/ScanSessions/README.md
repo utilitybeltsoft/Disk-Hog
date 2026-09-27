@@ -34,6 +34,21 @@ matching metadata and activity. Ordinary Combine `objectWillChange` retains
 its normal pre-change semantics. Metrics-only and selection-only changes do
 not post a tree notification.
 
+Presentation preferences are explicit operation inputs. The window constructor
+supplies `ScanPreferences.presentationSettings` to a new session; standalone
+sessions use stable defaults. Each scan, refresh, or delete captures the current
+`ScanPresentationSettings` before dispatching work. Workers never consult
+`UserDefaults`. A preference change during work is retained by the presentation
+controller and reconciled against the resulting tree.
+
+Command and context-menu queue checks and mutations use the same injected
+`CleanupQueueStore`. Scan windows pass command state/router and queue dependencies
+to their native tables and treemap. Preferences accept a registry and defaults
+domain; window registration and unregistration use the same supplied registry.
+Production shared instances remain constructor defaults, not action-time lookups.
+`DependencyIsolationTests` covers queue routing, registry/persistence isolation,
+real worker settings, and preference changes during an in-flight scan.
+
 Do not assign source/bookmark metadata outside the accepted-result boundary.
 Do not discard pending queue refreshes on cancellation/failure or cancel an
 in-flight deletion merely to service an external refresh request. Filesystem

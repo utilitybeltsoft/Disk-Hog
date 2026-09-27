@@ -81,7 +81,7 @@ private nonisolated func metrics(_ root: DiskItem, physical: Bool, colors: Bool 
 
 private struct FixedScanWorker: ScanSessionScanning {
     let root: DiskItem
-    func scan(source: ScanSource, settings: DiskScanSettings,
+    func scan(source: ScanSource, settings: DiskScanSettings, presentation: ScanPresentationSettings,
               progress: @escaping DiskInventoryZScanner.ProgressHandler,
               stage: @escaping @Sendable (DiskScanStage) async -> Void,
               willBuildTreemap: @escaping @Sendable () async -> Void,
@@ -112,11 +112,11 @@ private actor GatedTreeWorker: ScanSessionTreeUpdating {
             builtUsingPhysicalSize: settings.usePhysicalSize, skippedItems: [], refreshedSubtreePath: root.path)
     }
     func refresh(item: DiskItem, currentRoot: DiskItem, source: ScanSource,
-                 settings: DiskScanSettings) async throws -> ScanSessionTreeUpdateResult {
+                 settings: DiskScanSettings, presentation: ScanPresentationSettings) async throws -> ScanSessionTreeUpdateResult {
         try await result(source: source, settings: settings)
     }
     func delete(item: DiskItem, deletionMethod: DiskItemDeletionMethod, currentRoot: DiskItem,
-                source: ScanSource, settings: DiskScanSettings) async throws -> ScanSessionTreeUpdateResult {
+                source: ScanSource, settings: DiskScanSettings, presentation: ScanPresentationSettings) async throws -> ScanSessionTreeUpdateResult {
         try await result(source: source, settings: settings)
     }
 }

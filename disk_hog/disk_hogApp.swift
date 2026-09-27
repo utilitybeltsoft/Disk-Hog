@@ -23,6 +23,7 @@ struct DiskHogApp: App {
 
 @MainActor
 final class DiskHogApplicationDelegate: NSObject, NSApplicationDelegate {
+    private let registry: ScanWindowRegistry = .shared
     private var allowsTerminationAfterConfirmation: Bool = false
 
     func applicationWillFinishLaunching(_ notification: Notification) {
@@ -61,7 +62,7 @@ final class DiskHogApplicationDelegate: NSObject, NSApplicationDelegate {
             return .terminateNow
         }
 
-        let activeScanningSessions: [ScanSession] = ScanWindowRegistry.shared.activeScanningSessions
+        let activeScanningSessions: [ScanSession] = registry.activeScanningSessions
         guard activeScanningSessions.isEmpty == false else {
             return .terminateNow
         }
@@ -79,7 +80,7 @@ final class DiskHogApplicationDelegate: NSObject, NSApplicationDelegate {
             return .terminateCancel
         }
 
-        ScanWindowRegistry.shared.cancelActiveScans()
+        registry.cancelActiveScans()
         allowsTerminationAfterConfirmation = true
         return .terminateNow
     }
@@ -110,12 +111,12 @@ private struct DiskHogCommands: Commands {
 
         CommandGroup(after: .newItem) {
             Button("Open Selected Item") {
-                ScanWindowCommandState.shared.openSelectedItem()
+                scanWindowCommandState.openSelectedItem()
             }
             .disabled(scanWindowCommandState.canOpenSelectedItem == false)
 
             Button("Reveal Selected Item in Finder") {
-                ScanWindowCommandState.shared.revealSelectedItemInFinder()
+                scanWindowCommandState.revealSelectedItemInFinder()
             }
             .disabled(scanWindowCommandState.canRevealSelectedItem == false)
 
@@ -127,7 +128,7 @@ private struct DiskHogCommands: Commands {
                 if appCommandRouter.isSelectionListBatchQueueActive {
                     appCommandRouter.toggleSelectionListBatchQueue()
                 } else {
-                    ScanWindowCommandState.shared.toggleSelectedItemInCleanupQueue()
+                    scanWindowCommandState.toggleSelectedItemInCleanupQueue()
                 }
             }
             .keyboardShortcut("t", modifiers: .command)
@@ -141,7 +142,7 @@ private struct DiskHogCommands: Commands {
         #if FILE_MATCHING_DIAGNOSTICS
         CommandGroup(after: .saveItem) {
             Button("Copy Matching File") {
-                ScanWindowCommandState.shared.copyMatchingFile()
+                scanWindowCommandState.copyMatchingFile()
             }
             .disabled(scanWindowCommandState.canCopyMatchingFile == false)
         }
@@ -149,13 +150,13 @@ private struct DiskHogCommands: Commands {
 
         CommandGroup(before: .sidebar) {
             Button("Zoom In") {
-                ScanWindowCommandState.shared.zoomIn()
+                scanWindowCommandState.zoomIn()
             }
                 .keyboardShortcut("+", modifiers: .command)
                 .disabled(scanWindowCommandState.canZoomIn == false)
 
             Button("Zoom Out") {
-                ScanWindowCommandState.shared.zoomOut()
+                scanWindowCommandState.zoomOut()
             }
                 .keyboardShortcut("-", modifiers: .command)
                 .disabled(scanWindowCommandState.canZoomOut == false)
@@ -169,7 +170,7 @@ private struct DiskHogCommands: Commands {
             Divider()
 
             Button("Select Parent Folder") {
-                ScanWindowCommandState.shared.selectParentFolder()
+                scanWindowCommandState.selectParentFolder()
             }
             .keyboardShortcut("u", modifiers: .command)
             .disabled(scanWindowCommandState.canSelectParentFolder == false)
@@ -177,12 +178,12 @@ private struct DiskHogCommands: Commands {
             Divider()
 
             Button(scanWindowCommandState.showsFreeSpace ? "Hide Free Space" : "Show Free Space") {
-                ScanWindowCommandState.shared.toggleFreeSpace()
+                scanWindowCommandState.toggleFreeSpace()
             }
             .disabled(scanWindowCommandState.canToggleFreeSpace == false)
 
             Button(scanWindowCommandState.showsOtherSpace ? "Hide Other Space" : "Show Other Space") {
-                ScanWindowCommandState.shared.toggleOtherSpace()
+                scanWindowCommandState.toggleOtherSpace()
             }
             .disabled(scanWindowCommandState.canToggleOtherSpace == false)
 

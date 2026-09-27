@@ -33,7 +33,7 @@ final class ScanSessionOperationController {
         self.treeWorker = treeWorker
     }
 
-    func startScan(source: ScanSource, settings: DiskScanSettings,
+    func startScan(source: ScanSource, settings: DiskScanSettings, presentation: ScanPresentationSettings,
                    willStart: () -> Void, receive: @escaping Receiver) {
         let operation = rescans.beginScan()
         willStart()
@@ -42,7 +42,7 @@ final class ScanSessionOperationController {
             Task.detached(priority: .utility) { [weak self] in
                 let result: Result<ScanSessionScanResult, Error>
                 do {
-                    result = .success(try await worker.scan(source: source, settings: settings,
+                    result = .success(try await worker.scan(source: source, settings: settings, presentation: presentation,
                         progress: { [weak self] in await self?.deliver(.progress($0), for: operation, to: receive) },
                         stage: { [weak self] in await self?.deliver(.stage($0), for: operation, to: receive) },
                         willBuildTreemap: { [weak self] in await self?.deliver(.preparingTreemap, for: operation, to: receive) },
@@ -54,7 +54,7 @@ final class ScanSessionOperationController {
     }
 
     func update(item: DiskItem, root: DiskItem, deletionMethod: DiskItemDeletionMethod?,
-                source: ScanSource, settings: DiskScanSettings,
+                source: ScanSource, settings: DiskScanSettings, presentation: ScanPresentationSettings,
                 willStart: () -> Void, receive: @escaping Receiver) {
         let operation = rescans.beginTreeUpdate()
         let description: ScanSessionOperation = deletionMethod.map {
@@ -69,10 +69,10 @@ final class ScanSessionOperationController {
                 do {
                     if let deletionMethod {
                         result = .success(try await worker.delete(item: item, deletionMethod: deletionMethod,
-                            currentRoot: root, source: source, settings: settings))
+                            currentRoot: root, source: source, settings: settings, presentation: presentation))
                     } else {
                         result = .success(try await worker.refresh(item: item, currentRoot: root,
-                                                                  source: source, settings: settings))
+                                                                  source: source, settings: settings, presentation: presentation))
                     }
                 } catch { result = .failure(error) }
                 await self?.deliver(.treeFinished(result, description, refreshStartedAt), for: operation, to: receive)

@@ -10,6 +10,7 @@ struct DiskItemOutlineView: NSViewRepresentable {
     let activePane: Binding<ScanWindowPane?>
     let onActivateItem: (DiskItem, Bool) -> Void
     let onZoomOut: () -> Void
+    var cleanupQueue: CleanupQueueStore = .shared
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
@@ -18,7 +19,7 @@ struct DiskItemOutlineView: NSViewRepresentable {
             selectionCoordinator: selectionCoordinator,
             activePane: activePane,
             onActivateItem: onActivateItem,
-            onZoomOut: onZoomOut
+            onZoomOut: onZoomOut, cleanupQueue: cleanupQueue
         )
     }
 
@@ -120,10 +121,11 @@ struct DiskItemOutlineView: NSViewRepresentable {
             selectionCoordinator: ScanWindowSelectionCoordinator,
             activePane: Binding<ScanWindowPane?>,
             onActivateItem: @escaping (DiskItem, Bool) -> Void,
-            onZoomOut: @escaping () -> Void
+            onZoomOut: @escaping () -> Void, cleanupQueue: CleanupQueueStore? = nil
         ) {
+            let cleanupQueue = cleanupQueue ?? .shared
             self.session = session
-            self.contextMenuActionTarget = DiskItemContextMenuActionTarget(session: session)
+            self.contextMenuActionTarget = DiskItemContextMenuActionTarget(session: session, cleanupQueue: cleanupQueue)
             self.usePhysicalSize = usePhysicalSize
             self.selectionCoordinator = selectionCoordinator
             self.activePane = activePane

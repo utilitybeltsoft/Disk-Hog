@@ -69,7 +69,7 @@ private struct PublicationWorker: ScanSessionScanning, ScanSessionTreeUpdating {
                         children: names.map { DiskItem(url: source.url.appendingPathComponent($0),
                             allocatedSizeValue: 20, logicalSizeValue: 10, kindName: "Fixture", isRoot: false) })
     }
-    func scan(source: ScanSource, settings: DiskScanSettings,
+    func scan(source: ScanSource, settings: DiskScanSettings, presentation: ScanPresentationSettings,
               progress: @escaping DiskInventoryZScanner.ProgressHandler,
               stage: @escaping @Sendable (DiskScanStage) async -> Void,
               willBuildTreemap: @escaping @Sendable () async -> Void,
@@ -82,11 +82,11 @@ private struct PublicationWorker: ScanSessionScanning, ScanSessionTreeUpdating {
             builtUsingPhysicalSize: true, skippedItems: [])
     }
     func refresh(item: DiskItem, currentRoot: DiskItem, source: ScanSource,
-                 settings: DiskScanSettings) async throws -> ScanSessionTreeUpdateResult {
+                 settings: DiskScanSettings, presentation: ScanPresentationSettings) async throws -> ScanSessionTreeUpdateResult {
         result()
     }
     func delete(item: DiskItem, deletionMethod: DiskItemDeletionMethod, currentRoot: DiskItem,
-                source: ScanSource, settings: DiskScanSettings) async throws -> ScanSessionTreeUpdateResult {
+                source: ScanSource, settings: DiskScanSettings, presentation: ScanPresentationSettings) async throws -> ScanSessionTreeUpdateResult {
         result()
     }
     private func result() -> ScanSessionTreeUpdateResult {
@@ -101,7 +101,7 @@ private actor RetentionScanWorker: ScanSessionScanning {
     private(set) var started = false
     private var continuation: CheckedContinuation<Void, Never>?
     func release() { continuation?.resume(); continuation = nil }
-    func scan(source: ScanSource, settings: DiskScanSettings,
+    func scan(source: ScanSource, settings: DiskScanSettings, presentation: ScanPresentationSettings,
               progress: @escaping DiskInventoryZScanner.ProgressHandler,
               stage: @escaping @Sendable (DiskScanStage) async -> Void,
               willBuildTreemap: @escaping @Sendable () async -> Void,

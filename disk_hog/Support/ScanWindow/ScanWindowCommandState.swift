@@ -8,7 +8,12 @@ final class ScanWindowCommandState: ObservableObject {
     private weak var activeContext: ScanWindowCommandContext?
     private var activeContextCancellable: AnyCancellable?
 
-    init() {}
+    let cleanupQueue: CleanupQueueStore
+
+    init(cleanupQueue: CleanupQueueStore? = nil) {
+        let cleanupQueue = cleanupQueue ?? .shared
+        self.cleanupQueue = cleanupQueue
+    }
 
     var canOpenSelectedItem: Bool { activeContext?.canOpenSelectedItem ?? false }
     var canRevealSelectedItem: Bool { activeContext?.canRevealSelectedItem ?? false }
@@ -34,8 +39,8 @@ final class ScanWindowCommandState: ObservableObject {
         }
         return CleanupQueueMenuPresentation.isEnabled(
             item: item,
-            isDirectlyQueued: CleanupQueueStore.shared.isDirectlyQueued(item),
-            isAlreadyQueued: CleanupQueueStore.shared.contains(item)
+            isDirectlyQueued: cleanupQueue.isDirectlyQueued(item),
+            isAlreadyQueued: cleanupQueue.contains(item)
         )
     }
 
@@ -43,7 +48,7 @@ final class ScanWindowCommandState: ObservableObject {
         guard let item: DiskItem = commandSelectedItem else {
             return CleanupQueueMenuPresentation.addTitle
         }
-        return CleanupQueueMenuPresentation.title(isDirectlyQueued: CleanupQueueStore.shared.isDirectlyQueued(item))
+        return CleanupQueueMenuPresentation.title(isDirectlyQueued: cleanupQueue.isDirectlyQueued(item))
     }
 
     func activate(_ context: ScanWindowCommandContext) {
@@ -75,10 +80,10 @@ final class ScanWindowCommandState: ObservableObject {
               let session: ScanSession = activeContext?.actionSession else {
             return
         }
-        if CleanupQueueStore.shared.isDirectlyQueued(item) {
-            DiskItemDeletionCoordinator.requestQueueUndo(of: item)
+        if cleanupQueue.isDirectlyQueued(item) {
+            DiskItemDeletionCoordinator.requestQueueUndo(of: item, queue: cleanupQueue)
         } else {
-            DiskItemDeletionCoordinator.requestQueueing(of: item, from: session)
+            DiskItemDeletionCoordinator.requestQueueing(of: item, from: session, queue: cleanupQueue)
         }
     }
 

@@ -12,6 +12,8 @@ struct LargestItemsView: View {
     let category: LargestItemsCategory
     let isActive: Bool
     let onShowTree: () -> Void
+    var commandState: ScanWindowCommandState = .shared
+    var commandRouter: AppCommandRouter = .shared
     @StateObject private var dataStore = SelectionListDataStore()
     @State private var selectedID: DiskItemID?
     @State private var selectedIDs: Set<DiskItemID> = []
@@ -65,7 +67,7 @@ struct LargestItemsView: View {
                         case .reveal: DiskItemWorkspaceActions.revealInFinder(item)
                         case .information: InspectorWindowController.shared.showInformation(for: item, from: session)
                         }
-                    }
+                    }, commandState: commandState, commandRouter: commandRouter
                 ) { item in
                     if isActive { selectionCoordinator.setSelectedItem(item) }
                 }

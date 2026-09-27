@@ -18,6 +18,7 @@ final class ScanSession: ObservableObject {
     private let presentation: ScanSessionPresentationController
 
     init(source: ScanSource,
+         presentationSettings: ScanPresentationSettings = ScanPresentationSettings(),
          scanWorker: any ScanSessionScanning = DiskInventoryZScanSessionWorker(),
          treeWorker: any ScanSessionTreeUpdating = DiskInventoryZScanSessionTreeWorker(),
          presentationWorker: any ScanSessionPresenting = DiskInventoryZScanSessionPresentationWorker()) {
@@ -25,7 +26,7 @@ final class ScanSession: ObservableObject {
         activity = ScanSessionActivity(currentPath: source.path)
         settings = source.scanSettings ?? .diskInventoryZDefault
         operations = ScanSessionOperationController(scanWorker: scanWorker, treeWorker: treeWorker)
-        presentation = ScanSessionPresentationController(worker: presentationWorker)
+        presentation = ScanSessionPresentationController(worker: presentationWorker, preferences: presentationSettings)
     }
 
     // Preserve the view/command API while grouping publication by responsibility.
@@ -73,7 +74,7 @@ final class ScanSession: ObservableObject {
 
     private func startScan(preservingFailure: Bool) {
         guard state != .scanning, !operations.isBusy else { return }
-        operations.startScan(source: source, settings: settings, willStart: {
+        operations.startScan(source: source, settings: settings, presentation: presentation.preferences, willStart: {
             presentation.invalidate()
             activity.beginScan(path: source.path, now: Date())
             spaceVisibility = ScanSessionSpaceVisibility()
@@ -129,7 +130,7 @@ final class ScanSession: ObservableObject {
         guard state == .complete, !isUpdatingTree, !operations.isBusy,
               let rootItem, rootItem.item(atPath: item.path) != nil else { return }
         operations.update(item: item, root: rootItem, deletionMethod: deletionMethod,
-                          source: source, settings: settings, willStart: {
+                          source: source, settings: settings, presentation: presentation.preferences, willStart: {
             presentation.invalidate()
             activity.isUpdatingTree = true
             failure = nil

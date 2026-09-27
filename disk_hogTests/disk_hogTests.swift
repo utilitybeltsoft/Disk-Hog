@@ -1587,7 +1587,7 @@ struct ScanSessionWorkerIntegrationTests {
         TreemapPresentationMetrics(
             rootItem: rootItem,
             usePhysicalSize: true,
-            sharesKindColors: ScanPreferenceDefaults.sharesKindColors
+            sharesKindColors: true
         )
     }
 
@@ -1694,7 +1694,7 @@ private struct ImmediateScanWorker: ScanSessionScanning {
 
     func scan(
         source: ScanSource,
-        settings: DiskScanSettings,
+        settings: DiskScanSettings, presentation: ScanPresentationSettings,
         progress: @escaping DiskInventoryZScanner.ProgressHandler,
         stage: @escaping @Sendable (DiskScanStage) async -> Void,
         willBuildTreemap: @escaping @Sendable () async -> Void,
@@ -1717,7 +1717,7 @@ private actor FreshnessCancellationWorker: ScanSessionScanning {
     private var calls = 0
     init(result: ScanSessionScanResult) { self.result = result }
 
-    func scan(source: ScanSource, settings: DiskScanSettings,
+    func scan(source: ScanSource, settings: DiskScanSettings, presentation: ScanPresentationSettings,
               progress: @escaping DiskInventoryZScanner.ProgressHandler,
               stage: @escaping @Sendable (DiskScanStage) async -> Void,
               willBuildTreemap: @escaping @Sendable () async -> Void,
@@ -1745,7 +1745,7 @@ private struct ImmediateTreeWorker: ScanSessionTreeUpdating {
         item: DiskItem,
         currentRoot: DiskItem,
         source: ScanSource,
-        settings: DiskScanSettings
+        settings: DiskScanSettings, presentation: ScanPresentationSettings
     ) async throws -> ScanSessionTreeUpdateResult {
         try refreshResult.get()
     }
@@ -1755,7 +1755,7 @@ private struct ImmediateTreeWorker: ScanSessionTreeUpdating {
         deletionMethod: DiskItemDeletionMethod,
         currentRoot: DiskItem,
         source: ScanSource,
-        settings: DiskScanSettings
+        settings: DiskScanSettings, presentation: ScanPresentationSettings
     ) async throws -> ScanSessionTreeUpdateResult {
         try deleteResult.get()
     }
@@ -1831,7 +1831,7 @@ private final class PendingRescanScanWorker: ScanSessionScanning, @unchecked Sen
 
     func scan(
         source: ScanSource,
-        settings: DiskScanSettings,
+        settings: DiskScanSettings, presentation: ScanPresentationSettings,
         progress: @escaping DiskInventoryZScanner.ProgressHandler,
         stage: @escaping @Sendable (DiskScanStage) async -> Void,
         willBuildTreemap: @escaping @Sendable () async -> Void,
@@ -2054,7 +2054,7 @@ private final class PendingRescanStaleSizeModeScanWorker: ScanSessionScanning, @
 
     func scan(
         source: ScanSource,
-        settings: DiskScanSettings,
+        settings: DiskScanSettings, presentation: ScanPresentationSettings,
         progress: @escaping DiskInventoryZScanner.ProgressHandler,
         stage: @escaping @Sendable (DiskScanStage) async -> Void,
         willBuildTreemap: @escaping @Sendable () async -> Void,
@@ -2082,7 +2082,7 @@ private final class PendingRescanStaleSizeModeScanWorker: ScanSessionScanning, @
             presentationMetrics: TreemapPresentationMetrics(
                 rootItem: rootItem,
                 usePhysicalSize: settings.usePhysicalSize,
-                sharesKindColors: ScanPreferenceDefaults.sharesKindColors
+                sharesKindColors: presentation.sharesKindColors
             ),
             builtUsingPhysicalSize: builtUsingPhysicalSize,
             skippedItems: []
@@ -5694,7 +5694,7 @@ struct DiskInventoryZScanSessionTreeWorkerTests {
             deletionMethod: .deletePermanently,
             currentRoot: currentRoot,
             source: source,
-            settings: settings
+            settings: settings, presentation: ScanPresentationSettings()
         )
 
         #expect(FileManager.default.fileExists(atPath: fileURL.path) == false)
@@ -5723,7 +5723,7 @@ struct DiskInventoryZScanSessionTreeWorkerTests {
                 deletionMethod: .deletePermanently,
                 currentRoot: currentRoot,
                 source: source,
-                settings: settings
+                settings: settings, presentation: ScanPresentationSettings()
             )
         }
         #expect(FileManager.default.fileExists(atPath: fileURL.path))

@@ -107,7 +107,7 @@ private actor QueueRefreshFixtureWorker: ScanSessionScanning, ScanSessionTreeUpd
                         allocatedSizeValue: empty ? 0 : 20, logicalSizeValue: empty ? 0 : 20,
                         isDirectory: true, children: children)
     }
-    func scan(source: ScanSource, settings: DiskScanSettings,
+    func scan(source: ScanSource, settings: DiskScanSettings, presentation: ScanPresentationSettings,
               progress: @escaping DiskInventoryZScanner.ProgressHandler,
               stage: @escaping @Sendable (DiskScanStage) async -> Void,
               willBuildTreemap: @escaping @Sendable () async -> Void,
@@ -131,11 +131,11 @@ private actor QueueRefreshFixtureWorker: ScanSessionScanning, ScanSessionTreeUpd
             skippedItems: [], refreshedSubtreePath: root.path)
     }
     func refresh(item: DiskItem, currentRoot: DiskItem, source: ScanSource,
-                 settings: DiskScanSettings) async throws -> ScanSessionTreeUpdateResult {
+                 settings: DiskScanSettings, presentation: ScanPresentationSettings) async throws -> ScanSessionTreeUpdateResult {
         try await update(source: source, settings: settings)
     }
     func delete(item: DiskItem, deletionMethod: DiskItemDeletionMethod, currentRoot: DiskItem,
-                source: ScanSource, settings: DiskScanSettings) async throws -> ScanSessionTreeUpdateResult {
+                source: ScanSource, settings: DiskScanSettings, presentation: ScanPresentationSettings) async throws -> ScanSessionTreeUpdateResult {
         try await update(source: source, settings: settings)
     }
 }

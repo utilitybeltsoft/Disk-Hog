@@ -323,7 +323,7 @@ struct DeletionProtectionTests {
             do {
                 _ = try await worker.delete(item: Self.item("/System/Library", folder: true),
                     deletionMethod: method, currentRoot: root,
-                    source: ScanSource(path: "/", displayName: "fixture"), settings: .diskInventoryZDefault)
+                    source: ScanSource(path: "/", displayName: "fixture"), settings: .diskInventoryZDefault, presentation: ScanPresentationSettings())
                 Issue.record("Protected deletion should throw")
             } catch is DiskItemDeletionPolicy.Protection { }
         }

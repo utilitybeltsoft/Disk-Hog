@@ -4,6 +4,8 @@ struct FilesPaneView: View {
     @ObservedObject var session: ScanSession
     @ObservedObject var selectionCoordinator: ScanWindowSelectionCoordinator
     let navigation: TreemapNavigationState
+    var commandState: ScanWindowCommandState = .shared
+    var commandRouter: AppCommandRouter = .shared
     @Environment(\.activeScanWindowPane) private var activePane
     @State private var mode: FilesInspectionMode = .largestFiles
     @State private var visitedModes: Set<FilesInspectionMode> = [.largestFiles]
@@ -31,7 +33,7 @@ struct FilesPaneView: View {
                                          navigation: navigation,
                                          category: rankedMode == .largestFiles ? .files : .folders,
                                          isActive: mode == rankedMode,
-                                         onShowTree: { mode = .tree })
+                                         onShowTree: { mode = .tree }, commandState: commandState, commandRouter: commandRouter)
                             .opacity(mode == rankedMode ? 1 : 0)
                             .allowsHitTesting(mode == rankedMode)
                             .disabled(mode != rankedMode)
@@ -58,7 +60,7 @@ struct FilesPaneView: View {
             onActivateItem: { item, allowingFileFallback in
                 navigation.zoom(into: item, allowingFileFallback: allowingFileFallback)
             },
-            onZoomOut: { navigation.zoomOut() }
+            onZoomOut: { navigation.zoomOut() }, cleanupQueue: commandState.cleanupQueue
         )
         .background(Color(nsColor: .controlBackgroundColor))
         .overlay {

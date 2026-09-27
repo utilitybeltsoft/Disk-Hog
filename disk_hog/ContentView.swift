@@ -7,8 +7,9 @@
 import SwiftUI
 
 struct ContentView: View {
+    var commandState: ScanWindowCommandState = .shared
     var body: some View {
-        SourceWindowView()
+        SourceWindowView(commandState: commandState)
     }
 }
 
