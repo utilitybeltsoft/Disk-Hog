@@ -103,7 +103,9 @@ final class ScanPreferences: ObservableObject {
             newValue,
             forKey: DiskScanSettingsDefaultsKeys.showPhysicalFileSize
         )
-        registry.updateSizeModeForOpenSessions(newValue)
+        for session in registry.openSessions {
+            session.updateSizeMode(newValue)
+        }
     }
 
     func setSharesKindColors(_ newValue: Bool) {
@@ -113,10 +115,7 @@ final class ScanPreferences: ObservableObject {
 
         sharesKindColors = newValue
         defaults.set(newValue, forKey: ScanPreferenceDefaults.sharesKindColorsKey)
-        registry.rebuildPresentationMetricsForColorPreference(
-            sharesKindColors: newValue,
-            colorScheme: treemapColorScheme
-        )
+        updatePresentationForOpenSessions()
     }
 
     func setTreemapColorScheme(_ newValue: TreemapColorScheme) {
@@ -126,10 +125,22 @@ final class ScanPreferences: ObservableObject {
 
         treemapColorScheme = newValue
         defaults.set(newValue.rawValue, forKey: ScanPreferenceDefaults.treemapColorSchemeKey)
-        registry.rebuildPresentationMetricsForColorPreference(
-            sharesKindColors: sharesKindColors,
-            colorScheme: newValue
-        )
+        updatePresentationForOpenSessions()
+    }
+
+    private func updatePresentationForOpenSessions() {
+        for session in registry.openSessions {
+            session.rebuildPresentationMetrics(
+                sharesKindColors: sharesKindColors,
+                colorScheme: treemapColorScheme
+            )
+        }
+    }
+
+    private func markPackageContentsSynchronization(with showPackageContents: Bool) {
+        for session in registry.openSessions {
+            session.updatePackageContentsSynchronization(with: showPackageContents)
+        }
     }
 
     var scanSettings: DiskScanSettings {
@@ -150,11 +161,11 @@ final class ScanPreferences: ObservableObject {
             forKey: DiskScanSettingsDefaultsKeys.showPackageContents
         )
 
-        let affectedSessions: [ScanSession] = registry.sessionsAffectedByPackageContentsPreference(
-            newValue
-        )
+        let affectedSessions = registry.openSessions.filter {
+            $0.scanSettings.lookInsidePackages != newValue
+        }
         guard affectedSessions.isEmpty == false else {
-            registry.markPackageContentsSynchronization(with: newValue)
+            markPackageContentsSynchronization(with: newValue)
             return
         }
 
@@ -174,9 +185,13 @@ final class ScanPreferences: ObservableObject {
         alert.addButton(withTitle: String(localized: "Not Now"))
 
         if alert.runModal() == .alertFirstButtonReturn {
-            registry.rescanAllForPackageContentsPreference(newValue)
+            // Fetch live sessions again after the modal dialog, matching window
+            // changes that may have occurred while it was displayed.
+            for session in registry.openSessions {
+                session.rescanForPackageContentsPreference(newValue)
+            }
         } else {
-            registry.markPackageContentsSynchronization(with: newValue)
+            markPackageContentsSynchronization(with: newValue)
         }
     }
 }

@@ -56,41 +56,10 @@ final class ScanWindowRegistry {
         }
     }
 
-    func sessionsAffectedByPackageContentsPreference(_ showPackageContents: Bool) -> [ScanSession] {
-        openSessions.filter { $0.scanSettings.lookInsidePackages != showPackageContents }
-    }
-
-    func rescanAllForPackageContentsPreference(_ showPackageContents: Bool) {
-        for session: ScanSession in openSessions {
-            session.rescanForPackageContentsPreference(showPackageContents)
-        }
-    }
-
-    func markPackageContentsSynchronization(with showPackageContents: Bool) {
-        for session: ScanSession in openSessions {
-            session.updatePackageContentsSynchronization(with: showPackageContents)
-        }
-    }
-
-    func rebuildPresentationMetricsForColorPreference(
-        sharesKindColors: Bool,
-        colorScheme: TreemapColorScheme
-    ) {
-        for session: ScanSession in openSessions {
-            session.rebuildPresentationMetrics(
-                sharesKindColors: sharesKindColors,
-                colorScheme: colorScheme
-            )
-        }
-    }
-
-    func updateSizeModeForOpenSessions(_ usePhysicalSize: Bool) {
-        for session: ScanSession in openSessions {
-            session.updateSizeMode(usePhysicalSize)
-        }
-    }
-
-    private var openSessions: [ScanSession] {
+    /// A point-in-time snapshot of sessions whose registered windows still exist.
+    /// The registry retains neither windows nor sessions; callers own any snapshot
+    /// they keep. Preference policy belongs to the caller.
+    var openSessions: [ScanSession] {
         windowsBySourceKey = windowsBySourceKey.filter { _, weakWindow in
             weakWindow.window != nil
         }
