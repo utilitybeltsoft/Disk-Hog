@@ -1,6 +1,528 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Check folder permissions. For protected folders, use Full Disk Access in the Help menu, then reopen Disk Hog." : {
+      "comment": "Full Disk Access setup. Permission must be enabled by the user in macOS System Settings.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prüfe die Ordnerberechtigungen. Verwende für geschützte Ordner „Vollzugriff auf Festplatte“ im Hilfe-Menü und öffne Disk Hog erneut."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comprueba los permisos de la carpeta. Para carpetas protegidas, usa Acceso total al disco en el menú Ayuda y vuelve a abrir Disk Hog."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vérifiez les autorisations du dossier. Pour les dossiers protégés, utilisez Accès complet au disque dans le menu Aide, puis rouvrez Disk Hog."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Controlla i permessi della cartella. Per le cartelle protette, usa Accesso completo al disco nel menu Aiuto, quindi riapri Disk Hog."
+          }
+        }
+      }
+    },
+    "Folder access denied" : {
+      "comment": "Full Disk Access setup. Permission must be enabled by the user in macOS System Settings.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zugriff auf Ordner verweigert"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Acceso a la carpeta denegado"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accès au dossier refusé"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accesso alla cartella negato"
+          }
+        }
+      }
+    },
+    "Protected-folder access could not be verified." : {
+      "comment": "Full Disk Access setup. Permission must be enabled by the user in macOS System Settings.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Zugriff auf geschützte Ordner konnte nicht bestätigt werden."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo verificar el acceso a las carpetas protegidas."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’accès aux dossiers protégés n’a pas pu être vérifié."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossibile verificare l’accesso alle cartelle protette."
+          }
+        }
+      }
+    },
+    "Continue" : {
+      "comment": "Full Disk Access setup. Permission must be enabled by the user in macOS System Settings.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fortfahren"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continuar"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continuer"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continua"
+          }
+        }
+      }
+    },
+    "Check Again" : {
+      "comment": "Full Disk Access setup. Permission must be enabled by the user in macOS System Settings.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erneut prüfen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volver a comprobar"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vérifier à nouveau"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verifica di nuovo"
+          }
+        }
+      }
+    },
+    "Open Full Disk Access" : {
+      "comment": "Full Disk Access setup. Permission must be enabled by the user in macOS System Settings.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vollzugriff auf Festplatte öffnen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir Acceso total al disco"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvrir Accès complet au disque"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apri Accesso completo al disco"
+          }
+        }
+      }
+    },
+    "Quit Disk Hog" : {
+      "comment": "Full Disk Access setup. Permission must be enabled by the user in macOS System Settings.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disk Hog beenden"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Salir de Disk Hog"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitter Disk Hog"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esci da Disk Hog"
+          }
+        }
+      }
+    },
+    "Show Disk Hog in Finder" : {
+      "comment": "Full Disk Access setup. Permission must be enabled by the user in macOS System Settings.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disk Hog im Finder zeigen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar Disk Hog en Finder"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Afficher Disk Hog dans le Finder"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostra Disk Hog nel Finder"
+          }
+        }
+      }
+    },
+    "Click + in Full Disk Access and select the Disk Hog application shown in Finder. Enable it, then reopen Disk Hog." : {
+      "comment": "Full Disk Access setup. Permission must be enabled by the user in macOS System Settings.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klicke unter Vollzugriff auf Festplatte auf + und wähle die im Finder angezeigte App Disk Hog. Aktiviere sie und öffne Disk Hog erneut."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Haz clic en + en Acceso total al disco y selecciona la aplicación Disk Hog que se muestra en Finder. Actívala y vuelve a abrir Disk Hog."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cliquez sur + dans Accès complet au disque et sélectionnez l’application Disk Hog affichée dans le Finder. Activez-la, puis rouvrez Disk Hog."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fai clic su + in Accesso completo al disco e seleziona l’applicazione Disk Hog mostrata nel Finder. Attivala, quindi riapri Disk Hog."
+          }
+        }
+      }
+    },
+    "Disk Hog isn’t listed" : {
+      "comment": "Full Disk Access setup. Permission must be enabled by the user in macOS System Settings.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disk Hog wird nicht aufgeführt"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disk Hog no aparece en la lista"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disk Hog n’apparaît pas dans la liste"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disk Hog non è nell’elenco"
+          }
+        }
+      }
+    },
+    "System Settings could not be opened. Open it from the Apple menu, then choose Privacy & Security → Full Disk Access." : {
+      "comment": "Full Disk Access setup. Permission must be enabled by the user in macOS System Settings.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Systemeinstellungen konnten nicht geöffnet werden. Öffne sie über das Apple-Menü und wähle Datenschutz & Sicherheit → Vollzugriff auf Festplatte."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudieron abrir los Ajustes del Sistema. Ábrelos desde el menú Apple y selecciona Privacidad y seguridad → Acceso total al disco."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossible d’ouvrir Réglages Système. Ouvrez-les depuis le menu Apple, puis choisissez Confidentialité et sécurité → Accès complet au disque."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossibile aprire Impostazioni di Sistema. Aprile dal menu Apple, quindi scegli Privacy e sicurezza → Accesso completo al disco."
+          }
+        }
+      }
+    },
+    "Disk Hog could not determine whether protected-folder access is available. You can continue using accessible folders or review Full Disk Access in System Settings." : {
+      "comment": "Full Disk Access setup. Permission must be enabled by the user in macOS System Settings.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disk Hog konnte den Zugriff auf geschützte Ordner nicht ermitteln. Du kannst mit zugänglichen Ordnern fortfahren oder den Vollzugriff auf Festplatte in den Systemeinstellungen prüfen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disk Hog no pudo determinar si tiene acceso a las carpetas protegidas. Puedes continuar con las carpetas accesibles o revisar el acceso total al disco en Ajustes del Sistema."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disk Hog n’a pas pu déterminer si les dossiers protégés sont accessibles. Vous pouvez continuer avec les dossiers accessibles ou vérifier l’accès complet au disque dans Réglages Système."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disk Hog non ha potuto verificare l’accesso alle cartelle protette. Puoi continuare con le cartelle accessibili o controllare l’accesso completo al disco in Impostazioni di Sistema."
+          }
+        }
+      }
+    },
+    "Checking protected-folder access…" : {
+      "comment": "Full Disk Access setup. Permission must be enabled by the user in macOS System Settings.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zugriff auf geschützte Ordner wird geprüft…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comprobando el acceso a las carpetas protegidas…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vérification de l’accès aux dossiers protégés…"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verifica dell’accesso alle cartelle protette…"
+          }
+        }
+      }
+    },
+    "In System Settings, turn on Disk Hog under Privacy & Security → Full Disk Access. Choose Quit & Reopen if macOS asks; otherwise quit and reopen Disk Hog." : {
+      "comment": "Full Disk Access setup. Permission must be enabled by the user in macOS System Settings.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktiviere Disk Hog in den Systemeinstellungen unter Datenschutz & Sicherheit → Vollzugriff auf Festplatte. Wähle „Beenden & erneut öffnen“, wenn macOS danach fragt. Beende und öffne Disk Hog andernfalls selbst erneut."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En Ajustes del Sistema, activa Disk Hog en Privacidad y seguridad → Acceso total al disco. Selecciona Salir y volver a abrir si macOS lo solicita; de lo contrario, cierra y vuelve a abrir Disk Hog."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dans Réglages Système, activez Disk Hog sous Confidentialité et sécurité → Accès complet au disque. Choisissez Quitter et rouvrir si macOS le propose ; sinon, quittez puis rouvrez Disk Hog."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In Impostazioni di Sistema, attiva Disk Hog in Privacy e sicurezza → Accesso completo al disco. Scegli Esci e riapri se macOS lo richiede; altrimenti esci da Disk Hog e riaprilo."
+          }
+        }
+      }
+    },
+    "Disk Hog needs access to protected folders to include them in disk scans. Without it, scans can miss files and underreport disk usage." : {
+      "comment": "Full Disk Access setup. Permission must be enabled by the user in macOS System Settings.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disk Hog benötigt Zugriff auf geschützte Ordner, um sie beim Scannen zu berücksichtigen. Ohne diesen Zugriff können Dateien fehlen und der Speicherverbrauch zu niedrig angezeigt werden."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disk Hog necesita acceso a las carpetas protegidas para incluirlas en los análisis. Sin él, pueden omitirse archivos y mostrarse un uso del disco inferior al real."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disk Hog a besoin d’accéder aux dossiers protégés pour les inclure dans les analyses. Sans cet accès, des fichiers peuvent être omis et l’utilisation du disque sous-estimée."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disk Hog necessita dell’accesso alle cartelle protette per includerle nelle scansioni. Senza questo accesso, alcuni file potrebbero essere ignorati e l’utilizzo del disco sottostimato."
+          }
+        }
+      }
+    },
+    "Enable Full Disk Access" : {
+      "comment": "Full Disk Access setup. Permission must be enabled by the user in macOS System Settings.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vollzugriff auf Festplatte aktivieren"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activar el acceso total al disco"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activer l’accès complet au disque"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abilita l’accesso completo al disco"
+          }
+        }
+      }
+    },
+    "Full Disk Access…" : {
+      "comment": "Full Disk Access setup. Permission must be enabled by the user in macOS System Settings.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vollzugriff auf Festplatte…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Acceso total al disco…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accès complet au disque…"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accesso completo al disco…"
+          }
+        }
+      }
+    },
+    "Full Disk Access" : {
+      "comment": "Full Disk Access setup. Permission must be enabled by the user in macOS System Settings.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vollzugriff auf Festplatte"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Acceso total al disco"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accès complet au disque"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accesso completo al disco"
+          }
+        }
+      }
+    },
     "Use arrow keys to select items, Return to zoom in, and Escape to go back. The Files table provides an alternative to spatial navigation." : {
       "comment": "Accessibility text for navigation or selection.",
       "localizations": {

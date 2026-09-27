@@ -2639,7 +2639,7 @@ struct ScanSourceAccessTests {
             }
         )
 
-        #expect(reason == "Full Disk Access required")
+        #expect(reason == "Folder access denied")
     }
 
     @Test func permissionFailureDoesNotPreflightNetworkVolume() {

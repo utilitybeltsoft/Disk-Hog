@@ -285,7 +285,7 @@ nonisolated enum ScanSourceProvider {
     static func scanDisabledReason(
         for url: URL,
         isLocalVolume: Bool?,
-        protectedURLs: [URL] = fullDiskAccessProtectedURLs(),
+        protectedURLs: [URL] = FullDiskAccessService.protectedDirectories(),
         fileExists: (URL) -> Bool = {
             FileManager.default.fileExists(atPath: $0.path)
         },
@@ -304,10 +304,11 @@ nonisolated enum ScanSourceProvider {
         do {
             _ = try directoryContents(url)
         } catch {
-            guard isPermissionDenied(error) else {
-                return nil
+            switch FileAccessFailure.classify(error) {
+            case .protectedAccessDenied, .filesystemPermission:
+                return String(localized: "Folder access denied")
+            case .missing, .other: return nil
             }
-            return String(localized: "Full Disk Access required")
         }
 
         for protectedURL: URL in protectedURLs
@@ -315,8 +316,10 @@ nonisolated enum ScanSourceProvider {
             do {
                 _ = try directoryContents(protectedURL)
             } catch {
-                if isPermissionDenied(error) {
-                    return String(localized: "Full Disk Access required")
+                switch FileAccessFailure.classify(error) {
+                case .protectedAccessDenied: return String(localized: "Full Disk Access required")
+                case .filesystemPermission: return String(localized: "Folder access denied")
+                case .missing, .other: break
                 }
             }
         }
@@ -324,41 +327,11 @@ nonisolated enum ScanSourceProvider {
         return nil
     }
 
-    private static func fullDiskAccessProtectedURLs(
-        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
-    ) -> [URL] {
-        let libraryURL: URL = homeDirectory.appendingPathComponent("Library", isDirectory: true)
-        return [
-            libraryURL.appendingPathComponent("Mail", isDirectory: true),
-            libraryURL.appendingPathComponent("Messages", isDirectory: true),
-            libraryURL.appendingPathComponent("Safari", isDirectory: true),
-            libraryURL
-                .appendingPathComponent("Application Support", isDirectory: true)
-                .appendingPathComponent("AddressBook", isDirectory: true)
-        ]
-    }
-
     private static func contains(_ candidateURL: URL, within rootURL: URL) -> Bool {
         let rootPath: String = rootURL.standardizedFileURL.path
         let candidatePath: String = candidateURL.standardizedFileURL.path
 
         return FilePathContainment.contains(candidatePath, in: rootPath)
-    }
-
-    static func isPermissionDenied(_ error: Error) -> Bool {
-        let error: NSError = error as NSError
-        if error.domain == NSCocoaErrorDomain,
-           error.code == NSFileReadNoPermissionError {
-            return true
-        }
-        if error.domain == NSPOSIXErrorDomain,
-           error.code == Int(EPERM) || error.code == Int(EACCES) {
-            return true
-        }
-        if let underlyingError: Error = error.userInfo[NSUnderlyingErrorKey] as? Error {
-            return isPermissionDenied(underlyingError)
-        }
-        return false
     }
 
     private static func displayName(for url: URL) -> String {
