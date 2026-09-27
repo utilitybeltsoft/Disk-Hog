@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import Darwin
 
 nonisolated enum DiskItemDeletionMethod: Sendable {
     case moveToTrash
@@ -7,38 +8,129 @@ nonisolated enum DiskItemDeletionMethod: Sendable {
 }
 
 nonisolated enum DiskItemDeletionPolicy {
-    /// Caches the resolved trash directory per volume. `FileManager.url(for:
-    /// .trashDirectory...)` is real filesystem work (slow on a spun-down external
-    /// drive or a network share), and `canDelete` runs on hot UI paths - every
-    /// right-click's context menu, every Commands menu validation on selection
-    /// change - so repeating it on every touch was exactly the class of main-thread
-    /// stall already fixed once this session for a cold NSOpenPanel. A volume's
-    /// trash directory doesn't move during a session, so once resolved for a given
-    /// volume it never needs resolving again. (NSCache is thread-safe, so this needs
-    /// no lock despite this type having no actor isolation of its own.)
-    private static let trashDirectoryCache: NSCache<NSString, NSURL> = NSCache()
+    enum Protection: String, Error, LocalizedError {
+        case specialItem, protectedLocation, runningApplication, trash
 
-    static func canDelete(
-        _ item: DiskItem,
-        trashDirectoryURL: URL? = nil
-    ) -> Bool {
-        guard !item.isSpecialItem, !item.isRoot else {
-            return false
+        var errorDescription: String? {
+            switch self {
+            case .specialItem: String(localized: "Scan roots and synthetic items cannot be deleted.")
+            case .protectedLocation: String(localized: "This location is protected from deletion.")
+            case .runningApplication: String(localized: "The running application and its enclosing folders are protected.")
+            case .trash: String(localized: "Items already in the Trash cannot be deleted here.")
+            }
         }
-
-        let resolvedTrashURL: URL? = trashDirectoryURL ?? trashDirectory(for: item.url)
-        return resolvedTrashURL.map {
-            !contains(item.url, in: $0)
-        } ?? true
     }
 
-    static func contains(_ itemURL: URL, in directoryURL: URL) -> Bool {
-        let itemComponents: [String] = standardizedComponents(of: itemURL)
-        let directoryComponents: [String] = standardizedComponents(of: directoryURL)
-        guard itemComponents.count >= directoryComponents.count else {
-            return false
+    private static let trashDirectoryCache: NSCache<NSString, NSURL> = NSCache()
+    private static let accountLock = NSLock()
+    private static let cachedHomes = accountHomes()
+    private static let protectedContainers = ["/", "/Applications", "/Users", "/Library", "/usr", "/private", "/Volumes"]
+        .map { entryURL(URL(fileURLWithPath: $0)) }
+    private static let cachedApplication = canonicalURL(Bundle.main.bundleURL)
+
+    /// Enumerate account records, including homes outside /Users. Serialize the
+    /// process-wide passwd iterator; copy each string before advancing it.
+    private static func accountHomes() -> [URL] {
+        accountLock.withLock {
+            var homes = [FileManager.default.homeDirectoryForCurrentUser]
+            setpwent()
+            defer { endpwent() }
+            while let record = getpwent() {
+                if let directory = record.pointee.pw_dir {
+                    let path = String(cString: directory)
+                    if path.hasPrefix("/"), path != "/" {
+                        homes.append(URL(fileURLWithPath: path))
+                    }
+                }
+            }
+            return Array(Set(Set(homes).map { canonicalURL($0) }))
         }
-        return itemComponents.prefix(directoryComponents.count).elementsEqual(directoryComponents)
+    }
+
+    static func canDelete(_ item: DiskItem, trashDirectoryURL: URL? = nil) -> Bool {
+        !item.isSpecialItem && !item.isRoot
+            && protection(for: item.url, trashDirectoryURL: trashDirectoryURL) == nil
+    }
+
+    static func validateDeletion(at url: URL) throws {
+        if let reason = protection(for: url, refresh: true) { throw reason }
+    }
+
+    /// URL-level checks are also used immediately before filesystem mutation.
+    /// Explicit context keeps tests independent of installed accounts and volumes.
+    static func protection(
+        for url: URL,
+        homeDirectories: [URL]? = nil,
+        applicationURL: URL? = nil,
+        volumeURL: URL? = nil,
+        trashDirectoryURL: URL? = nil,
+        refresh: Bool = false
+    ) -> Protection? {
+        let entry = entryURL(url)
+        let path = entry.path
+        if protectedContainers.contains(entry)
+            || isWithin(entry, directory: URL(fileURLWithPath: "/System")) {
+            return .protectedLocation
+        }
+
+        let app = applicationURL.map { canonicalURL($0) } ?? (refresh ? canonicalURL(Bundle.main.bundleURL) : cachedApplication)
+        if isWithin(entry, directory: app) || isWithin(app, directory: entry) { return .runningApplication }
+
+        var homes = homeDirectories.map { $0.map { canonicalURL($0) } } ?? (refresh ? accountHomes() : cachedHomes)
+        // Structural fallback also covers accounts unavailable to directory lookup.
+        let components = entry.pathComponents
+        if components.count >= 3, components[1] == "Users" {
+            homes.append(URL(fileURLWithPath: "/Users").appendingPathComponent(components[2]))
+        }
+        for home in homes {
+            if [home, home.appendingPathComponent("Library"), home.appendingPathComponent("Documents"),
+                home.appendingPathComponent("Desktop")].contains(entry)
+                || isWithin(home, directory: entry) {
+                return .protectedLocation
+            }
+            if isWithin(entry, directory: home.appendingPathComponent(".Trash")) { return .trash }
+        }
+
+        let volume = volumeURL ?? (try? url.resourceValues(forKeys: [.volumeURLKey]))?.volume
+        if let volume {
+            if entry == canonicalURL(volume) { return .protectedLocation }
+            if contains(entry, in: volume.appendingPathComponent(".Trashes")) { return .trash }
+        }
+        // Works even for unavailable/unmounted volumes or failed Trash lookup.
+        if components.count == 3, components[1] == "Volumes" { return .protectedLocation }
+        if (components.count >= 4 && components[1] == "Volumes" && components[3] == ".Trashes")
+            || path == "/.Trashes" || path.hasPrefix("/.Trashes/") { return .trash }
+        if let trash = trashDirectoryURL ?? trashDirectory(for: url, refresh: refresh),
+           contains(entry, in: trash) { return .trash }
+        return nil
+    }
+
+    /// Compare directory entries, not final symlink targets. A link outside a
+    /// queued folder remains a separate deletion even when it points inside it.
+    static func contains(_ itemURL: URL, in directoryURL: URL) -> Bool {
+        isWithin(entryURL(itemURL), directory: entryURL(directoryURL))
+    }
+
+    /// Inputs already have their parent paths canonicalized.
+    private static func isWithin(_ itemURL: URL, directory: URL) -> Bool {
+        let itemComponents = itemURL.pathComponents
+        let directoryComponents = directory.pathComponents
+        return itemComponents.count >= directoryComponents.count
+            && itemComponents.prefix(directoryComponents.count).elementsEqual(directoryComponents)
+    }
+
+    static func entryURL(_ url: URL) -> URL {
+        guard url.path != "/" else { return url }
+        return canonicalURL(url.deletingLastPathComponent()).appendingPathComponent(url.lastPathComponent)
+    }
+
+    private static func canonicalURL(_ url: URL) -> URL {
+        if let resolved = realpath(url.path, nil) {
+            defer { free(resolved) }
+            return URL(fileURLWithPath: String(cString: resolved))
+        }
+        guard url.path != "/" else { return url }
+        return canonicalURL(url.deletingLastPathComponent()).appendingPathComponent(url.lastPathComponent).standardizedFileURL
     }
 
     static func deletionMethod(for itemURL: URL) throws -> DiskItemDeletionMethod {
@@ -46,9 +138,9 @@ nonisolated enum DiskItemDeletionPolicy {
         return values.volumeIsLocal == false ? .deletePermanently : .moveToTrash
     }
 
-    private static func trashDirectory(for itemURL: URL) -> URL? {
+    private static func trashDirectory(for itemURL: URL, refresh: Bool = false) -> URL? {
         let cacheKey: NSString = volumeIdentifier(for: itemURL) as NSString
-        if let cached: NSURL = trashDirectoryCache.object(forKey: cacheKey) {
+        if !refresh, let cached: NSURL = trashDirectoryCache.object(forKey: cacheKey) {
             return cached as URL
         }
 
@@ -68,10 +160,6 @@ nonisolated enum DiskItemDeletionPolicy {
     /// can't be read.
     private static func volumeIdentifier(for itemURL: URL) -> String {
         (try? itemURL.resourceValues(forKeys: [.volumeURLKey]))?.volume?.path ?? itemURL.path
-    }
-
-    private static func standardizedComponents(of url: URL) -> [String] {
-        url.standardizedFileURL.resolvingSymlinksInPath().pathComponents
     }
 }
 

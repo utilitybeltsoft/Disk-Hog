@@ -116,6 +116,10 @@ nonisolated struct DiskInventoryZScanSessionTreeWorker: ScanSessionTreeUpdating 
         let didStartSecurityScopedAccess: Bool = rootURL.startAccessingSecurityScopedResource()
         defer { if didStartSecurityScopedAccess { rootURL.stopAccessingSecurityScopedResource() } }
 
+        guard !item.isRoot, !item.isSpecialItem else {
+            throw DiskItemDeletionPolicy.Protection.specialItem
+        }
+        try DiskItemDeletionPolicy.validateDeletion(at: item.url)
         try performDeletion(item.url, deletionMethod)
 
         guard let updatedRoot: DiskItem = DiskItemTreeEditor.removingSubtree(

@@ -6,6 +6,7 @@ enum CleanupQueueItemStatus: Equatable {
     case missing
     case inaccessible
     case cannotMoveToTrash
+    case protected
     case processing
     case failed(String)
 }
@@ -105,7 +106,7 @@ final class CleanupQueueStore: ObservableObject {
     func contains(at itemURL: URL) -> Bool {
         let itemURL: URL = itemURL.standardizedFileURL
         return items.contains { queuedItem in
-            queuedItem.itemURL == itemURL
+            DiskItemDeletionPolicy.entryURL(queuedItem.itemURL) == DiskItemDeletionPolicy.entryURL(itemURL)
                 || (queuedItem.isFolder && DiskItemDeletionPolicy.contains(itemURL, in: queuedItem.itemURL))
         }
     }
@@ -116,7 +117,7 @@ final class CleanupQueueStore: ObservableObject {
 
     func isDirectlyQueued(at itemURL: URL) -> Bool {
         let itemURL: URL = itemURL.standardizedFileURL
-        return items.contains { $0.itemURL == itemURL }
+        return items.contains { DiskItemDeletionPolicy.entryURL($0.itemURL) == DiskItemDeletionPolicy.entryURL(itemURL) }
     }
 
     func remove(_ item: DiskItem) {
@@ -125,7 +126,7 @@ final class CleanupQueueStore: ObservableObject {
 
     func remove(at itemURL: URL) {
         let itemURL: URL = itemURL.standardizedFileURL
-        items.removeAll { $0.itemURL == itemURL }
+        items.removeAll { DiskItemDeletionPolicy.entryURL($0.itemURL) == DiskItemDeletionPolicy.entryURL(itemURL) }
     }
 
     func remove(ids: Set<CleanupQueueItem.ID>) {
@@ -182,10 +183,18 @@ final class CleanupQueueStore: ObservableObject {
                     continue
                 }
 
-                let cannotMoveToTrash: Bool = await Task.detached(priority: .userInitiated) {
-                    Self.cannotMoveToFinderTrash(item.itemURL)
-                }.value
+                let eligibility: Result<Bool, Error> = await Task.detached(priority: .userInitiated) {
+                    if let reason = DiskItemDeletionPolicy.protection(for: item.itemURL) { throw reason }
+                    return Self.cannotMoveToFinderTrash(item.itemURL)
+                }.result
                 guard isProcessing(item.id) else {
+                    continue
+                }
+                let cannotMoveToTrash: Bool
+                switch eligibility {
+                case .success(let unavailable): cannotMoveToTrash = unavailable
+                case .failure(let error):
+                    updateStatus(Self.status(for: error), for: item.id)
                     continue
                 }
                 guard cannotMoveToTrash == false else {
@@ -195,6 +204,7 @@ final class CleanupQueueStore: ObservableObject {
 
                 let source: ScanSource = item.sessionReference.value?.source ?? item.source
                 let result: Result<Void, Error> = await Task.detached(priority: .userInitiated) {
+                    try DiskItemDeletionPolicy.validateDeletion(at: item.itemURL)
                     try trashItem(item.itemURL, source)
                 }.result
 
@@ -270,6 +280,7 @@ final class CleanupQueueStore: ObservableObject {
         guard FileManager.default.fileExists(atPath: itemURL.path) else {
             throw CocoaError(.fileNoSuchFile)
         }
+        try DiskItemDeletionPolicy.validateDeletion(at: itemURL)
         var resultingURL: NSURL?
         try FileManager.default.trashItem(at: itemURL, resultingItemURL: &resultingURL)
     }
@@ -284,6 +295,7 @@ final class CleanupQueueStore: ObservableObject {
     }
 
     private static func status(for error: Error) -> CleanupQueueItemStatus {
+        if error is DiskItemDeletionPolicy.Protection { return .protected }
         let cocoaError: CocoaError? = error as? CocoaError
         switch cocoaError?.code {
         case .fileNoSuchFile:

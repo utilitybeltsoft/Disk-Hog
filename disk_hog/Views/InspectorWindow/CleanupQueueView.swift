@@ -178,6 +178,7 @@ private struct CleanupQueueRow: View {
         case .missing: String(localized: "Missing")
         case .inaccessible: String(localized: "Unavailable")
         case .cannotMoveToTrash: String(localized: "Cannot Move to Finder Trash")
+        case .protected: String(localized: "Protected")
         case .processing: String(localized: "Moving")
         case .failed: String(localized: "Failed")
         }
@@ -187,7 +188,7 @@ private struct CleanupQueueRow: View {
         switch item.status {
         case .ready: .secondary
         case .processing: .accentColor
-        case .missing, .inaccessible, .cannotMoveToTrash, .failed: .red
+        case .missing, .inaccessible, .cannotMoveToTrash, .protected, .failed: .red
         }
     }
 }
