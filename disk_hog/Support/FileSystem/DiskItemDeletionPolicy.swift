@@ -100,8 +100,8 @@ nonisolated enum DiskItemDeletionPolicy {
         if components.count == 3, components[1] == "Volumes" { return .protectedLocation }
         if (components.count >= 4 && components[1] == "Volumes" && components[3] == ".Trashes")
             || path == "/.Trashes" || path.hasPrefix("/.Trashes/") { return .trash }
-        if let trash = trashDirectoryURL ?? trashDirectory(for: url, refresh: refresh),
-           contains(entry, in: trash) { return .trash }
+        let trash = trashDirectoryURL ?? trashDirectory(for: url, refresh: refresh)
+        if contains(entry, in: trash) { return .trash }
         return nil
     }
 
@@ -138,19 +138,28 @@ nonisolated enum DiskItemDeletionPolicy {
         return values.volumeIsLocal == false ? .deletePermanently : .moveToTrash
     }
 
-    private static func trashDirectory(for itemURL: URL, refresh: Bool = false) -> URL? {
+    static func trashDirectory(
+        for itemURL: URL,
+        refresh: Bool = false,
+        cache: NSCache<NSString, NSURL> = trashDirectoryCache,
+        resolve: (URL) throws -> URL = {
+            try FileManager.default.url(for: .trashDirectory, in: .userDomainMask,
+                                        appropriateFor: $0, create: false)
+        }
+    ) -> URL {
         let cacheKey: NSString = volumeIdentifier(for: itemURL) as NSString
-        if !refresh, let cached: NSURL = trashDirectoryCache.object(forKey: cacheKey) {
+        if !refresh, let cached = cache.object(forKey: cacheKey) {
             return cached as URL
         }
 
-        let resolved: URL = (try? FileManager.default.url(
-            for: .trashDirectory,
-            in: .userDomainMask,
-            appropriateFor: itemURL,
-            create: false
-        )) ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".Trash")
-        trashDirectoryCache.setObject(resolved as NSURL, forKey: cacheKey)
+        guard let resolved = try? resolve(itemURL) else {
+            // A fallback is useful for this check, but is not a resolved volume
+            // Trash directory. Retry next time, including after a failed refresh
+            // of a previously successful entry.
+            cache.removeObject(forKey: cacheKey)
+            return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".Trash")
+        }
+        cache.setObject(resolved as NSURL, forKey: cacheKey)
         return resolved
     }
 
