@@ -3,11 +3,11 @@ import SwiftUI
 
 @MainActor
 final class SourceWindowController: NSWindowController, NSWindowDelegate {
-    static let shared: SourceWindowController = SourceWindowController()
+    static let shared: SourceWindowController = SourceWindowController(access: DiskHogApplicationDelegate.fullDiskAccess.model)
 
     private let registry: ScanWindowRegistry
 
-    init(registry: ScanWindowRegistry? = nil, commandState: ScanWindowCommandState? = nil) {
+    init(access: FullDiskAccessSetupModel, registry: ScanWindowRegistry? = nil, commandState: ScanWindowCommandState? = nil) {
         let commandState = commandState ?? .shared
         let registry = registry ?? .shared
         self.registry = registry
@@ -25,7 +25,7 @@ final class SourceWindowController: NSWindowController, NSWindowDelegate {
         window.contentMinSize = contentSize
         window.isRestorable = false
         super.init(window: window)
-        window.contentViewController = NSHostingController(rootView: ContentView(commandState: commandState))
+        window.contentViewController = NSHostingController(rootView: ContentView(commandState: commandState, access: access))
         window.delegate = self
         ApplicationWindowPlacementService.shared.register(window, role: .source)
     }

@@ -16,13 +16,27 @@ struct DiskHogApp: App {
             EmptyView()
         }
         .commands {
-            DiskHogCommands()
+            DiskHogCommands(
+                access: DiskHogApplicationDelegate.fullDiskAccess.model,
+                showAccessGuidance: { DiskHogApplicationDelegate.fullDiskAccess.showGuidance() }
+            )
         }
     }
 }
 
 @MainActor
 final class DiskHogApplicationDelegate: NSObject, NSApplicationDelegate {
+    static let fullDiskAccess = FullDiskAccessSetupController(model: FullDiskAccessSetupModel(
+        checkAccess: { await FullDiskAccessService().checkAsync() },
+        openSettings: {
+            let url = URL(string: "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_AllFiles")!
+            return NSWorkspace.shared.open(url)
+        },
+        accessBecameAvailable: {
+            NotificationCenter.default.post(name: .sourceWindowAccessDidChange, object: nil)
+        },
+        terminate: { NSApp.terminate(nil) }
+    ))
     private let registry: ScanWindowRegistry = .shared
     private var allowsTerminationAfterConfirmation: Bool = false
 
@@ -31,6 +45,11 @@ final class DiskHogApplicationDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Skip the additional launch probe and setup UI in the isolated unit host.
+        if Bundle.main.bundleIdentifier != "software.utilitybelt.diskhog.testhost",
+           ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] != "1" {
+            Self.fullDiskAccess.model.start()
+        }
         SourceWindowController.shared.show()
         // Let the source window appear before paying the open panel's cold-start
         // construction cost. AppKit work stays on the main thread; no dialog opens.
@@ -40,6 +59,7 @@ final class DiskHogApplicationDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
+        Self.fullDiskAccess.model.applicationDidBecomeActive()
         DispatchQueue.main.async {
             InspectorWindowController.shared.restoreWindowOrderingWhenApplicationBecomesActive()
         }
@@ -88,6 +108,8 @@ final class DiskHogApplicationDelegate: NSObject, NSApplicationDelegate {
 
 private struct DiskHogCommands: Commands {
     @ObservedObject private var scanWindowCommandState: ScanWindowCommandState = .shared
+    @ObservedObject var access: FullDiskAccessSetupModel
+    let showAccessGuidance: () -> Void
     @ObservedObject private var appCommandRouter: AppCommandRouter = .shared
     @ObservedObject private var cleanupQueueStore: CleanupQueueStore = .shared
     @ObservedObject private var inspectorWindowController: InspectorWindowController = .shared
@@ -101,12 +123,17 @@ private struct DiskHogCommands: Commands {
                 NotificationCenter.default.post(name: .sourceWindowChooseFolderToScan, object: nil)
             }
             .keyboardShortcut("o", modifiers: .command)
+            .disabled(access.blocksScanning)
 
             Button("Scan Selected Volume") {
                 NotificationCenter.default.post(name: .sourceWindowScanSelectedVolume, object: nil)
             }
             .keyboardShortcut(.defaultAction)
-            .disabled(appCommandRouter.canScanSelectedVolume == false)
+            .disabled(access.blocksScanning || appCommandRouter.canScanSelectedVolume == false)
+        }
+
+        CommandGroup(after: .help) {
+            Button("Full Disk Access…", action: showAccessGuidance)
         }
 
         CommandGroup(after: .newItem) {

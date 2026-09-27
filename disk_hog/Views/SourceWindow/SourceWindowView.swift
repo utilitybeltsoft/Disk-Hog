@@ -3,6 +3,7 @@ import SwiftUI
 
 struct SourceWindowView: View {
     var commandState: ScanWindowCommandState = .shared
+    @ObservedObject var access: FullDiskAccessSetupModel
     @StateObject private var viewModel: SourceWindowViewModel = SourceWindowViewModel()
     @AppStorage(SourceWindowPreferences.showExternalVolumesKey) private var showExternalVolumes: Bool = false
     @AppStorage(SourceWindowPreferences.showNetworkVolumesKey) private var showNetworkVolumes: Bool = false
@@ -11,6 +12,17 @@ struct SourceWindowView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Metrics.outerSpacing) {
+            if access.hasChecked && access.status != .available {
+                HStack {
+                    Text(access.status == .protectedAccessDenied
+                         ? String(localized: "Full Disk Access required")
+                         : String(localized: "Protected-folder access could not be verified."))
+                    Spacer()
+                    Button("Full Disk Access…", action: access.showGuidance)
+                }
+                .padding(.horizontal, Metrics.windowPadding)
+                .padding(.top, Metrics.windowPadding)
+            }
             SourceTableView(
                 sources: viewModel.filteredSources,
                 selectedSourceID: viewModel.selectedSourceID,
@@ -45,11 +57,12 @@ struct SourceWindowView: View {
                     get: { scanPreferences.treemapColorScheme },
                     set: { scanPreferences.setTreemapColorScheme($0) }
                 ),
-                canScanSelectedVolume: viewModel.selectedSource?.canScan == true,
+                canScanSelectedVolume: !access.blocksScanning && viewModel.selectedSource?.canScan == true,
                 onRefresh: refreshSources,
                 onChooseFolder: chooseFolder,
                 onScanSelectedVolume: scanSelectedVolume
             )
+            .disabled(access.blocksScanning)
             .padding(.horizontal, Metrics.windowPadding)
             .padding(.bottom, Metrics.windowPadding)
         }
@@ -74,6 +87,9 @@ struct SourceWindowView: View {
             refreshSources()
         }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didRenameVolumeNotification)) { _ in
+            refreshSources()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .sourceWindowAccessDidChange)) { _ in
             refreshSources()
         }
         .onReceive(NotificationCenter.default.publisher(for: .sourceWindowChooseFolderToScan)) { _ in
@@ -117,6 +133,7 @@ struct SourceWindowView: View {
     }
 
     private func chooseFolder() {
+        guard !access.blocksScanning else { access.showGuidance(); return }
         SourceFolderChooser.chooseSource { source in
             guard let source else {
                 return
@@ -135,6 +152,7 @@ struct SourceWindowView: View {
     }
 
     private func openSource(_ source: ScanSource) {
+        guard !access.blocksScanning else { access.showGuidance(); return }
         guard source.canScan else {
             return
         }

@@ -218,7 +218,7 @@ private struct SourceVolumeMetadata {
     }
 
     var accessHelp: String {
-        "Enable Disk Hog in System Settings > Privacy & Security > Full Disk Access, then relaunch Disk Hog."
+        String(localized: "Check folder permissions. For protected folders, use Full Disk Access in the Help menu, then reopen Disk Hog.")
     }
 
     /// The icon cache's instance is shared with other consumers (the outline, the
