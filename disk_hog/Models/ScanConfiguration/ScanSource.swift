@@ -342,11 +342,7 @@ nonisolated enum ScanSourceProvider {
         let rootPath: String = rootURL.standardizedFileURL.path
         let candidatePath: String = candidateURL.standardizedFileURL.path
 
-        if rootPath == "/" {
-            return candidatePath.hasPrefix("/")
-        }
-
-        return candidatePath == rootPath || candidatePath.hasPrefix(rootPath + "/")
+        return FilePathContainment.contains(candidatePath, in: rootPath)
     }
 
     static func isPermissionDenied(_ error: Error) -> Bool {

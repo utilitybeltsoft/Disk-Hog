@@ -225,8 +225,7 @@ nonisolated final class DiskInventoryZScanner {
 
         let standardizedRootPath: String = rootURL.standardizedFileURL.path
         let standardizedItemURL: URL = itemURL.standardizedFileURL
-        let rootPrefix: String = standardizedRootPath.hasSuffix("/") ? standardizedRootPath : standardizedRootPath + "/"
-        guard standardizedItemURL.path == standardizedRootPath || standardizedItemURL.path.hasPrefix(rootPrefix) else {
+        guard FilePathContainment.contains(standardizedItemURL.path, in: standardizedRootPath) else {
             throw DiskScannerError.itemOutsideScanRoot(path: standardizedItemURL.path)
         }
 

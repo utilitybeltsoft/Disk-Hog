@@ -113,10 +113,7 @@ nonisolated enum DiskItemDeletionPolicy {
 
     /// Inputs already have their parent paths canonicalized.
     private static func isWithin(_ itemURL: URL, directory: URL) -> Bool {
-        let itemComponents = itemURL.pathComponents
-        let directoryComponents = directory.pathComponents
-        return itemComponents.count >= directoryComponents.count
-            && itemComponents.prefix(directoryComponents.count).elementsEqual(directoryComponents)
+        FilePathContainment.contains(itemURL.path, in: directory.path)
     }
 
     static func entryURL(_ url: URL) -> URL {

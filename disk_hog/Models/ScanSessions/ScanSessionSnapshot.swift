@@ -70,14 +70,12 @@ struct ScanSessionSnapshot {
     }
 
     func isAffectedBySkippedContent(_ item: DiskItem) -> Bool {
-        let prefix = item.path.hasSuffix("/") ? item.path : item.path + "/"
-        return skippedItems.contains { $0.path == item.path || $0.path.hasPrefix(prefix) }
+        skippedItems.contains { FilePathContainment.contains($0.path, in: item.path) }
     }
 
     static func mergingSkippedItems(_ existing: [ScanSkippedItem], replacingSubtreeAt path: String,
                                     with newItems: [ScanSkippedItem]) -> [ScanSkippedItem] {
-        let prefix = path.hasSuffix("/") ? path : path + "/"
-        return existing.filter { $0.path != path && !$0.path.hasPrefix(prefix) } + newItems
+        existing.filter { !FilePathContainment.contains($0.path, in: path) } + newItems
     }
 }
 

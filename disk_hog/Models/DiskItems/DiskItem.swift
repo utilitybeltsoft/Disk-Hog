@@ -310,9 +310,7 @@ nonisolated final class DiskItem: Identifiable, Hashable, Sendable, DiskItemTree
 
     private func containsPath(_ candidatePath: String) -> Bool {
         if isSpecialItem { return candidatePath.isEmpty }
-        if candidatePath == path { return true }
-        let prefix: String = path.hasSuffix("/") ? path : path + "/"
-        return candidatePath.hasPrefix(prefix)
+        return FilePathContainment.contains(candidatePath, in: path)
     }
 
     static func == (lhs: DiskItem, rhs: DiskItem) -> Bool { lhs.id == rhs.id }

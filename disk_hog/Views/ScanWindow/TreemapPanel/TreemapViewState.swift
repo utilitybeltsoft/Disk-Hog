@@ -314,8 +314,7 @@ final class TreemapViewState {
     }
 
     private static func isAncestorPath(_ ancestorPath: String, of path: String) -> Bool {
-        path == ancestorPath
-            || path.hasPrefix(ancestorPath.hasSuffix("/") ? ancestorPath : ancestorPath + "/")
+        FilePathContainment.contains(path, in: ancestorPath)
     }
 
     func applySelectedItem(_ selectedItem: DiskItem?) -> Bool {

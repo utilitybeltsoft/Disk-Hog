@@ -89,8 +89,7 @@ final class TreemapNavigationState: ObservableObject {
     }
 
     private func contains(_ itemPath: String, within rootPath: String) -> Bool {
-        itemPath == rootPath
-            || itemPath.hasPrefix(rootPath.hasSuffix("/") ? rootPath : rootPath + "/")
+        FilePathContainment.contains(itemPath, in: rootPath)
     }
 }
 
