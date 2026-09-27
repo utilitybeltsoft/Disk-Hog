@@ -6,7 +6,6 @@ final class OpenWithMenuController: NSObject, NSMenuDelegate {
     private let item: DiskItem
     private weak var actionTarget: DiskItemContextMenuActionTarget?
     private weak var menu: NSMenu?
-    private var applications: [OpenWithApplication]?
 
     init(item: DiskItem, actionTarget: DiskItemContextMenuActionTarget) {
         self.item = item
@@ -22,17 +21,11 @@ final class OpenWithMenuController: NSObject, NSMenuDelegate {
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
-        if let applications {
-            populate(menu, with: applications)
-            return
-        }
-
         installLoadingItem(in: menu)
         OpenWithApplicationCache.shared.applications(for: item) { [weak self, weak menu] applications in
             guard let self, let menu else {
                 return
             }
-            self.applications = applications
             self.populate(menu, with: applications)
         }
     }
@@ -84,62 +77,41 @@ final class OpenWithMenuController: NSObject, NSMenuDelegate {
             menu.addItem(menuItem)
 
             OpenWithApplicationIconCache.shared.icon(for: application.url) { [weak menuItem] image in
-                image.size = NSSize(width: 16, height: 16)
                 menuItem?.image = image
             }
         }
     }
 }
 
-private struct OpenWithApplication: Sendable {
+struct OpenWithApplication: Sendable {
     let url: URL
     let displayName: String
     let isDefaultApplication: Bool
 }
 
 @MainActor
-private final class OpenWithApplicationCache {
+final class OpenWithApplicationCache {
     static let shared: OpenWithApplicationCache = OpenWithApplicationCache()
 
-    private var applicationsByContentKey: [String: [OpenWithApplication]] = [:]
-    private var waitingCompletions: [String: [([OpenWithApplication]) -> Void]] = [:]
+    private let cache: OpenWithLookupCache<[OpenWithApplication]>
+    private let loader: @MainActor (URL, @escaping @MainActor ([OpenWithApplication]) -> Void) -> Void
 
-    func applications(
-        for item: DiskItem,
-        completion: @escaping ([OpenWithApplication]) -> Void
-    ) {
-        let contentKey: String = Self.contentKey(for: item)
-        if let applications: [OpenWithApplication] = applicationsByContentKey[contentKey] {
-            completion(applications)
-            return
-        }
-
-        if waitingCompletions[contentKey] != nil {
-            waitingCompletions[contentKey, default: []].append(completion)
-            return
-        }
-        waitingCompletions[contentKey] = [completion]
-
-        let itemURL: URL = item.url
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let applications: [OpenWithApplication] = Self.findApplications(for: itemURL)
-            DispatchQueue.main.async {
-                guard let self else {
-                    return
-                }
-                self.applicationsByContentKey[contentKey] = applications
-                let completions: [([OpenWithApplication]) -> Void] = self.waitingCompletions.removeValue(forKey: contentKey) ?? []
-                for completion in completions {
-                    completion(applications)
-                }
-            }
-        }
+    init(cache: OpenWithLookupCache<[OpenWithApplication]>? = nil,
+         loader: @escaping @MainActor (URL, @escaping @MainActor ([OpenWithApplication]) -> Void) -> Void = OpenWithApplicationCache.load) {
+        self.cache = cache ?? OpenWithLookupCache(capacity: 128)
+        self.loader = loader
     }
 
-    private static func contentKey(for item: DiskItem) -> String {
-        item.isFolder
-            ? "folder"
-            : "extension:\(item.url.pathExtension.localizedLowercase)"
+    func applications(for item: DiskItem, completion: @escaping @MainActor ([OpenWithApplication]) -> Void) {
+        let url = item.url.standardizedFileURL
+        cache.value(for: url.path, load: { [loader] completion in loader(url, completion) }, completion: completion)
+    }
+
+    private static func load(_ url: URL, completion: @escaping @MainActor ([OpenWithApplication]) -> Void) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let applications = findApplications(for: url)
+            DispatchQueue.main.async { completion(applications) }
+        }
     }
 
     private nonisolated static func findApplications(for itemURL: URL) -> [OpenWithApplication] {
@@ -170,26 +142,27 @@ private final class OpenWithApplicationCache {
 }
 
 @MainActor
-private final class OpenWithApplicationIconCache {
-    static let shared: OpenWithApplicationIconCache = OpenWithApplicationIconCache()
+final class OpenWithApplicationIconCache {
+    static let shared = OpenWithApplicationIconCache()
+    private let cache: OpenWithLookupCache<NSImage>
+    private let loader: @MainActor (URL, @escaping @MainActor (NSImage) -> Void) -> Void
 
-    private var iconsByURL: [URL: NSImage] = [:]
+    init(cache: OpenWithLookupCache<NSImage>? = nil,
+         loader: @escaping @MainActor (URL, @escaping @MainActor (NSImage) -> Void) -> Void = OpenWithApplicationIconCache.load) {
+        self.cache = cache ?? OpenWithLookupCache(capacity: 256)
+        self.loader = loader
+    }
 
-    func icon(for applicationURL: URL, completion: @escaping (NSImage) -> Void) {
-        if let icon: NSImage = iconsByURL[applicationURL] {
-            completion(icon)
-            return
-        }
+    func icon(for applicationURL: URL, completion: @escaping @MainActor (NSImage) -> Void) {
+        let url = applicationURL.standardizedFileURL
+        cache.value(for: url.path, load: { [loader] completion in loader(url, completion) }, completion: completion)
+    }
 
-        DispatchQueue.global(qos: .utility).async { [weak self] in
-            let icon: NSImage = NSWorkspace.shared.icon(forFile: applicationURL.path)
-            DispatchQueue.main.async {
-                guard let self else {
-                    return
-                }
-                self.iconsByURL[applicationURL] = icon
-                completion(icon)
-            }
+    private static func load(_ url: URL, completion: @escaping @MainActor (NSImage) -> Void) {
+        DispatchQueue.global(qos: .utility).async {
+            let icon = NSWorkspace.shared.icon(forFile: url.path)
+            icon.size = NSSize(width: 16, height: 16)
+            DispatchQueue.main.async { completion(icon) }
         }
     }
 }
