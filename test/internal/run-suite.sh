@@ -73,6 +73,19 @@ else
   echo "Test result: FAIL (exit $status)"
 fi
 echo "Test results: $result_bundle"
+case "$selection" in
+  all) echo "Test scope: unit + integration + UI" ;;
+  --unit-only) echo "Test scope: unit + integration" ;;
+  --ui-only) echo "Test scope: UI only" ;;
+esac
+if [[ -d "$result_bundle" ]]; then
+  if ! xcrun xcresulttool get test-results summary --path "$result_bundle" \
+      | xcrun swift "$script_dir/TestResultSummary.swift"; then
+    echo "Test counts could not be read; inspect the result bundle. The exit status above is unchanged." >&2
+  fi
+else
+  echo "Test counts unavailable: no result bundle was produced." >&2
+fi
 if [[ "$coverage" == YES && -d "$result_bundle" ]]; then
   if xcrun xccov view --report "$result_bundle" > "$result_dir/coverage-details.txt"; then
     xcrun xccov view --report --json "$result_bundle" | xcrun swift "$script_dir/CoverageSummary.swift" \

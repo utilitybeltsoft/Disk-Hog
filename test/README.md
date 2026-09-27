@@ -18,7 +18,13 @@ implementation and report formatting live under `test/internal/`.
 
 The shared runner builds in `build/signed-tests`, checks the actual app identity
 and bundle signatures, and launches the generated test manifest explicitly.
-It prints the result-bundle location even when tests fail. Coverage runs also
+It prints the result-bundle location even when tests fail. Both commands print
+passed, failed, and skipped counts. The summary
+identifies the selected test scope and warns about skipped tests. Counts come
+from Xcode's reported tests; excluded/disabled tests and individual parameterized
+iterations are not included in those counts. Unavailable counts are reported
+explicitly, never interpreted as zero, and reporting does not change the test
+runner's exit status. Coverage runs also
 attempt to print a short coverage summary after a test failure. The full
 file/function report is saved as `coverage-details.txt` alongside the result
 bundle; the script prints its path. The summary separates app coverage from
