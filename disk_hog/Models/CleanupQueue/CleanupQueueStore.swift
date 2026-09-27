@@ -47,8 +47,7 @@ final class CleanupQueueStore: ObservableObject {
     init(
         trashItem: @escaping @Sendable (URL, ScanSource) throws -> Void = CleanupQueueStore.moveToFinderTrash,
         refreshSession: @escaping @MainActor (ScanSession) -> Void = { session in
-            guard let rootItem: DiskItem = session.rootItem else { return }
-            session.refresh(rootItem)
+            session.refreshAfterExternalDeletion()
         }
     ) {
         self.trashItem = trashItem

@@ -290,6 +290,18 @@ final class ScanSession: ObservableObject {
         }
     }
 
+    /// Queue deletion changes the filesystem independently of this session's
+    /// current work. Never drop its refresh or cancel an in-flight mutation:
+    /// coalesce a follow-up scan that starts after any terminal outcome.
+    func refreshAfterExternalDeletion() {
+        guard rescanCoordinator.requestRescan() == nil else { return }
+        if state == .complete, let rootItem {
+            refresh(rootItem)
+        } else {
+            startScan()
+        }
+    }
+
     func refresh(_ item: DiskItem) {
         guard state == .complete,
               !isUpdatingTree,
