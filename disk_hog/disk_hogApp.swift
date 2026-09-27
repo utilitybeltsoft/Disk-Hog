@@ -18,7 +18,8 @@ struct DiskHogApp: App {
         .commands {
             DiskHogCommands(
                 access: DiskHogApplicationDelegate.fullDiskAccess.model,
-                showAccessGuidance: { DiskHogApplicationDelegate.fullDiskAccess.showGuidance() }
+                showAccessGuidance: { DiskHogApplicationDelegate.fullDiskAccess.showGuidance() },
+                showAbout: { DiskHogApplicationDelegate.about.show() }
             )
         }
     }
@@ -26,6 +27,7 @@ struct DiskHogApp: App {
 
 @MainActor
 final class DiskHogApplicationDelegate: NSObject, NSApplicationDelegate {
+    static let about = AboutWindowController()
     static let fullDiskAccess = FullDiskAccessSetupController(model: FullDiskAccessSetupModel(
         checkAccess: { await FullDiskAccessService().checkAsync() },
         openSettings: {
@@ -110,6 +112,7 @@ private struct DiskHogCommands: Commands {
     @ObservedObject private var scanWindowCommandState: ScanWindowCommandState = .shared
     @ObservedObject var access: FullDiskAccessSetupModel
     let showAccessGuidance: () -> Void
+    let showAbout: () -> Void
     @ObservedObject private var appCommandRouter: AppCommandRouter = .shared
     @ObservedObject private var cleanupQueueStore: CleanupQueueStore = .shared
     @ObservedObject private var inspectorWindowController: InspectorWindowController = .shared
@@ -117,6 +120,10 @@ private struct DiskHogCommands: Commands {
 
     var body: some Commands {
         let _ = cleanupQueueStore.items
+
+        CommandGroup(replacing: .appInfo) {
+            Button("About Disk Hog…", action: showAbout)
+        }
 
         CommandGroup(replacing: .newItem) {
             Button("Choose Folder to Scan") {

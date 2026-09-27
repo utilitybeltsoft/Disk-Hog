@@ -43,7 +43,10 @@ or charge an additional fee for access.
 ## Before the first public release
 
 - Configure the public release/source URL (there is currently no Git remote).
-- Finish the About interface's offline license/notices access and source action.
+- Set `INFOPLIST_KEY_DiskHogSourceURL` for the release build to the permanent
+  HTTPS URL of its matching source archive. Verify the About source button
+  opens that archive. Without this value the button is disabled; do not ship
+  a public release with the development placeholder.
 - Verify contributor builds without the organization certificate; shared
   project defaults currently select that certificate.
 - Finish and validate DMG packaging and notarization. No release pipeline is
@@ -54,3 +57,13 @@ or charge an additional fee for access.
 
 References: [GPLv3, sections 1, 4–6](https://www.gnu.org/licenses/gpl-3.0.html)
 and [GNU distribution FAQ](https://www.gnu.org/licenses/gpl-faq.html).
+
+## About window verification
+
+Open About Disk Hog from the app menu. Verify version/build and attribution,
+then open License and Third-Party Notices while offline. Confirm scrolling,
+text selection/copying, window resizing, closing/reopening, and VoiceOver
+reading. Notices must include the original TreeMapView warranty and GPLv2
+text as well as current attribution. Check the layout in all five supported
+languages. With no source URL, the source button is disabled with an
+explanation; with release metadata configured it opens the matching source.

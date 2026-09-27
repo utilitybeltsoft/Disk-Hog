@@ -77,10 +77,11 @@ inventing an upstream revision.
 > Free software under the GNU General Public License, version 3. You may
 > redistribute and modify it under that license. Provided without warranty.
 
-The About interface should offer **License**, **Third-Party Notices**, and
+The About interface offers **License**, **Third-Party Notices**, and
 **Source for This Version**. The first two open bundled documents offline;
-the third uses the actual release's source URL. This file prepares the
-wording; it does not implement those interface actions.
+the third is enabled only when `DiskHogSourceURL` is configured in the app's
+Info.plist with an HTTPS URL for the actual release source. Until then, the
+About window explains that source downloads arrive with the public release.
 
 ## Scope still requiring evidence
 

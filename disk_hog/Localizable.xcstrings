@@ -1,6 +1,267 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "About Disk Hog": {
+      "comment": "About window and offline legal documentation. Keep project and author names unchanged.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Über Disk Hog"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Acerca de Disk Hog"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "À propos de Disk Hog"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Informazioni su Disk Hog"
+          }
+        }
+      }
+    },
+    "About Disk Hog…": {
+      "comment": "About window and offline legal documentation. Keep project and author names unchanged.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Über Disk Hog…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Acerca de Disk Hog…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "À propos de Disk Hog…"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Informazioni su Disk Hog…"
+          }
+        }
+      }
+    },
+    "License": {
+      "comment": "About window and offline legal documentation. Keep project and author names unchanged.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lizenz"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Licencia"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Licence"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Licenza"
+          }
+        }
+      }
+    },
+    "Third-Party Notices": {
+      "comment": "About window and offline legal documentation. Keep project and author names unchanged.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hinweise zu Drittanbietern"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Avisos de terceros"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mentions de tiers"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Avvisi di terze parti"
+          }
+        }
+      }
+    },
+    "Source for This Version": {
+      "comment": "About window and offline legal documentation. Keep project and author names unchanged.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quellcode dieser Version"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Código fuente de esta versión"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Code source de cette version"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Codice sorgente di questa versione"
+          }
+        }
+      }
+    },
+    "Unable to open bundled documentation.": {
+      "comment": "About window and offline legal documentation. Keep project and author names unchanged.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die mitgelieferte Dokumentation konnte nicht geöffnet werden."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo abrir la documentación incluida."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossible d’ouvrir la documentation fournie."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossibile aprire la documentazione inclusa."
+          }
+        }
+      }
+    },
+    "Source download will be available with the public release.": {
+      "comment": "About window and offline legal documentation. Keep project and author names unchanged.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Quellcode wird mit der öffentlichen Veröffentlichung zum Download verfügbar sein."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El código fuente estará disponible para descargar con la versión pública."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le code source sera disponible au téléchargement lors de la sortie publique."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il codice sorgente sarà disponibile per il download con la versione pubblica."
+          }
+        }
+      }
+    },
+    "Includes code adapted from Disk Inventory Z, Disk Inventory X, and the TreeMapView framework, with contributions by Tjark Derlien and Dani Sarfati.": {
+      "comment": "About window and offline legal documentation. Keep project and author names unchanged.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enthält angepassten Code aus Disk Inventory Z, Disk Inventory X und dem TreeMapView-Framework mit Beiträgen von Tjark Derlien und Dani Sarfati."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Incluye código adaptado de Disk Inventory Z, Disk Inventory X y el framework TreeMapView, con contribuciones de Tjark Derlien y Dani Sarfati."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comprend du code adapté de Disk Inventory Z, Disk Inventory X et du framework TreeMapView, avec des contributions de Tjark Derlien et Dani Sarfati."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Include codice adattato da Disk Inventory Z, Disk Inventory X e dal framework TreeMapView, con contributi di Tjark Derlien e Dani Sarfati."
+          }
+        }
+      }
+    },
+    "Free software under the GNU General Public License, version 3. You may redistribute and modify it under that license. Provided without warranty.": {
+      "comment": "About window and offline legal documentation. Keep project and author names unchanged.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Freie Software unter der GNU General Public License, Version 3. Sie dürfen sie gemäß dieser Lizenz weitergeben und verändern. Ohne Gewährleistung bereitgestellt."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Software libre bajo la Licencia Pública General de GNU, versión 3. Puede redistribuirlo y modificarlo bajo esa licencia. Se proporciona sin garantía."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Logiciel libre sous la licence publique générale GNU, version 3. Vous pouvez le redistribuer et le modifier selon cette licence. Fourni sans garantie."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Software libero distribuito sotto la GNU General Public License, versione 3. È possibile ridistribuirlo e modificarlo secondo tale licenza. Fornito senza garanzia."
+          }
+        }
+      }
+    },
     "Check folder permissions. For protected folders, use Full Disk Access in the Help menu, then reopen Disk Hog." : {
       "comment": "Full Disk Access setup. Permission must be enabled by the user in macOS System Settings.",
       "localizations": {
