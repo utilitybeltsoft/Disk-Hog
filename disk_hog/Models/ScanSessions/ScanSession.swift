@@ -1,793 +1,257 @@
-#if FILE_MATCHING_DIAGNOSTICS
-import AppKit
-#endif
 import Combine
 import Foundation
 
+/// UI-facing session facade. Controllers own asynchronous operation lifetimes;
+/// accepted results are published here as coherent value snapshots.
 @MainActor
 final class ScanSession: ObservableObject {
-    @Published private(set) var state: ScanSessionState
-    @Published private(set) var startedAt: Date?
-    @Published private(set) var completedAt: Date?
-    @Published private(set) var snapshotFreshness = SnapshotFreshness()
-    @Published private(set) var scannedFileCount: Int
-    @Published private(set) var scannedFolderCount: Int
-    @Published private(set) var scannedByteCount: UInt64
-    @Published private(set) var currentPath: String
-    @Published private(set) var scanStage: DiskScanStage
-    @Published private(set) var rootItem: DiskItem? {
-        didSet {
-            treeRevision &+= 1
-            NotificationCenter.default.post(name: .scanSessionTreeDidChange, object: self)
-        }
-    }
-    @Published private(set) var presentationMetrics: TreemapPresentationMetrics?
-    @Published private(set) var preferredSelection: DiskItem?
-    @Published private(set) var showsFreeSpace: Bool
-    @Published private(set) var showsOtherSpace: Bool
-    @Published private(set) var freeSpaceItem: DiskItem?
-    @Published private(set) var otherSpaceItem: DiskItem?
-    @Published private(set) var isUpdatingTree: Bool
-    @Published private(set) var isBuildingTreemap: Bool
-    @Published private(set) var treemapPreparationProgress: Double?
-    @Published private(set) var isPackageContentsSettingOutOfSync: Bool
-    @Published private(set) var skippedItems: [ScanSkippedItem]
+    @Published private var snapshot: ScanSessionSnapshot
+    @Published private var activity: ScanSessionActivity
+    @Published private var spaceVisibility = ScanSessionSpaceVisibility()
     @Published private(set) var failure: ScanSessionFailure?
     #if FILE_MATCHING_DIAGNOSTICS
-    @Published private(set) var diagnosticsExportState: DiagnosticsExportState
+    @Published private(set) var diagnosticsExportState: DiagnosticsExportState = .idle
     #endif
 
-    private(set) var source: ScanSource
-
-    // Derived work may only publish against the exact tree revision it read.
-    private var treeRevision: UInt64 = 0
-    private var appliedSizeMode: Bool?
-    private var requestedKindColors = ScanPreferenceDefaults.sharesKindColors
-    private var requestedColorScheme = ScanPreferenceDefaults.treemapColorScheme
     private var settings: DiskScanSettings
-    private let scanWorker: any ScanSessionScanning
-    private let treeWorker: any ScanSessionTreeUpdating
-    private let presentationWorker: any ScanSessionPresenting
-    private let taskCoordinator: ScanSessionTaskCoordinator = ScanSessionTaskCoordinator()
-    private var rescanCoordinator: ScanSessionRescanCoordinator = ScanSessionRescanCoordinator()
+    private let operations: ScanSessionOperationController
+    private let presentation: ScanSessionPresentationController
 
-    init(
-        source: ScanSource,
-        scanWorker: any ScanSessionScanning = DiskInventoryZScanSessionWorker(),
-        treeWorker: any ScanSessionTreeUpdating = DiskInventoryZScanSessionTreeWorker(),
-        presentationWorker: any ScanSessionPresenting = DiskInventoryZScanSessionPresentationWorker()
-    ) {
-        self.source = source
-        self.settings = source.scanSettings ?? .diskInventoryZDefault
-        self.scanWorker = scanWorker
-        self.treeWorker = treeWorker
-        self.presentationWorker = presentationWorker
-        self.state = .ready
-        self.startedAt = nil
-        self.completedAt = nil
-        self.scannedFileCount = 0
-        self.scannedFolderCount = 0
-        self.scannedByteCount = 0
-        self.currentPath = source.path
-        self.scanStage = .enumeratingRootItems
-        self.rootItem = nil
-        self.presentationMetrics = nil
-        self.preferredSelection = nil
-        self.showsFreeSpace = false
-        self.showsOtherSpace = false
-        self.freeSpaceItem = nil
-        self.otherSpaceItem = nil
-        self.isUpdatingTree = false
-        self.isBuildingTreemap = false
-        self.treemapPreparationProgress = nil
-        self.isPackageContentsSettingOutOfSync = false
-        self.skippedItems = []
-        self.failure = nil
-        #if FILE_MATCHING_DIAGNOSTICS
-        self.diagnosticsExportState = .idle
-        #endif
+    init(source: ScanSource,
+         scanWorker: any ScanSessionScanning = DiskInventoryZScanSessionWorker(),
+         treeWorker: any ScanSessionTreeUpdating = DiskInventoryZScanSessionTreeWorker(),
+         presentationWorker: any ScanSessionPresenting = DiskInventoryZScanSessionPresentationWorker()) {
+        snapshot = ScanSessionSnapshot(source: source)
+        activity = ScanSessionActivity(currentPath: source.path)
+        settings = source.scanSettings ?? .diskInventoryZDefault
+        operations = ScanSessionOperationController(scanWorker: scanWorker, treeWorker: treeWorker)
+        presentation = ScanSessionPresentationController(worker: presentationWorker)
     }
 
-    var scannedItemCount: Int {
-        scannedFileCount + scannedFolderCount
-    }
-
-    var hasIncompleteResults: Bool {
-        !skippedItems.isEmpty
-    }
-
-    /// A zero-size folder/file might genuinely be empty, or its true size might be
-    /// unknown because scanning it (or something inside it) failed - conflating the
-    /// two would misleadingly imply an item is empty when its size is simply unknown.
-    func isAffectedBySkippedContent(_ item: DiskItem) -> Bool {
-        let prefix: String = item.path.hasSuffix("/") ? item.path : item.path + "/"
-        return skippedItems.contains { $0.path == item.path || $0.path.hasPrefix(prefix) }
-    }
-
-    var scanSettings: DiskScanSettings {
-        settings
-    }
-
-    var canToggleFreeSpace: Bool {
-        rootItem != nil && freeSpaceItem != nil
-    }
-
-    var canToggleOtherSpace: Bool {
-        rootItem != nil && otherSpaceItem != nil
-    }
-
-    func toggleFreeSpace() {
-        guard canToggleFreeSpace else {
-            return
-        }
-        showsFreeSpace.toggle()
-    }
-
-    func toggleOtherSpace() {
-        guard canToggleOtherSpace else {
-            return
-        }
-        showsOtherSpace.toggle()
-    }
-
-    func startScan() {
-        startScan(preservingFailure: false)
-    }
-
+    // Preserve the view/command API while grouping publication by responsibility.
+    var source: ScanSource { snapshot.source }
+    var state: ScanSessionState { activity.state }
+    var startedAt: Date? { activity.startedAt }
+    var completedAt: Date? { activity.completedAt }
+    var currentPath: String { activity.currentPath }
+    var scanStage: DiskScanStage { activity.stage }
+    var isUpdatingTree: Bool { activity.isUpdatingTree }
+    var isBuildingTreemap: Bool { activity.isBuildingTreemap }
+    var treemapPreparationProgress: Double? { activity.treemapProgress }
+    var isPackageContentsSettingOutOfSync: Bool { activity.packageContentsOutOfSync }
+    var rootItem: DiskItem? { snapshot.root }
+    var presentationMetrics: TreemapPresentationMetrics? { snapshot.metrics }
+    var preferredSelection: DiskItem? { snapshot.selection }
+    var snapshotFreshness: SnapshotFreshness { snapshot.freshness }
+    var skippedItems: [ScanSkippedItem] { snapshot.skippedItems }
+    var scannedFileCount: Int { rootItem == nil ? activity.fileCount : snapshot.fileCount }
+    var scannedFolderCount: Int { rootItem == nil ? activity.folderCount : snapshot.folderCount }
+    var scannedByteCount: UInt64 { rootItem == nil ? activity.byteCount : snapshot.byteCount }
+    var scannedItemCount: Int { scannedFileCount + scannedFolderCount }
+    var scanSettings: DiskScanSettings { settings }
+    var freeSpaceItem: DiskItem? { snapshot.space.free }
+    var otherSpaceItem: DiskItem? { snapshot.space.other }
+    var showsFreeSpace: Bool { spaceVisibility.free }
+    var showsOtherSpace: Bool { spaceVisibility.other }
+    var hasIncompleteResults: Bool { !skippedItems.isEmpty }
+    var canToggleFreeSpace: Bool { rootItem != nil && freeSpaceItem != nil }
+    var canToggleOtherSpace: Bool { rootItem != nil && otherSpaceItem != nil }
     var canRefreshSnapshot: Bool {
-        state != .scanning && !isUpdatingTree && !isBuildingTreemap
-            && rescanCoordinator.activeOperation == nil
+        state != .scanning && !isUpdatingTree && !isBuildingTreemap && !operations.isBusy
     }
+
+    func isAffectedBySkippedContent(_ item: DiskItem) -> Bool { snapshot.isAffectedBySkippedContent(item) }
+    func elapsedTime(referenceDate: Date) -> TimeInterval { activity.elapsedTime(referenceDate: referenceDate) }
+    func toggleFreeSpace() { if canToggleFreeSpace { spaceVisibility.free.toggle() } }
+    func toggleOtherSpace() { if canToggleOtherSpace { spaceVisibility.other.toggle() } }
+    func dismissFailure() { failure = nil }
+    func rememberSelection(_ item: DiskItem?) { snapshot.selection = item }
+    func startScan() { startScan(preservingFailure: false) }
 
     /// Always rescan this window's source, regardless of selection or zoom.
-    func refreshSnapshot() {
-        guard canRefreshSnapshot else { return }
-        startScan()
-    }
-
-    func dismissFailure() {
-        failure = nil
-    }
+    func refreshSnapshot() { if canRefreshSnapshot { startScan() } }
 
     private func startScan(preservingFailure: Bool) {
-        guard state != .scanning,
-              rescanCoordinator.activeOperation == nil else {
-            return
-        }
-
-        let operation: ScanSessionWorkOperation = rescanCoordinator.beginScan()
-
-        taskCoordinator.cancel(.presentationUpdate)
-        taskCoordinator.cancel(.sizeModeUpdate)
-
-        let now: Date = Date()
-
-        state = .scanning
-        startedAt = now
-        completedAt = nil
-        scannedFileCount = 0
-        scannedFolderCount = 0
-        scannedByteCount = 0
-        currentPath = source.path
-        scanStage = .enumeratingRootItems
-        rootItem = nil
-        presentationMetrics = nil
-        preferredSelection = nil
-        showsFreeSpace = false
-        showsOtherSpace = false
-        freeSpaceItem = nil
-        otherSpaceItem = nil
-        isUpdatingTree = false
-        isBuildingTreemap = false
-        treemapPreparationProgress = nil
-        skippedItems = []
-        if !preservingFailure {
-            failure = nil
-        }
-
-        let source: ScanSource = source
-        let settings: DiskScanSettings = settings
-        let scanWorker: any ScanSessionScanning = scanWorker
-        let sessionReference: ScanSessionWeakReference = ScanSessionWeakReference(self)
-        // Long-running scans yield scheduling priority to interactive treemap work.
-        _ = taskCoordinator.start(.scan, operationID: operation.id) { _ in Task.detached(priority: .utility) { [sessionReference] in
-            do {
-                let result: ScanSessionScanResult = try await scanWorker.scan(
-                    source: source,
-                    settings: settings,
-                    progress: { progress in
-                        await MainActor.run {
-                            sessionReference.value?.applyProgress(progress, for: operation)
-                        }
-                    },
-                    stage: { stage in
-                        await MainActor.run {
-                            sessionReference.value?.applyScanStage(stage, for: operation)
-                        }
-                    },
-                    willBuildTreemap: {
-                        await MainActor.run {
-                            sessionReference.value?.beginTreemapPreparation(for: operation)
-                        }
-                    },
-                    treemapProgress: { progress in
-                        await MainActor.run {
-                            sessionReference.value?.applyTreemapPreparationProgress(progress, for: operation)
-                        }
-                    }
-                )
-
-                await MainActor.run {
-                    sessionReference.value?.source = result.source
-                    sessionReference.value?.finishScan(
-                        rootItem: result.rootItem,
-                        presentationMetrics: result.presentationMetrics,
-                        builtUsingPhysicalSize: result.builtUsingPhysicalSize,
-                        skippedItems: result.skippedItems,
-                        operation: operation
-                    )
-                }
-            } catch is CancellationError {
-                await MainActor.run {
-                    sessionReference.value?.finishCancellation(for: operation)
-                }
-            } catch {
-                await MainActor.run {
-                    sessionReference.value?.finishFailure(error, for: operation)
-                }
-            }
-        } }
+        guard state != .scanning, !operations.isBusy else { return }
+        operations.startScan(source: source, settings: settings, willStart: {
+            presentation.invalidate()
+            activity.beginScan(path: source.path, now: Date())
+            spaceVisibility = ScanSessionSpaceVisibility()
+            if !preservingFailure { failure = nil }
+            var next = snapshot
+            next.clearForScan()
+            publish(next, treeChanged: true)
+        }, receive: { [weak self] in self?.receive($0) })
     }
 
     func cancel() {
-        if state == .scanning {
-            taskCoordinator.cancel(.scan)
-        }
-        taskCoordinator.cancel(.treeUpdate)
-        taskCoordinator.cancel(.presentationUpdate)
-        taskCoordinator.cancel(.sizeModeUpdate)
+        operations.cancel()
+        presentation.invalidate()
     }
 
     func markTreemapRendered(for rootItem: DiskItem?) {
-        guard isBuildingTreemap,
-              self.rootItem == rootItem else {
-            return
-        }
-
-        isBuildingTreemap = false
-        treemapPreparationProgress = nil
-        completedAt = Date()
+        guard isBuildingTreemap, self.rootItem == rootItem else { return }
+        activity.isBuildingTreemap = false
+        activity.treemapProgress = nil
+        activity.completedAt = Date()
     }
 
     func updatePackageContentsSynchronization(with showPackageContents: Bool) {
-        isPackageContentsSettingOutOfSync = settings.lookInsidePackages != showPackageContents
-    }
-
-    func rememberSelection(_ item: DiskItem?) {
-        preferredSelection = item
+        activity.packageContentsOutOfSync = settings.lookInsidePackages != showPackageContents
     }
 
     func rescanForPackageContentsPreference(_ showPackageContents: Bool) {
-        let needsRescan: Bool = settings.lookInsidePackages != showPackageContents
-            || isPackageContentsSettingOutOfSync
+        let needed = settings.lookInsidePackages != showPackageContents || isPackageContentsSettingOutOfSync
         settings.lookInsidePackages = showPackageContents
-        isPackageContentsSettingOutOfSync = false
-
-        guard needsRescan else {
-            return
-        }
-
-        guard let activeOperation: ScanSessionWorkOperation = rescanCoordinator.requestRescan() else {
-            startScan()
-            return
-        }
-
-        switch activeOperation {
-        case .scan:
-            taskCoordinator.cancel(.scan)
-        case .treeUpdate:
-            taskCoordinator.cancel(.treeUpdate)
-        }
+        activity.packageContentsOutOfSync = false
+        guard needed else { return }
+        if !operations.requestRescan(cancelActive: true) { startScan() }
     }
 
-    /// Queue deletion changes the filesystem independently of this session's
-    /// current work. Never drop its refresh or cancel an in-flight mutation:
-    /// coalesce a follow-up scan that starts after any terminal outcome.
+    /// External deletion must survive any terminal outcome of current work.
     func refreshAfterExternalDeletion() {
-        guard rescanCoordinator.requestRescan() == nil else { return }
-        if state == .complete, let rootItem {
-            refresh(rootItem)
-        } else {
-            startScan()
-        }
+        guard !operations.requestRescan(cancelActive: false) else { return }
+        if state == .complete, let rootItem { refresh(rootItem) }
+        else { startScan() }
     }
 
     func refresh(_ item: DiskItem) {
-        guard state == .complete,
-              !isUpdatingTree,
-              !item.isSpecialItem,
-              let currentRoot: DiskItem = rootItem,
-              currentRoot.item(atPath: item.path) != nil else {
-            return
-        }
-
-        performTreeUpdate(failureDescription: .refresh(itemName: item.displayName)) { treeWorker, source, settings in
-            try await treeWorker.refresh(
-                item: item,
-                currentRoot: currentRoot,
-                source: source,
-                settings: settings
-            )
-        }
+        guard !item.isSpecialItem else { return }
+        updateTree(item, deletionMethod: nil)
     }
 
     func delete(_ item: DiskItem, using deletionMethod: DiskItemDeletionMethod) {
-        guard state == .complete,
-              !isUpdatingTree,
-              DiskItemDeletionPolicy.canDelete(item),
-              let currentRoot: DiskItem = rootItem,
-              currentRoot.item(atPath: item.path) != nil else {
-            return
-        }
-
-        performTreeUpdate(failureDescription: .deletion(itemName: item.displayName, method: deletionMethod)) { treeWorker, source, settings in
-            try await treeWorker.delete(
-                item: item,
-                deletionMethod: deletionMethod,
-                currentRoot: currentRoot,
-                source: source,
-                settings: settings
-            )
-        }
+        guard DiskItemDeletionPolicy.canDelete(item) else { return }
+        updateTree(item, deletionMethod: deletionMethod)
     }
 
-    /// Shared Task.detached/finish scaffolding for `refresh`/`delete`, which are
-    /// otherwise identical apart from which treeWorker method they call and which
-    /// operation describes a failure. Not shared with `startScan`, which has a
-    /// meaningfully different shape (more callbacks, a different success path).
-    private func performTreeUpdate(
-        failureDescription: ScanSessionOperation,
-        work: @escaping @Sendable (
-            _ treeWorker: any ScanSessionTreeUpdating,
-            _ source: ScanSource,
-            _ settings: DiskScanSettings
-        ) async throws -> ScanSessionTreeUpdateResult
-    ) {
-        let operation: ScanSessionWorkOperation = beginTreeUpdate()
-        let refreshStartedAt = Date()
-        let isRefresh: Bool
-        if case .refresh = failureDescription { isRefresh = true } else { isRefresh = false }
-        let source: ScanSource = source
-        let settings: DiskScanSettings = settings
-        let treeWorker: any ScanSessionTreeUpdating = treeWorker
-        let sessionReference: ScanSessionWeakReference = ScanSessionWeakReference(self)
-
-        _ = taskCoordinator.start(.treeUpdate, operationID: operation.id) { _ in Task.detached(priority: .userInitiated) { [sessionReference] in
-            do {
-                let result: ScanSessionTreeUpdateResult = try await work(treeWorker, source, settings)
-                await MainActor.run {
-                    sessionReference.value?.source = result.source
-                    sessionReference.value?.finishTreeUpdate(
-                        rootItem: result.rootItem,
-                        presentationMetrics: result.presentationMetrics,
-                        selectionPath: result.selectionPath,
-                        builtUsingPhysicalSize: result.builtUsingPhysicalSize,
-                        skippedItems: result.skippedItems,
-                        refreshedSubtreePath: result.refreshedSubtreePath,
-                        refreshStartedAt: isRefresh ? refreshStartedAt : nil,
-                        operation: operation
-                    )
-                }
-            } catch is CancellationError {
-                await MainActor.run { sessionReference.value?.finishTreeUpdateCancellation(for: operation) }
-            } catch {
-                await MainActor.run {
-                    sessionReference.value?.finishTreeUpdateFailure(
-                        error,
-                        operation: failureDescription,
-                        workOperation: operation
-                    )
-                }
-            }
-        } }
+    private func updateTree(_ item: DiskItem, deletionMethod: DiskItemDeletionMethod?) {
+        guard state == .complete, !isUpdatingTree, !operations.isBusy,
+              let rootItem, rootItem.item(atPath: item.path) != nil else { return }
+        operations.update(item: item, root: rootItem, deletionMethod: deletionMethod,
+                          source: source, settings: settings, willStart: {
+            presentation.invalidate()
+            activity.isUpdatingTree = true
+            failure = nil
+        }, receive: { [weak self] in self?.receive($0) })
     }
 
-    func rebuildPresentationMetrics(
-        sharesKindColors: Bool,
-        colorScheme: TreemapColorScheme
-    ) {
-        requestedKindColors = sharesKindColors
-        requestedColorScheme = colorScheme
-        guard state == .complete,
-              !isUpdatingTree,
-              let rootItem: DiskItem else {
-            return
-        }
-
-        let revision = treeRevision
-        let usePhysicalSize: Bool = settings.usePhysicalSize
-        let presentationWorker: any ScanSessionPresenting = presentationWorker
-        _ = taskCoordinator.start(.presentationUpdate) { [weak self] updateID in Task.detached(priority: .userInitiated) {
-            let metrics: TreemapPresentationMetrics = presentationWorker.presentationMetrics(
-                rootItem: rootItem,
-                usePhysicalSize: usePhysicalSize,
-                sharesKindColors: sharesKindColors,
-                colorScheme: colorScheme
-            )
-            guard !Task.isCancelled else {
-                await MainActor.run { [weak self] in
-                    self?.finishPresentationUpdate(id: updateID, revision: revision, metrics: nil)
-                }
-                return
-            }
-            await MainActor.run { [weak self] in
-                self?.finishPresentationUpdate(id: updateID, revision: revision, metrics: metrics)
-            }
-        } }
+    func rebuildPresentationMetrics(sharesKindColors: Bool, colorScheme: TreemapColorScheme) {
+        presentation.setPreferences(sharesKindColors: sharesKindColors, colorScheme: colorScheme)
+        reconcilePresentation(forceColors: true)
     }
 
     func updateSizeMode(_ usePhysicalSize: Bool) {
-        let needsRebuild: Bool = settings.usePhysicalSize != usePhysicalSize
+        let needed = settings.usePhysicalSize != usePhysicalSize
         settings.usePhysicalSize = usePhysicalSize
-
-        guard needsRebuild,
-              state == .complete,
-              !isUpdatingTree,
-              let rootItem: DiskItem else {
-            return
-        }
-
-        rebuildForSizeMode(rootItem: rootItem, usePhysicalSize: usePhysicalSize)
+        if needed { reconcilePresentation(forceSize: true) }
     }
 
-    func elapsedTime(referenceDate: Date) -> TimeInterval {
-        guard let startedAt: Date = startedAt else {
-            return .zero
-        }
+    private func reconcilePresentation(forceSize: Bool = false, forceColors: Bool = false) {
+        guard state == .complete, !isUpdatingTree else { return }
+        presentation.reconcile(snapshot: snapshot, usePhysicalSize: settings.usePhysicalSize,
+                               forceSize: forceSize, forceColors: forceColors) { [weak self] in self?.receive($0) }
+    }
 
-        let endDate: Date = completedAt ?? referenceDate
-        return max(.zero, endDate.timeIntervalSince(startedAt))
+    /// Operation identity has already been checked by the controller. Source and
+    /// bookmark updates are accepted inside the same boundary as their snapshot.
+    private func receive(_ event: ScanSessionOperationEvent) {
+        switch event {
+        case .progress(let progress): activity.apply(progress)
+        case .stage(let stage): activity.stage = stage
+        case .preparingTreemap:
+            activity.isBuildingTreemap = true
+            activity.treemapProgress = 0
+        case .treemapProgress(let progress):
+            if isBuildingTreemap { activity.treemapProgress = min(max(progress, 0), 1) }
+        case .scanFinished(let result):
+            finishScan(result)
+            startPendingRescanIfNeeded()
+        case .treeFinished(let result, let operation, let refreshStartedAt):
+            finishTree(result, operation: operation, refreshStartedAt: refreshStartedAt)
+            startPendingRescanIfNeeded()
+        }
+    }
+
+    private func finishScan(_ result: Result<ScanSessionScanResult, Error>) {
+        switch result {
+        case .success(let result):
+            var next = snapshot
+            next.acceptScan(result, files: activity.fileCount, folders: activity.folderCount,
+                            usePhysicalSize: settings.usePhysicalSize,
+                            startedAt: startedAt ?? Date(), finishedAt: Date())
+            activity.state = .complete
+            activity.isBuildingTreemap = true
+            activity.treemapProgress = nil
+            activity.currentPath = result.rootItem.path
+            publish(next, treeChanged: true)
+            reconcilePresentation()
+        case .failure(let error):
+            activity.isBuildingTreemap = false
+            activity.treemapProgress = nil
+            activity.completedAt = Date()
+            activity.state = error is CancellationError ? .cancelled : .failed
+            if !(error is CancellationError) {
+                failure = ScanSessionFailure(error: error, operation: .scan(itemName: source.displayName))
+            }
+        }
+    }
+
+    private func finishTree(_ result: Result<ScanSessionTreeUpdateResult, Error>,
+                            operation: ScanSessionOperation, refreshStartedAt: Date?) {
+        activity.isUpdatingTree = false
+        switch result {
+        case .success(let result):
+            var next = snapshot
+            next.acceptTree(result, usePhysicalSize: settings.usePhysicalSize,
+                            refreshStartedAt: refreshStartedAt, finishedAt: Date())
+            activity.currentPath = next.selection?.path ?? result.rootItem.path
+            publish(next, treeChanged: true)
+        case .failure(let error):
+            if !(error is CancellationError) { failure = ScanSessionFailure(error: error, operation: operation) }
+        }
+        reconcilePresentation()
+    }
+
+    private func receive(_ update: ScanSessionPresentationUpdate) {
+        guard state == .complete, !isUpdatingTree else { return }
+        switch update {
+        case .metrics(let metrics, let inputRoot):
+            guard rootItem == inputRoot else { return }
+            snapshot.metrics = metrics
+        case .sizeMode(let result, let inputRoot):
+            guard rootItem == inputRoot, settings.usePhysicalSize == result.usePhysicalSize else { return }
+            var next = snapshot
+            next.acceptSizeMode(result)
+            activity.currentPath = next.selection?.path ?? result.rootItem.path
+            publish(next, treeChanged: true)
+            reconcilePresentation()
+        }
+    }
+
+    /// A tree notification observes the completed snapshot, counts, source,
+    /// freshness, and activity. Presentation-only updates do not announce a tree.
+    private func publish(_ next: ScanSessionSnapshot, treeChanged: Bool) {
+        if treeChanged { presentation.invalidate() }
+        if next.space.free == nil { spaceVisibility = ScanSessionSpaceVisibility() }
+        snapshot = next
+        if treeChanged { NotificationCenter.default.post(name: .scanSessionTreeDidChange, object: self) }
+    }
+
+    private func startPendingRescanIfNeeded() {
+        if operations.consumePendingRescan() { startScan(preservingFailure: true) }
     }
 
     #if FILE_MATCHING_DIAGNOSTICS
     func exportTreemapInputDiagnostics() {
-        guard let rootItem: DiskItem = rootItem else {
+        guard let rootItem else {
             diagnosticsExportState = .failed("No completed scan tree is available.")
             return
         }
-
-        let settings: DiskScanSettings = settings
         diagnosticsExportState = .writing(TreemapInputDiagnostics.defaultOutputURL.path)
-
-        Task.detached(priority: .utility) { [weak self] in
-            do {
-                let outputURL: URL = try TreemapInputDiagnostics.writeJSONLinesReport(
-                    root: rootItem,
-                    settings: settings
-                )
-                await MainActor.run { [weak self] in
-                    let pasteboard: NSPasteboard = .general
-                    pasteboard.clearContents()
-                    pasteboard.writeObjects([outputURL as NSURL])
-                    pasteboard.setString(outputURL.path, forType: .string)
-                    self?.diagnosticsExportState = .written(outputURL.path)
-                }
-            } catch {
-                await MainActor.run { [weak self] in
-                    self?.diagnosticsExportState = .failed(String(describing: error))
-                }
-            }
+        ScanSessionDiagnostics.export(root: rootItem, settings: settings) { [weak self] in
+            self?.diagnosticsExportState = $0
         }
     }
     #endif
-
-    private func applyProgress(_ progress: DiskScanProgress, for operation: ScanSessionWorkOperation) {
-        guard state == .scanning,
-              rescanCoordinator.activeOperation == operation else {
-            return
-        }
-
-        scannedFileCount = progress.scannedFileCount
-        scannedFolderCount = progress.scannedFolderCount
-        scannedByteCount = progress.scannedByteCount
-        currentPath = progress.currentPath
-    }
-
-    private func applyScanStage(_ stage: DiskScanStage, for operation: ScanSessionWorkOperation) {
-        guard state == .scanning,
-              rescanCoordinator.activeOperation == operation else {
-            return
-        }
-
-        scanStage = stage
-    }
-
-    private func finishScan(
-        rootItem: DiskItem,
-        presentationMetrics: TreemapPresentationMetrics,
-        builtUsingPhysicalSize: Bool,
-        skippedItems: [ScanSkippedItem],
-        operation: ScanSessionWorkOperation
-    ) {
-        guard finishWorkOperation(.scan, operation: operation) else {
-            return
-        }
-        isBuildingTreemap = true
-        treemapPreparationProgress = nil
-        self.presentationMetrics = presentationMetrics
-        appliedSizeMode = builtUsingPhysicalSize
-        self.skippedItems = skippedItems
-        updateSpaceItems(for: rootItem)
-        preferredSelection = rootItem
-        self.rootItem = rootItem
-        state = .complete
-        snapshotFreshness.record(startedAt: startedAt ?? Date(), finishedAt: Date(),
-                                 hasSkippedItems: !skippedItems.isEmpty,
-                                 refreshedPath: rootItem.path, rootPath: rootItem.path)
-        currentPath = rootItem.path
-        scannedByteCount = rootItem.sizeValue(usePhysicalSize: settings.usePhysicalSize)
-        reconcilePresentation()
-        startPendingRescanIfNeeded()
-    }
-
-    private func beginTreeUpdate() -> ScanSessionWorkOperation {
-        let operation: ScanSessionWorkOperation = rescanCoordinator.beginTreeUpdate()
-        treeRevision &+= 1
-        taskCoordinator.cancel(.presentationUpdate)
-        taskCoordinator.cancel(.sizeModeUpdate)
-        isUpdatingTree = true
-        failure = nil
-        return operation
-    }
-
-    private func finishPresentationUpdate(id: UUID, revision: UInt64, metrics: TreemapPresentationMetrics?) {
-        guard taskCoordinator.finish(.presentationUpdate, operationID: id),
-              revision == treeRevision,
-              !isUpdatingTree,
-              state == .complete else {
-            return
-        }
-        if let metrics {
-            presentationMetrics = metrics
-        }
-    }
-
-    private func finishTreeUpdate(
-        rootItem: DiskItem,
-        presentationMetrics: TreemapPresentationMetrics,
-        selectionPath: String,
-        builtUsingPhysicalSize: Bool,
-        skippedItems: [ScanSkippedItem],
-        refreshedSubtreePath: String,
-        refreshStartedAt: Date?,
-        operation: ScanSessionWorkOperation
-    ) {
-        guard finishWorkOperation(.treeUpdate, operation: operation) else {
-            return
-        }
-        let counts: (files: Int, folders: Int) = rootItem.scanCounts(includeSelf: false)
-        preferredSelection = rootItem.item(atPath: selectionPath, allowAncestors: true) ?? rootItem
-        self.presentationMetrics = presentationMetrics
-        appliedSizeMode = builtUsingPhysicalSize
-        self.skippedItems = Self.mergingSkippedItems(
-            self.skippedItems,
-            replacingSubtreeAt: refreshedSubtreePath,
-            with: skippedItems
-        )
-        updateSpaceItems(for: rootItem)
-        self.rootItem = rootItem
-        scannedFileCount = counts.files
-        scannedFolderCount = counts.folders
-        scannedByteCount = rootItem.sizeValue(usePhysicalSize: settings.usePhysicalSize)
-        currentPath = preferredSelection?.path ?? rootItem.path
-        isUpdatingTree = false
-        if let refreshStartedAt {
-            snapshotFreshness.record(startedAt: refreshStartedAt, finishedAt: Date(),
-                                     hasSkippedItems: !skippedItems.isEmpty,
-                                     refreshedPath: refreshedSubtreePath, rootPath: rootItem.path)
-        }
-        reconcilePresentation()
-        startPendingRescanIfNeeded()
-    }
-
-    private func rebuildForSizeMode(rootItem: DiskItem, usePhysicalSize: Bool) {
-        let revision = treeRevision
-        let sharesKindColors = requestedKindColors
-        let colorScheme = requestedColorScheme
-        let selectionPath: String = preferredSelection?.path ?? rootItem.path
-        let presentationWorker: any ScanSessionPresenting = presentationWorker
-        _ = taskCoordinator.start(.sizeModeUpdate) { [weak self] updateID in Task.detached(priority: .userInitiated) {
-            let result: ScanSessionSizeModeUpdateResult = presentationWorker.sizeModeUpdate(
-                rootItem: rootItem,
-                selectionPath: selectionPath,
-                usePhysicalSize: usePhysicalSize,
-                sharesKindColors: sharesKindColors,
-                colorScheme: colorScheme
-            )
-            guard !Task.isCancelled else {
-                await MainActor.run { [weak self] in
-                    self?.finishSizeModeUpdate(id: updateID, revision: revision, result: nil)
-                }
-                return
-            }
-            await MainActor.run { [weak self] in
-                self?.finishSizeModeUpdate(id: updateID, revision: revision, result: result)
-            }
-        } }
-    }
-
-    private func finishSizeModeUpdate(
-        id: UUID,
-        revision: UInt64,
-        result: ScanSessionSizeModeUpdateResult?
-    ) {
-        guard taskCoordinator.finish(.sizeModeUpdate, operationID: id),
-              revision == treeRevision,
-              !isUpdatingTree,
-              state == .complete,
-              let result,
-              settings.usePhysicalSize == result.usePhysicalSize else {
-            return
-        }
-        preferredSelection = result.rootItem.item(
-            atPath: result.selectionPath,
-            allowAncestors: true
-        ) ?? result.rootItem
-        appliedSizeMode = result.usePhysicalSize
-        presentationMetrics = result.presentationMetrics
-        updateSpaceItems(for: result.rootItem)
-        rootItem = result.rootItem
-        scannedByteCount = result.rootItem.sizeValue(usePhysicalSize: result.usePhysicalSize)
-        currentPath = preferredSelection?.path ?? result.rootItem.path
-        reconcilePresentation()
-    }
-
-    /// Reapply preferences deferred during a tree operation, including failure
-    /// and cancellation. Rebuild only what differs from the published snapshot.
-    private func reconcilePresentation() {
-        guard state == .complete, !isUpdatingTree, let rootItem else { return }
-        if appliedSizeMode != settings.usePhysicalSize {
-            rebuildForSizeMode(rootItem: rootItem, usePhysicalSize: settings.usePhysicalSize)
-        } else if presentationMetrics?.sharesKindColors != requestedKindColors
-                    || presentationMetrics?.colorScheme != requestedColorScheme {
-            rebuildPresentationMetrics(sharesKindColors: requestedKindColors, colorScheme: requestedColorScheme)
-        }
-    }
-
-    private func updateSpaceItems(for rootItem: DiskItem) {
-        guard source.volumeKind != .folder,
-              let totalCapacity: UInt64 = source.totalCapacity,
-              let availableCapacity: UInt64 = source.availableCapacity,
-              totalCapacity >= availableCapacity else {
-            freeSpaceItem = nil
-            otherSpaceItem = nil
-            showsFreeSpace = false
-            showsOtherSpace = false
-            return
-        }
-
-        let scannedSize: UInt64 = rootItem.sizeValue(usePhysicalSize: settings.usePhysicalSize)
-        let usedCapacity: UInt64 = totalCapacity - availableCapacity
-        let otherSpaceSize: UInt64 = usedCapacity > scannedSize ? usedCapacity - scannedSize : 0
-
-        freeSpaceItem = DiskItem(
-            url: source.url,
-            itemType: .freeSpace,
-            allocatedSizeValue: availableCapacity,
-            logicalSizeValue: availableCapacity
-        )
-        otherSpaceItem = DiskItem(
-            url: source.url,
-            itemType: .otherSpace,
-            allocatedSizeValue: otherSpaceSize,
-            logicalSizeValue: otherSpaceSize
-        )
-    }
-
-    private func finishTreeUpdateCancellation(for operation: ScanSessionWorkOperation) {
-        guard finishWorkOperation(.treeUpdate, operation: operation) else {
-            return
-        }
-        isUpdatingTree = false
-        reconcilePresentation()
-        startPendingRescanIfNeeded()
-    }
-
-    private func finishTreeUpdateFailure(
-        _ error: Error,
-        operation: ScanSessionOperation,
-        workOperation: ScanSessionWorkOperation
-    ) {
-        guard finishWorkOperation(.treeUpdate, operation: workOperation) else {
-            return
-        }
-        isUpdatingTree = false
-        failure = ScanSessionFailure(error: error, operation: operation)
-        reconcilePresentation()
-        startPendingRescanIfNeeded()
-    }
-
-    private func finishCancellation(for operation: ScanSessionWorkOperation) {
-        guard finishWorkOperation(.scan, operation: operation) else {
-            return
-        }
-        isBuildingTreemap = false
-        treemapPreparationProgress = nil
-        state = .cancelled
-        completedAt = Date()
-        startPendingRescanIfNeeded()
-    }
-
-    private func finishFailure(_ error: Error, for operation: ScanSessionWorkOperation) {
-        guard finishWorkOperation(.scan, operation: operation) else {
-            return
-        }
-        isBuildingTreemap = false
-        treemapPreparationProgress = nil
-        state = .failed
-        completedAt = Date()
-        failure = ScanSessionFailure(
-            error: error,
-            operation: .scan(itemName: source.displayName)
-        )
-        startPendingRescanIfNeeded()
-    }
-
-    /// Both coordinators need clearing when a scan/tree-update task finishes, in
-    /// this exact order - if the task is stale (already superseded by a newer one
-    /// of the same kind), taskCoordinator.finish says so and rescanCoordinator is
-    /// deliberately left untouched, since it's now tracking whatever superseded
-    /// it. Collapsed into one call so a future finish path can't do only one half
-    /// and leave rescanCoordinator permanently stuck, tripping the precondition
-    /// in its next begin() call.
-    private func finishWorkOperation(
-        _ kind: ScanSessionTaskCoordinator.Kind,
-        operation: ScanSessionWorkOperation
-    ) -> Bool {
-        guard taskCoordinator.finish(kind, operationID: operation.id),
-              rescanCoordinator.finish(operation) else {
-            return false
-        }
-        return true
-    }
-
-    private func beginTreemapPreparation(for operation: ScanSessionWorkOperation) {
-        guard rescanCoordinator.activeOperation == operation else {
-            return
-        }
-        isBuildingTreemap = true
-        treemapPreparationProgress = 0
-    }
-
-    private func applyTreemapPreparationProgress(
-        _ progress: Double,
-        for operation: ScanSessionWorkOperation
-    ) {
-        guard isBuildingTreemap,
-              rescanCoordinator.activeOperation == operation else {
-            return
-        }
-        treemapPreparationProgress = min(max(progress, 0), 1)
-    }
-
-    private func startPendingRescanIfNeeded() {
-        guard rescanCoordinator.consumePendingRescan() else {
-            return
-        }
-        startScan(preservingFailure: true)
-    }
-
-    /// A refresh/delete only rescans one subtree, so its skipped-item list only
-    /// covers that subtree - stale entries for the same subtree (e.g. from before
-    /// permissions were fixed) must be dropped, while entries elsewhere in the
-    /// tree are untouched.
-    private static func mergingSkippedItems(
-        _ existing: [ScanSkippedItem],
-        replacingSubtreeAt path: String,
-        with newItems: [ScanSkippedItem]
-    ) -> [ScanSkippedItem] {
-        let prefix: String = path.hasSuffix("/") ? path : path + "/"
-        let remaining: [ScanSkippedItem] = existing.filter { $0.path != path && !$0.path.hasPrefix(prefix) }
-        return remaining + newItems
-    }
 }
