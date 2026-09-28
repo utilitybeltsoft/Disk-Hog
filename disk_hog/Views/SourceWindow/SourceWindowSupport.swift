@@ -8,6 +8,12 @@ enum SourceFolderChooser {
     private static var keyObserver: NSObjectProtocol?
     private static var nextRequest = 0
 
+    /// Called only after permission setup clears; reuse a panel opened by the user.
+    static func prepareAfterLaunch() {
+        guard preparedPanel == nil else { return }
+        _ = preparePanel(reason: "after-access-setup")
+    }
+
     private static func preparePanel(reason: String) -> NSOpenPanel {
         if let preparedPanel { return preparedPanel }
         let started = ProcessInfo.processInfo.systemUptime

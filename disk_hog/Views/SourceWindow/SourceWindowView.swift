@@ -80,6 +80,13 @@ struct SourceWindowView: View {
             InspectorWindowController.shared.activate(source: viewModel.selectedSource)
         })
         .onAppear { refreshSources() }
+        .task(id: access.allowsFolderChooserWarmup) {
+            guard access.allowsFolderChooserWarmup else { return }
+            // Let setup close and the source window settle before warming AppKit.
+            do { try await Task.sleep(for: .milliseconds(500)) } catch { return }
+            guard !Task.isCancelled, access.allowsFolderChooserWarmup else { return }
+            SourceFolderChooser.prepareAfterLaunch()
+        }
         .onChange(of: access.allowsSourceDiscovery) {
             if access.allowsSourceDiscovery { refreshSources() }
         }

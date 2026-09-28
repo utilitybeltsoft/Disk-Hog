@@ -65,6 +65,30 @@ private actor AccessCheckGate {
 
 @MainActor
 struct FullDiskAccessSetupTests {
+    @Test func folderChooserWarmupWaitsForChecksAndGuidance() async throws {
+        let gate = AccessCheckGate()
+        let model = FullDiskAccessSetupModel(checkAccess: { await gate.check() },
+                                            openSettings: { true }, terminate: {})
+        #expect(!model.allowsFolderChooserWarmup)
+        model.start()
+        #expect(!model.allowsFolderChooserWarmup)
+        try await waitUntilAsync { await gate.calls == 1 }
+        await gate.finish(1, with: .available)
+        try await waitUntil { model.hasChecked }
+        #expect(model.allowsFolderChooserWarmup)
+        model.showGuidance()
+        #expect(!model.allowsFolderChooserWarmup)
+        model.dismissGuidance()
+        #expect(model.allowsFolderChooserWarmup)
+        model.recheck()
+        #expect(!model.allowsFolderChooserWarmup)
+        try await waitUntilAsync { await gate.calls == 2 }
+        await gate.finish(2, with: .protectedAccessDenied)
+        try await waitUntil { !model.isChecking }
+        #expect(!model.allowsFolderChooserWarmup)
+    }
+
+
     @Test func launchDiscoveryWaitsForAccessAndStaysBlockedAfterDenial() async throws {
         let gate = AccessCheckGate()
         let model = FullDiskAccessSetupModel(checkAccess: { await gate.check() },
@@ -93,7 +117,9 @@ struct FullDiskAccessSetupTests {
             sourceLoader: { await counter.load() }, canRefresh: { model.allowsSourceDiscovery })
         await sources.refresh().value
         #expect(await counter.calls == 0)
+        #expect(!model.allowsFolderChooserWarmup)
         model.dismissGuidance()
+        #expect(model.allowsFolderChooserWarmup)
         await sources.refresh().value
         #expect(await counter.calls == 1)
     }

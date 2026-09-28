@@ -36,6 +36,10 @@ final class FullDiskAccessSetupModel: ObservableObject {
     /// Keep it behind the access check and any visible setup guidance.
     var allowsSourceDiscovery: Bool { !blocksScanning && !isPresented }
 
+    var allowsFolderChooserWarmup: Bool {
+        hasChecked && !isChecking && allowsSourceDiscovery
+    }
+
     func start() {
         guard !started else { return }
         started = true

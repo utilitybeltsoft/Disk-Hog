@@ -31,8 +31,10 @@ Volume discovery performs filesystem access, so it must wait for the initial
 access check and remain paused while the Full Disk Access guidance is shown.
 The source model checks this gate for initial loads, manual refreshes, and
 mount/unmount/rename events, including immediately before a queued load starts.
-Discovery resumes when setup permits it. Folder-picker construction occurs on
-user request, not as launch warm-up.
+Discovery resumes when setup permits it. Folder-picker warm-up waits until an
+access check has finished and guidance is closed, then gives the source window
+500 ms to settle. A new check or reopened guidance cancels the pending warm-up.
+The panel is prepared only once and is reused if the user opened it first.
 
 For live verification, use a signed app without Full Disk Access and with an
 external volume attached. Launch without clicking anything: Full Disk Access
