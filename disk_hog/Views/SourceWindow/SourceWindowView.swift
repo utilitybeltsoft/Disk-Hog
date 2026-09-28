@@ -23,7 +23,7 @@ struct SourceWindowView: View {
             if access.hasChecked && access.status != .available {
                 HStack {
                     Text(access.status == .protectedAccessDenied
-                         ? String(localized: "Full Disk Access required")
+                         ? String(localized: "Limited access: some folders may be skipped.")
                          : String(localized: "Protected-folder access could not be verified."))
                     Spacer()
                     Button("Full Disk Access…", action: access.showGuidance)

@@ -10,9 +10,13 @@ access attempts also give macOS an opportunity to register the running app in th
 Full Disk Access list. Registration is OS behavior and requires signed-app manual
 verification; it is not guaranteed by the existence of a Settings URL.
 
-Launch checks gate scan entry points until complete. Denied protected access
-presents setup and gates new scans; an inconclusive result permits scanning with
-an explanatory banner. Existing scans are not cancelled by an activation check.
+Launch presents only the setup window while access is checked. The source window
+is not constructed until access is confirmed or the user proceeds. Denied access
+gates new scans until the user explicitly chooses Continue with Limited Access.
+An inconclusive result leaves guidance visible with that same option. The choice
+is session-only; activation checks do not repeatedly reopen denied guidance after
+continuation. A source banner and existing scan-issue warnings explain limitations.
+Readable volume roots remain selectable even when protected descendants are denied. Existing scans are not cancelled by an activation check.
 There is no saved “permission granted” flag. Activation rechecks update the state,
 and a transition to available refreshes source metadata. Opening Settings never
 counts as approval. Rechecks do not restart scans or change their freshness.
@@ -45,3 +49,10 @@ closing optional guidance resumes it. macOS may still ask for volume access
 when the app legitimately starts accessing volumes; this fix does not grant
 that permission or suppress system dialogs. Automated tests use injected loaders
 and do not reset the user's privacy grants.
+
+The setup instructions always show the missing-app steps and the bundled example
+image supplied for this app. On a smaller screen the instructions scroll while
+Quit, Open Full Disk Access, and Continue with Limited Access remain accessible.
+Verify initial launch shows no source/inspector window until proceeding, that
+limited mode can scan a readable volume, and that Show Affected Items reports
+unreadable paths. Full Disk Access does not override all filesystem permissions.

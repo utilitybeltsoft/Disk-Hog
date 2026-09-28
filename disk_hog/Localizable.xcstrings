@@ -1,6 +1,151 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "It should look like this:": {
+      "comment": "Full Disk Access setup and limited-access scan guidance.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "So sollte es aussehen:"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Debería verse así:"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cela devrait ressembler à ceci :"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dovrebbe apparire così:"
+          }
+        }
+      }
+    },
+    "Example: Disk Hog listed in Full Disk Access with its switch turned on.": {
+      "comment": "Full Disk Access setup and limited-access scan guidance.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beispiel: Disk Hog ist unter Vollzugriff auf Festplatte aufgeführt und eingeschaltet."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ejemplo: Disk Hog aparece en Acceso total al disco con el interruptor activado."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Exemple : Disk Hog figure dans Accès complet au disque avec son interrupteur activé."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esempio: Disk Hog compare in Accesso completo al disco con l’interruttore attivato."
+          }
+        }
+      }
+    },
+    "Continue with Limited Access": {
+      "comment": "Full Disk Access setup and limited-access scan guidance.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mit eingeschränktem Zugriff fortfahren"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continuar con acceso limitado"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continuer avec un accès limité"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continua con accesso limitato"
+          }
+        }
+      }
+    },
+    "Limited access: some folders may be skipped.": {
+      "comment": "Full Disk Access setup and limited-access scan guidance.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eingeschränkter Zugriff: Einige Ordner werden möglicherweise übersprungen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Acceso limitado: algunas carpetas podrían omitirse."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accès limité : certains dossiers peuvent être ignorés."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accesso limitato: alcune cartelle potrebbero essere saltate."
+          }
+        }
+      }
+    },
+    "You can continue with limited access. Protected folders may be skipped and disk usage may be understated. Incomplete scans show a warning; the scan issues list identifies paths that could not be read and their reported errors.": {
+      "comment": "Full Disk Access setup and limited-access scan guidance.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sie können mit eingeschränktem Zugriff fortfahren. Geschützte Ordner werden möglicherweise übersprungen und die Speicherbelegung zu niedrig angezeigt. Unvollständige Scans zeigen eine Warnung; die Liste der Scanprobleme nennt nicht lesbare Pfade und die gemeldeten Fehler."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Puede continuar con acceso limitado. Las carpetas protegidas podrían omitirse y el uso del disco podría mostrarse por debajo del real. Los análisis incompletos muestran una advertencia; la lista de problemas identifica las rutas que no pudieron leerse y los errores notificados."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vous pouvez continuer avec un accès limité. Des dossiers protégés peuvent être ignorés et l’espace utilisé sous-estimé. Les analyses incomplètes affichent un avertissement ; la liste des problèmes indique les chemins illisibles et les erreurs signalées."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Puoi continuare con accesso limitato. Le cartelle protette potrebbero essere saltate e l’utilizzo del disco sottostimato. Le scansioni incomplete mostrano un avviso; l’elenco dei problemi indica i percorsi non leggibili e gli errori segnalati."
+          }
+        }
+      }
+    },
     "About Disk Hog": {
       "comment": "About window and offline legal documentation. Keep project and author names unchanged.",
       "localizations": {

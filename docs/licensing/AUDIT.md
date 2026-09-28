@@ -95,3 +95,7 @@ their own license review and notices.
 See RELEASES.md for source availability and packaging work remaining before
 public distribution. No claim of a completed release compliance review is
 made by adding these documents.
+
+The Full Disk Access example image was supplied by the app owner on 2026-09-27
+for inclusion in setup guidance. It is a screenshot of the macOS settings row,
+not a replacement app icon.

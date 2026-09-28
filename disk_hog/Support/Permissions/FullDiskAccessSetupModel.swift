@@ -3,6 +3,7 @@ import Foundation
 
 @MainActor
 final class FullDiskAccessSetupModel: ObservableObject {
+    @Published private(set) var isUsingLimitedAccess = false
     @Published private(set) var status: FullDiskAccessStatus = .inconclusive
     @Published private(set) var isChecking = false
     @Published private(set) var hasChecked = false
@@ -13,6 +14,8 @@ final class FullDiskAccessSetupModel: ObservableObject {
     private let checkAccess: @Sendable () async -> FullDiskAccessStatus
     private let openSettings: () -> Bool
     private let accessBecameAvailable: () -> Void
+    private let enterApplication: () -> Void
+    private var enteredApplication = false
     private let terminate: () -> Void
     private var task: Task<Void, Never>?
     private var generation = 0
@@ -22,15 +25,17 @@ final class FullDiskAccessSetupModel: ObservableObject {
     init(checkAccess: @escaping @Sendable () async -> FullDiskAccessStatus,
          openSettings: @escaping () -> Bool,
          accessBecameAvailable: @escaping () -> Void = {},
+         enterApplication: @escaping () -> Void = {},
          terminate: @escaping () -> Void) {
         self.checkAccess = checkAccess
         self.openSettings = openSettings
         self.accessBecameAvailable = accessBecameAvailable
+        self.enterApplication = enterApplication
         self.terminate = terminate
     }
 
     // Initial checking gates scanning; an inconclusive result never traps the user.
-    var blocksScanning: Bool { (started && !hasChecked) || status == .protectedAccessDenied }
+    var blocksScanning: Bool { (started && !hasChecked) || (status == .protectedAccessDenied && !isUsingLimitedAccess) }
 
     /// Discovery reads volume roots and can trigger macOS privacy prompts.
     /// Keep it behind the access check and any visible setup guidance.
@@ -43,6 +48,7 @@ final class FullDiskAccessSetupModel: ObservableObject {
     func start() {
         guard !started else { return }
         started = true
+        isPresented = true
         runCheck(openAfter: false)
     }
 
@@ -51,6 +57,20 @@ final class FullDiskAccessSetupModel: ObservableObject {
     func dismissGuidance() {
         guard !blocksScanning else { return }
         isPresented = false
+        enterApplicationIfNeeded()
+    }
+
+    func continueWithLimitedAccess() {
+        guard hasChecked, !isChecking else { return }
+        isUsingLimitedAccess = status != .available
+        isPresented = false
+        enterApplicationIfNeeded()
+    }
+
+    private func enterApplicationIfNeeded() {
+        guard hasChecked, !blocksScanning, !isPresented, !enteredApplication else { return }
+        enteredApplication = true
+        enterApplication()
     }
 
     func recheck() {
@@ -92,14 +112,16 @@ final class FullDiskAccessSetupModel: ObservableObject {
                 self.hasOpenedSettings = self.hasOpenedSettings || opened
                 self.settingsOpenFailed = !opened
                 self.openingSettings = false
-            } else if result == .protectedAccessDenied {
+            } else if result == .protectedAccessDenied && !self.isUsingLimitedAccess {
                 self.isPresented = true
             } else if result == .available {
+                self.isUsingLimitedAccess = false
                 self.isPresented = false
             }
             if result == .available && previous != .available {
                 self.accessBecameAvailable()
             }
+            self.enterApplicationIfNeeded()
             self.task = nil
         }
     }

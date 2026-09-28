@@ -65,6 +65,51 @@ private actor AccessCheckGate {
 
 @MainActor
 struct FullDiskAccessSetupTests {
+    @Test func launchEntersApplicationOnlyAfterExplicitLimitedAccessChoice() async throws {
+        var entries = 0
+        let model = FullDiskAccessSetupModel(checkAccess: { .protectedAccessDenied },
+            openSettings: { true }, enterApplication: { entries += 1 }, terminate: {})
+        model.start()
+        #expect(model.isPresented)
+        model.continueWithLimitedAccess()
+        #expect(entries == 0)
+        try await waitUntil { model.hasChecked }
+        #expect(entries == 0)
+        #expect(model.blocksScanning)
+        model.continueWithLimitedAccess()
+        #expect(entries == 1)
+        #expect(model.isUsingLimitedAccess)
+        #expect(!model.isPresented)
+        #expect(model.allowsSourceDiscovery)
+        #expect(model.allowsFolderChooserWarmup)
+        model.applicationDidBecomeActive()
+        try await waitUntil { !model.isChecking }
+        #expect(!model.isPresented)
+        #expect(!model.blocksScanning)
+        model.showGuidance()
+        #expect(!model.allowsSourceDiscovery)
+        model.continueWithLimitedAccess()
+        #expect(entries == 1)
+    }
+
+    @Test func confirmedAccessEntersApplicationAutomaticallyOnce() async throws {
+        var entries = 0
+        let model = FullDiskAccessSetupModel(checkAccess: { .available },
+            openSettings: { false }, enterApplication: { entries += 1 }, terminate: {})
+        model.start()
+        try await waitUntil { model.hasChecked }
+        #expect(entries == 1)
+        #expect(!model.isPresented)
+        #expect(!model.isUsingLimitedAccess)
+        model.recheck()
+        try await waitUntil { !model.isChecking }
+        #expect(entries == 1)
+    }
+
+    @Test func permissionExampleImageIsBundled() {
+        #expect(NSImage(named: "FullDiskAccessExample") != nil)
+    }
+
     @Test func folderChooserWarmupWaitsForChecksAndGuidance() async throws {
         let gate = AccessCheckGate()
         let model = FullDiskAccessSetupModel(checkAccess: { await gate.check() },
@@ -154,7 +199,7 @@ struct FullDiskAccessSetupTests {
         model.start()
         try await waitUntil { model.hasChecked }
         #expect(!model.blocksScanning)
-        #expect(!model.isPresented)
+        #expect(model.isPresented)
         model.showGuidance()
         model.dismissGuidance()
         #expect(!model.isPresented)

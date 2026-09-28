@@ -230,7 +230,9 @@ nonisolated enum ScanSourceProvider {
             isDiskImageVolume: isDiskImage(url),
             scanDisabledReason: scanDisabledReason(
                 for: url,
-                isLocalVolume: resourceValues?.volumeIsLocal
+                isLocalVolume: resourceValues?.volumeIsLocal,
+                // Protected descendants make a scan partial, not the whole volume unusable.
+                protectedURLs: []
             )
         )
     }

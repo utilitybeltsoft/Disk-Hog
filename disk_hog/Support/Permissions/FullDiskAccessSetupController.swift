@@ -9,8 +9,8 @@ final class FullDiskAccessSetupController: NSWindowController, NSWindowDelegate 
 
     init(model: FullDiskAccessSetupModel) {
         self.model = model
-        let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 460, height: 360),
-                            styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 560, height: min(680, (NSScreen.main?.visibleFrame.height ?? 800) - 100)),
+                            styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
         panel.title = String(localized: "Full Disk Access")
         panel.isReleasedWhenClosed = false
         panel.isRestorable = false
@@ -24,6 +24,7 @@ final class FullDiskAccessSetupController: NSWindowController, NSWindowDelegate 
             model: model,
             revealApplication: { NSWorkspace.shared.activateFileViewerSelecting([Bundle.main.bundleURL]) }
         ))
+        panel.contentMinSize = NSSize(width: 520, height: 400)
         panel.center()
         observation = model.objectWillChange.sink { [weak self] in
             // Published notifications precede the mutation. Read the completed state.
@@ -64,23 +65,35 @@ private struct FullDiskAccessSetupView: View {
             Text("Enable Full Disk Access")
                 .font(.title2.bold())
                 .accessibilityAddTraits(.isHeader)
-            Text("Disk Hog needs access to protected folders to include them in disk scans. Without it, scans can miss files and underreport disk usage.")
-            Text("In System Settings, turn on Disk Hog under Privacy & Security → Full Disk Access. Choose Quit & Reopen if macOS asks; otherwise quit and reopen Disk Hog.")
-            if model.isChecking {
-                ProgressView("Checking protected-folder access…")
-            } else if model.hasChecked && model.status == .inconclusive {
-                Text("Disk Hog could not determine whether protected-folder access is available. You can continue using accessible folders or review Full Disk Access in System Settings.")
-                    .foregroundStyle(.secondary)
-            }
-            if model.settingsOpenFailed {
-                Text("System Settings could not be opened. Open it from the Apple menu, then choose Privacy & Security → Full Disk Access.")
-                    .foregroundStyle(.secondary)
-            }
-            DisclosureGroup("Disk Hog isn’t listed") {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Click + in Full Disk Access and select the Disk Hog application shown in Finder. Enable it, then reopen Disk Hog.")
-                    Button("Show Disk Hog in Finder", action: revealApplication)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Disk Hog needs access to protected folders to include them in disk scans. Without it, scans can miss files and underreport disk usage.")
+                    Text("In System Settings, turn on Disk Hog under Privacy & Security → Full Disk Access. Choose Quit & Reopen if macOS asks; otherwise quit and reopen Disk Hog.")
+                    if model.isChecking {
+                        ProgressView("Checking protected-folder access…")
+                    } else if model.hasChecked && model.status == .inconclusive {
+                        Text("Disk Hog could not determine whether protected-folder access is available. You can continue using accessible folders or review Full Disk Access in System Settings.")
+                            .foregroundStyle(.secondary)
+                    }
+                    if model.settingsOpenFailed {
+                        Text("System Settings could not be opened. Open it from the Apple menu, then choose Privacy & Security → Full Disk Access.")
+                            .foregroundStyle(.secondary)
+                    }
+                    Text("It should look like this:")
+                    Image("FullDiskAccessExample")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: 455)
+                        .accessibilityLabel("Example: Disk Hog listed in Full Disk Access with its switch turned on.")
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Disk Hog isn’t listed").font(.headline)
+                        Text("Click + in Full Disk Access and select the Disk Hog application shown in Finder. Enable it, then reopen Disk Hog.")
+                        Button("Show Disk Hog in Finder", action: revealApplication)
+                    }
+                    Text("You can continue with limited access. Protected folders may be skipped and disk usage may be understated. Incomplete scans show a warning; the scan issues list identifies paths that could not be read and their reported errors.")
+                        .foregroundStyle(.secondary)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             HStack {
                 Button("Quit Disk Hog", action: model.quit)
@@ -94,12 +107,10 @@ private struct FullDiskAccessSetupView: View {
                 Button("Check Again", action: model.recheck)
                     .disabled(model.isChecking)
             }
-            if !model.blocksScanning {
-                Button("Continue", action: model.dismissGuidance)
-            }
+            Button("Continue with Limited Access", action: model.continueWithLimitedAccess)
+                .disabled(!model.hasChecked || model.isChecking)
         }
         .padding(24)
-        .frame(width: 460)
-        .fixedSize(horizontal: false, vertical: true)
+        .frame(minWidth: 520, minHeight: 400)
     }
 }

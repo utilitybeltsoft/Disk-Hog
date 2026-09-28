@@ -28,7 +28,7 @@ struct DiskHogApp: App {
 @MainActor
 final class DiskHogApplicationDelegate: NSObject, NSApplicationDelegate {
     static let about = AboutWindowController()
-    static let fullDiskAccess = FullDiskAccessSetupController(model: FullDiskAccessSetupModel(
+    static let fullDiskAccess: FullDiskAccessSetupController = FullDiskAccessSetupController(model: FullDiskAccessSetupModel(
         checkAccess: { await FullDiskAccessService().checkAsync() },
         openSettings: {
             let url = URL(string: "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_AllFiles")!
@@ -36,6 +36,10 @@ final class DiskHogApplicationDelegate: NSObject, NSApplicationDelegate {
         },
         accessBecameAvailable: {
             NotificationCenter.default.post(name: .sourceWindowAccessDidChange, object: nil)
+        },
+        enterApplication: {
+            DiskHogApplicationDelegate.fullDiskAccess.window?.orderOut(nil)
+            SourceWindowController.shared.show()
         },
         terminate: { NSApp.terminate(nil) }
     ))
@@ -51,8 +55,9 @@ final class DiskHogApplicationDelegate: NSObject, NSApplicationDelegate {
         if Bundle.main.bundleIdentifier != "software.utilitybelt.diskhog.testhost",
            ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] != "1" {
             Self.fullDiskAccess.model.start()
+        } else {
+            SourceWindowController.shared.show()
         }
-        SourceWindowController.shared.show()
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
