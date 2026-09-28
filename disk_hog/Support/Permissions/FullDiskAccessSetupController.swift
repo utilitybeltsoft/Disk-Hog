@@ -102,8 +102,6 @@ private struct FullDiskAccessSetupView: View {
             HStack {
                 Spacer(minLength: 0)
                 Button("Continue with Limited Access", action: model.continueWithLimitedAccess)
-                Button("Open Full Disk Access", action: model.requestSettings)
-                    .keyboardShortcut(.defaultAction)
             }
             HStack {
                 Button("Quit Disk Hog", action: model.quit)

@@ -29,7 +29,7 @@ counts as approval. Rechecks do not restart scans or change their freshness.
 
 The setup model coalesces pending requests. Help and Settings requests wait for
 an active check to finish before showing guidance. Once guidance is visible,
-Settings buttons open their destinations directly and activation does not probe.
+The Settings button opens its destination directly and activation does not probe.
 There is no checking text, spinner, or Check Again button; granting access follows
 the macOS Quit & Reopen flow.
 The panel is nonmodal, stays visible outside the app, and permits termination for
@@ -63,13 +63,12 @@ and do not reset the user's privacy grants.
 The setup instructions always show the missing-app steps and the bundled example
 image supplied for this app. The window fits its content without scrolling and is geometrically centered in
 the screen’s visible area, including after its content changes. Continue with
-Limited Access sits immediately left of the default Open Full Disk Access button;
+Limited Access sits on the right;
 Quit appears below on the left.
 Verify initial launch shows no source/inspector window until proceeding, that
 limited mode can scan a readable volume, and that Show Affected Items reports
 unreadable paths. Full Disk Access does not override all filesystem permissions.
 
 The button immediately after the example image opens Privacy & Security in
-System Settings. The default Open Full Disk Access button opens that specific
-section. Verify both destinations and the Settings-open failure message. No
-Finder-reveal button is offered in the setup dialog.
+System Settings. Verify that destination and the Settings-open failure message.
+No separate Open Full Disk Access or Finder-reveal button is offered in the setup dialog.
