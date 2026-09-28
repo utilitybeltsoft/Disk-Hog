@@ -92,7 +92,7 @@ private struct FullDiskAccessSetupView: View {
                 .scaledToFit()
                 .frame(maxWidth: 455)
                 .accessibilityLabel("Example: Disk Hog listed in Full Disk Access with its switch turned on.")
-            Button("Open Privacy & Security in System Settings", action: model.requestPrivacySettings)
+            Button("Open Privacy & Security in System Settings", action: model.requestSettings)
             VStack(alignment: .leading, spacing: 8) {
                 Text("If Disk Hog isn’t listed").font(.headline)
                 Text("Click + in Full Disk Access and select the Disk Hog application. Turn it on, then choose Quit & Reopen.")

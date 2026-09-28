@@ -34,11 +34,7 @@ final class DiskHogApplicationDelegate: NSObject, NSApplicationDelegate {
         recordLimitedAccessChoice: { UserDefaults.standard.set(true, forKey: "fullDiskAccessLimitedAccessAccepted") },
         checkAccess: { await FullDiskAccessService().checkAsync() },
         openSettings: {
-            let url = URL(string: "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_AllFiles")!
-            return NSWorkspace.shared.open(url)
-        },
-        openPrivacySettings: {
-            let url = URL(string: "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension")!
+            let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")!
             return NSWorkspace.shared.open(url)
         },
         accessBecameAvailable: {

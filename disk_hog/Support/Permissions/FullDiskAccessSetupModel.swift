@@ -15,14 +15,13 @@ final class FullDiskAccessSetupModel: ObservableObject {
     private let recordLimitedAccessChoice: () -> Void
     private let checkAccess: @Sendable () async -> FullDiskAccessStatus
     private let openSettings: () -> Bool
-    private let openPrivacySettings: () -> Bool
     private let accessBecameAvailable: () -> Void
     private let enterApplication: () -> Void
     private var enteredApplication = false
     private let terminate: () -> Void
     private var task: Task<Void, Never>?
     private var guidanceRequested = false
-    private var pendingSettings: (() -> Bool)?
+    private var settingsRequested = false
     private var started = false
     private var openingSettings = false
 
@@ -30,7 +29,6 @@ final class FullDiskAccessSetupModel: ObservableObject {
          recordLimitedAccessChoice: @escaping () -> Void = {},
          checkAccess: @escaping @Sendable () async -> FullDiskAccessStatus,
          openSettings: @escaping () -> Bool,
-         openPrivacySettings: (() -> Bool)? = nil,
          accessBecameAvailable: @escaping () -> Void = {},
          enterApplication: @escaping () -> Void = {},
          terminate: @escaping () -> Void) {
@@ -39,7 +37,6 @@ final class FullDiskAccessSetupModel: ObservableObject {
         self.isUsingLimitedAccess = limitedAccessAccepted
         self.checkAccess = checkAccess
         self.openSettings = openSettings
-        self.openPrivacySettings = openPrivacySettings ?? openSettings
         self.accessBecameAvailable = accessBecameAvailable
         self.enterApplication = enterApplication
         self.terminate = terminate
@@ -105,20 +102,16 @@ final class FullDiskAccessSetupModel: ObservableObject {
         recheck()
     }
 
-    func requestSettings() { requestSettings(using: openSettings) }
-
-    func requestPrivacySettings() { requestSettings(using: openPrivacySettings) }
-
-    private func requestSettings(using open: @escaping () -> Bool) {
-        guard !openingSettings, pendingSettings == nil else { return }
+    func requestSettings() {
+        guard !openingSettings, !settingsRequested else { return }
         guard hasChecked, !isChecking else {
-            pendingSettings = open
+            settingsRequested = true
             showGuidance()
             return
         }
         showGuidance()
         openingSettings = true
-        let opened = open()
+        let opened = openSettings()
         hasOpenedSettings = hasOpenedSettings || opened
         settingsOpenFailed = !opened
         openingSettings = false
@@ -142,9 +135,9 @@ final class FullDiskAccessSetupModel: ObservableObject {
             self.isPresented = self.guidanceRequested ||
                 (result != .available && !self.limitedAccessAccepted)
             self.guidanceRequested = false
-            if let open = self.pendingSettings {
-                self.pendingSettings = nil
-                self.requestSettings(using: open)
+            if self.settingsRequested {
+                self.settingsRequested = false
+                self.requestSettings()
             }
             if result == .available && previous != .available {
                 self.accessBecameAvailable()
