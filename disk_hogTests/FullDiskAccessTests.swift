@@ -65,33 +65,46 @@ private actor AccessCheckGate {
 
 @MainActor
 struct FullDiskAccessSetupTests {
-    @Test func guidanceIsRememberedEvenIfUserQuitsWithoutContinuing() async throws {
-        var shown = false
+    @Test func onlyExplicitLimitedAccessChoiceSuppressesFutureLaunchPrompts() async throws {
+        var accepted = false
         var records = 0
-        let first = FullDiskAccessSetupModel(recordGuidanceShown: { shown = true; records += 1 },
-            checkAccess: { .protectedAccessDenied }, openSettings: { false }, terminate: {})
+        func makeModel() -> FullDiskAccessSetupModel {
+            FullDiskAccessSetupModel(limitedAccessAccepted: accepted,
+                recordLimitedAccessChoice: { accepted = true; records += 1 },
+                checkAccess: { .protectedAccessDenied }, openSettings: { true }, terminate: {})
+        }
+        let first = makeModel()
         first.start()
-        #expect(shown)
-        #expect(first.isPresented)
+        first.continueWithLimitedAccess() // Cannot accept before the check finishes.
         try await waitUntil { first.hasChecked }
+        first.requestSettings()
+        try await waitUntil { !first.isChecking }
         first.quit()
-        var entries = 0
-        let next = FullDiskAccessSetupModel(guidanceWasShown: shown,
-            recordGuidanceShown: { records += 1 }, checkAccess: { .protectedAccessDenied },
-            openSettings: { false }, enterApplication: { entries += 1 }, terminate: {})
-        next.start()
-        #expect(!next.isPresented)
-        #expect(next.blocksScanning) // Still wait for the real access check.
-        try await waitUntil { next.hasChecked }
-        #expect(entries == 1)
-        #expect(!next.blocksScanning)
-        #expect(next.isUsingLimitedAccess)
-        #expect(!next.isPresented)
-        next.showGuidance()
-        #expect(next.isPresented)
+        #expect(!accepted)
+        #expect(records == 0)
+
+        let second = makeModel()
+        second.start()
+        try await waitUntil { second.hasChecked }
+        #expect(second.isPresented)
+        #expect(second.blocksScanning)
+        second.continueWithLimitedAccess()
+        #expect(accepted)
         #expect(records == 1)
-        next.continueWithLimitedAccess()
-        #expect(entries == 1)
+        #expect(!second.blocksScanning)
+
+        let third = makeModel()
+        third.start()
+        #expect(!third.isPresented)
+        #expect(third.blocksScanning) // The access check still runs.
+        try await waitUntil { third.hasChecked }
+        #expect(!third.isPresented)
+        #expect(third.isUsingLimitedAccess)
+        #expect(third.allowsSourceDiscovery)
+        third.showGuidance()
+        #expect(third.isPresented)
+        third.continueWithLimitedAccess()
+        #expect(records == 1)
     }
 
     @Test func launchEntersApplicationOnlyAfterExplicitLimitedAccessChoice() async throws {
@@ -159,8 +172,8 @@ struct FullDiskAccessSetupTests {
         try await waitUntilAsync { await gate.calls == 2 }
         await gate.finish(2, with: .protectedAccessDenied)
         try await waitUntil { !model.isChecking }
-        #expect(model.allowsFolderChooserWarmup)
-        #expect(model.isUsingLimitedAccess)
+        #expect(!model.allowsFolderChooserWarmup)
+        #expect(!model.isUsingLimitedAccess)
     }
 
 
@@ -270,7 +283,7 @@ struct FullDiskAccessSetupTests {
         #expect(refreshed == 1)
     }
 
-    @Test func returningToAppDetectsRevocationWithoutRepeatingGuidance() async throws {
+    @Test func returningToAppPromptsOnRevocationWithoutAnExplicitLimitedAccessChoice() async throws {
         let gate = AccessCheckGate()
         let model = FullDiskAccessSetupModel(checkAccess: { await gate.check() }, openSettings: { false }, terminate: {})
         model.start()
@@ -282,9 +295,9 @@ struct FullDiskAccessSetupTests {
         try await waitUntilAsync { await gate.calls == 2 }
         await gate.finish(2, with: .protectedAccessDenied)
         try await waitUntil { !model.isChecking }
-        #expect(!model.blocksScanning)
-        #expect(!model.isPresented)
-        #expect(model.isUsingLimitedAccess)
+        #expect(model.blocksScanning)
+        #expect(model.isPresented)
+        #expect(!model.isUsingLimitedAccess)
     }
 
     @Test func failedSettingsLaunchKeepsManualInstructionsAvailable() async throws {

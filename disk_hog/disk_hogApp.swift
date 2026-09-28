@@ -29,8 +29,9 @@ struct DiskHogApp: App {
 final class DiskHogApplicationDelegate: NSObject, NSApplicationDelegate {
     static let about = AboutWindowController()
     static let fullDiskAccess: FullDiskAccessSetupController = FullDiskAccessSetupController(model: FullDiskAccessSetupModel(
-        guidanceWasShown: UserDefaults.standard.bool(forKey: "fullDiskAccessGuidanceShown"),
-        recordGuidanceShown: { UserDefaults.standard.set(true, forKey: "fullDiskAccessGuidanceShown") },
+        // Do not migrate the old shown-once flag: displaying guidance was not consent.
+        limitedAccessAccepted: UserDefaults.standard.bool(forKey: "fullDiskAccessLimitedAccessAccepted"),
+        recordLimitedAccessChoice: { UserDefaults.standard.set(true, forKey: "fullDiskAccessLimitedAccessAccepted") },
         checkAccess: { await FullDiskAccessService().checkAsync() },
         openSettings: {
             let url = URL(string: "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_AllFiles")!

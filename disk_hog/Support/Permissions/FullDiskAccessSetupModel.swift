@@ -11,8 +11,8 @@ final class FullDiskAccessSetupModel: ObservableObject {
     @Published private(set) var settingsOpenFailed = false
     @Published private(set) var hasOpenedSettings = false
 
-    private var guidanceWasShown: Bool
-    private let recordGuidanceShown: () -> Void
+    private var limitedAccessAccepted: Bool
+    private let recordLimitedAccessChoice: () -> Void
     private let checkAccess: @Sendable () async -> FullDiskAccessStatus
     private let openSettings: () -> Bool
     private let accessBecameAvailable: () -> Void
@@ -24,16 +24,16 @@ final class FullDiskAccessSetupModel: ObservableObject {
     private var started = false
     private var openingSettings = false
 
-    init(guidanceWasShown: Bool = false,
-         recordGuidanceShown: @escaping () -> Void = {},
+    init(limitedAccessAccepted: Bool = false,
+         recordLimitedAccessChoice: @escaping () -> Void = {},
          checkAccess: @escaping @Sendable () async -> FullDiskAccessStatus,
          openSettings: @escaping () -> Bool,
          accessBecameAvailable: @escaping () -> Void = {},
          enterApplication: @escaping () -> Void = {},
          terminate: @escaping () -> Void) {
-        self.guidanceWasShown = guidanceWasShown
-        self.recordGuidanceShown = recordGuidanceShown
-        self.isUsingLimitedAccess = guidanceWasShown
+        self.limitedAccessAccepted = limitedAccessAccepted
+        self.recordLimitedAccessChoice = recordLimitedAccessChoice
+        self.isUsingLimitedAccess = limitedAccessAccepted
         self.checkAccess = checkAccess
         self.openSettings = openSettings
         self.accessBecameAvailable = accessBecameAvailable
@@ -55,17 +55,11 @@ final class FullDiskAccessSetupModel: ObservableObject {
     func start() {
         guard !started else { return }
         started = true
-        if !guidanceWasShown { showGuidance() }
+        if !limitedAccessAccepted { showGuidance() }
         runCheck(openAfter: false)
     }
 
-    func showGuidance() {
-        if !guidanceWasShown {
-            guidanceWasShown = true
-            recordGuidanceShown()
-        }
-        isPresented = true
-    }
+    func showGuidance() { isPresented = true }
 
     func dismissGuidance() {
         guard !blocksScanning else { return }
@@ -75,6 +69,10 @@ final class FullDiskAccessSetupModel: ObservableObject {
 
     func continueWithLimitedAccess() {
         guard hasChecked, !isChecking else { return }
+        if !limitedAccessAccepted {
+            limitedAccessAccepted = true
+            recordLimitedAccessChoice()
+        }
         isUsingLimitedAccess = status != .available
         isPresented = false
         enterApplicationIfNeeded()
@@ -120,10 +118,7 @@ final class FullDiskAccessSetupModel: ObservableObject {
             self.status = result
             self.hasChecked = true
             self.isChecking = false
-            // Once guidance has been shown, later denials use the persistent banner.
-            if result != .available && self.guidanceWasShown && !self.isPresented {
-                self.isUsingLimitedAccess = true
-            }
+            self.isUsingLimitedAccess = result != .available && self.limitedAccessAccepted
             if openAfter {
                 let opened = self.openSettings()
                 self.hasOpenedSettings = self.hasOpenedSettings || opened
