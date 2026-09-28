@@ -37,6 +37,10 @@ final class DiskHogApplicationDelegate: NSObject, NSApplicationDelegate {
             let url = URL(string: "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_AllFiles")!
             return NSWorkspace.shared.open(url)
         },
+        openPrivacySettings: {
+            let url = URL(string: "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension")!
+            return NSWorkspace.shared.open(url)
+        },
         accessBecameAvailable: {
             NotificationCenter.default.post(name: .sourceWindowAccessDidChange, object: nil)
         },

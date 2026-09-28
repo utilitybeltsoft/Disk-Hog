@@ -65,6 +65,24 @@ private actor AccessCheckGate {
 
 @MainActor
 struct FullDiskAccessSetupTests {
+    @Test func privacySettingsButtonUsesItsOwnDestinationAfterTheAccessCheck() async throws {
+        let gate = AccessCheckGate()
+        var openedPrivacy = 0
+        let model = FullDiskAccessSetupModel(checkAccess: { await gate.check() },
+            openSettings: { Issue.record("Opened Full Disk Access instead of Privacy & Security"); return false },
+            openPrivacySettings: { openedPrivacy += 1; return true }, terminate: {})
+        model.requestPrivacySettings()
+        model.requestPrivacySettings()
+        #expect(openedPrivacy == 0)
+        try await waitUntilAsync { await gate.calls == 1 }
+        await gate.finish(1, with: .protectedAccessDenied)
+        try await waitUntil { !model.isChecking }
+        #expect(openedPrivacy == 1)
+        #expect(model.hasOpenedSettings)
+        #expect(model.isPresented)
+        #expect(model.blocksScanning)
+    }
+
     @Test func onlyExplicitLimitedAccessChoiceSuppressesFutureLaunchPrompts() async throws {
         var accepted = false
         var records = 0

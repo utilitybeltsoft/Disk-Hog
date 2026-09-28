@@ -64,3 +64,8 @@ Quit appears below on the left.
 Verify initial launch shows no source/inspector window until proceeding, that
 limited mode can scan a readable volume, and that Show Affected Items reports
 unreadable paths. Full Disk Access does not override all filesystem permissions.
+
+The button immediately after the example image opens Privacy & Security in
+System Settings. The default Open Full Disk Access button opens that specific
+section. Verify both destinations and the Settings-open failure message. No
+Finder-reveal button is offered in the setup dialog.

@@ -21,8 +21,7 @@ final class FullDiskAccessSetupController: NSWindowController, NSWindowDelegate 
         super.init(window: panel)
         panel.delegate = self
         panel.contentViewController = NSHostingController(rootView: FullDiskAccessSetupView(
-            model: model,
-            revealApplication: { NSWorkspace.shared.activateFileViewerSelecting([Bundle.main.bundleURL]) }
+            model: model
         ))
         sizeAndCenterWindow()
         observation = model.objectWillChange.sink { [weak self] in
@@ -76,7 +75,6 @@ final class FullDiskAccessSetupController: NSWindowController, NSWindowDelegate 
 
 private struct FullDiskAccessSetupView: View {
     @ObservedObject var model: FullDiskAccessSetupModel
-    let revealApplication: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -95,16 +93,17 @@ private struct FullDiskAccessSetupView: View {
                 Text("System Settings could not be opened. Open it from the Apple menu, then choose Privacy & Security → Full Disk Access.")
                     .foregroundStyle(.secondary)
             }
-            Text("It should look like this:")
+            Text("After you set it, it should look like this:")
             Image("FullDiskAccessExample")
                 .resizable()
                 .scaledToFit()
                 .frame(maxWidth: 455)
                 .accessibilityLabel("Example: Disk Hog listed in Full Disk Access with its switch turned on.")
+            Button("Open Privacy & Security in System Settings", action: model.requestPrivacySettings)
+                .disabled(model.isChecking)
             VStack(alignment: .leading, spacing: 8) {
                 Text("If Disk Hog isn’t listed").font(.headline)
-                Text("Click + in Full Disk Access and select the Disk Hog application shown in Finder. Turn it on, then choose Quit & Reopen.")
-                Button("Show Disk Hog in Finder", action: revealApplication)
+                Text("Click + in Full Disk Access and select the Disk Hog application. Turn it on, then choose Quit & Reopen.")
             }
             Text("You can continue with limited access. Protected folders may be skipped and disk usage may be understated. Incomplete scans show a warning; the scan issues list identifies paths that could not be read and their reported errors.")
                 .foregroundStyle(.secondary)

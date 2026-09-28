@@ -15,6 +15,7 @@ final class FullDiskAccessSetupModel: ObservableObject {
     private let recordLimitedAccessChoice: () -> Void
     private let checkAccess: @Sendable () async -> FullDiskAccessStatus
     private let openSettings: () -> Bool
+    private let openPrivacySettings: () -> Bool
     private let accessBecameAvailable: () -> Void
     private let enterApplication: () -> Void
     private var enteredApplication = false
@@ -28,6 +29,7 @@ final class FullDiskAccessSetupModel: ObservableObject {
          recordLimitedAccessChoice: @escaping () -> Void = {},
          checkAccess: @escaping @Sendable () async -> FullDiskAccessStatus,
          openSettings: @escaping () -> Bool,
+         openPrivacySettings: (() -> Bool)? = nil,
          accessBecameAvailable: @escaping () -> Void = {},
          enterApplication: @escaping () -> Void = {},
          terminate: @escaping () -> Void) {
@@ -36,6 +38,7 @@ final class FullDiskAccessSetupModel: ObservableObject {
         self.isUsingLimitedAccess = limitedAccessAccepted
         self.checkAccess = checkAccess
         self.openSettings = openSettings
+        self.openPrivacySettings = openPrivacySettings ?? openSettings
         self.accessBecameAvailable = accessBecameAvailable
         self.enterApplication = enterApplication
         self.terminate = terminate
@@ -56,7 +59,7 @@ final class FullDiskAccessSetupModel: ObservableObject {
         guard !started else { return }
         started = true
         if !limitedAccessAccepted { showGuidance() }
-        runCheck(openAfter: false)
+        runCheck(openAfter: nil)
     }
 
     func showGuidance() { isPresented = true }
@@ -86,7 +89,7 @@ final class FullDiskAccessSetupModel: ObservableObject {
 
     func recheck() {
         guard !isChecking else { return }
-        runCheck(openAfter: false)
+        runCheck(openAfter: nil)
     }
 
     func applicationDidBecomeActive() {
@@ -94,18 +97,22 @@ final class FullDiskAccessSetupModel: ObservableObject {
         recheck()
     }
 
-    func requestSettings() {
+    func requestSettings() { requestSettings(using: openSettings) }
+
+    func requestPrivacySettings() { requestSettings(using: openPrivacySettings) }
+
+    private func requestSettings(using open: @escaping () -> Bool) {
         guard !openingSettings else { return }
         showGuidance()
         settingsOpenFailed = false
         openingSettings = true
         // Supersede an older check; its result must not override this request.
-        runCheck(openAfter: true)
+        runCheck(openAfter: open)
     }
 
     func quit() { terminate() }
 
-    private func runCheck(openAfter: Bool) {
+    private func runCheck(openAfter: (() -> Bool)?) {
         generation += 1
         let current = generation
         task?.cancel()
@@ -119,8 +126,8 @@ final class FullDiskAccessSetupModel: ObservableObject {
             self.hasChecked = true
             self.isChecking = false
             self.isUsingLimitedAccess = result != .available && self.limitedAccessAccepted
-            if openAfter {
-                let opened = self.openSettings()
+            if let openAfter {
+                let opened = openAfter()
                 self.hasOpenedSettings = self.hasOpenedSettings || opened
                 self.settingsOpenFailed = !opened
                 self.openingSettings = false
