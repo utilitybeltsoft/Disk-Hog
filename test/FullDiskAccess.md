@@ -13,9 +13,10 @@ verification; it is not guaranteed by the existence of a Settings URL.
 Launch presents only the setup window while access is checked. The source window
 is not constructed until access is confirmed or the user proceeds. Denied access
 gates new scans until the user explicitly chooses Continue with Limited Access.
-An inconclusive result leaves guidance visible with that same option. The choice
-is session-only; activation checks do not repeatedly reopen denied guidance after
-continuation. A source banner and existing scan-issue warnings explain limitations.
+An inconclusive result leaves guidance visible with that same option. The first automatic presentation is recorded in UserDefaults (even if the user
+quits without continuing). Later launches still check access, but missing access
+uses limited mode and the source banner without reopening setup. Help can always
+open guidance manually; activation checks likewise do not repeat the prompt. A source banner and existing scan-issue warnings explain limitations.
 Readable volume roots remain selectable even when protected descendants are denied. Existing scans are not cancelled by an activation check.
 There is no saved “permission granted” flag. Activation rechecks update the state,
 and a transition to available refreshes source metadata. Opening Settings never

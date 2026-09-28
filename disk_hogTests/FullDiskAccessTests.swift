@@ -65,6 +65,35 @@ private actor AccessCheckGate {
 
 @MainActor
 struct FullDiskAccessSetupTests {
+    @Test func guidanceIsRememberedEvenIfUserQuitsWithoutContinuing() async throws {
+        var shown = false
+        var records = 0
+        let first = FullDiskAccessSetupModel(recordGuidanceShown: { shown = true; records += 1 },
+            checkAccess: { .protectedAccessDenied }, openSettings: { false }, terminate: {})
+        first.start()
+        #expect(shown)
+        #expect(first.isPresented)
+        try await waitUntil { first.hasChecked }
+        first.quit()
+        var entries = 0
+        let next = FullDiskAccessSetupModel(guidanceWasShown: shown,
+            recordGuidanceShown: { records += 1 }, checkAccess: { .protectedAccessDenied },
+            openSettings: { false }, enterApplication: { entries += 1 }, terminate: {})
+        next.start()
+        #expect(!next.isPresented)
+        #expect(next.blocksScanning) // Still wait for the real access check.
+        try await waitUntil { next.hasChecked }
+        #expect(entries == 1)
+        #expect(!next.blocksScanning)
+        #expect(next.isUsingLimitedAccess)
+        #expect(!next.isPresented)
+        next.showGuidance()
+        #expect(next.isPresented)
+        #expect(records == 1)
+        next.continueWithLimitedAccess()
+        #expect(entries == 1)
+    }
+
     @Test func launchEntersApplicationOnlyAfterExplicitLimitedAccessChoice() async throws {
         var entries = 0
         let model = FullDiskAccessSetupModel(checkAccess: { .protectedAccessDenied },
@@ -130,7 +159,8 @@ struct FullDiskAccessSetupTests {
         try await waitUntilAsync { await gate.calls == 2 }
         await gate.finish(2, with: .protectedAccessDenied)
         try await waitUntil { !model.isChecking }
-        #expect(!model.allowsFolderChooserWarmup)
+        #expect(model.allowsFolderChooserWarmup)
+        #expect(model.isUsingLimitedAccess)
     }
 
 
@@ -240,7 +270,7 @@ struct FullDiskAccessSetupTests {
         #expect(refreshed == 1)
     }
 
-    @Test func returningToAppDetectsRevocationEvenWithoutUsingTheSettingsButton() async throws {
+    @Test func returningToAppDetectsRevocationWithoutRepeatingGuidance() async throws {
         let gate = AccessCheckGate()
         let model = FullDiskAccessSetupModel(checkAccess: { await gate.check() }, openSettings: { false }, terminate: {})
         model.start()
@@ -252,8 +282,9 @@ struct FullDiskAccessSetupTests {
         try await waitUntilAsync { await gate.calls == 2 }
         await gate.finish(2, with: .protectedAccessDenied)
         try await waitUntil { !model.isChecking }
-        #expect(model.blocksScanning)
-        #expect(model.isPresented)
+        #expect(!model.blocksScanning)
+        #expect(!model.isPresented)
+        #expect(model.isUsingLimitedAccess)
     }
 
     @Test func failedSettingsLaunchKeepsManualInstructionsAvailable() async throws {
