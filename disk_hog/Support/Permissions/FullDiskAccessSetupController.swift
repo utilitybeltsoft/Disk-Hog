@@ -36,7 +36,6 @@ final class FullDiskAccessSetupController: NSWindowController, NSWindowDelegate 
     func showGuidance() {
         model.showGuidance()
         updateVisibility()
-        window?.makeKeyAndOrderFront(nil)
     }
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {
@@ -83,12 +82,6 @@ private struct FullDiskAccessSetupView: View {
                 .accessibilityAddTraits(.isHeader)
             Text("Disk Hog needs access to protected folders to include them in disk scans. Without it, scans can miss files and underreport disk usage.")
             Text("In System Settings, turn on Disk Hog under Privacy & Security → Full Disk Access. When macOS asks, choose Quit & Reopen.")
-            if model.isChecking {
-                ProgressView("Checking protected-folder access…")
-            } else if model.hasChecked && model.status == .inconclusive {
-                Text("Disk Hog could not determine whether protected-folder access is available. You can continue using accessible folders or review Full Disk Access in System Settings.")
-                    .foregroundStyle(.secondary)
-            }
             if model.settingsOpenFailed {
                 Text("System Settings could not be opened. Open it from the Apple menu, then choose Privacy & Security → Full Disk Access.")
                     .foregroundStyle(.secondary)
@@ -100,7 +93,6 @@ private struct FullDiskAccessSetupView: View {
                 .frame(maxWidth: 455)
                 .accessibilityLabel("Example: Disk Hog listed in Full Disk Access with its switch turned on.")
             Button("Open Privacy & Security in System Settings", action: model.requestPrivacySettings)
-                .disabled(model.isChecking)
             VStack(alignment: .leading, spacing: 8) {
                 Text("If Disk Hog isn’t listed").font(.headline)
                 Text("Click + in Full Disk Access and select the Disk Hog application. Turn it on, then choose Quit & Reopen.")
@@ -110,19 +102,13 @@ private struct FullDiskAccessSetupView: View {
             HStack {
                 Spacer(minLength: 0)
                 Button("Continue with Limited Access", action: model.continueWithLimitedAccess)
-                    .disabled(!model.hasChecked || model.isChecking)
                 Button("Open Full Disk Access", action: model.requestSettings)
                     .keyboardShortcut(.defaultAction)
-                    .disabled(model.isChecking)
             }
             HStack {
                 Button("Quit Disk Hog", action: model.quit)
                     .keyboardShortcut("q", modifiers: .command)
                 Spacer()
-                if model.hasOpenedSettings {
-                    Button("Check Again", action: model.recheck)
-                        .disabled(model.isChecking)
-                }
             }
         }
         .padding(24)

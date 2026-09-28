@@ -21,7 +21,8 @@ final class FullDiskAccessSetupModel: ObservableObject {
     private var enteredApplication = false
     private let terminate: () -> Void
     private var task: Task<Void, Never>?
-    private var generation = 0
+    private var guidanceRequested = false
+    private var pendingSettings: (() -> Bool)?
     private var started = false
     private var openingSettings = false
 
@@ -58,11 +59,17 @@ final class FullDiskAccessSetupModel: ObservableObject {
     func start() {
         guard !started else { return }
         started = true
-        if !limitedAccessAccepted { showGuidance() }
-        runCheck(openAfter: nil)
+        runCheck()
     }
 
-    func showGuidance() { isPresented = true }
+    func showGuidance() {
+        guard hasChecked, !isChecking else {
+            guidanceRequested = true
+            if !started { start() }
+            return
+        }
+        isPresented = true
+    }
 
     func dismissGuidance() {
         guard !blocksScanning else { return }
@@ -88,8 +95,9 @@ final class FullDiskAccessSetupModel: ObservableObject {
     }
 
     func recheck() {
-        guard !isChecking else { return }
-        runCheck(openAfter: nil)
+        guard started else { start(); return }
+        guard !isChecking, !isPresented else { return }
+        runCheck()
     }
 
     func applicationDidBecomeActive() {
@@ -102,40 +110,41 @@ final class FullDiskAccessSetupModel: ObservableObject {
     func requestPrivacySettings() { requestSettings(using: openPrivacySettings) }
 
     private func requestSettings(using open: @escaping () -> Bool) {
-        guard !openingSettings else { return }
+        guard !openingSettings, pendingSettings == nil else { return }
+        guard hasChecked, !isChecking else {
+            pendingSettings = open
+            showGuidance()
+            return
+        }
         showGuidance()
-        settingsOpenFailed = false
         openingSettings = true
-        // Supersede an older check; its result must not override this request.
-        runCheck(openAfter: open)
+        let opened = open()
+        hasOpenedSettings = hasOpenedSettings || opened
+        settingsOpenFailed = !opened
+        openingSettings = false
     }
 
     func quit() { terminate() }
 
-    private func runCheck(openAfter: (() -> Bool)?) {
-        generation += 1
-        let current = generation
-        task?.cancel()
+    private func runCheck() {
         isChecking = true
         let checkAccess = checkAccess
         task = Task { [weak self] in
             let result = await checkAccess()
-            guard let self, current == self.generation, !Task.isCancelled else { return }
+            guard let self, !Task.isCancelled else { return }
             let previous = self.status
             self.status = result
             self.hasChecked = true
             self.isChecking = false
             self.isUsingLimitedAccess = result != .available && self.limitedAccessAccepted
-            if let openAfter {
-                let opened = openAfter()
-                self.hasOpenedSettings = self.hasOpenedSettings || opened
-                self.settingsOpenFailed = !opened
-                self.openingSettings = false
-            } else if result == .protectedAccessDenied && !self.isUsingLimitedAccess {
-                self.showGuidance()
-            } else if result == .available {
-                self.isUsingLimitedAccess = false
-                self.isPresented = false
+            // Publish guidance only after all probing has finished. While it is
+            // visible, activation and Settings actions must not probe again.
+            self.isPresented = self.guidanceRequested ||
+                (result != .available && !self.limitedAccessAccepted)
+            self.guidanceRequested = false
+            if let open = self.pendingSettings {
+                self.pendingSettings = nil
+                self.requestSettings(using: open)
             }
             if result == .available && previous != .available {
                 self.accessBecameAvailable()

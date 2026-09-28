@@ -10,7 +10,7 @@ access attempts also give macOS an opportunity to register the running app in th
 Full Disk Access list. Registration is OS behavior and requires signed-app manual
 verification; it is not guaranteed by the existence of a Settings URL.
 
-Launch presents only the setup window while access is checked. The source window
+Launch completes the access check before presenting any setup window. The source window
 is not constructed until access is confirmed or the user proceeds. Denied access
 gates new scans until the user explicitly chooses Continue with Limited Access.
 An inconclusive result leaves guidance visible with that same option. Only an
@@ -23,11 +23,15 @@ it does not establish that the user chose limited access. A source banner and
 existing scan-issue warnings explain limitations.
 Readable volume roots remain selectable even when protected descendants are
 denied. Existing scans are not cancelled by an activation check.
-There is no saved “permission granted” flag. Activation rechecks update the state,
+There is no saved “permission granted” flag. Activation rechecks outside the setup dialog update the state,
 and a transition to available refreshes source metadata. Opening Settings never
 counts as approval. Rechecks do not restart scans or change their freshness.
 
-The setup model coalesces repeated requests and discards superseded results.
+The setup model coalesces pending requests. Help and Settings requests wait for
+an active check to finish before showing guidance. Once guidance is visible,
+Settings buttons open their destinations directly and activation does not probe.
+There is no checking text, spinner, or Check Again button; granting access follows
+the macOS Quit & Reopen flow.
 The panel is nonmodal, stays visible outside the app, and permits termination for
 System Settings' Quit & Reopen action. It controls only its own window; it does
 not use Accessibility, AppleScript, or TCC database modifications to manipulate

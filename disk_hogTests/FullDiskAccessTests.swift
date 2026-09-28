@@ -130,7 +130,7 @@ struct FullDiskAccessSetupTests {
         let model = FullDiskAccessSetupModel(checkAccess: { .protectedAccessDenied },
             openSettings: { true }, enterApplication: { entries += 1 }, terminate: {})
         model.start()
-        #expect(model.isPresented)
+        #expect(!model.isPresented)
         model.continueWithLimitedAccess()
         #expect(entries == 0)
         try await waitUntil { model.hasChecked }
@@ -266,39 +266,50 @@ struct FullDiskAccessSetupTests {
         #expect(!model.isPresented)
     }
 
-    @Test func settingsWaitsForPrimingAndDoesNotTreatOpeningAsApproval() async throws {
+    @Test func guidanceWaitsForCheckingAndNeverChecksWhileVisible() async throws {
         let gate = AccessCheckGate()
         var opened = 0
-        var refreshed = 0
         let model = FullDiskAccessSetupModel(checkAccess: { await gate.check() },
-                                            openSettings: { opened += 1; return true },
-                                            accessBecameAvailable: { refreshed += 1 }, terminate: {})
+            openSettings: { opened += 1; return true }, terminate: {})
         model.start()
         try await waitUntilAsync { await gate.calls == 1 }
-        model.requestSettings() // Supersedes the startup check.
-        model.requestSettings() // Does not duplicate the request.
-        try await waitUntilAsync { await gate.calls == 2 }
-        #expect(opened == 0)
-        await gate.finish(2, with: .protectedAccessDenied)
-        try await waitUntil { !model.isChecking }
-        #expect(opened == 1)
-        #expect(model.hasOpenedSettings)
-        #expect(model.blocksScanning)
-        // A late, stale successful result cannot clear the setup gate.
-        await gate.finish(1, with: .available)
-        model.applicationDidBecomeActive()
-        try await waitUntilAsync { await gate.calls == 3 }
-        await gate.finish(3, with: .available)
-        try await waitUntil { !model.isChecking }
-        #expect(!model.blocksScanning)
         #expect(!model.isPresented)
-        #expect(refreshed == 1)
-        #expect(opened == 1)
-        model.applicationDidBecomeActive()
-        try await waitUntilAsync { await gate.calls == 4 }
-        await gate.finish(4, with: .available)
+        model.showGuidance() // Help must also wait for an in-flight check.
+        model.requestSettings()
+        model.requestSettings()
+        #expect(!model.isPresented)
+        #expect(opened == 0)
+        #expect(await gate.calls == 1)
+        await gate.finish(1, with: .protectedAccessDenied)
         try await waitUntil { !model.isChecking }
-        #expect(refreshed == 1)
+        #expect(model.isPresented)
+        #expect(opened == 1)
+        #expect(model.blocksScanning)
+        model.applicationDidBecomeActive()
+        model.recheck()
+        model.requestSettings()
+        model.requestPrivacySettings()
+        #expect(!model.isChecking)
+        #expect(opened == 3)
+        #expect(await gate.calls == 1)
+        #expect(model.blocksScanning)
+    }
+
+    @Test func manualGuidanceWaitsForBackgroundCheckEvenWhenAccessIsAvailable() async throws {
+        let gate = AccessCheckGate()
+        let model = FullDiskAccessSetupModel(checkAccess: { await gate.check() },
+            openSettings: { true }, terminate: {})
+        model.start()
+        try await waitUntilAsync { await gate.calls == 1 }
+        await gate.finish(1, with: .available)
+        try await waitUntil { model.hasChecked }
+        model.recheck()
+        model.showGuidance()
+        #expect(!model.isPresented)
+        try await waitUntilAsync { await gate.calls == 2 }
+        await gate.finish(2, with: .available)
+        try await waitUntil { !model.isChecking }
+        #expect(model.isPresented)
     }
 
     @Test func returningToAppPromptsOnRevocationWithoutAnExplicitLimitedAccessChoice() async throws {
