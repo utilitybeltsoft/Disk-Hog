@@ -65,6 +65,49 @@ private actor AccessCheckGate {
 
 @MainActor
 struct FullDiskAccessSetupTests {
+    @Test func launchDiscoveryWaitsForAccessAndStaysBlockedAfterDenial() async throws {
+        let gate = AccessCheckGate()
+        let model = FullDiskAccessSetupModel(checkAccess: { await gate.check() },
+                                            openSettings: { true }, terminate: {})
+        model.start()
+        let sources = SourceWindowViewModel(sources: [], filter: SourceVolumeFilter(),
+            sourceLoader: { Issue.record("Volume discovery ran during access setup"); return [] },
+            canRefresh: { model.allowsSourceDiscovery })
+        await sources.refresh().value
+        try await waitUntilAsync { await gate.calls == 1 }
+        await gate.finish(1, with: .protectedAccessDenied)
+        try await waitUntil { model.hasChecked }
+        await sources.refresh().value
+        #expect(!model.allowsSourceDiscovery)
+        #expect(!sources.isLoading)
+    }
+
+    @Test func inconclusiveGuidanceDefersDiscoveryUntilDismissed() async throws {
+        let model = FullDiskAccessSetupModel(checkAccess: { .inconclusive },
+                                            openSettings: { false }, terminate: {})
+        model.start()
+        try await waitUntil { model.hasChecked }
+        model.showGuidance()
+        let counter = SourceDiscoveryCounter()
+        let sources = SourceWindowViewModel(sources: [], filter: SourceVolumeFilter(),
+            sourceLoader: { await counter.load() }, canRefresh: { model.allowsSourceDiscovery })
+        await sources.refresh().value
+        #expect(await counter.calls == 0)
+        model.dismissGuidance()
+        await sources.refresh().value
+        #expect(await counter.calls == 1)
+    }
+
+    @Test func scheduledDiscoveryRechecksGateBeforeTouchingVolumes() async {
+        var allowed = true
+        let sources = SourceWindowViewModel(sources: [], filter: SourceVolumeFilter(),
+            sourceLoader: { Issue.record("Queued discovery ignored newly opened guidance"); return [] },
+            canRefresh: { allowed })
+        let pending = sources.refresh()
+        allowed = false
+        await pending.value
+    }
+
     @Test func deniedLaunchGatesScanningButQuitRemainsAvailable() async throws {
         var quit = false
         let model = FullDiskAccessSetupModel(checkAccess: { .protectedAccessDenied },
@@ -185,5 +228,13 @@ struct FullDiskAccessSetupTests {
         let deadline = ContinuousClock.now + .seconds(5)
         while !(await predicate()), ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(5)) }
         try #require(await predicate(), "Permission check did not start")
+    }
+}
+
+private actor SourceDiscoveryCounter {
+    private(set) var calls = 0
+    func load() -> [ScanSource] {
+        calls += 1
+        return []
     }
 }

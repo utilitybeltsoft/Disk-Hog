@@ -24,3 +24,22 @@ not use Accessibility, AppleScript, or TCC database modifications to manipulate
 System Settings. If the deep link fails, the panel provides written navigation.
 
 See `test/README.md` for automated coverage and the outstanding live release checks.
+
+## Launch prompt sequencing regression
+
+Volume discovery performs filesystem access, so it must wait for the initial
+access check and remain paused while the Full Disk Access guidance is shown.
+The source model checks this gate for initial loads, manual refreshes, and
+mount/unmount/rename events, including immediately before a queued load starts.
+Discovery resumes when setup permits it. Folder-picker construction occurs on
+user request, not as launch warm-up.
+
+For live verification, use a signed app without Full Disk Access and with an
+external volume attached. Launch without clicking anything: Full Disk Access
+setup should appear without a concurrent removable-volume prompt caused by
+source discovery. Grant access, quit/reopen as requested by macOS, and verify
+sources load. Also verify an inconclusive check still allows discovery, and
+closing optional guidance resumes it. macOS may still ask for volume access
+when the app legitimately starts accessing volumes; this fix does not grant
+that permission or suppress system dialogs. Automated tests use injected loaders
+and do not reset the user's privacy grants.

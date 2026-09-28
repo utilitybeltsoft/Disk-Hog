@@ -32,6 +32,10 @@ final class FullDiskAccessSetupModel: ObservableObject {
     // Initial checking gates scanning; an inconclusive result never traps the user.
     var blocksScanning: Bool { (started && !hasChecked) || status == .protectedAccessDenied }
 
+    /// Discovery reads volume roots and can trigger macOS privacy prompts.
+    /// Keep it behind the access check and any visible setup guidance.
+    var allowsSourceDiscovery: Bool { !blocksScanning && !isPresented }
+
     func start() {
         guard !started else { return }
         started = true

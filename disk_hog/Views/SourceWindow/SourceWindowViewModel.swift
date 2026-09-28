@@ -41,6 +41,7 @@ final class SourceWindowViewModel: ObservableObject {
     }
     @Published private(set) var filter: SourceVolumeFilter
     private let sourceLoader: SourceLoader
+    private let canRefresh: () -> Bool
     private var refreshGeneration: Int = 0
     private var refreshTask: Task<Void, Never>?
 
@@ -54,7 +55,7 @@ final class SourceWindowViewModel: ObservableObject {
         }.value
     }
 
-    convenience init() {
+    convenience init(canRefresh: @escaping () -> Bool = { true }) {
         let defaults: UserDefaults = .standard
         self.init(
             sources: [],
@@ -69,9 +70,9 @@ final class SourceWindowViewModel: ObservableObject {
                     forKey: SourceWindowPreferences.showDiskImagesKey
                 )
             ),
-            sourceLoader: Self.defaultSourceLoader
+            sourceLoader: Self.defaultSourceLoader,
+            canRefresh: canRefresh
         )
-        refresh()
     }
 
     init(sources: [ScanSource]) {
@@ -79,17 +80,20 @@ final class SourceWindowViewModel: ObservableObject {
         self.filter = SourceVolumeFilter()
         self.selectedSourceID = nil
         self.sourceLoader = Self.defaultSourceLoader
+        self.canRefresh = { true }
     }
 
     init(
         sources: [ScanSource],
         filter: SourceVolumeFilter,
-        sourceLoader: @escaping SourceLoader = SourceWindowViewModel.defaultSourceLoader
+        sourceLoader: @escaping SourceLoader = SourceWindowViewModel.defaultSourceLoader,
+        canRefresh: @escaping () -> Bool = { true }
     ) {
         self.sources = sources
         self.filter = filter
         selectedSourceID = nil
         self.sourceLoader = sourceLoader
+        self.canRefresh = canRefresh
     }
 
     var filteredSources: [ScanSource] {
@@ -132,13 +136,16 @@ final class SourceWindowViewModel: ObservableObject {
 
     @discardableResult
     func refresh() -> Task<Void, Never> {
+        guard canRefresh() else { return Task {} }
         refreshGeneration += 1
         let generation: Int = refreshGeneration
         isLoading = false
         let sourceLoader: SourceLoader = sourceLoader
+        let canRefresh = canRefresh
         let task: Task<Void, Never> = Task { [weak self] in
+            guard !Task.isCancelled, canRefresh() else { return }
             let loadedSources: [ScanSource] = await sourceLoader()
-            guard !Task.isCancelled else {
+            guard !Task.isCancelled, canRefresh() else {
                 return
             }
             self?.installLoadedSources(loadedSources, generation: generation)
@@ -148,7 +155,7 @@ final class SourceWindowViewModel: ObservableObject {
 
         Task { [weak self] in
             try? await Task.sleep(for: Self.loadingIndicatorDelay)
-            guard !Task.isCancelled, let self, self.refreshGeneration == generation else {
+            guard !Task.isCancelled, let self, self.refreshGeneration == generation, self.canRefresh() else {
                 return
             }
             self.isLoading = true

@@ -4,11 +4,19 @@ import SwiftUI
 struct SourceWindowView: View {
     var commandState: ScanWindowCommandState = .shared
     @ObservedObject var access: FullDiskAccessSetupModel
-    @StateObject private var viewModel: SourceWindowViewModel = SourceWindowViewModel()
+    @StateObject private var viewModel: SourceWindowViewModel
     @AppStorage(SourceWindowPreferences.showExternalVolumesKey) private var showExternalVolumes: Bool = false
     @AppStorage(SourceWindowPreferences.showNetworkVolumesKey) private var showNetworkVolumes: Bool = false
     @AppStorage(SourceWindowPreferences.showDiskImagesKey) private var showDiskImages: Bool = false
     @ObservedObject private var scanPreferences: ScanPreferences = .shared
+
+    init(commandState: ScanWindowCommandState? = nil, access: FullDiskAccessSetupModel) {
+        self.commandState = commandState ?? .shared
+        self.access = access
+        _viewModel = StateObject(wrappedValue: SourceWindowViewModel(
+            canRefresh: { access.allowsSourceDiscovery }
+        ))
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Metrics.outerSpacing) {
@@ -71,6 +79,10 @@ struct SourceWindowView: View {
             commandState.deactivate()
             InspectorWindowController.shared.activate(source: viewModel.selectedSource)
         })
+        .onAppear { refreshSources() }
+        .onChange(of: access.allowsSourceDiscovery) {
+            if access.allowsSourceDiscovery { refreshSources() }
+        }
         .onChange(of: showExternalVolumes) {
             applyVolumeFilter()
         }

@@ -2248,6 +2248,8 @@ struct SourceWindowViewModelTests {
             }
         )
         let staleTask: Task<Void, Never> = viewModel.refresh()
+        // Exercise cancellation of an in-flight load, not one superseded before it starts.
+        await loader.waitForPendingLoadCount(1)
         let latestTask: Task<Void, Never> = viewModel.refresh()
 
         await loader.waitForPendingLoadCount(2)

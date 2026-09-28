@@ -8,13 +8,6 @@ enum SourceFolderChooser {
     private static var keyObserver: NSObjectProtocol?
     private static var nextRequest = 0
 
-    /// Construct without presenting, selecting a directory, or changing focus.
-    /// If the user already opened the chooser, reuse that panel instead.
-    static func prepareAfterLaunch() {
-        guard preparedPanel == nil else { return }
-        _ = preparePanel(reason: "after-launch")
-    }
-
     private static func preparePanel(reason: String) -> NSOpenPanel {
         if let preparedPanel { return preparedPanel }
         let started = ProcessInfo.processInfo.systemUptime
