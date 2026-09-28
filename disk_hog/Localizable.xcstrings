@@ -639,60 +639,60 @@
         }
       }
     },
-    "Click + in Full Disk Access and select the Disk Hog application shown in Finder. Enable it, then reopen Disk Hog." : {
-      "comment": "Full Disk Access setup. Permission must be enabled by the user in macOS System Settings.",
+    "Click + in Full Disk Access and select the Disk Hog application shown in Finder. Turn it on, then choose Quit & Reopen." : {
+      "comment": "Full Disk Access setup instructions. Keep Disk Hog unchanged.",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Klicke unter Vollzugriff auf Festplatte auf + und wähle die im Finder angezeigte App Disk Hog. Aktiviere sie und öffne Disk Hog erneut."
+            "value": "Klicken Sie unter Vollzugriff auf Festplatte auf + und wählen Sie die im Finder angezeigte Disk Hog-App. Aktivieren Sie sie und wählen Sie dann Beenden & erneut öffnen."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Haz clic en + en Acceso total al disco y selecciona la aplicación Disk Hog que se muestra en Finder. Actívala y vuelve a abrir Disk Hog."
+            "value": "Haz clic en + en Acceso total al disco y selecciona la aplicación Disk Hog que aparece en Finder. Actívala y elige Salir y volver a abrir."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cliquez sur + dans Accès complet au disque et sélectionnez l’application Disk Hog affichée dans le Finder. Activez-la, puis rouvrez Disk Hog."
+            "value": "Cliquez sur + dans Accès complet au disque et sélectionnez l’application Disk Hog affichée dans le Finder. Activez-la, puis choisissez Quitter et rouvrir."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fai clic su + in Accesso completo al disco e seleziona l’applicazione Disk Hog mostrata nel Finder. Attivala, quindi riapri Disk Hog."
+            "value": "Fai clic su + in Accesso completo al disco e seleziona l’applicazione Disk Hog mostrata nel Finder. Attivala, poi scegli Esci e riapri."
           }
         }
       }
     },
-    "Disk Hog isn’t listed" : {
-      "comment": "Full Disk Access setup. Permission must be enabled by the user in macOS System Settings.",
+    "If Disk Hog isn’t listed" : {
+      "comment": "Full Disk Access setup instructions. Keep Disk Hog unchanged.",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Disk Hog wird nicht aufgeführt"
+            "value": "Wenn Disk Hog nicht aufgeführt ist"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Disk Hog no aparece en la lista"
+            "value": "Si Disk Hog no aparece en la lista"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Disk Hog n’apparaît pas dans la liste"
+            "value": "Si Disk Hog ne figure pas dans la liste"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Disk Hog non è nell’elenco"
+            "value": "Se Disk Hog non è nell’elenco"
           }
         }
       }
@@ -784,31 +784,31 @@
         }
       }
     },
-    "In System Settings, turn on Disk Hog under Privacy & Security → Full Disk Access. Choose Quit & Reopen if macOS asks; otherwise quit and reopen Disk Hog." : {
-      "comment": "Full Disk Access setup. Permission must be enabled by the user in macOS System Settings.",
+    "In System Settings, turn on Disk Hog under Privacy & Security → Full Disk Access. When macOS asks, choose Quit & Reopen." : {
+      "comment": "Full Disk Access setup instructions. Keep Disk Hog unchanged.",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aktiviere Disk Hog in den Systemeinstellungen unter Datenschutz & Sicherheit → Vollzugriff auf Festplatte. Wähle „Beenden & erneut öffnen“, wenn macOS danach fragt. Beende und öffne Disk Hog andernfalls selbst erneut."
+            "value": "Aktivieren Sie Disk Hog in den Systemeinstellungen unter Datenschutz & Sicherheit → Vollzugriff auf Festplatte. Wenn macOS Sie dazu auffordert, wählen Sie Beenden & erneut öffnen."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "En Ajustes del Sistema, activa Disk Hog en Privacidad y seguridad → Acceso total al disco. Selecciona Salir y volver a abrir si macOS lo solicita; de lo contrario, cierra y vuelve a abrir Disk Hog."
+            "value": "En Ajustes del Sistema, activa Disk Hog en Privacidad y seguridad → Acceso total al disco. Cuando macOS lo solicite, elige Salir y volver a abrir."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dans Réglages Système, activez Disk Hog sous Confidentialité et sécurité → Accès complet au disque. Choisissez Quitter et rouvrir si macOS le propose ; sinon, quittez puis rouvrez Disk Hog."
+            "value": "Dans Réglages Système, activez Disk Hog sous Confidentialité et sécurité → Accès complet au disque. Lorsque macOS le demande, choisissez Quitter et rouvrir."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "In Impostazioni di Sistema, attiva Disk Hog in Privacy e sicurezza → Accesso completo al disco. Scegli Esci e riapri se macOS lo richiede; altrimenti esci da Disk Hog e riaprilo."
+            "value": "In Impostazioni di Sistema, attiva Disk Hog in Privacy e sicurezza → Accesso completo al disco. Quando macOS lo richiede, scegli Esci e riapri."
           }
         }
       }

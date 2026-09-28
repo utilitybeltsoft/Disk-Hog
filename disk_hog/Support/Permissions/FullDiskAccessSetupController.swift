@@ -9,8 +9,8 @@ final class FullDiskAccessSetupController: NSWindowController, NSWindowDelegate 
 
     init(model: FullDiskAccessSetupModel) {
         self.model = model
-        let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 560, height: min(680, (NSScreen.main?.visibleFrame.height ?? 800) - 100)),
-                            styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+        let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 600, height: 600),
+                            styleMask: [.titled, .closable], backing: .buffered, defer: false)
         panel.title = String(localized: "Full Disk Access")
         panel.isReleasedWhenClosed = false
         panel.isRestorable = false
@@ -24,8 +24,7 @@ final class FullDiskAccessSetupController: NSWindowController, NSWindowDelegate 
             model: model,
             revealApplication: { NSWorkspace.shared.activateFileViewerSelecting([Bundle.main.bundleURL]) }
         ))
-        panel.contentMinSize = NSSize(width: 520, height: 400)
-        panel.center()
+        sizeAndCenterWindow()
         observation = model.objectWillChange.sink { [weak self] in
             // Published notifications precede the mutation. Read the completed state.
             Task { @MainActor [weak self] in self?.updateVisibility() }
@@ -47,8 +46,27 @@ final class FullDiskAccessSetupController: NSWindowController, NSWindowDelegate 
         return true
     }
 
+    func windowDidResize(_ notification: Notification) {
+        centerWindow()
+    }
+
+    private func centerWindow() {
+        guard let window, let screen = window.screen ?? NSScreen.main else { return }
+        let available = screen.visibleFrame
+        window.setFrameOrigin(NSPoint(x: available.midX - window.frame.width / 2,
+                                      y: available.midY - window.frame.height / 2))
+    }
+
+    private func sizeAndCenterWindow() {
+        guard let window, let content = window.contentView else { return }
+        content.layoutSubtreeIfNeeded()
+        window.setContentSize(content.fittingSize)
+        centerWindow()
+    }
+
     private func updateVisibility() {
         if model.isPresented {
+            sizeAndCenterWindow()
             if window?.isVisible != true { window?.makeKeyAndOrderFront(nil) }
         } else {
             window?.orderOut(nil)
@@ -61,56 +79,55 @@ private struct FullDiskAccessSetupView: View {
     let revealApplication: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 14) {
             Text("Enable Full Disk Access")
                 .font(.title2.bold())
                 .accessibilityAddTraits(.isHeader)
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("Disk Hog needs access to protected folders to include them in disk scans. Without it, scans can miss files and underreport disk usage.")
-                    Text("In System Settings, turn on Disk Hog under Privacy & Security → Full Disk Access. Choose Quit & Reopen if macOS asks; otherwise quit and reopen Disk Hog.")
-                    if model.isChecking {
-                        ProgressView("Checking protected-folder access…")
-                    } else if model.hasChecked && model.status == .inconclusive {
-                        Text("Disk Hog could not determine whether protected-folder access is available. You can continue using accessible folders or review Full Disk Access in System Settings.")
-                            .foregroundStyle(.secondary)
-                    }
-                    if model.settingsOpenFailed {
-                        Text("System Settings could not be opened. Open it from the Apple menu, then choose Privacy & Security → Full Disk Access.")
-                            .foregroundStyle(.secondary)
-                    }
-                    Text("It should look like this:")
-                    Image("FullDiskAccessExample")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(maxWidth: 455)
-                        .accessibilityLabel("Example: Disk Hog listed in Full Disk Access with its switch turned on.")
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Disk Hog isn’t listed").font(.headline)
-                        Text("Click + in Full Disk Access and select the Disk Hog application shown in Finder. Enable it, then reopen Disk Hog.")
-                        Button("Show Disk Hog in Finder", action: revealApplication)
-                    }
-                    Text("You can continue with limited access. Protected folders may be skipped and disk usage may be understated. Incomplete scans show a warning; the scan issues list identifies paths that could not be read and their reported errors.")
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+            Text("Disk Hog needs access to protected folders to include them in disk scans. Without it, scans can miss files and underreport disk usage.")
+            Text("In System Settings, turn on Disk Hog under Privacy & Security → Full Disk Access. When macOS asks, choose Quit & Reopen.")
+            if model.isChecking {
+                ProgressView("Checking protected-folder access…")
+            } else if model.hasChecked && model.status == .inconclusive {
+                Text("Disk Hog could not determine whether protected-folder access is available. You can continue using accessible folders or review Full Disk Access in System Settings.")
+                    .foregroundStyle(.secondary)
+            }
+            if model.settingsOpenFailed {
+                Text("System Settings could not be opened. Open it from the Apple menu, then choose Privacy & Security → Full Disk Access.")
+                    .foregroundStyle(.secondary)
+            }
+            Text("It should look like this:")
+            Image("FullDiskAccessExample")
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: 455)
+                .accessibilityLabel("Example: Disk Hog listed in Full Disk Access with its switch turned on.")
+            VStack(alignment: .leading, spacing: 8) {
+                Text("If Disk Hog isn’t listed").font(.headline)
+                Text("Click + in Full Disk Access and select the Disk Hog application shown in Finder. Turn it on, then choose Quit & Reopen.")
+                Button("Show Disk Hog in Finder", action: revealApplication)
+            }
+            Text("You can continue with limited access. Protected folders may be skipped and disk usage may be understated. Incomplete scans show a warning; the scan issues list identifies paths that could not be read and their reported errors.")
+                .foregroundStyle(.secondary)
+            HStack {
+                Spacer(minLength: 0)
+                Button("Continue with Limited Access", action: model.continueWithLimitedAccess)
+                    .disabled(!model.hasChecked || model.isChecking)
+                Button("Open Full Disk Access", action: model.requestSettings)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(model.isChecking)
             }
             HStack {
                 Button("Quit Disk Hog", action: model.quit)
                     .keyboardShortcut("q", modifiers: .command)
                 Spacer()
-                Button("Open Full Disk Access", action: model.requestSettings)
-                    .keyboardShortcut(.defaultAction)
-                    .disabled(model.isChecking)
+                if model.hasOpenedSettings {
+                    Button("Check Again", action: model.recheck)
+                        .disabled(model.isChecking)
+                }
             }
-            if model.hasOpenedSettings {
-                Button("Check Again", action: model.recheck)
-                    .disabled(model.isChecking)
-            }
-            Button("Continue with Limited Access", action: model.continueWithLimitedAccess)
-                .disabled(!model.hasChecked || model.isChecking)
         }
         .padding(24)
-        .frame(minWidth: 520, minHeight: 400)
+        .frame(width: 600)
+        .fixedSize(horizontal: false, vertical: true)
     }
 }

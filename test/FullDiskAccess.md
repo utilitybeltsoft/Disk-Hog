@@ -57,8 +57,10 @@ that permission or suppress system dialogs. Automated tests use injected loaders
 and do not reset the user's privacy grants.
 
 The setup instructions always show the missing-app steps and the bundled example
-image supplied for this app. On a smaller screen the instructions scroll while
-Quit, Open Full Disk Access, and Continue with Limited Access remain accessible.
+image supplied for this app. The window fits its content without scrolling and is geometrically centered in
+the screen’s visible area, including after its content changes. Continue with
+Limited Access sits immediately left of the default Open Full Disk Access button;
+Quit appears below on the left.
 Verify initial launch shows no source/inspector window until proceeding, that
 limited mode can scan a readable volume, and that Show Affected Items reports
 unreadable paths. Full Disk Access does not override all filesystem permissions.
