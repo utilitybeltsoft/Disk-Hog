@@ -163,15 +163,19 @@ These manual checks are not performed by the unit-test runner.
 `FullDiskAccessService` attempts shallow directory listings under the current
 user's Library. It reads no file contents and does not query or modify TCC's
 permission database. These are access observations, not a definitive permission
-API: two readable candidates provide positive evidence; protected-access denial
-opens setup; missing candidates, ordinary POSIX permissions and unexpected errors
-can leave the result inconclusive. Inconclusive checks do not block scanning.
+API: at least two readable candidates, with no denial or uncertain error,
+provide positive evidence. Protected-access denial or an inconclusive result
+opens setup unless the user previously chose limited access. Missing candidates,
+ordinary POSIX permissions and unexpected errors can leave the result inconclusive.
+Inconclusive results allow continued use after leaving guidance.
 Source preflight uses the same candidates and error classification, scoped to
 folders within the selected source.
 
-The Settings button performs another access check before opening the documented
-Full Disk Access URL, allowing macOS to record the requesting application. The
-application delegate skips the new launch workflow in the isolated Testing host.
+The initial access check finishes before setup appears. While setup is visible,
+neither the Settings button nor application activation probes again. The button
+opens the Full Disk Access deep link directly; its behavior needs verification
+on supported macOS versions. The application delegate skips the launch workflow
+in the isolated Testing host.
 Permission regression tests inject probe results and Settings/termination actions;
 they do not change grants or open System Settings. The setup panel is nonmodal,
 permits system-requested termination and stays visible when the app is inactive.
@@ -182,25 +186,30 @@ Manual release verification remains necessary on each supported macOS version:
    no existing Full Disk Access entry. Do not reset the installed production
    app's grant just to run this check, and do not launch an unbundled binary from
    Terminal (permission attribution may differ).
-2. Launch the app without access. Verify setup, unavailable scan commands,
-   keyboard focus, VoiceOver reading order, and Quit Disk Hog / Command-Q.
-3. Choose Open Full Disk Access. Verify the pane opens and Disk Hog is already
-   listed. This OS-level registration behavior is **not** proven by unit tests.
-   If absent, inspect the probe behavior before release; confirm the manual-add
-   disclosure and Show Disk Hog in Finder reveal the running app bundle.
+2. Launch the app without access or a saved limited-access choice. Verify setup
+   appears centered before any source or inspector window, with no spinner or
+   checking text. Check keyboard focus, VoiceOver reading order, and Quit Disk
+   Hog / Command-Q. Quitting alone must not suppress setup on the next launch.
+3. Choose Open Privacy & Security in System Settings, below the example image.
+   Verify it opens Full Disk Access and check whether Disk Hog is already listed.
+   OS-level registration is **not** proven by unit tests. If absent, verify the
+   always-visible manual-add instructions. There is no Finder-reveal button.
 4. Enable the app and accept macOS's Quit & Reopen. Verify the panel does not
    block termination, the relaunched app can scan, and sources are refreshed.
-5. Revisit without enabling access; the app must not infer a grant just because
-   Settings opened. Verify Check Again and missing-entry instructions.
+5. Return without enabling access; the app must not infer a grant just because
+   Settings opened. There is no Check Again button. Choose Continue with Limited
+   Access and verify readable sources can be scanned, skipped paths are reported,
+   and the choice persists across relaunches. Help must still reopen guidance.
 6. Test an existing grant, revocation, a home with missing probe directories,
    ordinary folder permission denial, and Settings opening failure. Verify an
    inconclusive result permits continued use with an explanatory source banner.
-7. Check German, Spanish, French and Italian layouts, the expanded disclosure,
+7. Check German, Spanish, French and Italian layouts, always-visible instructions,
    multiple displays, and that the instruction panel can be moved clear of the
    System Settings controls.
 
-At implementation time, automated tests cover the state machine and service;
-fresh-entry registration and the live Quit & Reopen flow have not been verified.
+Automated tests cover the state machine and service. They do not establish
+fresh-entry registration or the live Quit & Reopen behavior. See
+[FullDiskAccess.md](FullDiskAccess.md) for sequencing and setup details.
 
 
 ## Organization signing migration
