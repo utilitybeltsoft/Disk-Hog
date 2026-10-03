@@ -1,9 +1,15 @@
 # License and source packaging
 
-For each public download, publish the signed, notarized DMG and a matching
-source archive together on the same release page. GPLv3 section 6(d)
-permits separate source downloads; users need not download source along
-with the application. A source archive inside the DMG is optional.
+Our release workflow is to publish a signed, notarized DMG and a matching
+source archive on the same release page. Signing, notarization, checksums,
+and this particular packaging layout are project choices, not GPL
+requirements.
+
+GPLv3 section 6(d) permits separate source downloads, with equivalent access
+to the Corresponding Source at no further charge and clear directions next
+to the binary download. The source may be on another server. Users need not
+download it with the application; including a source archive inside the DMG
+is optional.
 
 Suggested release artifacts (substitute the actual version):
 
@@ -34,29 +40,37 @@ products, personal backups or the enclosing competitors directory. Apple
 system frameworks and Xcode do not need to be repackaged. Full Git history
 is not required; keep attribution and modification notices in the archive.
 
-Put a direct, permanent URL for this source archive next to the binary
-download and in `Source.txt`. The app's About/Source action should use this
-version-specific destination. A moving development branch is insufficient.
+Put a direct, stable URL for this source archive next to the binary
+download and in `Source.txt` if the optional documentation folder is shipped.
+The app's About/Source action should use this version-specific destination. A moving development branch is insufficient.
 Keep the source available with the binaries; do not require a support request
 or charge an additional fee for access.
 
+## Current repository status
+
+As of 2026-10-03, the project does not configure `DiskHogSourceURL`, and its
+shared signing settings select the organization's Developer ID certificate.
+The inspected local checkout has no Git remote configured; that does not
+establish whether a public repository exists. These are dated observations,
+not requirements to retain these settings.
+
 ## Before the first public release
 
-- Configure the public release/source URL (there is currently no Git remote).
-- Set `INFOPLIST_KEY_DiskHogSourceURL` for the release build to the permanent
+- Publish a version-specific source archive and configure its public URL.
+- Set `INFOPLIST_KEY_DiskHogSourceURL` for the release build to the stable
   HTTPS URL of its matching source archive. Verify the About source button
   opens that archive. Without this value the button is disabled; do not ship
   a public release with the development placeholder.
 - Verify contributor builds without the organization certificate; shared
   project defaults currently select that certificate.
-- Finish and validate DMG packaging and notarization. No release pipeline is
-  created by this documentation change.
-- Complete asset-origin verification noted in AUDIT.md.
+- Finish and validate DMG packaging and notarization.
+- Resolve the framework-revision licensing question described in
+  [AUDIT.md](AUDIT.md#treemapview-license-evidence).
 - Extract and build the source archive, check bundled notices in the installed
   app, and test both download URLs before publishing.
 
-References: [GPLv3, sections 1, 4–6](https://www.gnu.org/licenses/gpl-3.0.html)
-and [GNU distribution FAQ](https://www.gnu.org/licenses/gpl-faq.html).
+References: [GPLv3, sections 1, 4–6](https://www.gnu.org/licenses/gpl-3.0.en.html)
+and [GNU distribution FAQ](https://www.gnu.org/licenses/gpl-faq.en.html).
 
 ## About window verification
 
@@ -66,4 +80,7 @@ text selection/copying, window resizing, closing/reopening, and VoiceOver
 reading. Notices must include the original TreeMapView warranty and GPLv2
 text as well as current attribution. Check the layout in all five supported
 languages. With no source URL, the source button is disabled with an
-explanation; with release metadata configured it opens the matching source.
+explanation; with release metadata configured, verify that it opens the
+matching source.
+The app validates URL syntax only, so an enabled button does not establish
+source availability or a version match.

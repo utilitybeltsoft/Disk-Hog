@@ -1,7 +1,7 @@
 # Upstream lineage and license audit
 
-Audited 2026-09-27. This records the evidence examined, rather than claiming
-that every asset or historical contribution has been independently cleared.
+Upstream evidence examined 2026-09-27; repository facts and wording reviewed
+2026-10-03. This records the scope and limits of the evidence below.
 
 ## Findings
 
@@ -31,7 +31,7 @@ Primary upstream references:
   source repositories. This does not itself establish copied KDirStat code
   in Disk Hog; no separate KDirStat component was identified in this audit.
 
-## TreeMapView's missing license file
+## TreeMapView license evidence
 
 The local modern TreeMapView ZIP has no standalone license and its headers
 say “All rights reserved.” That alone does not establish a proprietary
@@ -39,13 +39,19 @@ license or override a separate grant. The original author's version 1.0
 source DMG includes `readme.rtf`, dated 2004-12-6, explicitly granting GPL
 use of the framework and its source, and `gpl.txt` containing GPLv2.
 
-The README grant does not specify a GPL version number. GPLv2 section 9
-permits choosing a published GPL version when the program does not specify
-one. This supports selecting GPLv3 for the adaptation, together with Z's
-explicit project license. This is the interpretation used here; the
-unversioned grant must not be rewritten as an explicit original “v3 or
-later” header. The inspected newer framework ZIP provides no separate
-license statement for later edits.
+The README names GPL without a version number, but also directs readers to
+the included GPLv2 text. GPLv2 section 9 permits choosing a published GPL
+version when the program does not specify one. Applying that provision here
+is an interpretation of the historical grant, not an explicit “v3 or later”
+notice from the author. Preserve the original wording.
+
+The version 1.0 evidence does not by itself establish the licensing of later
+framework edits. The inspected newer framework ZIP provides no separate
+license statement for those edits, and Z's project-level GPLv3 declaration
+does not independently establish authority to relicense third-party code.
+Disk Hog currently uses GPLv3 for the combined application; confirming the
+grant covering the framework revisions actually adapted remains a distinct
+upstream licensing question.
 
 The original README (including its warranty notice) and GPL text are
 preserved unmodified under `upstream/`, and bundled with the app. The
@@ -54,7 +60,7 @@ GPLv3 license for the combined application.
 
 Evidence fingerprints (SHA-256):
 
-- `TreeMapView 1.0 src (1).dmg`:
+- `TreeMapView 1.0 src.dmg`:
   `b4b963570cda5551d9c0059fac7f6f73fe8c17a1c03fda97939e42467f8ac1d9`
 - `treemapview-framework-master.zip`:
   `906e532ea6ffe6629d6a7bdf675526173166b5076fd4324724bf1319aa82b980`
@@ -79,14 +85,17 @@ inventing an upstream revision.
 
 The About interface offers **License**, **Third-Party Notices**, and
 **Source for This Version**. The first two open bundled documents offline;
-the third is enabled only when `DiskHogSourceURL` is configured in the app's
-Info.plist with an HTTPS URL for the actual release source. Until then, the
+the third uses `DiskHogSourceURL` from the app's Info.plist.
+`AboutDocuments.sourceURL(from:)` accepts an HTTPS URL with a nonempty host
+and no embedded username or password. It does not check that the URL exists
+or that its contents match the released version; release verification must
+check both. With a missing or rejected URL, the button is disabled and the
 About window explains that source downloads arrive with the public release.
 
-## Scope still requiring evidence
+## Release follow-up
 
-See RELEASES.md for source availability and packaging work remaining before
-public distribution. No claim of a completed release compliance review is
+See [RELEASES.md](RELEASES.md) for source availability and packaging work
+remaining before public distribution. No claim of a completed release compliance review is
 made by adding these documents.
 
 The Full Disk Access example image was supplied by the app owner on 2026-09-27
