@@ -1,6 +1,6 @@
 import Foundation
 
-// Compile with the production DiskItems and Treemap sources (see PERFORMANCE.md).
+// Compile with the production DiskItems, Treemap, TreemapPerformance, and ScanActivity sources.
 // Synthetic input avoids scanning or logging the user's filesystem.
 @main struct TreemapBenchmark {
     static func main() {
