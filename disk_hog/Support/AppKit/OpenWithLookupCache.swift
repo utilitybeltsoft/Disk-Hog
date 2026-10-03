@@ -40,6 +40,11 @@ final class OpenWithLookupCache<Value> {
         }
     }
 
+    // Swift 6.2.4 crashes optimizing the synthesized deinitializer for this
+    // generic MainActor class. No actor-isolated cleanup is needed: releasing
+    // AnyCancellable subscriptions cancels them automatically.
+    nonisolated deinit {}
+
     private func observe(_ name: Notification.Name, on center: NotificationCenter) {
         center.publisher(for: name).receive(on: RunLoop.main).sink { [weak self] _ in
             self?.invalidate()

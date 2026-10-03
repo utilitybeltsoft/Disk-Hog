@@ -131,6 +131,26 @@ struct OpenWithCacheTests {
         }
     }
 
+    @Test func destroyingCacheReleasesStoredValuesAndNotificationSubscriptions() {
+        let appCenter = NotificationCenter()
+        let workspaceCenter = NotificationCenter()
+        var cache: OpenWithLookupCache<NSImage>? = OpenWithLookupCache(
+            capacity: 2, applicationNotifications: appCenter, workspaceNotifications: workspaceCenter)
+        weak var weakCache = cache
+        weak var cachedImage: NSImage?
+        cache?.value(for: "icon", load: { completion in
+            let image = NSImage(size: NSSize(width: 16, height: 16))
+            cachedImage = image
+            completion(image)
+        }, completion: { _ in })
+        #expect(cachedImage != nil)
+        cache = nil
+        #expect(weakCache == nil)
+        #expect(cachedImage == nil)
+        appCenter.post(name: NSApplication.didBecomeActiveNotification, object: nil)
+        workspaceCenter.post(name: NSWorkspace.didMountNotification, object: nil)
+    }
+
     private final class ApplicationState { var updated = false }
 
     private static func cache<Value>(capacity: Int, now: @escaping () -> TimeInterval = { 0 }) -> OpenWithLookupCache<Value> {
