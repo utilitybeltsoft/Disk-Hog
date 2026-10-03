@@ -155,6 +155,49 @@ filesystem database or a live monitor.
 replacement snapshots for subtree updates and deletions, sharing unaffected
 packed storage where possible. Re-scan acquires fresh filesystem state.
 
+### Item data and filesystem relationships
+
+`DiskItem` is the access handle; `PackedDiskItemRecord` stores the item data.
+The filesystem tree is represented by child indices within chunks and explicit
+addresses for relationships that the snapshot supplies across chunks.
+
+```mermaid
+flowchart TD
+    item["DiskItem<br/>snapshot + address"]
+    address["PackedDiskItemAddress<br/>chunkIndex + recordIndex"]
+    snapshot["PackedDiskItemSnapshot<br/>chunks + rootAddress"]
+    links["rootChildren / childOverrides<br/>Arrays of PackedDiskItemAddress"]
+
+    subgraph chunk["PackedDiskItemChunk — immutable storage"]
+        records["records: array of PackedDiskItemRecord<br/>Sizes, flags, counts, string ranges<br/>firstChild + childCount"]
+        children["childIndices: array of Int<br/>Child record indices within this chunk"]
+        strings["stringBytes: Data<br/>UTF-8 paths, names, and kinds"]
+        records -->|firstChild and childCount select a slice| children
+        children -->|each index locates a child record| records
+        records -->|PackedDiskItemStringRange: offset and length| strings
+    end
+
+    item -->|shared storage reference| snapshot
+    item -->|record location| address
+    snapshot -->|chunks indexed by chunkIndex| chunk
+    address -.->|recordIndex selects a record in that chunk| records
+    snapshot -->|optional child relationships| links
+    links -->|each child has its own chunkIndex and recordIndex| address
+```
+
+Reading one item resolves
+`snapshot.chunks[address.chunkIndex].records[address.recordIndex]`.
+For example, a folder with `firstChild = 3` and `childCount = 2` reads
+`childIndices[3..<5]`. If that slice is `[7, 9]`, its children are records 7 and 9
+in the same chunk; they need not be adjacent in the record array.
+
+`PackedDiskItemSnapshot.children(of:)` checks `childOverrides` first, then
+`rootChildren` for the root, then the record's local child-index slice.
+This lets `DiskItem.chunkedRoot` join independently scanned subtrees and lets
+`DiskItemTreeEditor` replace relationships while sharing unchanged chunks.
+Each resulting child `DiskItem` references the same snapshot with a different
+address; the tree is not stored as a recursively owned object per file.
+
 ## Building and displaying treemaps
 
 1. **Prepare colors and statistics.**
