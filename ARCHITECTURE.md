@@ -157,46 +157,48 @@ packed storage where possible. Re-scan acquires fresh filesystem state.
 
 ### Item data and filesystem relationships
 
-`DiskItem` is the access handle; `PackedDiskItemRecord` stores the item data.
-The filesystem tree is represented by child indices within chunks and explicit
-addresses for relationships that the snapshot supplies across chunks.
+Start with a folder containing two files:
 
 ```mermaid
 flowchart TD
-    item["DiskItem<br/>snapshot + address"]
-    address["PackedDiskItemAddress<br/>chunkIndex + recordIndex"]
-    snapshot["PackedDiskItemSnapshot<br/>chunks + rootAddress"]
-    links["rootChildren / childOverrides<br/>Arrays of PackedDiskItemAddress"]
-
-    subgraph chunk["PackedDiskItemChunk — immutable storage"]
-        records["records: array of PackedDiskItemRecord<br/>Sizes, flags, counts, string ranges<br/>firstChild + childCount"]
-        children["childIndices: array of Int<br/>Child record indices within this chunk"]
-        strings["stringBytes: Data<br/>UTF-8 paths, names, and kinds"]
-        records -->|firstChild and childCount select a slice| children
-        children -->|each index locates a child record| records
-        records -->|PackedDiskItemStringRange: offset and length| strings
-    end
-
-    item -->|shared storage reference| snapshot
-    item -->|record location| address
-    snapshot -->|chunks indexed by chunkIndex| chunk
-    address -.->|recordIndex selects a record in that chunk| records
-    snapshot -->|optional child relationships| links
-    links -->|each child has its own chunkIndex and recordIndex| address
+    folder["Photos — folder"]
+    beach["beach.jpg — file"]
+    dog["dog.jpg — file"]
+    folder --> beach
+    folder --> dog
 ```
 
-Reading one item resolves
-`snapshot.chunks[address.chunkIndex].records[address.recordIndex]`.
-For example, a folder with `firstChild = 3` and `childCount = 2` reads
-`childIndices[3..<5]`. If that slice is `[7, 9]`, its children are records 7 and 9
-in the same chunk; they need not be adjacent in the record array.
+Inside one `PackedDiskItemChunk`, each item gets a `PackedDiskItemRecord` in the
+`records` array. The folder's children are stored as record numbers in
+`childIndices`. Here is a simplified example of that same tree in storage:
 
-`PackedDiskItemSnapshot.children(of:)` checks `childOverrides` first, then
-`rootChildren` for the root, then the record's local child-index slice.
-This lets `DiskItem.chunkedRoot` join independently scanned subtrees and lets
-`DiskItemTreeEditor` replace relationships while sharing unchanged chunks.
-Each resulting child `DiskItem` references the same snapshot with a different
-address; the tree is not stored as a recursively owned object per file.
+```mermaid
+flowchart TD
+    folder["records[0]: Photos<br/>firstChild = 0, childCount = 2"]
+    children["childIndices[0..&lt;2] = [1, 2]<br/>This folder has children at records 1 and 2"]
+    beach["records[1]: beach.jpg<br/>File sizes and flags"]
+    dog["records[2]: dog.jpg<br/>File sizes and flags"]
+    folder -->|read its child list| children
+    children -->|1| beach
+    children -->|2| dog
+```
+
+**The records describe the items; the child list describes their arrangement.**
+`firstChild` is an offset into `childIndices`, not the record number of the first
+child. Names are shown directly in the example for readability; records actually
+refer to ranges in the chunk's shared UTF-8 `stringBytes` buffer.
+
+The rest of the app accesses these records through `DiskItem`. A `DiskItem`
+contains a reference to the shared `PackedDiskItemSnapshot` and an address
+(`chunkIndex`, `recordIndex`). For example, an address of `(2, 1)` locates
+`snapshot.chunks[2].records[1]`. It is a handle to stored data, not another copy
+of that file's metadata.
+
+A full scan can contain several chunks. `PackedDiskItemSnapshot.children(of:)`
+hides that detail: it uses `childOverrides` when present, then `rootChildren`
+for the root, otherwise the local child list illustrated above.
+`DiskItem.chunkedRoot` connects independently scanned subtrees;
+`DiskItemTreeEditor` can update relationships while sharing unchanged chunks.
 
 ## Building and displaying treemaps
 
