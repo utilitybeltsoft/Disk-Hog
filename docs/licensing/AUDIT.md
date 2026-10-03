@@ -85,13 +85,6 @@ About window explains that source downloads arrive with the public release.
 
 ## Scope still requiring evidence
 
-The app icon source images and localizations are present in the repository,
-but their authorship cannot be conclusively determined from the current
-files. Do not credit upstream translators or declare all assets original
-without verifying their provenance. Likewise, rewritten Git author fields
-are not evidence of original authorship. Future imported components need
-their own license review and notices.
-
 See RELEASES.md for source availability and packaging work remaining before
 public distribution. No claim of a completed release compliance review is
 made by adding these documents.
