@@ -89,8 +89,11 @@ for state ownership and asynchronous update boundaries.
 Disk Hog is distributed under the [GNU General Public License, version 3](COPYING).
 Copyright © 2026 Utility Belt Software LLC for its modifications and additions.
 
-The app includes adaptations of Disk Inventory Z, Disk Inventory X, and the
-TreeMapView framework, with contributions by Tjark Derlien and Dani Sarfati.
+The app includes adaptations of
+[Disk Inventory Z](https://github.com/danifunker/disk-inventory-z),
+[Disk Inventory X](https://gitlab.com/tderlien/disk-inventory-x), and the
+[TreeMapView framework](https://gitlab.com/tderlien/treemapview-framework),
+with contributions by Tjark Derlien and Dani Sarfati.
 See [third-party notices](THIRD-PARTY-NOTICES.txt) and the
 [upstream lineage audit](docs/licensing/AUDIT.md) for attribution and the scope
 of the licensing evidence. License and third-party notices are also available
