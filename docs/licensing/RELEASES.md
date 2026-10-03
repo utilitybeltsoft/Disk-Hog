@@ -24,6 +24,37 @@ notices in the application bundle as well, so removing the DMG does not
 remove them. Xcode copies the canonical repository documents into the
 application's Resources directory; do not maintain separate edited copies.
 
+## Build a notarized download
+
+Run the release packager from the repository root with an existing notarytool
+Keychain profile (the profile name is a nickname, not a password):
+
+```sh
+NOTARY_PROFILE=your-saved-profile bash scripts/package-release.sh
+```
+
+It defaults to `VERSION=1.0.0`, `RELEASE_REF=v1.0.0`, and the repository's parent
+folder as `OUTPUT_DIR`. These can be overridden through environment variables.
+It builds the selected commit from a source archive, rather than packaging a
+possibly stale installed app or including uncommitted checkout changes.
+
+The packager checks credentials before building, disables injected debugger
+entitlements, and requests a secure signing timestamp. It verifies the universal
+app's signature, distribution entitlements, timestamp, and embedded source
+revision, submits the app to Apple, and staples
+and validates its ticket. It then creates and signs the DMG, submits that DMG,
+and staples and validates its ticket too. Both Apple submissions must report
+`Accepted`. Gatekeeper assessment and a read-only mounted-image check must also
+pass before the final DMG, matching source archive, and SHA-256 checksums are
+placed in the output folder. A failed build or notarization leaves intermediate
+files and diagnostics in the printed temporary directory; there is no option
+to publish an unnotarized download through this script.
+
+The About source link in this build targets the exact commit's GitHub archive.
+Ensure that commit is available on the public remote before distributing the
+artifacts. The local installation script remains separate from this download
+packaging workflow.
+
 ## Source for the released binary
 
 Create the source archive from the exact clean commit used for the binary.
@@ -74,7 +105,8 @@ Record test results against the candidate commit before distributing a binary.
   a public release with the development placeholder.
 - Verify contributor builds without the organization certificate; shared
   project defaults currently select that certificate.
-- Finish and validate DMG packaging and notarization.
+- Build the download with `scripts/package-release.sh` and verify that its
+  notarization, stapling, and mounted-image checks all pass.
 - Resolve the framework-revision licensing question described in
   [AUDIT.md](AUDIT.md#treemapview-license-evidence).
 - Extract and build the source archive, check bundled notices in the installed
