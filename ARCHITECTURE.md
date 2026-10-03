@@ -1,14 +1,50 @@
 # Architecture
 
 Disk Hog separates filesystem acquisition, immutable scan data, and presentation.
-The main flow is:
+The diagram follows a scan from the UI to filesystem traversal, packed data,
+and the rendered treemap. Each box names the implementation to look for below.
 
-```text
-ScanSession.startScan()
-  → DiskInventoryZScanSessionWorker → DiskInventoryZScanner
-  → DiskItemBuilder → PackedDiskItemSnapshot → ScanSessionSnapshot
-  → TreemapViewState → TreemapRenderJob → ZStyleTreemapNSView
+```mermaid
+flowchart TD
+    session["ScanSession.startScan()<br/>ScanSessionOperationController<br/>MainActor: start and track the operation"]
+
+    subgraph scan["1 · Scan — background tasks"]
+        worker["DiskInventoryZScanSessionWorker<br/>Resolves the source and runs the scanner"]
+        scanner["DiskInventoryZScanner + DiskDirectoryTraversal<br/>Enumerate items with ScanResourceBudget limits"]
+        builder["DiskItemBuilder / DiskItemBuilderArena<br/>Mutable records, child links, and sizes"]
+        worker --> scanner --> builder
+    end
+
+    subgraph storage["2 · Freeze — shared immutable data"]
+        packed["PackedDiskItemChunk → PackedDiskItemSnapshot<br/>DiskItem handles reference records in the snapshot"]
+        metrics["TreemapPresentationMetrics<br/>Kind statistics and colors"]
+        packed --> metrics
+    end
+
+    snapshot["ScanSessionSnapshot<br/>MainActor: publish the accepted tree and metrics"]
+    state["TreemapPanelView → AppKitTreemapView<br/>ZStyleTreemapNSView / TreemapViewState<br/>MainActor: request the current zoom root and dimensions"]
+
+    subgraph render["3 · Render — TreemapRenderJob, background task"]
+        plan["TreemapLayoutPlanner → TreemapLayoutPlan<br/>Size-weighted rectangles, navigation, cushion surfaces"]
+        pixels["TreemapBitmapRasterizer + TreemapCushionLighting<br/>RGB pixels"]
+        plan --> pixels
+    end
+
+    display["TreemapViewState.installRenderResult()<br/>TreemapViewPainter<br/>MainActor: accept, cache, and draw the result"]
+
+    session --> worker
+    builder -->|packedChunk| packed
+    packed -->|root DiskItem| snapshot
+    metrics --> snapshot
+    snapshot --> state
+    state -->|TreemapRenderRequest| plan
+    pixels -->|TreemapRenderResult: plan + pixels| display
 ```
+
+`ScanSessionOperationController` rejects obsolete scan callbacks;
+`TreemapViewState` cancels superseded rendering and installs only the current
+request. Zooming and resizing repeat the rendering stage using the existing
+snapshot; they do not rescan the filesystem.
 
 ## Application and session ownership
 
