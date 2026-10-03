@@ -14,6 +14,21 @@ enum AboutDocuments {
         return url
     }
 
+    static func versionDescription(in bundle: Bundle = .main) -> String {
+        let version = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
+        let revision = bundle.url(forResource: "BuildRevision", withExtension: "txt")
+            .flatMap { try? String(contentsOf: $0, encoding: .utf8) }
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        return versionDescription(version: version, revision: revision)
+    }
+
+    static func versionDescription(version: String, revision: String?) -> String {
+        guard let revision, revision != "unknown", !revision.isEmpty else { return version }
+        let hash = revision.split(separator: "-")[0]
+        let suffix = revision.hasSuffix("-modified") ? "-modified" : ""
+        return "\(version) (\(hash.prefix(7))\(suffix))"
+    }
+
     static func license(in bundle: Bundle = .main) throws -> String {
         try text("COPYING", in: bundle)
     }
@@ -150,9 +165,6 @@ private struct AboutDiskHogView: View {
     }
 
     private var version: String {
-        let info = Bundle.main.infoDictionary ?? [:]
-        let version = info["CFBundleShortVersionString"] as? String ?? "—"
-        let build = info["CFBundleVersion"] as? String ?? "—"
-        return "\(version) (\(build))"
+        AboutDocuments.versionDescription()
     }
 }

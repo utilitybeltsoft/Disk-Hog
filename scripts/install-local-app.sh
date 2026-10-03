@@ -4,7 +4,10 @@
 # Developer ID certificate. Local installation does not perform notarization.
 # Full Disk Access remains a user-controlled macOS setting.
 
-set -euo pipefail
+set -Eeuo pipefail
+
+stage="initialization"
+trap 'echo "Installation failed during $stage (line $LINENO)." >&2' ERR
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 project_dir="$(cd "$script_dir/.." && pwd)"
@@ -27,6 +30,9 @@ if pgrep -x "disk_hog" >/dev/null 2>&1; then
     exit 1
 fi
 
+stage="building $configuration from $project_dir"
+echo "Building $configuration from $project_dir"
+echo "Build output: $build_app_path"
 xcodebuild build \
     -project "$project_dir/disk_hog.xcodeproj" \
     -scheme disk_hog \
@@ -40,6 +46,21 @@ if [[ ! -d "$build_app_path" ]]; then
     echo "Build completed but the expected app bundle was not found: $build_app_path" >&2
     exit 1
 fi
+
+stage="validating the built app"
+# Check the generated app, not just Xcode's build settings: arbitrary
+# INFOPLIST_KEY settings are not necessarily emitted into the bundle.
+built_name="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleName' "$build_app_path/Contents/Info.plist")"
+source_url="$(/usr/libexec/PlistBuddy -c 'Print :DiskHogSourceURL' "$build_app_path/Contents/Info.plist")"
+if [[ "$built_name" != "Disk Hog" || "$source_url" != https://* ]]; then
+    echo "Built app has unexpected name or source metadata; refusing installation." >&2
+    exit 1
+fi
+built_version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$build_app_path/Contents/Info.plist")"
+built_revision="$(cat "$build_app_path/Contents/Resources/BuildRevision.txt")"
+echo "Verified app name: $built_name"
+echo "Version: $built_version; revision: $built_revision"
+echo "Source URL: $source_url"
 
 # Refuse to replace the installed app with an isolated test/development host or
 # an unsigned/ad-hoc build, which would invalidate its privacy identity.
@@ -74,12 +95,22 @@ fi
 # Replacing the complete bundle prevents stale resources or executable files from
 # a previous build remaining in /Applications. The fixed, explicit destination
 # keeps this destructive operation tightly scoped.
+stage="installing to $install_path"
+echo "Installing to $install_path (sudo may reuse cached authorization)."
+sudo -v
 if [[ -e "$install_path" ]]; then
     sudo rm -rf "$install_path"
 fi
 sudo ditto "$build_app_path" "$install_path"
 
-echo "Installed $installed_app_name at $install_path"
+stage="verifying the installed app"
+codesign --verify --deep --strict "$install_path"
+if ! diff -qr "$build_app_path" "$install_path"; then
+    echo "Installed app differs from the build; refusing to launch it." >&2
+    exit 1
+fi
+
+echo "Installed and verified $installed_app_name at $install_path"
 echo "To scan protected locations, enable Disk Hog once in System Settings > Privacy & Security > Full Disk Access, then relaunch it."
 
 if [[ "${OPEN_AFTER_INSTALL:-1}" == "1" ]]; then

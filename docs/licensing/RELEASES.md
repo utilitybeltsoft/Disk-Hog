@@ -48,16 +48,27 @@ or charge an additional fee for access.
 
 ## Current repository status
 
-As of 2026-10-03, the project does not configure `DiskHogSourceURL`, and its
-shared signing settings select the organization's Developer ID certificate.
-The inspected local checkout has no Git remote configured; that does not
-establish whether a public repository exists. These are dated observations,
-not requirements to retain these settings.
+As of 2026-10-03, `DiskHogSourceURL` points to
+https://github.com/utilitybeltsoft/Disk-Hog in Debug, Release, and Testing.
+Shared signing settings select the organization's Developer ID certificate.
+For a public binary release, replace the repository URL with the matching
+version-specific source archive described below.
+
+## Version milestones
+
+A version tag identifies a source commit; it does not publish a binary or claim
+that packaging and notarization are complete. Set the marketing version, commit
+the intended changes, validate that candidate, and create an annotated tag such
+as `v1.0.0` at the validated commit. Do not move an existing release tag.
+
+The build embeds the full Git revision in `BuildRevision.txt`. About shows the
+short revision and marks locally modified checkouts. No build timestamp is used.
+Record test results against the candidate commit before distributing a binary.
 
 ## Before the first public release
 
 - Publish a version-specific source archive and configure its public URL.
-- Set `INFOPLIST_KEY_DiskHogSourceURL` for the release build to the stable
+- Set `DISKHOG_SOURCE_URL` for the release build to the stable
   HTTPS URL of its matching source archive. Verify the About source button
   opens that archive. Without this value the button is disabled; do not ship
   a public release with the development placeholder.

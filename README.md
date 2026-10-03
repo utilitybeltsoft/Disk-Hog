@@ -65,6 +65,17 @@ The local installation script is intended for maintainers with the organization'
 signing identity. See [release packaging](docs/licensing/RELEASES.md) for the
 release workflow.
 
+## Version identification
+
+The 1.0.0 milestone is identified by the annotated Git tag `v1.0.0`.
+About Disk Hog displays the version and the short commit hash embedded at build
+time. Builds with uncommitted changes append `-modified`. No build date is shown.
+The app retains its numeric macOS build number separately.
+
+The build records the full revision in `Contents/Resources/BuildRevision.txt`.
+Source archives made with `git archive` preserve the revision through
+`.git-revision`; builds without revision information display only the version.
+
 ## Testing
 
 With the required signing setup:

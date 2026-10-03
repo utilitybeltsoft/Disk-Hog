@@ -23,6 +23,23 @@ struct AboutDocumentsTests {
         #expect(AboutDocuments.sourceURL(from: release)?.absoluteString == release)
     }
 
+    @Test func builtAppIncludesReleaseMetadata() throws {
+        #expect(Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String == "Disk Hog")
+        #expect(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String == "1.0.0")
+        #expect(AboutDocuments.sourceURL() != nil)
+        let url = try #require(Bundle.main.url(forResource: "BuildRevision", withExtension: "txt"))
+        let revision = try String(contentsOf: url, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
+        #expect(revision.range(of: "^[0-9a-f]{40}(-modified)?$", options: .regularExpression) != nil)
+    }
+
+    @Test func versionIdentifiesCleanAndModifiedCommitsWithoutATimestamp() {
+        let hash = "0123456789abcdef0123456789abcdef01234567"
+        #expect(AboutDocuments.versionDescription(version: "1.0.0", revision: hash) == "1.0.0 (0123456)")
+        #expect(AboutDocuments.versionDescription(version: "1.0.0", revision: hash + "-modified") == "1.0.0 (0123456-modified)")
+        #expect(AboutDocuments.versionDescription(version: "1.0.0", revision: nil) == "1.0.0")
+        #expect(AboutDocuments.versionDescription(version: "1.0.0", revision: "unknown") == "1.0.0")
+    }
+
     @Test func missingDocumentsReportFailure() {
         #expect(throws: (any Error).self) {
             try AboutDocuments.license(in: Bundle(for: BundleMarker.self))
