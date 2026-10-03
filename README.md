@@ -35,6 +35,11 @@ setup remains available through Help. Protected content may be skipped and disk
 usage understated; scan warnings identify affected paths and reported errors.
 Full Disk Access does not override every filesystem permission.
 
+## Architecture
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the scan pipeline, packed item storage,
+and treemap rendering, with links to the implementation.
+
 ## Building from source
 
 The app target is configured for macOS 14.6 or later. Development and the current
