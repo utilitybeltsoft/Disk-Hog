@@ -46,6 +46,51 @@ flowchart TD
 request. Zooming and resizing repeat the rendering stage using the existing
 snapshot; they do not rescan the filesystem.
 
+## Architectural style: MVVM with AppKit integration
+
+Disk Hog uses an **MVVM-style presentation layer**, AppKit window controllers,
+and separate scanning/storage/rendering services. This describes the code's
+responsibilities rather than a formally enforced architecture framework:
+
+- **Models:** `DiskItem`, `PackedDiskItemSnapshot`, and `ScanSessionSnapshot`
+  represent the scanned tree and accepted session data.
+- **View models:**
+  [`SourceWindowViewModel`](disk_hog/Views/SourceWindow/SourceWindowViewModel.swift)
+  exposes source-selection state and actions. `ScanSession` plays the equivalent
+  role for scan windows: it publishes UI state and exposes commands while
+  delegating operations to workers/controllers.
+- **Views and adapters:** `SourceWindowView`, `ScanWindowView`, and
+  `TreemapPanelView` declare the SwiftUI interface. `AppKitTreemapView` bridges
+  the native treemap through `NSViewRepresentable`; AppKit window controllers
+  manage window lifecycles.
+
+## How state reaches the UI
+
+The primary mechanism is **Combine observation through SwiftUI**, using
+`ObservableObject` and `@Published`. The app does not currently use the newer
+Observation framework's `@Observable` macro.
+
+[`ScanWindowView`](disk_hog/Views/ScanWindowView.swift) retains its session and
+selection/navigation objects with `@StateObject`; child views such as
+`TreemapPanelView` subscribe with `@ObservedObject`. When `ScanSession` updates
+its `@Published` snapshot or activity on `@MainActor`, Combine emits
+`objectWillChange`, and SwiftUI reevaluates dependent view bodies and reconciles
+the UI. Local state uses `@State`; `Binding` values, including bindings passed
+through the environment, connect hover, pane, and selection interactions.
+
+[`AppKitTreemapView`](disk_hog/Views/ScanWindow/TreemapPanel/AppKitTreemapView.swift)
+forwards current inputs through `updateNSView`. Its `Coordinator.observeSelection`
+also uses `selectionCoordinator.$selectedItem.sink` to update native selection
+directly. Native callbacks send user actions back to the shared state objects.
+
+`async`/`await`, detached `Task`s, cancellation, and operation/request identity
+checks keep expensive work off the main actor and prevent obsolete results from
+replacing current state. These coordinate work; publication drives observation.
+For consumers that need the already-updated tree, `ScanSession.publish` assigns
+the snapshot before posting `scanSessionTreeDidChange` through
+[`NotificationCenter`](disk_hog/Support/Notifications/ScanSessionNotifications.swift).
+That explicit post-change event supplements Combine's pre-change notification.
+
 ## Application and session ownership
 
 [`DiskHogApp` and `DiskHogApplicationDelegate`](disk_hog/disk_hogApp.swift)
