@@ -5,5 +5,13 @@ set -euo pipefail
 hook_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_dir="$(cd "$hook_dir/.." && pwd)"
 
-echo "Running Disk Hog test suite before push..."
+# UI tests launch the installed app, so refresh it from this checkout first.
+# Do not launch it after installation: the tests require it to be closed.
+echo "Building and installing the current Disk Hog Release before push..."
+if ! CONFIGURATION=Release OPEN_AFTER_INSTALL=0 bash "$repo_dir/scripts/install-local-app.sh" </dev/null; then
+    echo "Push blocked: the current app could not be installed. Tests were not run." >&2
+    exit 1
+fi
+
+echo "Running Disk Hog test suite against the freshly installed app..."
 "$repo_dir/test/run-tests.sh"

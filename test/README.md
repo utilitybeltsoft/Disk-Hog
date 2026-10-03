@@ -4,6 +4,15 @@ Use `bash test/run-tests.sh` or `bash test/run-coverage.sh`. Both check the
 test-host identity before launching tests and explicitly select Testing.
 The checked-in shared scheme also selects Testing for Xcode's Test action.
 
+The versioned `githooks/pre-push` hook first runs `scripts/install-local-app.sh`
+with `CONFIGURATION=Release` and `OPEN_AFTER_INSTALL=0`, then runs the full test
+suite. This builds and verifies the current checkout, installs it in
+`/Applications/Disk Hog.app`, and leaves it closed for UI automation. Quit Disk
+Hog before pushing and keep the desktop unlocked. Installation may prompt for
+your administrator password through `sudo`; an installation or test failure
+blocks the push. The standalone test commands below do not install the app.
+Enable the hook in a new clone with `git config core.hooksPath githooks`.
+
 Both scripts accept `--unit-only` or `--ui-only`; without either flag they
 run both. For example:
 
