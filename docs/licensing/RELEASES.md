@@ -33,7 +33,7 @@ Keychain profile (the profile name is a nickname, not a password):
 NOTARY_PROFILE=your-saved-profile bash scripts/package-release.sh
 ```
 
-It defaults to `VERSION=1.0.0`, `RELEASE_REF=v1.0.0`, and the repository's parent
+It defaults to `VERSION=1.0.1`, `RELEASE_REF=v1.0.1`, and the repository's parent
 folder as `OUTPUT_DIR`. These can be overridden through environment variables.
 It builds the selected commit from a source archive, rather than packaging a
 possibly stale installed app or including uncommitted checkout changes.

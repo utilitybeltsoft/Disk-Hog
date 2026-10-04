@@ -72,7 +72,7 @@ release workflow.
 
 ## Version identification
 
-The 1.0.0 milestone is identified by the annotated Git tag `v1.0.0`.
+Release versions are identified by annotated Git tags, such as `v1.0.0`.
 About Disk Hog displays the version and the short commit hash embedded at build
 time. Builds with uncommitted changes append `-modified`. No build date is shown.
 The app retains its numeric macOS build number separately.

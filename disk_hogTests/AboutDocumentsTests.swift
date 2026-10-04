@@ -25,7 +25,7 @@ struct AboutDocumentsTests {
 
     @Test func builtAppIncludesReleaseMetadata() throws {
         #expect(Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String == "Disk Hog")
-        #expect(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String == "1.0.0")
+        #expect(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String == "1.0.1")
         #expect(AboutDocuments.sourceURL() != nil)
         let url = try #require(Bundle.main.url(forResource: "BuildRevision", withExtension: "txt"))
         let revision = try String(contentsOf: url, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -34,10 +34,10 @@ struct AboutDocumentsTests {
 
     @Test func versionIdentifiesCleanAndModifiedCommitsWithoutATimestamp() {
         let hash = "0123456789abcdef0123456789abcdef01234567"
-        #expect(AboutDocuments.versionDescription(version: "1.0.0", revision: hash) == "1.0.0 (0123456)")
-        #expect(AboutDocuments.versionDescription(version: "1.0.0", revision: hash + "-modified") == "1.0.0 (0123456-modified)")
-        #expect(AboutDocuments.versionDescription(version: "1.0.0", revision: nil) == "1.0.0")
-        #expect(AboutDocuments.versionDescription(version: "1.0.0", revision: "unknown") == "1.0.0")
+        #expect(AboutDocuments.versionDescription(version: "1.0.1", revision: hash) == "1.0.1 (0123456)")
+        #expect(AboutDocuments.versionDescription(version: "1.0.1", revision: hash + "-modified") == "1.0.1 (0123456-modified)")
+        #expect(AboutDocuments.versionDescription(version: "1.0.1", revision: nil) == "1.0.1")
+        #expect(AboutDocuments.versionDescription(version: "1.0.1", revision: "unknown") == "1.0.1")
     }
 
     @Test func missingDocumentsReportFailure() {

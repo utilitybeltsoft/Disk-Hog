@@ -6,7 +6,7 @@ set -Eeuo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 project_dir="$(cd "$script_dir/.." && pwd)"
-version="${VERSION:-1.0.0}"
+version="${VERSION:-1.0.1}"
 ref="${RELEASE_REF:-v$version}"
 output_dir="${OUTPUT_DIR:-$(dirname "$project_dir")}"
 signing_identity="Developer ID Application: Utility Belt Software LLC (YC7DSJ848Y)"

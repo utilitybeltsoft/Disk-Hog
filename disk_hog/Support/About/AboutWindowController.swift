@@ -3,6 +3,8 @@ import SwiftUI
 
 @MainActor
 enum AboutDocuments {
+    static let companyWebsiteURL = URL(string: "https://utilitybelt.software/")!
+
     static func sourceURL(in bundle: Bundle = .main) -> URL? {
         sourceURL(from: bundle.object(forInfoDictionaryKey: "DiskHogSourceURL") as? String)
     }
@@ -140,7 +142,12 @@ private struct AboutDiskHogView: View {
                 .resizable().frame(width: 72, height: 72).accessibilityHidden(true)
             Text(verbatim: "Disk Hog").font(.title.bold())
             Text(verbatim: version).foregroundStyle(.secondary)
-            Text(verbatim: "Copyright © 2026 Utility Belt Software LLC.")
+            VStack(spacing: 4) {
+                Text(verbatim: "Copyright © 2026 Utility Belt Software LLC.")
+                Link(destination: AboutDocuments.companyWebsiteURL) {
+                    Text(verbatim: "utilitybelt.software")
+                }
+            }
             Text("Includes code adapted from Disk Inventory Z, Disk Inventory X, and the TreeMapView framework, with contributions by Tjark Derlien and Dani Sarfati.")
             Text("Free software under the GNU General Public License, version 3. You may redistribute and modify it under that license. Provided without warranty.")
             HStack {
